@@ -1,0 +1,51 @@
+Confluent's Apache Kafka client for Golang
+==========================================
+
+Confluent's Kafka client for Golang wraps the librdkafka C library, providing
+full Kafka protocol support with great performance and reliability.
+
+The Golang bindings provides a high-level Producer and Consumer with support
+for the balanced consumer groups of Apache Kafka 0.9.
+
+See the [API documentation: FIXME]()
+
+**License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+
+Usage
+=====
+
+See [examples](examples)
+
+
+
+Prerequisites
+=============
+
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.2
+
+
+
+Build
+=====
+
+    $ cd kafka
+    $ go install
+
+
+
+Tests
+=====
+
+
+**Run unit tests and integration tests:**
+
+*Note*: Please see [kafka/README.test](kafka/README.test)
+
+
+    $ cd kafka
+    $ go test
+
+
+
+

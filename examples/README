@@ -1,0 +1,19 @@
+
+Examples:
+
+  consumer_channel_example - Channel based consumer
+  consumer_example - Function & callback based consumer
+
+  producer_channel_example - Channel based producer
+  producer_example - Function based producer
+
+  gofkacat - Channel based kafkacat Go clone
+
+
+Usage example:
+
+    $ cd consumer_example
+    $ go build
+    $ ./consumer_example    # see usage
+    $ ./consumer_example mybroker mytopic
+
