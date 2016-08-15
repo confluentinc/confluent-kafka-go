@@ -85,7 +85,7 @@ func (c *Consumer) SubscribeTopics(topics []string, rebalance_cb RebalanceCb) (e
 
 // Unsubscribe from the current subscription, if any.
 func (c *Consumer) Unsubscribe() (err error) {
-	C.rd_kafka_subscribe(c.handle.rk, nil)
+	C.rd_kafka_unsubscribe(c.handle.rk)
 	return nil
 }
 
