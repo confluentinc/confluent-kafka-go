@@ -43,10 +43,6 @@ type ConfigValue interface{}
 // configuration properties.
 type ConfigMap map[string]ConfigValue
 
-func (c ConfigMap) String() string {
-	return ""
-}
-
 // implements flag.Set
 func (m ConfigMap) Set(kv string) error {
 	i := strings.Index(kv, "=")
@@ -113,7 +109,7 @@ func anyconf_set(anyconf rdk_anyconf, key string, value string) (err error) {
 	if anyconf.Set(c_key, c_val, c_errstr, 128) != C.RD_KAFKA_CONF_OK {
 		C.free(unsafe.Pointer(c_key))
 		C.free(unsafe.Pointer(c_val))
-		return NewKafkaErrorFromCString(c_errstr)
+		return NewKafkaErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, c_errstr)
 	}
 
 	return nil
@@ -176,18 +172,28 @@ func (m ConfigMap) convert() (c_conf *C.rd_kafka_conf_t, err error) {
 	return c_conf, nil
 }
 
-// extract finds key in the configmap, deletes it, and return its value.
-// The value type is also checked to match the provided default value's type.
+// get finds key in the configmap and returns its value.
 // If the key is not found defval is returned.
 // If the key is found but the type is mismatched an error is returned.
-func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) {
+func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 	v, ok := m[key]
 	if !ok {
 		return defval, nil
 	}
 
-	if reflect.TypeOf(defval) != reflect.TypeOf(v) {
+	if defval != nil && reflect.TypeOf(defval) != reflect.TypeOf(v) {
 		return nil, KafkaError{ERR__INVALID_ARG, fmt.Sprintf("%s expects type %T, not %T", key, defval, v)}
+	}
+
+	return v, nil
+}
+
+// extract performs a get() and if found deletes the key.
+func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) {
+
+	v, err := m.get(key, defval)
+	if err != nil {
+		return nil, err
 	}
 
 	delete(m, key)

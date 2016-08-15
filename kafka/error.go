@@ -37,8 +37,18 @@ func NewKafkaError(code C.rd_kafka_resp_err_t) (err KafkaError) {
 	return KafkaError{KafkaErrorCode(code), ""}
 }
 
-func NewKafkaErrorFromCString(cstr *C.char) (err KafkaError) {
-	return KafkaError{ERR__FAIL, C.GoString(cstr)}
+func NewKafkaErrorFromString(code KafkaErrorCode, str string) (err KafkaError) {
+	return KafkaError{code, str}
+}
+
+func NewKafkaErrorFromCString(code C.rd_kafka_resp_err_t, cstr *C.char) (err KafkaError) {
+	var str string
+	if cstr != nil {
+		str = C.GoString(cstr)
+	} else {
+		str = ""
+	}
+	return KafkaError{KafkaErrorCode(code), str}
 }
 
 func (e KafkaError) Error() string {

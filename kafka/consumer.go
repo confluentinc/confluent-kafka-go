@@ -227,7 +227,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, c_conf, c_errstr, 256)
 	if c.handle.rk == nil {
-		return nil, NewKafkaErrorFromCString(c_errstr)
+		return nil, NewKafkaErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, c_errstr)
 	}
 
 	C.rd_kafka_poll_set_consumer(c.handle.rk)
@@ -236,6 +236,10 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	c.handle.setup()
 	c.handle.cgomap = make(map[int]cgoif)
 	c.handle.rkq = C.rd_kafka_queue_get_consumer(c.handle.rk)
+	if c.handle.rkq == nil {
+		// no cgrp (no group.id configured), revert to main queue.
+		c.handle.rkq = C.rd_kafka_queue_get_main(c.handle.rk)
+	}
 
 	if c.events_channel_enable {
 		c.Events = make(chan Event, 1000)
@@ -271,7 +275,21 @@ func consumer_reader(c *Consumer, term_chan chan bool) {
 			c.handle.terminated_chan <- "consumer_reader"
 			return
 		default:
-			c.handle.event_poll(c.Events, 100)
+			c.handle.event_poll(c.Events, 100, 1000)
 		}
 	}
+}
+
+// GetMetadata queries broker for cluster and topic metadata.
+// If topic is non-nil only information about that topic is returned, else if
+// all_topics is false only information about locally used topics is returned,
+// else information about all topics is returned.
+func (c *Consumer) GetMetadata(topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
+	return get_metadata(c, topic, all_topics, timeout_ms)
+}
+
+// QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
+// and partition.
+func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeout_ms int) (low, high int64, err error) {
+	return queryWatermarkOffsets(c, topic, partition, timeout_ms)
 }

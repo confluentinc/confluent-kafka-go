@@ -16,7 +16,9 @@
 
 package kafka
 
-import ()
+import (
+	"unsafe"
+)
 
 /*
 #include <stdlib.h>
@@ -68,12 +70,11 @@ type Metadata struct {
 	OriginatingBroker BrokerMetadata
 }
 
-// GetMetadata queries broker for cluster and topic metadata.
+// get_metadata queries broker for cluster and topic metadata.
 // If topic is non-nil only information about that topic is returned, else if
 // all_topics is false only information about locally used topics is returned,
 // else information about all topics is returned.
-// FIXME: Not sure where this function should go, or if it should be a method.
-func GetMetadata(H Handle, topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
+func get_metadata(H Handle, topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
 	h := H.get_handle()
 
 	var rkt *C.rd_kafka_topic_t
@@ -128,4 +129,25 @@ func GetMetadata(H Handle, topic *string, all_topics bool, timeout_ms int) (*Met
 		C.GoString(c_md.orig_broker_name), 0}
 
 	return &m, nil
+}
+
+// queryWatermarkOffsets returns the broker's low and high offsets for the given topic
+// and partition.
+func queryWatermarkOffsets(H Handle, topic string, partition int32, timeout_ms int) (low, high int64, err error) {
+	h := H.get_handle()
+
+	c_topic := C.CString(topic)
+	defer C.free(unsafe.Pointer(c_topic))
+
+	var c_low, c_high C.int64_t
+
+	e := C.rd_kafka_query_watermark_offsets(h.rk, c_topic, C.int32_t(partition),
+		&c_low, &c_high, C.int(timeout_ms))
+	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return 0, 0, NewKafkaError(e)
+	}
+
+	low = int64(c_low)
+	high = int64(c_high)
+	return low, high, nil
 }
