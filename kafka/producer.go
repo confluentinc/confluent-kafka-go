@@ -156,7 +156,7 @@ func (p *Producer) Flush(timeout_ms int) int {
 // The Producer object or its channels are no longer usable after this call.
 func (p *Producer) Close() {
 	// Wait for poller() (signaled by closing poller_term_chan)
-	// and channel_producer() (sinaled by closing ProduceChannel)
+	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.poller_term_chan)
 	close(p.ProduceChannel)
 	p.handle.wait_terminated(2)
@@ -252,7 +252,7 @@ func channel_producer(p *Producer) {
 		}
 	}
 
-	p.handle.terminated_chan <- true
+	p.handle.terminated_chan <- "channel_producer"
 }
 
 // channel_batch_producer serves the ProduceChannel channel and attempts to
@@ -307,8 +307,7 @@ func channel_batch_producer(p *Producer) {
 		buffered = make(map[string][]*Message)
 		buffered_cnt = 0
 	}
-
-	p.handle.terminated_chan <- true
+	p.handle.terminated_chan <- "channel_batch_producer"
 }
 
 // poller polls the rd_kafka_t handle for events until signalled for termination
@@ -316,7 +315,7 @@ func poller(p *Producer, term_chan chan bool) {
 	for true {
 		select {
 		case _ = <-term_chan:
-			p.handle.terminated_chan <- true
+			p.handle.terminated_chan <- "poller"
 			return
 
 		default:

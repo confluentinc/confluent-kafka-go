@@ -268,7 +268,7 @@ func consumer_reader(c *Consumer, term_chan chan bool) {
 	for true {
 		select {
 		case _ = <-term_chan:
-			c.handle.terminated_chan <- true
+			c.handle.terminated_chan <- "consumer_reader"
 			return
 		default:
 			c.handle.event_poll(c.Events, 100)

@@ -40,7 +40,7 @@ type handle struct {
 	rkq *C.rd_kafka_queue_t
 
 	// Termination of background go-routines
-	terminated_chan chan bool
+	terminated_chan chan string // string is go-routine name
 
 	// topic name -> rkt cache
 	rkt_cache map[string]*C.rd_kafka_topic_t
@@ -79,7 +79,7 @@ func (h *handle) setup() {
 	h.rkt_cache = make(map[string]*C.rd_kafka_topic_t)
 	h.rkt_name_cache = make(map[*C.rd_kafka_topic_t]string)
 
-	h.terminated_chan = make(chan bool)
+	h.terminated_chan = make(chan string, 10)
 }
 
 func (h *handle) cleanup() {
