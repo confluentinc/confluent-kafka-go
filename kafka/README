@@ -14,19 +14,28 @@ Whenever librdkafka error codes are updated make sure to run generate before bui
 Testing
 =======
 
-Some of the tests included in this directory requires an existing Kafka cluster
-and a testconf.json configuration file to provide tests with bootstrap brokers, topic name, etc.
+
+Some of the tests included in this directory, the benchmark tests in particular,
+require an existing Kafka cluster and a testconf.json configuration file to
+provide tests with bootstrap brokers, topic name, etc.
 
 The format of testconf.json is a JSON object:
+```
     {
        "Brokers": "<bootstrap-brokers>",
        "Topic": "<test-topic-name>"
     }
+```
 
 See testconf-example.json for an example.
 
 
-To run tests:
+To run unit-tests:
 
-  $ go test
+    $ go test
+
+
+To run benchmark tests:
+
+    $ go test -bench .
 

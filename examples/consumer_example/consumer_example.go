@@ -15,6 +15,9 @@
  */
 package main
 
+// consumer_example implements a consumer using the non-channel Poll() API
+// to retrieve messages and events.
+
 import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"

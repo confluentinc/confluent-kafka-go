@@ -15,5 +15,5 @@ Usage example:
     $ cd consumer_example
     $ go build
     $ ./consumer_example    # see usage
-    $ ./consumer_example mybroker mytopic
+    $ ./consumer_example mybroker mygroup mytopic
 
