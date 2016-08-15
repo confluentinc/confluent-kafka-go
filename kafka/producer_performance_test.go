@@ -22,7 +22,7 @@ import (
 	"testing"
 )
 
-func delivery_handler(exp_cnt int64, delivery_chan chan Event, done_chan chan int64) {
+func delivery_handler(b *testing.B, exp_cnt int64, delivery_chan chan Event, done_chan chan int64) {
 
 	var cnt, size int64
 
@@ -37,8 +37,9 @@ func delivery_handler(exp_cnt int64, delivery_chan chan Event, done_chan chan in
 			break
 		}
 
-		//fmt.Printf("Delivered to %s [%d] @ %d\n", *m.Topic, m.Partition, m.Offset)
 		cnt += 1
+		// b.Logf("Delivered %d/%d to %s", cnt, exp_cnt, m.TopicPartition)
+
 		if m.Value != nil {
 			size += int64(len(m.Value))
 		}
@@ -53,10 +54,14 @@ func delivery_handler(exp_cnt int64, delivery_chan chan Event, done_chan chan in
 	close(done_chan)
 }
 
-func producer_perf_test(testname string, msgcnt int, with_dr bool, batch_producer bool, produce_func func(p *Producer, m *Message, dr_chan chan Event)) {
+func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool, batch_producer bool, produce_func func(p *Producer, m *Message, dr_chan chan Event)) {
 
 	if !testconf_read() {
-		return
+		b.Skipf("Missing testconf.json")
+	}
+
+	if msgcnt == 0 {
+		msgcnt = testconf.PerfMsgCount
 	}
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
@@ -73,7 +78,7 @@ func producer_perf_test(testname string, msgcnt int, with_dr bool, batch_produce
 
 	topic := testconf.Topic
 	partition := int32(-1)
-	size := 100
+	size := testconf.PerfMsgSize
 	pattern := "Hello"
 	buf := []byte(strings.Repeat(pattern, size/len(pattern)))
 
@@ -83,13 +88,13 @@ func producer_perf_test(testname string, msgcnt int, with_dr bool, batch_produce
 	if with_dr {
 		done_chan = make(chan int64)
 		dr_chan = p.Events
-		go delivery_handler(int64(msgcnt), p.Events, done_chan)
+		go delivery_handler(b, int64(msgcnt), p.Events, done_chan)
 	}
 
-	fmt.Printf("%s: produce %d messages\n", testname, msgcnt)
+	b.Logf("%s: produce %d messages", testname, msgcnt)
 
-	rd := ratedisp_start(fmt.Sprintf("%s: produce", testname))
-	rd_delivery := ratedisp_start(fmt.Sprintf("%s: delivery", testname))
+	rd := ratedisp_start(b, fmt.Sprintf("%s: produce", testname))
+	rd_delivery := ratedisp_start(b, fmt.Sprintf("%s: delivery", testname))
 
 	for i := 0; i < msgcnt; i += 1 {
 		m := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: partition}, Value: buf}
@@ -102,12 +107,14 @@ func producer_perf_test(testname string, msgcnt int, with_dr bool, batch_produce
 	rd.print("produce done: ")
 
 	// Wait for messages in-flight and in-queue to get delivered.
-	fmt.Printf("%s: %d messages in queue\n", testname, p.Len())
+	b.Logf("%s: %d messages in queue", testname, p.Len())
 	r := p.Flush(10000)
-	fmt.Printf("%s: %d messages remains in queue after Flush()\n", testname, r)
+	b.Logf("%s: %d messages remains in queue after Flush()", testname, r)
 
 	// Close producer
+	b.Logf("%s: Close()ing producer", testname)
 	p.Close()
+	b.Logf("%s: Close() done", testname)
 
 	var delivery_cnt, delivery_size int64
 
@@ -121,43 +128,85 @@ func producer_perf_test(testname string, msgcnt int, with_dr bool, batch_produce
 	rd_delivery.tick(delivery_cnt, delivery_size)
 
 	rd.print("TOTAL: ")
+
+	b.SetBytes(delivery_size)
 }
 
-func TestProducerGoPerformance(t *testing.T) {
-	msgcnt := 2000000
-
-	producer_perf_test("Function producer (without DR)", msgcnt, false, false,
+func BenchmarkProducerFunc(b *testing.B) {
+	producer_perf_test(b, "Function producer (without DR)",
+		0, false, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			err := p.Produce(m, dr_chan, nil)
 			if err != nil {
-				fmt.Printf("%% Produce() failed: %v\n", err)
+				b.Errorf("Produce() failed: %v", err)
 			}
 		})
+}
 
-	producer_perf_test("Function producer (with DR)", msgcnt, true, false,
+func BenchmarkProducerFuncDR(b *testing.B) {
+	producer_perf_test(b, "Function producer (with DR)",
+		0, true, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			err := p.Produce(m, dr_chan, nil)
 			if err != nil {
-				fmt.Printf("%% Produce() failed: %v\n", err)
+				b.Errorf("Produce() failed: %v", err)
 			}
+		})
+}
+
+func BenchmarkProducerChannel(b *testing.B) {
+	producer_perf_test(b, "Channel producer (without DR)",
+		0, false, false,
+		func(p *Producer, m *Message, dr_chan chan Event) {
+			p.ProduceChannel <- m
+		})
+}
+
+func BenchmarkProducerChannelDR(b *testing.B) {
+	producer_perf_test(b, "Channel producer (with DR)",
+		testconf.PerfMsgCount, true, false,
+		func(p *Producer, m *Message, dr_chan chan Event) {
+			p.ProduceChannel <- m
 		})
 
 }
 
-func TestProducerChannelGoPerformance(t *testing.T) {
-	msgcnt := 2000000
-	producer_perf_test("Channel producer (without DR)", msgcnt, false, false,
+func BenchmarkProducerBatchChannel(b *testing.B) {
+	producer_perf_test(b, "Channel producer (without DR, batch channel)",
+		0, false, true,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			p.ProduceChannel <- m
 		})
+}
 
-	producer_perf_test("Channel producer (DR, non-batch channel)", msgcnt, true, false,
+func BenchmarkProducerBatchChannelDR(b *testing.B) {
+	producer_perf_test(b, "Channel producer (DR, batch channel)",
+		0, true, true,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			p.ProduceChannel <- m
 		})
+}
 
-	producer_perf_test("Channel producer (DR, batch channel)", msgcnt, true, true,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			p.ProduceChannel <- m
-		})
+func BenchmarkProducerInternal_MessageInstantiation(b *testing.B) {
+	topic := "test"
+	buf := []byte(strings.Repeat("Ten bytes!", 10))
+	v := 0
+	for i := 0; i < b.N; i += 1 {
+		msg := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0}, Value: buf}
+		v += int(msg.TopicPartition.Partition) // avoid msg unused error
+	}
+}
+
+func BenchmarkProducerInternal_message_to_c(b *testing.B) {
+	p, err := NewProducer(&ConfigMap{})
+	if err != nil {
+		b.Fatalf("NewProducer failed: %s", err)
+	}
+	b.ResetTimer()
+	topic := "test"
+	buf := []byte(strings.Repeat("Ten bytes!", 10))
+	for i := 0; i < b.N; i += 1 {
+		msg := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0}, Value: buf}
+		p.handle.message_to_c_dummy(&msg)
+	}
 }

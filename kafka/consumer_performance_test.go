@@ -24,19 +24,27 @@ import (
 )
 
 // consumer_perf_test measures the consumer performance using a pre-primed (produced to) topic
-func consumer_perf_test(testname string, msgcnt int, with_timestamps bool, use_channel bool, consume_func func(c *Consumer, rd *ratedisp, exp_cnt int), rebalance_cb func(c *Consumer, event Event) error) {
+func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel bool, consume_func func(c *Consumer, rd *ratedisp, exp_cnt int), rebalance_cb func(c *Consumer, event Event) error) {
+
+	r := testconsumer_init(b)
+	if r == -1 {
+		b.Skipf("Missing testconf.json")
+		return
+	}
+	if msgcnt == 0 {
+		msgcnt = r
+	}
 
 	rand.Seed(int64(time.Now().Unix()))
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"go.message.timestamp.enable": with_timestamps,
-		"go.events.channel.enable":    use_channel,
-		"group.id":                    fmt.Sprintf("go_cperf_%d", rand.Intn(1000000)),
-		"session.timeout.ms":          6000,
-		"api.version.request":         "true",
-		"enable.auto.commit":          false,
-		"debug":                       ",",
-		"default.topic.config":        ConfigMap{"auto.offset.reset": "earliest"}}
+		"go.events.channel.enable": use_channel,
+		"group.id":                 fmt.Sprintf("go_cperf_%d", rand.Intn(1000000)),
+		"session.timeout.ms":       6000,
+		"api.version.request":      "true",
+		"enable.auto.commit":       false,
+		"debug":                    ",",
+		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
 	c, err := NewConsumer(&conf)
 
 	if err != nil {
@@ -44,17 +52,19 @@ func consumer_perf_test(testname string, msgcnt int, with_timestamps bool, use_c
 	}
 
 	exp_cnt := msgcnt
-	fmt.Printf("%s, expecting %d messages\n", testname, exp_cnt)
+	b.Logf("%s, expecting %d messages", testname, exp_cnt)
 
 	c.Subscribe(testconf.Topic, rebalance_cb)
 
-	rd := ratedisp_start(testname)
+	rd := ratedisp_start(b, testname)
 
 	consume_func(c, &rd, exp_cnt)
 
 	rd.print("TOTAL: ")
 
 	c.Close()
+
+	b.SetBytes(rd.size)
 
 }
 
@@ -63,7 +73,7 @@ func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
 	for ev := range c.Events {
 		m, ok := ev.(*Message)
 		if !ok {
-			fmt.Printf("Ignoring %v\n", ev)
+			rd.b.Logf("Ignoring %v", ev)
 			continue
 		}
 		if m.TopicPartition.Error != nil {
@@ -74,6 +84,7 @@ func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
 		if rd.cnt == 0 {
 			// start measuring time from first message to avoid including
 			// rebalancing time.
+			rd.b.ResetTimer()
 			rd.reset()
 		}
 
@@ -98,45 +109,61 @@ func event_poll_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
 		case *Message:
 			rd.tick(1, int64(len(e.Value)))
 		case PartitionEof:
-			fmt.Printf("Reached %s\n", e)
+			rd.b.Logf("Reached %s", e)
 		default:
-			panic(fmt.Sprintf("Consumer error: %v", e))
+			rd.b.Fatalf("Consumer error: %v", e)
 		}
 	}
 }
 
-func TestConsumerPerformance(t *testing.T) {
+var testconsumer_inited bool = false
+
+// Produce messages to consume (if needed)
+// Query watermarks of topic to see if we need to prime it at all.
+// NOTE: This wont work for compacted topics..
+// returns the number of messages to consume
+func testconsumer_init(b *testing.B) int {
+	if testconsumer_inited {
+		return testconf.PerfMsgCount
+	}
 
 	if !testconf_read() {
-		return
+		return -1
 	}
 
-	msgcnt := 3000000
+	msgcnt := testconf.PerfMsgCount
 
-	// Produce messages to consume (if needed)
-	// Query watermarks of topic to see if we need to prime it at all.
 	currcnt, err := get_message_count_in_topic(testconf.Topic)
 	if err == nil {
-		fmt.Printf("Topic %s has %d messages\n", testconf.Topic, currcnt)
+		b.Logf("Topic %s has %d messages, need %d", testconf.Topic, currcnt, msgcnt)
 	}
 	if currcnt < msgcnt {
-		producer_perf_test("Priming producer", msgcnt, false, false,
+		producer_perf_test(b, "Priming producer", msgcnt, false, false,
 			func(p *Producer, m *Message, dr_chan chan Event) {
 				p.ProduceChannel <- m
 			})
 	}
 
-	consumer_perf_test("Consumer (channel, go.message.timestamp.enable=true)",
-		msgcnt, true, true, event_channel_consumer, nil)
-	consumer_perf_test("Consumer (channel, go.message.timestamp.enable=false)",
-		msgcnt, false, true, event_channel_consumer, nil)
+	testconsumer_inited = true
+	b.ResetTimer()
+	return msgcnt
+}
 
-	consumer_perf_test("Consumer (poll, go.message.timestamp.enable=true)",
-		msgcnt, true, false, event_poll_consumer, nil)
-	consumer_perf_test("Consumer (poll, go.message.timestamp.enable=false)",
-		msgcnt, false, false, event_poll_consumer,
+func BenchmarkConsumerChannelPerformance(b *testing.B) {
+	consumer_perf_test(b, "Channel Consumer",
+		0, true, event_channel_consumer, nil)
+}
+
+func BenchmarkConsumerPollPerformance(b *testing.B) {
+	consumer_perf_test(b, "Poll Consumer",
+		0, false, event_poll_consumer, nil)
+}
+
+func BenchmarkConsumerPollRebalancePerformance(b *testing.B) {
+	consumer_perf_test(b, "Poll Consumer (rebalance callback)",
+		0, false, event_poll_consumer,
 		func(c *Consumer, event Event) error {
-			fmt.Printf("Rebalanced: %s\n", event)
+			b.Logf("Rebalanced: %s", event)
 			return nil
 		})
 }

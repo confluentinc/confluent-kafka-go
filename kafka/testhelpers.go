@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"testing"
 	"time"
 )
 
@@ -32,8 +33,10 @@ import (
 import "C"
 
 var testconf struct {
-	Brokers string
-	Topic   string
+	Brokers      string
+	Topic        string
+	PerfMsgCount int
+	PerfMsgSize  int
 }
 
 // testconf_read reads the test suite config file testconf.json which must
@@ -46,6 +49,10 @@ func testconf_read() bool {
 		fmt.Fprintf(os.Stderr, "%% testconf.json not found - ignoring test\n")
 		return false
 	}
+
+	// Default values
+	testconf.PerfMsgCount = 2000000
+	testconf.PerfMsgSize = 100
 
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
@@ -69,12 +76,13 @@ type ratedisp struct {
 	last_print time.Time
 	cnt        int64
 	size       int64
+	b          *testing.B
 }
 
 // ratedisp_start sets up a new rate displayer
-func ratedisp_start(name string) (pf ratedisp) {
+func ratedisp_start(b *testing.B, name string) (pf ratedisp) {
 	now := time.Now()
-	return ratedisp{name: name, start: now, last_print: now}
+	return ratedisp{name: name, start: now, last_print: now, b: b}
 }
 
 // reset start time and counters
@@ -88,7 +96,7 @@ func (rd *ratedisp) reset() {
 func (rd *ratedisp) print(pfx string) {
 	elapsed := time.Since(rd.start).Seconds()
 
-	fmt.Printf("%s: %s%d messages in %fs (%.0f msgs/s), %d bytes (%.3fMb/s)\n",
+	rd.b.Logf("%s: %s%d messages in %fs (%.0f msgs/s), %d bytes (%.3fMb/s)",
 		rd.name, pfx, rd.cnt, elapsed, float64(rd.cnt)/elapsed,
 		rd.size, (float64(rd.size)/elapsed)/(1024*1024))
 }
@@ -117,7 +125,7 @@ func get_message_count_in_topic(topic string) (int, error) {
 
 	// get metadata for the topic to find out number of partitions
 
-	metadata, err := GetMetadata(c, &topic, false, 5*1000)
+	metadata, err := c.GetMetadata(&topic, false, 5*1000)
 	if err != nil {
 		return 0, err
 	}
@@ -129,7 +137,7 @@ func get_message_count_in_topic(topic string) (int, error) {
 
 	cnt := 0
 	for _, p := range t.Partitions {
-		low, high, err := QueryWatermarkOffsets(c, topic, p.Id, 5*1000)
+		low, high, err := c.QueryWatermarkOffsets(topic, p.Id, 5*1000)
 		if err != nil {
 			continue
 		}
