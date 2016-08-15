@@ -53,21 +53,31 @@ func (p *Producer) get_handle() *handle {
 // transmit queue, thus returning immediately.
 // The delivery report will be sent on the provided delivery_chan if specified,
 // or on the Producer object's Events channel if not.
-func (p *Producer) Produce0(msg *Message, msg_flags int, delivery_chan chan Event, opaque *interface{}) error {
+func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event, opaque *interface{}) error {
 	c_rkt := p.handle.get_rkt(*msg.TopicPartition.Topic)
 
 	var valp *byte = nil
 	var keyp *byte = nil
+	var empty byte
 	val_len := 0
 	key_len := 0
 
 	if msg.Value != nil {
-		valp = &msg.Value[0]
 		val_len = len(msg.Value)
+		// allow sending 0-length messages (as opposed to null messages)
+		if val_len > 0 {
+			valp = &msg.Value[0]
+		} else {
+			valp = &empty
+		}
 	}
 	if msg.Key != nil {
-		keyp = &msg.Key[0]
 		key_len = len(msg.Key)
+		if key_len > 0 {
+			keyp = &msg.Key[0]
+		} else {
+			keyp = &empty
+		}
 	}
 
 	var cgoid_ptr *int = nil
@@ -83,7 +93,8 @@ func (p *Producer) Produce0(msg *Message, msg_flags int, delivery_chan chan Even
 		cgoid_ptr = &cgoid
 	}
 
-	r := int(C.rd_kafka_produce(c_rkt, C.int32_t(msg.TopicPartition.Partition), C.int(msg_flags),
+	r := int(C.rd_kafka_produce(c_rkt, C.int32_t(msg.TopicPartition.Partition),
+		C.int(msg_flags)|C.RD_KAFKA_MSG_F_COPY,
 		unsafe.Pointer(valp), C.size_t(val_len),
 		unsafe.Pointer(keyp), C.size_t(key_len), unsafe.Pointer(cgoid_ptr)))
 	if r == -1 {
@@ -97,7 +108,7 @@ func (p *Producer) Produce0(msg *Message, msg_flags int, delivery_chan chan Even
 }
 
 func (p *Producer) Produce(msg *Message, delivery_chan chan Event, opaque *interface{}) error {
-	return p.Produce0(msg, C.RD_KAFKA_MSG_F_COPY|C.RD_KAFKA_MSG_F_BLOCK, delivery_chan, opaque)
+	return p.produce(msg, 0, delivery_chan, opaque)
 }
 
 // Produce a batch of messages.
@@ -108,12 +119,10 @@ func (p *Producer) produce_batch(topic string, msgs []*Message, msg_flags int) e
 	c_rkt := p.handle.get_rkt(topic)
 
 	c_msgs := make([]C.rd_kafka_message_t, len(msgs))
-
 	for i, m := range msgs {
 		p.handle.message_to_c(m, &c_msgs[i])
 	}
-
-	r := C.rd_kafka_produce_batch(c_rkt, C.RD_KAFKA_PARTITION_UA, C.int(msg_flags),
+	r := C.rd_kafka_produce_batch(c_rkt, C.RD_KAFKA_PARTITION_UA, C.int(msg_flags)|C.RD_KAFKA_MSG_F_FREE,
 		(*C.rd_kafka_message_t)(&c_msgs[0]), C.int(len(msgs)))
 	if r == -1 {
 		return NewKafkaError(C.rd_kafka_last_error())
@@ -124,32 +133,28 @@ func (p *Producer) produce_batch(topic string, msgs []*Message, msg_flags int) e
 
 // Len returns the number of messages and requests waiting to be transmitted to the broker
 // as well as delivery reports queued for the application.
+// Includes messages on ProduceChannel.
 func (p *Producer) Len() int {
-	return int(C.rd_kafka_outq_len(p.handle.rk))
+	return len(p.ProduceChannel) + len(p.Events) + int(C.rd_kafka_outq_len(p.handle.rk))
 }
 
 // Flush and wait for outstanding messages and requests to complete delivery.
-// Returns the number of outstanding events after timeout_ms has passed.
-// FIXME: Not sure about this API since some other part of the application code will
-//        be reading off the Producer channel. It might be better to have some API to
-//        "initiate closing of Producer, but not as drastic as Close()."
+// Includes messages on ProduceChannel.
+// Runs until value reaches zero or on timeout_ms.
+// Returns the number of outstanding events still un-flushed.
 func (p *Producer) Flush(timeout_ms int) int {
 	d, _ := time.ParseDuration(fmt.Sprintf("%dms", timeout_ms))
 	t_end := time.Now().Add(d)
-	for true {
+	for p.Len() > 0 {
 		remain := t_end.Sub(time.Now()).Seconds()
 		if remain <= 0.0 {
-			break
+			return p.Len()
 		}
 
-		if C.rd_kafka_outq_len(p.handle.rk) == 0 {
-			break
-		}
-
-		p.handle.event_poll(p.Events, int(remain*1000))
+		p.handle.event_poll(p.Events, int(remain*1000), 1000)
 	}
 
-	return int(C.rd_kafka_outq_len(p.handle.rk))
+	return 0
 }
 
 // Close a Producer instance.
@@ -218,7 +223,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, c_conf, c_errstr, 256)
 	if p.handle.rk == nil {
-		return nil, NewKafkaErrorFromCString(c_errstr)
+		return nil, NewKafkaErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, c_errstr)
 	}
 
 	p.handle.p = p
@@ -245,9 +250,9 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 func channel_producer(p *Producer) {
 
 	for m := range p.ProduceChannel {
-		err := p.Produce0(m, C.RD_KAFKA_MSG_F_COPY|C.RD_KAFKA_MSG_F_BLOCK, nil, nil)
+		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil, nil)
 		if err != nil {
-			m.TopicPartition.Err = err
+			m.TopicPartition.Error = err
 			p.Events <- m
 		}
 	}
@@ -273,13 +278,13 @@ func channel_batch_producer(p *Producer) {
 			select {
 			case m, ok := <-p.ProduceChannel:
 				if !ok {
-					break
+					break loop2
 				}
 				if m == nil {
-					panic("m is nil")
+					panic("nil message received on ProduceChannel")
 				}
 				if m.TopicPartition.Topic == nil {
-					panic(fmt.Sprintf("m %v is nil", m))
+					panic(fmt.Sprintf("message without Topic received on ProduceChannel: %v", m))
 				}
 				buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
 				buffered_cnt += 1
@@ -295,7 +300,7 @@ func channel_batch_producer(p *Producer) {
 		tot_msg_cnt += len(buffered)
 
 		for topic, buffered2 := range buffered {
-			err := p.produce_batch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK|C.RD_KAFKA_MSG_F_COPY)
+			err := p.produce_batch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
 			if err != nil {
 				for _, m = range buffered2 {
 					m.TopicPartition.Error = err
@@ -319,8 +324,22 @@ func poller(p *Producer, term_chan chan bool) {
 			return
 
 		default:
-			p.handle.event_poll(p.Events, 100)
+			p.handle.event_poll(p.Events, 100, 1000)
 			break
 		}
 	}
+}
+
+// GetMetadata queries broker for cluster and topic metadata.
+// If topic is non-nil only information about that topic is returned, else if
+// all_topics is false only information about locally used topics is returned,
+// else information about all topics is returned.
+func (p *Producer) GetMetadata(topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
+	return get_metadata(p, topic, all_topics, timeout_ms)
+}
+
+// QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
+// and partition.
+func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeout_ms int) (low, high int64, err error) {
+	return queryWatermarkOffsets(p, topic, partition, timeout_ms)
 }
