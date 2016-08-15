@@ -61,33 +61,55 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 	}(p.Events)
 
 	reader := bufio.NewReader(os.Stdin)
+	stdin_chan := make(chan string)
 
-	for true {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-
-		line = strings.TrimSuffix(line, "\n")
-		if len(line) == 0 {
-			continue
-		}
-
-		msg := kafka.Message{TopicPartition: tp}
-
-		if key_delim != "" {
-			vec := strings.SplitN(line, key_delim, 2)
-			if len(vec[0]) > 0 {
-				msg.Key = ([]byte)(vec[0])
+	go func() {
+		for true {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				break
 			}
-			if len(vec) == 2 && len(vec[1]) > 0 {
-				msg.Value = ([]byte)(vec[1])
-			}
-		} else {
-			msg.Value = ([]byte)(line)
-		}
 
-		p.ProduceChannel <- &msg
+			line = strings.TrimSuffix(line, "\n")
+			if len(line) == 0 {
+				continue
+			}
+
+			stdin_chan <- line
+		}
+		close(stdin_chan)
+	}()
+
+	run := true
+
+	for run == true {
+		select {
+		case sig := <-sigs:
+			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
+			run = false
+
+		case line, ok := <-stdin_chan:
+			if !ok {
+				run = false
+				break
+			}
+
+			msg := kafka.Message{TopicPartition: tp}
+
+			if key_delim != "" {
+				vec := strings.SplitN(line, key_delim, 2)
+				if len(vec[0]) > 0 {
+					msg.Key = ([]byte)(vec[0])
+				}
+				if len(vec) == 2 && len(vec[1]) > 0 {
+					msg.Value = ([]byte)(vec[1])
+				}
+			} else {
+				msg.Value = ([]byte)(line)
+			}
+
+			p.ProduceChannel <- &msg
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "%% Flushing\n")
@@ -159,16 +181,33 @@ func run_consumer(config *kafka.ConfigMap, topics []string) {
 	c.Close()
 }
 
+type ConfigArgs struct {
+	conf kafka.ConfigMap
+}
+
+func (c *ConfigArgs) String() string {
+	return "FIXME"
+}
+
+func (c *ConfigArgs) Set(value string) error {
+	return c.conf.Set(value)
+}
+
+func (c *ConfigArgs) IsCumulative() bool {
+	return true
+}
+
 func main() {
 	sigs = make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Default config
-	config := kafka.ConfigMap{"session.timeout.ms": 6000}
+	var confargs ConfigArgs
+	confargs.conf = kafka.ConfigMap{"session.timeout.ms": 6000}
 
 	/* General options */
 	brokers := kingpin.Flag("broker", "Bootstrap broker(s)").Required().String()
-	kingpin.Flag("config", "Configuration property (prop=val)").Short('X').PlaceHolder("PROP=VAL").SetValue(&config)
+	kingpin.Flag("config", "Configuration property (prop=val)").Short('X').PlaceHolder("PROP=VAL").SetValue(&confargs)
 	key_delim_arg := kingpin.Flag("key-delim", "Key and value delimiter (empty string=dont print/parse key)").Default("").String()
 
 	/* Producer mode options */
@@ -188,19 +227,19 @@ func main() {
 
 	key_delim = *key_delim_arg
 	exit_eof = *exit_eof_arg
-	config["bootstrap.servers"] = *brokers
+	confargs.conf["bootstrap.servers"] = *brokers
 
 	switch mode {
 	case "produce":
-		config["default.topic.config"] = kafka.ConfigMap{"produce.offset.report": true}
-		run_producer(&config, *topic, int32(*partition))
+		confargs.conf["default.topic.config"] = kafka.ConfigMap{"produce.offset.report": true}
+		run_producer((*kafka.ConfigMap)(&confargs.conf), *topic, int32(*partition))
 
 	case "consume":
-		config["group.id"] = *group
-		config["go.events.channel.enable"] = true
-		config["go.application.rebalance.enable"] = true
-		config["default.topic.config"] = kafka.ConfigMap{"auto.offset.reset": initial_offset}
-		run_consumer(&config, *topics)
+		confargs.conf["group.id"] = *group
+		confargs.conf["go.events.channel.enable"] = true
+		confargs.conf["go.application.rebalance.enable"] = true
+		confargs.conf["default.topic.config"] = kafka.ConfigMap{"auto.offset.reset": initial_offset}
+		run_consumer((*kafka.ConfigMap)(&confargs.conf), *topics)
 	}
 
 }
