@@ -1,6 +1,6 @@
 {
     "Brokers": "mybroker",
     "Topic": "test"
-//    "PerfMsgCount": 1000000,
-//    "PerfMsgSize": 100
+    "PerfMsgCount": 1000000,
+    "PerfMsgSize": 100
 }

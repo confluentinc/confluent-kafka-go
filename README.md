@@ -98,7 +98,7 @@ Cons:
 
  * Produce() is a non-blocking call, if the internal librdkafka queue is full
    the call will fail.
- * Somehwat slower than the channel producer.
+ * Somewhat slower than the channel producer.
 
 See [examples/producer_example](examples/producer_example)
 
