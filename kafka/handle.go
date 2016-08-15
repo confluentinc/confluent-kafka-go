@@ -69,9 +69,6 @@ type handle struct {
 
 	// Forward rebalancing ack responsibility to application (current setting)
 	curr_app_rebalance_enable bool
-
-	// Enable extraction of message timestamps (performance cost)
-	msg_timestamps_enable bool
 }
 
 func (h *handle) String() string {

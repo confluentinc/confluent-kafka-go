@@ -161,7 +161,7 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition, async bool) (err erro
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeout_ms int) (event Event) {
-	return c.handle.event_poll(nil, timeout_ms)
+	return c.handle.event_poll(nil, timeout_ms, 1)
 }
 
 // Close Consumer instance.
@@ -209,12 +209,6 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, err
 	}
 	c.app_rebalance_enable = v.(bool)
-
-	v, err = conf.extract("go.message.timestamp.enable", false)
-	if err != nil {
-		return nil, err
-	}
-	c.handle.msg_timestamps_enable = v.(bool)
 
 	v, err = conf.extract("go.events.channel.enable", false)
 	if err != nil {

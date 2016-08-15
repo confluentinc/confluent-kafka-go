@@ -28,6 +28,7 @@ import (
 /*
 #include <string.h>
 #include <librdkafka/rdkafka.h>
+#include "glue_rdkafka.h"
 
 void setup_rkmessage (rd_kafka_message_t *rkmessage,
                       rd_kafka_topic_t *rkt, int32_t partition,
@@ -40,6 +41,20 @@ void setup_rkmessage (rd_kafka_message_t *rkmessage,
      rkmessage->key       = (void *)key;
      rkmessage->key_len   = key_len;
      rkmessage->_private  = opaque;
+}
+
+
+rd_kafka_message_t *event_rkmessage_next(rd_kafka_event_t *rkev,
+                    rd_kafka_timestamp_type_t *tstype, int64_t *ts) {
+  const rd_kafka_message_t *rkmessage;
+
+  rkmessage = rd_kafka_event_message_next(rkev);
+  if (!rkmessage)
+     return NULL;
+
+  *ts = rd_kafka_message_timestamp(rkmessage, tstype);
+
+  return (rd_kafka_message_t *)rkmessage;
 }
 */
 import "C"
@@ -92,7 +107,7 @@ func (m *Message) String() string {
 	return fmt.Sprintf("%s[%d]@%s", topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 }
 
-func (h *handle) get_rkt_from_Message(msg *Message) (c_rkt *C.rd_kafka_topic_t) {
+func (h *handle) get_rkt_from_message(msg *Message) (c_rkt *C.rd_kafka_topic_t) {
 	if msg.TopicPartition.Topic == nil {
 		return nil
 	}
@@ -100,9 +115,47 @@ func (h *handle) get_rkt_from_Message(msg *Message) (c_rkt *C.rd_kafka_topic_t) 
 	return h.get_rkt(*msg.TopicPartition.Topic)
 }
 
-// new_Message_from_c creates a new Message object from a C rd_kafka_message_t
-func (h *handle) new_message_from_c(c_msg *C.rd_kafka_message_t) (msg *Message) {
+// new_message_from_event reads a message from the provided C event
+// and creates a new Message object from the extracted information.
+// returns nil if no message was available.
+func (h *handle) new_message_from_event(rkev *C.rd_kafka_event_t) (msg *Message) {
+	var tstype C.rd_kafka_timestamp_type_t
+	var c_ts C.int64_t
+
+	c_msg := C.event_rkmessage_next(rkev, &tstype, &c_ts)
+	if c_msg == nil {
+		return nil
+	}
+
 	msg = &Message{}
+
+	if c_ts != -1 {
+		ts := int64(c_ts)
+		msg.TimestampType = TimestampType(tstype)
+		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
+	}
+
+	h.setup_message_from_c(msg, c_msg)
+
+	return msg
+}
+
+func (h *handle) new_message_from_fc_msg(fc_msg *C.fetched_c_msg_t) (msg *Message) {
+	msg = &Message{}
+
+	if fc_msg.ts != -1 {
+		ts := int64(fc_msg.ts)
+		msg.TimestampType = TimestampType(fc_msg.tstype)
+		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
+	}
+
+	h.setup_message_from_c(msg, fc_msg.msg)
+
+	return msg
+}
+
+// setup_message_from_c sets up a message object from a C rd_kafka_message_t
+func (h *handle) setup_message_from_c(msg *Message, c_msg *C.rd_kafka_message_t) {
 	if c_msg.rkt != nil {
 		topic := h.get_topic_name_from_rkt(c_msg.rkt)
 		msg.TopicPartition.Topic = &topic
@@ -116,41 +169,65 @@ func (h *handle) new_message_from_c(c_msg *C.rd_kafka_message_t) (msg *Message) 
 	}
 	msg.TopicPartition.Offset = Offset(c_msg.offset)
 	if c_msg.err != 0 {
-		msg.TopicPartition.Err = NewKafkaError(c_msg.err)
+		msg.TopicPartition.Error = NewKafkaError(c_msg.err)
 	}
+}
 
-	// cgo calls are costly so we require extraction of message timestamps
-	// to be explicitly enabled.
-	if h.msg_timestamps_enable {
-		var tstype C.rd_kafka_timestamp_type_t
-		timestamp := int64(C.rd_kafka_message_timestamp(c_msg, &tstype))
-		if timestamp != -1 {
-			msg.TimestampType = TimestampType(tstype)
-			msg.Timestamp = time.Unix(timestamp/1000, (timestamp%1000)*1000000)
-		}
-	}
+// new_message_from_c creates a new message object from a C rd_kafka_message_t
+// NOTE: For use with Producer: does not set message timestamp fields.
+func (h *handle) new_message_from_c(c_msg *C.rd_kafka_message_t) (msg *Message) {
+	msg = &Message{}
+
+	h.setup_message_from_c(msg, c_msg)
+
 	return msg
 }
 
-// Message_to_C sets up c_msg as a clone of msg
-// WARNING: the c_msg payload and key will point to the Go memory of \p msg
-//          so make sure \p msg does not go out of scope for the lifetime of
-//          \p c_msg
+// message_to_C sets up c_msg as a clone of msg
 func (h *handle) message_to_c(msg *Message, c_msg *C.rd_kafka_message_t) {
 	var valp unsafe.Pointer = nil
 	var keyp unsafe.Pointer = nil
+
+	// to circumvent Cgo constraints we need to allocate C heap memory
+	// for both Value and Key (one allocation back to back)
+	// and copy the bytes from Value and Key to the C memory.
+	// We later tell librdkafka (in produce()) to free the
+	// C memory pointer when it is done.
+	var payload unsafe.Pointer
+
+	value_len := 0
+	key_len := 0
 	if msg.Value != nil {
-		valp = unsafe.Pointer(&msg.Value[0])
+		value_len = len(msg.Value)
 	}
 	if msg.Key != nil {
-		keyp = unsafe.Pointer(&msg.Key[0])
+		key_len = len(msg.Key)
 	}
 
-	C.setup_rkmessage(
-		c_msg,
-		h.get_rkt_from_Message(msg),
-		C.int32_t(msg.TopicPartition.Partition),
-		valp, C.size_t(len(msg.Value)),
-		keyp, C.size_t(len(msg.Key)),
-		nil)
+	alloc_len := value_len + key_len
+	if alloc_len > 0 {
+		payload = C.malloc(C.size_t(alloc_len))
+		if value_len > 0 {
+			copy((*[1 << 31]byte)(payload)[0:value_len], msg.Value)
+			valp = payload
+		}
+		if key_len > 0 {
+			copy((*[1 << 31]byte)(payload)[value_len:key_len], msg.Key)
+			keyp = unsafe.Pointer(&((*[1 << 31]byte)(payload)[value_len]))
+		}
+	}
+
+	c_msg.rkt = h.get_rkt_from_message(msg)
+	c_msg.partition = C.int32_t(msg.TopicPartition.Partition)
+	c_msg.payload = valp
+	c_msg.len = C.size_t(value_len)
+	c_msg.key = keyp
+	c_msg.key_len = C.size_t(key_len)
+	c_msg._private = nil
+}
+
+// used for testing message_to_c performance
+func (h *handle) message_to_c_dummy(msg *Message) {
+	var c_msg C.rd_kafka_message_t
+	h.message_to_c(msg, &c_msg)
 }
