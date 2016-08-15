@@ -120,13 +120,13 @@ type TopicPartition struct {
 	Topic     *string
 	Partition int32
 	Offset    Offset
-	Err       error
+	Error     error
 }
 
 func (p TopicPartition) String() string {
-	if p.Err != nil {
+	if p.Error != nil {
 		return fmt.Sprintf("%s[%d]@%s(%s)",
-			*p.Topic, p.Partition, p.Offset, p.Err)
+			*p.Topic, p.Partition, p.Offset, p.Error)
 	} else {
 		return fmt.Sprintf("%s[%d]@%s",
 			*p.Topic, p.Partition, p.Offset)
@@ -154,7 +154,7 @@ func setup_TopicPartition_from_c_rktpar(partition *TopicPartition, c_rktpar *C.r
 	partition.Partition = int32(c_rktpar.partition)
 	partition.Offset = Offset(c_rktpar.offset)
 	if c_rktpar.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		partition.Err = NewKafkaError(c_rktpar.err)
+		partition.Error = NewKafkaError(c_rktpar.err)
 	}
 }
 

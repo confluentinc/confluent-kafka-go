@@ -53,8 +53,8 @@ func main() {
 
 			switch e := ev.(type) {
 			case *kafka.Message:
-				if e.TopicPartition.Err != nil {
-					fmt.Printf("Consumer error: %v\n", e.TopicPartition.Err)
+				if e.TopicPartition.Error != nil {
+					fmt.Printf("Consumer error: %v\n", e.TopicPartition.Error)
 					run = false
 				} else {
 					fmt.Printf("%% Message on %s:\n%s\n",

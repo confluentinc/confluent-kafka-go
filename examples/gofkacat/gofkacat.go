@@ -37,8 +37,8 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 			if !ok {
 				continue
 			}
-			if m.TopicPartition.Err != nil {
-				fmt.Fprintf(os.Stderr, "%% Delivery error: %v\n", m)
+			if m.TopicPartition.Error != nil {
+				fmt.Fprintf(os.Stderr, "%% Delivery error: %v\n", m.TopicPartition)
 			} else if verbosity >= 2 {
 				fmt.Fprintf(os.Stderr, "%% Delivered %v\n", m)
 			}

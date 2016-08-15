@@ -34,8 +34,8 @@ func main() {
 			switch ev := e.(type) {
 			case *kafka.Message:
 				m := ev
-				if m.TopicPartition.Err != nil {
-					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Err)
+				if m.TopicPartition.Error != nil {
+					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
 				} else {
 					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
 						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)

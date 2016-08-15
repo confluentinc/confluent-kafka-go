@@ -297,9 +297,8 @@ func channel_batch_producer(p *Producer) {
 		for topic, buffered2 := range buffered {
 			err := p.produce_batch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK|C.RD_KAFKA_MSG_F_COPY)
 			if err != nil {
-				fmt.Printf("ProduceBatch0(%d) failed: %v\n", len(buffered2), err)
 				for _, m = range buffered2 {
-					m.TopicPartition.Err = err
+					m.TopicPartition.Error = err
 					p.Events <- m
 				}
 			}

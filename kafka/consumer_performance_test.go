@@ -66,8 +66,8 @@ func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
 			fmt.Printf("Ignoring %v\n", ev)
 			continue
 		}
-		if m.TopicPartition.Err != nil {
-			fmt.Printf("Error: %v\n", m.TopicPartition.Err)
+		if m.TopicPartition.Error != nil {
+			rd.b.Logf("Error: %v", m.TopicPartition.Error)
 			continue
 		}
 

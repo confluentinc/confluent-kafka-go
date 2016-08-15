@@ -32,8 +32,8 @@ func delivery_handler(exp_cnt int64, delivery_chan chan Event, done_chan chan in
 			continue
 		}
 
-		if m.TopicPartition.Err != nil {
-			fmt.Printf("Message delivery error: %v\n", m.TopicPartition)
+		if m.TopicPartition.Error != nil {
+			b.Errorf("Message delivery error: %v", m.TopicPartition)
 			break
 		}
 
