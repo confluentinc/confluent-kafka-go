@@ -197,8 +197,6 @@ func (c *Consumer) Close() (err error) {
 //                                        If set to true the app must handle the AssignedPartitions and
 //                                        RevokedPartitions events and call Assign() and Unassign()
 //                                        respectively.
-//   go.message.timestamp.enable (bool, false) - Enable extraction of message timestamps for received messages.
-//                                        (Experimental for increased performance (false)).
 //   go.events.channel.enable (bool, false) - Enable the Events channel. Messages and events will be pushed on the Events channel and the Poll() interface will be disabled.
 //                                        (Experimental)
 func NewConsumer(conf *ConfigMap) (*Consumer, error) {
