@@ -37,6 +37,7 @@ Pros:
 
  * Possibly more Golang:ish
  * Makes reading from multiple channels easy
+ * Fast
 
 Cons:
 
@@ -58,6 +59,7 @@ Pros:
 Cons:
 
  * Makes it harder to read from multiple channels, but a go-routine easily solves that.
+ * Slower than the channel consumer.
 
 See [examples/consumer_example](examples/consumer_example)
 
@@ -96,6 +98,7 @@ Cons:
 
  * Produce() is a non-blocking call, if the internal librdkafka queue is full
    the call will fail.
+ * Somehwat slower than the channel producer.
 
 See [examples/producer_example](examples/producer_example)
 
