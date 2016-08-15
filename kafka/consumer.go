@@ -202,6 +202,15 @@ func (c *Consumer) Close() (err error) {
 //   go.events.channel.enable (bool, false) - Enable the Events channel. Messages and events will be pushed on the Events channel and the Poll() interface will be disabled.
 //                                        (Experimental)
 func NewConsumer(conf *ConfigMap) (*Consumer, error) {
+
+	groupid, _ := conf.get("group.id", nil)
+	if groupid == nil {
+		// without a group.id the underlying cgrp subsystem in librdkafka wont get started
+		// and without it there is no way to consume assigned partitions.
+		// So for now require the group.id, this might change in the future.
+		return nil, NewKafkaErrorFromString(ERR__INVALID_ARG, "Required property group.id not set")
+	}
+
 	c := &Consumer{}
 
 	v, err := conf.extract("go.application.rebalance.enable", false)
