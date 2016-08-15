@@ -130,4 +130,4 @@ Build
 Tests
 =====
 
-See [kafka/README.test](kafka/README.test)
+See [kafka/README](kafka/README)
