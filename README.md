@@ -118,7 +118,7 @@ See [examples](examples)
 Prerequisites
 =============
 
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.2 (or `events_api` branch)
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.2 (or `master` branch => 2016-08-16)
 
 
 
