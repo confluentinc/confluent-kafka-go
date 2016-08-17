@@ -134,3 +134,105 @@ Tests
 =====
 
 See [kafka/README](kafka/README)
+
+
+
+Getting started
+===============
+
+Installing librdkafka
+---------------------
+
+    git clone https://github.com/edenhill/librdkafka.git
+    cd librdkafka
+    ./configure --prefix /usr
+    make
+    sudo make install
+
+
+Build the Go client
+-------------------
+
+From the confluent-kafka-go directory which should reside
+in `$GOPATH/src/github.com/confluentinc/confluent-kafka-go`:
+
+    cd kafka
+    go install
+
+
+High-level consumer
+-------------------
+
+ * Decide if you want to read messages and events from the `.Events()` channel
+   (set `"go.events.channel.enable": true`) or by calling `.Poll()`.
+
+ * Create a Consumer with `kafka.NewConsumer()` providing at
+   least the `bootstrap.servers` and `group.id` configuration properties.
+
+ * Call .Subscribe() or (.SubscribeTopics() to subscribe to multiple topics)
+   to join the group with the specified subscription set.
+   Subscriptions are atomic, calling `.Subscribe*()` again will leave
+   the group and rejoin with the new set of topics.
+
+ * Start reading events and messages from either the `.Events` channel
+   or by calling `.Poll()`.
+
+ * When the group has rebalanced each client member is assigned a
+   (sub-)set of topic+partitions.
+   By default the consumer will start fetching messages for its assigned
+   partitions at this point, but your application may enable rebalance
+   events to get an insight into what the assigned partitions where
+   as well as set the initial offsets. To do this you need to pass
+   `"go.application.rebalance.enable": true` to the `NewConsumer()` call
+   mentioned above. You will (eventually) see a `kafka.AssignedPartitions` event
+   with the assigned partition set. You can optionally modify the initial
+   offsets (they'll default to stored offsets and if there are no previously stored
+   offsets it will fall back to `"default.topic.config": {"auto.offset.reset": ..}`
+   which defaults to the `latest` message) and then call `.Assign(partitions)`
+   to start consuming. If you don't need to modify the initial offsets you will
+   not need to call `.Assign()`, the client will do so automatically for you if
+   you dont.
+
+ * As messages are fetched they will be made available on either the
+   `.Events` channel or by calling `.Poll()`, look for event type `*kafka.Message`.
+
+ * Handle messages, events and errors to your liking.
+
+ * When you are done consuming call `.Close()` to commit final offsets
+   and leave the consumer group.
+
+
+
+Producer
+--------
+
+ * Create a Producer with `kafka.NewProducer()` providing at least
+   the `bootstrap.servers` configuration properties.
+
+ * Messages may now be produced either by sending a `*kafka.Message`
+   on the `.ProduceChannel` or by calling `.Produce()`.
+
+ * Producing is an asynchronous operation so the client notifies the application
+   of per-message produce success or failure through something called delivery reports.
+   Delivery reports are by default emitted on the `.Events` channel as `*kafka.Message`
+   and you should check `msg.TopicPartition.Error` for `nil` to find out if the message
+   was succesfully delivered or not.
+   It is also possible to direct delivery reports to alternate channels
+   by providing a non-nil `chan Event` channel to `.Produce()`.
+   If no delivery reports are wanted they can be completely disabled by
+   setting configuration property `"go.delivery.reports": false`.
+
+ * When you are done producing messages you will need to make sure all messages
+   are indeed delivered to the broker (or failed), remember that this is
+   an asynchronous client so some of your messages may be lingering in internal
+   channels or tranmission queues.
+   To do this you can either keep track of the messages you've produced
+   and wait for their corresponding delivery reports, or call the convenience
+   function `.Flush()` that will block until all message deliveries are done
+   or the provided timeout elapses.
+
+ * Finally call `.Close()` to decommission the producer.
+
+
+
+See the [examples](examples) directory for example implementations of the above.
