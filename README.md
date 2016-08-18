@@ -18,7 +18,7 @@ Early preview information
 =========================
 
 The Go client is currently under heavy initial development and is not
-ready for production use. APIs are not be considered stable.
+ready for production use. APIs are not to be considered stable.
 
 As an excercise for early birds the Go client currently provides
 a number of possibly competing interfaces to various functionality.
@@ -169,7 +169,7 @@ High-level consumer
  * Create a Consumer with `kafka.NewConsumer()` providing at
    least the `bootstrap.servers` and `group.id` configuration properties.
 
- * Call .Subscribe() or (.SubscribeTopics() to subscribe to multiple topics)
+ * Call `.Subscribe()` or (`.SubscribeTopics()` to subscribe to multiple topics)
    to join the group with the specified subscription set.
    Subscriptions are atomic, calling `.Subscribe*()` again will leave
    the group and rejoin with the new set of topics.
@@ -234,5 +234,30 @@ Producer
  * Finally call `.Close()` to decommission the producer.
 
 
+Events
+------
+
+Apart from emitting messages and delivery reports the client also communicates
+with the application through a number of different event types.
+An application may choose to handle or ignore these events.
+
+**Consumer events**:
+ * `*kafka.Message` - a fetched message.
+ * `AssignedPartitions` - The assigned partition set for this client following a rebalance.
+                          Requires `go.application.rebalance.enable`
+ * `RevokedPartitions` - The counter part to `AssignedPartitions` following a rebalance.
+                         `AssignedPartitions` and `RevokedPartitions` are symetrical.
+                         Requires `go.application.rebalance.enable`
+ * `PartitionEof` - Consumer has reached the end of a partition.
+                    NOTE: The consumer keeps trying to fetch new messages for the partition.
+
+**Producer events**:
+ * `*kafka.Message` - delivery report for produced message.
+                      Check `.TopicPartition.Error` for delivery result.
+
+**Generic events** for both Consumer and Producer:
+ * `KafkaError` - client (error codes are prefixed with _) or broker error.
+                  These errors are normally just informational since the
+                  client will try its best to automatically recover (eventually).
 
 See the [examples](examples) directory for example implementations of the above.
