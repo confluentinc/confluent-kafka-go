@@ -20,6 +20,7 @@
 package kafka
 
 import (
+	"fmt"
 	"sync"
 	"unsafe"
 )
@@ -42,6 +43,8 @@ type handle struct {
 	// Termination of background go-routines
 	terminated_chan chan string // string is go-routine name
 
+	// Topic <-> rkt caches
+	rkt_cache_lock sync.Mutex
 	// topic name -> rkt cache
 	rkt_cache map[string]*C.rd_kafka_topic_t
 	// rkt -> topic name cache
@@ -102,35 +105,61 @@ func (h *handle) wait_terminated(term_cnt int) {
 	}
 }
 
-// get_rkt finds or creates and returns a C topic_t object from the local cache.
-func (h *handle) get_rkt(topic string) (c_rkt *C.rd_kafka_topic_t) {
+// get_rkt0 finds or creates and returns a C topic_t object from the local cache.
+func (h *handle) get_rkt0(topic string, c_topic *C.char, do_lock bool) (c_rkt *C.rd_kafka_topic_t) {
+	if do_lock {
+		h.rkt_cache_lock.Lock()
+	}
 	c_rkt, ok := h.rkt_cache[topic]
 	if ok {
+		if do_lock {
+			h.rkt_cache_lock.Unlock()
+		}
 		return c_rkt
 	}
 
-	c_topic := C.CString(topic)
-	defer C.free(unsafe.Pointer(c_topic))
+	if c_topic == nil {
+		c_topic = C.CString(topic)
+		defer C.free(unsafe.Pointer(c_topic))
+	}
+
 	c_rkt = C.rd_kafka_topic_new(h.rk, c_topic, nil)
-	// FIXME: error handling
+	if c_rkt == nil {
+		panic(fmt.Sprintf("Unable to create now C topic \"%s\": %s",
+			topic, C.GoString(C.rd_kafka_err2str(C.rd_kafka_last_error()))))
+	}
 
 	h.rkt_cache[topic] = c_rkt
 	h.rkt_name_cache[c_rkt] = topic
 
+	if do_lock {
+		h.rkt_cache_lock.Unlock()
+	}
+
 	return c_rkt
+}
+
+// get_rkt finds or creates and returns a C topic_t object from the local cache.
+func (h *handle) get_rkt(topic string) (c_rkt *C.rd_kafka_topic_t) {
+	return h.get_rkt0(topic, nil, true)
 }
 
 // get_topic_name_from_rkt returns the topic name for a C topic_t object, preferably
 // using the local cache to avoid a cgo call.
 func (h *handle) get_topic_name_from_rkt(c_rkt *C.rd_kafka_topic_t) (topic string) {
+	h.rkt_cache_lock.Lock()
 	topic, ok := h.rkt_name_cache[c_rkt]
 	if ok {
+		h.rkt_cache_lock.Unlock()
 		return topic
 	}
 
-	topic = C.GoString(C.rd_kafka_topic_name(c_rkt))
-	h.rkt_name_cache[c_rkt] = topic
-	h.rkt_cache[topic] = c_rkt
+	// we need our own copy/refcount of the c_rkt
+	c_topic := C.rd_kafka_topic_name(c_rkt)
+	topic = C.GoString(c_topic)
+
+	c_rkt = h.get_rkt0(topic, c_topic, false /* dont lock */)
+	h.rkt_cache_lock.Unlock()
 
 	return topic
 }
