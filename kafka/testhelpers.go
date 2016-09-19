@@ -37,6 +37,8 @@ var testconf struct {
 	Topic        string
 	PerfMsgCount int
 	PerfMsgSize  int
+	Config       []string
+	conf         ConfigMap
 }
 
 // testconf_read reads the test suite config file testconf.json which must
@@ -67,6 +69,25 @@ func testconf_read() bool {
 	}
 
 	return true
+}
+
+// update existing ConfigMap with key=value pairs from testconf.Config
+func (cm *ConfigMap) update_from_testconf() error {
+	if testconf.Config == nil {
+		return nil
+	}
+
+	// Translate "key=value" pairs in Config to ConfigMap
+	for _, s := range testconf.Config {
+		fmt.Printf("set %s\n", s)
+		err := cm.Set(s)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }
 
 // ratepdisp tracks and prints message & byte rates

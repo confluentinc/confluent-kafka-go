@@ -27,7 +27,7 @@ The format of testconf.json is a JSON object:
     }
 ```
 
-See testconf-example.json for an example.
+See testconf-example.json for an example and full set of available options.
 
 
 To run unit-tests:

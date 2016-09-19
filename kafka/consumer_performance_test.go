@@ -45,6 +45,9 @@ func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel b
 		"enable.auto.commit":       false,
 		"debug":                    ",",
 		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
+
+	conf.update_from_testconf()
+
 	c, err := NewConsumer(&conf)
 
 	if err != nil {

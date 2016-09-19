@@ -71,6 +71,9 @@ func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool,
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
 		"default.topic.config":         ConfigMap{"acks": 1}}
+
+	conf.update_from_testconf()
+
 	p, err := NewProducer(&conf)
 	if err != nil {
 		panic(err)
