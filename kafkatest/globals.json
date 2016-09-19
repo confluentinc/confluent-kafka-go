@@ -1,0 +1,7 @@
+{"VerifiableConsumer":
+ {
+     "class": "kafkatest.services.verifiable_client.VerifiableClientApp",
+     "exec_cmd": "/vagrant/tests/go/go_verifiable_consumer --debug=cgrp,topic,protocol",
+     "deploy": "/vagrant/tests/go/deploy.sh"
+ }
+}
