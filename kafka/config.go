@@ -43,6 +43,23 @@ type ConfigValue interface{}
 // configuration properties.
 type ConfigMap map[string]ConfigValue
 
+// SetKey sets configuration property key to value.
+// For user convenience a key prefixed with {topic}. will be
+// set on the "default.topic.config" sub-map.
+func (m ConfigMap) SetKey(key string, value ConfigValue) error {
+	if strings.HasPrefix(key, "{topic}.") {
+		_, found := m["default.topic.config"]
+		if !found {
+			m["default.topic.config"] = ConfigMap{}
+		}
+		m["default.topic.config"].(ConfigMap)[strings.TrimPrefix(key, "{topic}.")] = value
+	} else {
+		m[key] = value
+	}
+
+	return nil
+}
+
 // implements flag.Set
 func (m ConfigMap) Set(kv string) error {
 	i := strings.Index(kv, "=")
@@ -53,19 +70,7 @@ func (m ConfigMap) Set(kv string) error {
 	k := kv[:i]
 	v := kv[i+1:]
 
-	// For user convenience convert any property prefixed
-	// with {topic}. to a default.topic.config sub-map property.
-	if strings.HasPrefix(k, "{topic}.") {
-		_, found := m["default.topic.config"]
-		if !found {
-			m["default.topic.config"] = ConfigMap{}
-		}
-		m["default.topic.config"].(ConfigMap)[strings.TrimPrefix(k, "{topic}.")] = v
-	} else {
-		m[k] = v
-	}
-
-	return nil
+	return m.SetKey(k, v)
 }
 
 type stringable interface {
