@@ -184,7 +184,7 @@ func (p *Producer) Close() {
 // Supported special configuration properties:
 //   go.batch.producer (bool, false) - Enable batch producer (experimental for increased performance).
 //                                     These batches do not relate to Kafka message batches in any way.
-//   go.delivery.reports (bool, true) - Disable forwarding of per-message delivery reports to the
+//   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
 //                                      Events channel.
 //   go.produce.channel.size (int, 1000000) - ProduceChannel buffer size (in number of messages)
 //
