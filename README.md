@@ -129,6 +129,32 @@ Build
     $ go install
 
 
+Static builds
+=============
+
+**NOTE**: Requires pkg-config
+
+To link librdkafka statically append `-tags static` to your application's
+`go build` command, e.g.:
+
+    $ cd kafkatest/go_verifiable_consumer
+    $ go build -tags static
+
+This will create a binary with librdkafka statically linked, do note however
+that any librdkafka dependencies (such as ssl, sasl2, lz4, etc, depending
+on librdkafka build configuration) will be linked dynamically and thus required
+on the target system.
+
+To create a completely static binary append `-tags static_all` instead.
+This requires all dependencies to be available as static libraries
+(e.g., libsasl2.a). Static libraries are typically not installed
+by default but are available in the corresponding `..-dev` or `..-devel`
+packages (e.g., libsasl2-dev).
+
+After a succesful static build verify the dependencies by running
+`ldd ./your_program`, librdkafka should not be listed.
+
+
 
 Tests
 =====

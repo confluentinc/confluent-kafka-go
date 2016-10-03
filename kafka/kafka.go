@@ -29,7 +29,6 @@ import (
 #include <stdlib.h>
 #include <string.h>
 #include <librdkafka/rdkafka.h>
-#cgo LDFLAGS: -lrdkafka
 
 static int64_t _c_rdkafka_offset_tail(int64_t rel) {
    return RD_KAFKA_OFFSET_TAIL(rel);

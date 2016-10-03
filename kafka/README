@@ -39,3 +39,17 @@ To run benchmark tests:
 
     $ go test -bench .
 
+
+
+
+Build tags
+==========
+
+Different build types are supported through Go build tags (`-tags ..`),
+these tags should be specified on the **application** build command.
+
+ * `static` - Build with librdkafka linked statically (but librdkafka
+              dependencies linked dynamically).
+ * `static_all` - Build with all libraries linked statically.
+ * neither - Build with librdkafka (and its dependencies) linked dynamically.
+
