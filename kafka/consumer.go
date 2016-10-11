@@ -18,6 +18,7 @@
 package kafka
 
 import (
+	"fmt"
 	"unsafe"
 )
 
@@ -117,39 +118,79 @@ func (c *Consumer) Unassign() (err error) {
 	return nil
 }
 
-// Commit offsets for currently assigned partitions
-func (c *Consumer) Commit(async bool) (err error) {
-	e := C.rd_kafka_commit(c.handle.rk, nil, bool2cint(async))
-	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
+// commit offsets for specified offsets.
+// If offsets is nil the currently assigned partitions' offsets are committed.
+// This is a blocking call, caller will need to wrap in go-routine to
+// get async or throw-away behaviour.
+func (c *Consumer) commit(offsets []TopicPartition) (committed_offsets []TopicPartition, err error) {
+	var rkqu *C.rd_kafka_queue_t
+
+	rkqu = C.rd_kafka_queue_new(c.handle.rk)
+	defer C.rd_kafka_queue_destroy(rkqu)
+
+	var c_offsets *C.rd_kafka_topic_partition_list_t
+	if offsets != nil {
+		c_offsets = new_c_parts_from_TopicPartitions(offsets)
+		defer C.rd_kafka_topic_partition_list_destroy(c_offsets)
 	}
-	return nil
+
+	c_err := C.rd_kafka_commit_queue(c.handle.rk, c_offsets, rkqu, nil, nil)
+	if c_err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, NewKafkaError(c_err)
+	}
+
+	rkev := C.rd_kafka_queue_poll(rkqu, C.int(-1))
+	if rkev == nil {
+		// shouldn't happen
+		return nil, NewKafkaError(C.RD_KAFKA_RESP_ERR__DESTROY)
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	if C.rd_kafka_event_type(rkev) != C.RD_KAFKA_EVENT_OFFSET_COMMIT {
+		panic(fmt.Sprintf("Expected OFFSET_COMMIT, got %s",
+			C.GoString(C.rd_kafka_event_name(rkev))))
+	}
+
+	c_err = C.rd_kafka_event_error(rkev)
+	if c_err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, NewKafkaErrorFromCString(c_err, C.rd_kafka_event_error_string(rkev))
+	}
+
+	c_retoffsets := C.rd_kafka_event_topic_partition_list(rkev)
+	if c_retoffsets == nil {
+		// no offsets, no error
+		return nil, nil
+	}
+	committed_offsets = new_TopicPartitions_from_c_parts(c_retoffsets)
+
+	return committed_offsets, nil
+}
+
+// Commit offsets for currently assigned partitions
+// This is a blocking call.
+// Returns the committed offsets on success.
+func (c *Consumer) Commit() ([]TopicPartition, error) {
+	return c.commit(nil)
 }
 
 // Commit offset based on the provided message.
-func (c *Consumer) CommitMessage(m *Message, async bool) (err error) {
-	c_offsets := new_c_parts_from_TopicPartitions([]TopicPartition{m.TopicPartition})
-	defer C.rd_kafka_topic_partition_list_destroy(c_offsets)
-
-	e := C.rd_kafka_commit(c.handle.rk, c_offsets, bool2cint(async))
-	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
+// This is a blocking call.
+// Returns the committed offsets on success.
+func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
+	if m.TopicPartition.Error != nil {
+		return nil, KafkaError{ERR__INVALID_ARG, "Can't commit errored message"}
 	}
-
-	return nil
+	offsets := make([]TopicPartition, 1)
+	offsets[0] = m.TopicPartition
+	offsets[0].Offset += 1
+	return c.commit(offsets)
 }
 
 // Commit offset(s) provided in offsets list
-func (c *Consumer) CommitOffsets(offsets []TopicPartition, async bool) (err error) {
-	c_offsets := new_c_parts_from_TopicPartitions(offsets)
-	defer C.rd_kafka_topic_partition_list_destroy(c_offsets)
-
-	e := C.rd_kafka_commit(c.handle.rk, c_offsets, bool2cint(async))
-	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
-	}
-
-	return nil
+// This is a blocking call.
+// Returns the committed offsets on success.
+func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, error) {
+	return c.commit(offsets)
 }
 
 // Poll the consumer for messages or events.

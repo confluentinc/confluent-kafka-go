@@ -52,16 +52,9 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("SubscribeTopics failed: %s", err)
 	}
 
-	err = c.Commit(true)
-	if err != nil {
-		t.Errorf("Async Commit() failed: %s", err)
-	}
-
-	err = c.Commit(false)
-	if err == nil {
-		t.Errorf("Sync Commit() should have failed")
-	} else {
-		t.Logf("Sync Commit() failed as expected: %s", err)
+	_, err = c.Commit()
+	if err != nil && err.(KafkaError).Code() != ERR__NO_OFFSET {
+		t.Errorf("Commit() failed: %s", err)
 	}
 
 	err = c.Unsubscribe()
