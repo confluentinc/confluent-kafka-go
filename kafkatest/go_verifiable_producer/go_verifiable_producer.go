@@ -119,7 +119,8 @@ func run_producer(config *kafka.ConfigMap, topic string) {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Created Produccer %v\n", p)
+	_, verstr := kafka.LibraryVersion()
+	fmt.Fprintf(os.Stderr, "%% Created Producer %v (%s)\n", p, verstr)
 	state.p = p
 
 	send("startup_complete", nil)

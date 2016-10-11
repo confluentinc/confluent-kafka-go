@@ -169,3 +169,11 @@ func new_TopicPartitions_from_c_parts(c_parts *C.rd_kafka_topic_partition_list_t
 
 	return partitions
 }
+
+// LibraryVersion returns the underlying librdkafka library version as a
+// (version_int, version_str) tuple.
+func LibraryVersion() (int, string) {
+	ver := (int)(C.rd_kafka_version())
+	verstr := C.GoString(C.rd_kafka_version_str())
+	return ver, verstr
+}
