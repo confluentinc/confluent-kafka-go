@@ -41,7 +41,9 @@ Pros:
 
 Cons:
 
- * ?
+ * Outdated events and messages may be consumed due to the buffering nature
+   of channels. The extent is limited, but not remedied, by the Events channel
+   buffer size (`go.events.channel.size`).
 
 See [examples/consumer_channel_example](examples/consumer_channel_example)
 
@@ -58,7 +60,8 @@ Pros:
 
 Cons:
 
- * Makes it harder to read from multiple channels, but a go-routine easily solves that.
+ * Makes it harder to read from multiple channels, but a go-routine easily
+   solves that (see Cons in channel based consumer above about outdated events).
  * Slower than the channel consumer.
 
 See [examples/consumer_example](examples/consumer_example)
