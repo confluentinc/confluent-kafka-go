@@ -201,6 +201,9 @@ func main() {
 	sigs = make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
+	_, libver := kafka.LibraryVersion()
+	kingpin.Version(fmt.Sprintf("confluent-kafka-go (librdkafka v%s)", libver))
+
 	// Default config
 	var confargs ConfigArgs
 	confargs.conf = kafka.ConfigMap{"session.timeout.ms": 6000}
