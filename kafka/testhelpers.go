@@ -94,15 +94,16 @@ type ratedisp struct {
 	name       string
 	start      time.Time
 	last_print time.Time
+	every      float64
 	cnt        int64
 	size       int64
 	b          *testing.B
 }
 
 // ratedisp_start sets up a new rate displayer
-func ratedisp_start(b *testing.B, name string) (pf ratedisp) {
+func ratedisp_start(b *testing.B, name string, every float64) (pf ratedisp) {
 	now := time.Now()
-	return ratedisp{name: name, start: now, last_print: now, b: b}
+	return ratedisp{name: name, start: now, last_print: now, b: b, every: every}
 }
 
 // reset start time and counters
@@ -127,7 +128,7 @@ func (rd *ratedisp) tick(cnt, size int64) {
 	rd.cnt += cnt
 	rd.size += size
 
-	if time.Since(rd.last_print).Seconds() >= 1.0 {
+	if time.Since(rd.last_print).Seconds() >= rd.every {
 		rd.print("")
 		rd.last_print = time.Now()
 	}

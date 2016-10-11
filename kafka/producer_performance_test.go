@@ -54,7 +54,7 @@ func delivery_handler(b *testing.B, exp_cnt int64, delivery_chan chan Event, don
 	close(done_chan)
 }
 
-func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool, batch_producer bool, produce_func func(p *Producer, m *Message, dr_chan chan Event)) {
+func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool, batch_producer bool, silent bool, produce_func func(p *Producer, m *Message, dr_chan chan Event)) {
 
 	if !testconf_read() {
 		b.Skipf("Missing testconf.json")
@@ -94,10 +94,16 @@ func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool,
 		go delivery_handler(b, int64(msgcnt), p.Events, done_chan)
 	}
 
-	b.Logf("%s: produce %d messages", testname, msgcnt)
+	if !silent {
+		b.Logf("%s: produce %d messages", testname, msgcnt)
+	}
 
-	rd := ratedisp_start(b, fmt.Sprintf("%s: produce", testname))
-	rd_delivery := ratedisp_start(b, fmt.Sprintf("%s: delivery", testname))
+	display_interval := 5.0
+	if !silent {
+		display_interval = 1000.0
+	}
+	rd := ratedisp_start(b, fmt.Sprintf("%s: produce", testname), display_interval)
+	rd_delivery := ratedisp_start(b, fmt.Sprintf("%s: delivery", testname), display_interval)
 
 	for i := 0; i < msgcnt; i += 1 {
 		m := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: partition}, Value: buf}
@@ -107,17 +113,21 @@ func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool,
 		rd.tick(1, int64(size))
 	}
 
-	rd.print("produce done: ")
+	if !silent {
+		rd.print("produce done: ")
+	}
 
 	// Wait for messages in-flight and in-queue to get delivered.
-	b.Logf("%s: %d messages in queue", testname, p.Len())
+	if !silent {
+		b.Logf("%s: %d messages in queue", testname, p.Len())
+	}
 	r := p.Flush(10000)
-	b.Logf("%s: %d messages remains in queue after Flush()", testname, r)
+	if r > 0 {
+		b.Errorf("%s: %d messages remains in queue after Flush()", testname, r)
+	}
 
 	// Close producer
-	b.Logf("%s: Close()ing producer", testname)
 	p.Close()
-	b.Logf("%s: Close() done", testname)
 
 	var delivery_cnt, delivery_size int64
 
@@ -137,7 +147,7 @@ func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool,
 
 func BenchmarkProducerFunc(b *testing.B) {
 	producer_perf_test(b, "Function producer (without DR)",
-		0, false, false,
+		0, false, false, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			err := p.Produce(m, dr_chan, nil)
 			if err != nil {
@@ -148,7 +158,7 @@ func BenchmarkProducerFunc(b *testing.B) {
 
 func BenchmarkProducerFuncDR(b *testing.B) {
 	producer_perf_test(b, "Function producer (with DR)",
-		0, true, false,
+		0, true, false, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			err := p.Produce(m, dr_chan, nil)
 			if err != nil {
@@ -159,7 +169,7 @@ func BenchmarkProducerFuncDR(b *testing.B) {
 
 func BenchmarkProducerChannel(b *testing.B) {
 	producer_perf_test(b, "Channel producer (without DR)",
-		0, false, false,
+		0, false, false, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			p.ProduceChannel <- m
 		})
@@ -167,7 +177,7 @@ func BenchmarkProducerChannel(b *testing.B) {
 
 func BenchmarkProducerChannelDR(b *testing.B) {
 	producer_perf_test(b, "Channel producer (with DR)",
-		testconf.PerfMsgCount, true, false,
+		testconf.PerfMsgCount, true, false, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			p.ProduceChannel <- m
 		})
@@ -176,7 +186,7 @@ func BenchmarkProducerChannelDR(b *testing.B) {
 
 func BenchmarkProducerBatchChannel(b *testing.B) {
 	producer_perf_test(b, "Channel producer (without DR, batch channel)",
-		0, false, true,
+		0, false, true, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			p.ProduceChannel <- m
 		})
@@ -184,7 +194,7 @@ func BenchmarkProducerBatchChannel(b *testing.B) {
 
 func BenchmarkProducerBatchChannelDR(b *testing.B) {
 	producer_perf_test(b, "Channel producer (DR, batch channel)",
-		0, true, true,
+		0, true, true, false,
 		func(p *Producer, m *Message, dr_chan chan Event) {
 			p.ProduceChannel <- m
 		})

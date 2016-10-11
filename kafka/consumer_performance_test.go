@@ -59,7 +59,7 @@ func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel b
 
 	c.Subscribe(testconf.Topic, rebalance_cb)
 
-	rd := ratedisp_start(b, testname)
+	rd := ratedisp_start(b, testname, 10)
 
 	consume_func(c, &rd, exp_cnt)
 
@@ -71,29 +71,39 @@ func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel b
 
 }
 
-// consume messages through the Events channel
-func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
-	for ev := range c.Events {
-		m, ok := ev.(*Message)
-		if !ok {
-			rd.b.Logf("Ignoring %v", ev)
-			continue
-		}
-		if m.TopicPartition.Error != nil {
-			rd.b.Logf("Error: %v", m.TopicPartition.Error)
-			continue
+// handle_event returns false if processing should stop, else true
+func handle_event(c *Consumer, rd *ratedisp, exp_cnt int, ev Event) bool {
+	switch e := ev.(type) {
+	case *Message:
+		if e.TopicPartition.Error != nil {
+			rd.b.Logf("Error: %v", e.TopicPartition)
 		}
 
 		if rd.cnt == 0 {
-			// start measuring time from first message to avoid including
-			// rebalancing time.
+			// start measuring time from first message to avoid
+			// including rebalancing time.
 			rd.b.ResetTimer()
 			rd.reset()
 		}
 
-		rd.tick(1, int64(len(m.Value)))
+		rd.tick(1, int64(len(e.Value)))
 
 		if rd.cnt >= int64(exp_cnt) {
+			return false
+		}
+	case PartitionEof:
+		break // silence
+	default:
+		rd.b.Fatalf("Consumer error: %v", e)
+	}
+	return true
+
+}
+
+// consume messages through the Events channel
+func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
+	for ev := range c.Events {
+		if !handle_event(c, rd, exp_cnt, ev) {
 			break
 		}
 	}
@@ -101,20 +111,14 @@ func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
 
 // consume messages through the Poll() interface
 func event_poll_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
-	for rd.cnt < int64(exp_cnt) {
+	for true {
 		ev := c.Poll(100)
 		if ev == nil {
 			// timeout
 			continue
 		}
-
-		switch e := ev.(type) {
-		case *Message:
-			rd.tick(1, int64(len(e.Value)))
-		case PartitionEof:
-			rd.b.Logf("Reached %s", e)
-		default:
-			rd.b.Fatalf("Consumer error: %v", e)
+		if !handle_event(c, rd, exp_cnt, ev) {
+			break
 		}
 	}
 }
@@ -142,6 +146,7 @@ func testconsumer_init(b *testing.B) int {
 	}
 	if currcnt < msgcnt {
 		producer_perf_test(b, "Priming producer", msgcnt, false, false,
+			true,
 			func(p *Producer, m *Message, dr_chan chan Event) {
 				p.ProduceChannel <- m
 			})
