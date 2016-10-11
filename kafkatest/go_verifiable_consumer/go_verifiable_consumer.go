@@ -52,9 +52,49 @@ func send(name string, msg map[string]interface{}) {
 func partitions_to_map(partitions []kafka.TopicPartition) []map[string]interface{} {
 	parts := make([]map[string]interface{}, len(partitions))
 	for i, tp := range partitions {
-		parts[i] = map[string]interface{}{"topic": *tp.Topic, "partition": tp.Partition}
+		parts[i] = map[string]interface{}{"topic": *tp.Topic, "partition": tp.Partition, "offset": tp.Offset}
 	}
 	return parts
+}
+
+func send_offsets_committed(offsets []kafka.TopicPartition, err error) {
+	if len(state.curr_assignment) == 0 {
+		// Dont emit offsets_committed if there is no current assignment
+		// This happens when auto_commit is enabled since we also
+		// force a manual commit on rebalance to make sure
+		// offsets_committed is emitted prior to partitions_revoked,
+		// so the builtin auto committer will also kick in and post
+		// this later OffsetsCommitted event which we simply ignore..
+		fmt.Fprintf(os.Stderr, "%% Ignore OffsetsCommitted(%v) without a valid assignment\n", err)
+		return
+	}
+	msg := make(map[string]interface{})
+
+	if err != nil {
+		msg["success"] = false
+		msg["error"] = fmt.Sprintf("%v", err)
+
+		kerr, ok := err.(kafka.KafkaError)
+		if ok && kerr.Code() == kafka.ERR__NO_OFFSET {
+			fmt.Fprintf(os.Stderr, "%% No offsets to commit\n")
+			return
+		}
+
+		fmt.Fprintf(os.Stderr, "%% Commit failed: %v", msg["error"])
+	} else {
+		msg["success"] = true
+
+	}
+
+	if offsets != nil {
+		msg["offsets"] = partitions_to_map(offsets)
+	}
+
+	// Make sure we report consumption before commit,
+	// otherwise tests may fail because of commit > consumed
+	send_records_consumed(true)
+
+	send("offsets_committed", msg)
 }
 
 func send_partitions(name string, partitions []kafka.TopicPartition) {
@@ -138,15 +178,10 @@ func send_records_consumed(immediate bool) {
 
 // do_commit commits every 1000 messages or whenever there is a consume timeout, or when immediate==true
 func do_commit(immediate bool, async bool) {
-	if state.auto_commit || !immediate ||
-		state.consumed_msgs_at_last_commit+1000 > state.consumed_msgs {
+	if !immediate &&
+		(state.auto_commit ||
+			state.consumed_msgs_at_last_commit+1000 > state.consumed_msgs) {
 		return
-	}
-
-	// Make sure we report consumption before commit,
-	// otherwise tests may fail because of commit > consumed
-	if state.consumed_msgs_at_last_commit < state.consumed_msgs {
-		send_records_consumed(true)
 	}
 
 	async = state.async_commit
@@ -154,17 +189,27 @@ func do_commit(immediate bool, async bool) {
 	fmt.Fprintf(os.Stderr, "%% Committing %d messages (async=%v)\n",
 		state.consumed_msgs-state.consumed_msgs_at_last_commit, async)
 
-	err := state.c.Commit(async)
-	if err != nil {
-		kerr, ok := err.(kafka.KafkaError)
-		if ok && kerr.Code() == kafka.ERR__NO_OFFSET {
-			fmt.Fprintf(os.Stderr, "%% No offsets to commit\n")
-		} else {
-			panic(fmt.Sprintf("Commit failed: %s", err))
-		}
+	state.consumed_msgs_at_last_commit = state.consumed_msgs
+
+	var wait_committed chan bool
+
+	if !async {
+		wait_committed = make(chan bool)
 	}
 
-	state.consumed_msgs_at_last_commit = state.consumed_msgs
+	go func() {
+		offsets, err := state.c.Commit()
+
+		send_offsets_committed(offsets, err)
+
+		if !async {
+			close(wait_committed)
+		}
+	}()
+
+	if !async {
+		_, _ = <-wait_committed
+	}
 }
 
 // returns false when consumer should terminate, else true to keep running.
