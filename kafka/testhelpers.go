@@ -79,7 +79,6 @@ func (cm *ConfigMap) update_from_testconf() error {
 
 	// Translate "key=value" pairs in Config to ConfigMap
 	for _, s := range testconf.Config {
-		fmt.Printf("set %s\n", s)
 		err := cm.Set(s)
 		if err != nil {
 			return err
