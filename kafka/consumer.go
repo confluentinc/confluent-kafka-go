@@ -230,7 +230,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	var c_errstr *C.char = (*C.char)(C.malloc(C.size_t(256)))
 	defer C.free(unsafe.Pointer(c_errstr))
 
-	C.rd_kafka_conf_set_events(c_conf, C.RD_KAFKA_EVENT_REBALANCE)
+	C.rd_kafka_conf_set_events(c_conf, C.RD_KAFKA_EVENT_REBALANCE|C.RD_KAFKA_EVENT_OFFSET_COMMIT)
 
 	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, c_conf, c_errstr, 256)
 	if c.handle.rk == nil {

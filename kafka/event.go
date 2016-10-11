@@ -78,6 +78,15 @@ func (p PartitionEof) String() string {
 	return fmt.Sprintf("EOF at %s", TopicPartition(p))
 }
 
+type OffsetsCommitted struct {
+	Error   error
+	Offsets []TopicPartition
+}
+
+func (o OffsetsCommitted) String() string {
+	return fmt.Sprintf("OffsetsCommitted (%v, %v)", o.Error, o.Offsets)
+}
+
 // event_poll polls an event from the handler's C rd_kafka_queue_t,
 // translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
 func (h *handle) event_poll(channel chan Event, timeout_ms int, max_events int) Event {
@@ -214,6 +223,20 @@ out:
 				}
 			}
 
+		case C.RD_KAFKA_EVENT_OFFSET_COMMIT:
+			// Offsets committed
+			c_err := C.rd_kafka_event_error(rkev)
+			c_offsets := C.rd_kafka_event_topic_partition_list(rkev)
+			var offsets []TopicPartition
+			if c_offsets != nil {
+				offsets = new_TopicPartitions_from_c_parts(c_offsets)
+			}
+
+			if c_err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+				retval = OffsetsCommitted{NewKafkaErrorFromCString(c_err, C.rd_kafka_event_error_string(rkev)), offsets}
+			} else {
+				retval = OffsetsCommitted{nil, offsets}
+			}
 		default:
 			if rkev != nil {
 				fmt.Fprintf(os.Stderr, "Ignored event %s\n",
