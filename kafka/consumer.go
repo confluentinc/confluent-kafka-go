@@ -202,7 +202,8 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeout_ms int) (event Event) {
-	return c.handle.event_poll(nil, timeout_ms, 1)
+	ev, _ := c.handle.event_poll(nil, timeout_ms, 1, nil)
+	return ev
 }
 
 // Close Consumer instance.
@@ -330,15 +331,23 @@ func (c *Consumer) rebalance(ev Event) bool {
 // Runs until term_chan closes
 func consumer_reader(c *Consumer, term_chan chan bool) {
 
+out:
 	for true {
 		select {
 		case _ = <-term_chan:
-			c.handle.terminated_chan <- "consumer_reader"
-			return
+			break out
 		default:
-			c.handle.event_poll(c.Events, 100, 1000)
+			_, term := c.handle.event_poll(c.Events, 100, 1000, term_chan)
+			if term {
+				break out
+			}
+
 		}
 	}
+
+	c.handle.terminated_chan <- "consumer_reader"
+	return
+
 }
 
 // GetMetadata queries broker for cluster and topic metadata.

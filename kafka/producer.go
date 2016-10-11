@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"fmt"
+	"math"
 	"time"
 	"unsafe"
 )
@@ -143,6 +144,8 @@ func (p *Producer) Len() int {
 // Runs until value reaches zero or on timeout_ms.
 // Returns the number of outstanding events still un-flushed.
 func (p *Producer) Flush(timeout_ms int) int {
+	term_chan := make(chan bool) // unused stand-in term_chan
+
 	d, _ := time.ParseDuration(fmt.Sprintf("%dms", timeout_ms))
 	t_end := time.Now().Add(d)
 	for p.Len() > 0 {
@@ -151,7 +154,8 @@ func (p *Producer) Flush(timeout_ms int) int {
 			return p.Len()
 		}
 
-		p.handle.event_poll(p.Events, int(remain*1000), 1000)
+		p.handle.event_poll(p.Events,
+			int(math.Min(100, remain*1000)), 1000, term_chan)
 	}
 
 	return 0
@@ -317,17 +321,23 @@ func channel_batch_producer(p *Producer) {
 
 // poller polls the rd_kafka_t handle for events until signalled for termination
 func poller(p *Producer, term_chan chan bool) {
+out:
 	for true {
 		select {
 		case _ = <-term_chan:
-			p.handle.terminated_chan <- "poller"
-			return
+			break out
 
 		default:
-			p.handle.event_poll(p.Events, 100, 1000)
+			_, term := p.handle.event_poll(p.Events, 100, 1000, term_chan)
+			if term {
+				break out
+			}
 			break
 		}
 	}
+
+	p.handle.terminated_chan <- "poller"
+
 }
 
 // GetMetadata queries broker for cluster and topic metadata.

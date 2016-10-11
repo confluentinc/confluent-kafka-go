@@ -89,9 +89,14 @@ func (o OffsetsCommitted) String() string {
 
 // event_poll polls an event from the handler's C rd_kafka_queue_t,
 // translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
-func (h *handle) event_poll(channel chan Event, timeout_ms int, max_events int) Event {
+// term_chan is an optional channel to monitor along with producing to channel
+// to indicate that `channel` is being terminated.
+// returns (event Event, terminate Bool) tuple, where Terminate indicates
+// if term_chan received a termination event.
+func (h *handle) event_poll(channel chan Event, timeout_ms int, max_events int, term_chan chan bool) (Event, bool) {
 
 	var prev_rkev *C.rd_kafka_event_t
+	term := false
 
 	var retval Event
 
@@ -134,8 +139,8 @@ out:
 					// Application must perform Assign() call
 					var ev AssignedPartitions
 					ev.Partitions = new_TopicPartitions_from_c_parts(C.rd_kafka_event_topic_partition_list(rkev))
-					if channel != nil {
-						channel <- ev
+					if channel != nil || h.c.rebalance_cb == nil {
+						retval = ev
 						app_reassigned = true
 					} else {
 						app_reassigned = h.c.rebalance(ev)
@@ -150,8 +155,8 @@ out:
 					// Application must perform Unassign() call
 					var ev RevokedPartitions
 					ev.Partitions = new_TopicPartitions_from_c_parts(C.rd_kafka_event_topic_partition_list(rkev))
-					if channel != nil {
-						channel <- ev
+					if channel != nil || h.c.rebalance_cb == nil {
+						retval = ev
 						app_reassigned = true
 					} else {
 						app_reassigned = h.c.rebalance(ev)
@@ -216,7 +221,12 @@ out:
 				}
 
 				if ch != nil {
-					*ch <- msg
+					select {
+					case *ch <- msg:
+					case <-term_chan:
+						break out
+					}
+
 				} else {
 					retval = msg
 					break out
@@ -237,6 +247,11 @@ out:
 			} else {
 				retval = OffsetsCommitted{nil, offsets}
 			}
+
+		case C.RD_KAFKA_EVENT_NONE:
+			// poll timed out: no events available
+			break out
+
 		default:
 			if rkev != nil {
 				fmt.Fprintf(os.Stderr, "Ignored event %s\n",
@@ -247,7 +262,13 @@ out:
 
 		if retval != nil {
 			if channel != nil {
-				channel <- retval
+				select {
+				case channel <- retval:
+				case <-term_chan:
+					retval = nil
+					term = true
+					break out
+				}
 			} else {
 				break out
 			}
@@ -258,5 +279,5 @@ out:
 		C.rd_kafka_event_destroy(prev_rkev)
 	}
 
-	return retval
+	return retval, term
 }
