@@ -387,6 +387,7 @@ func main() {
 	java_assignment_strategy := kingpin.Flag("assignment-strategy", "Assignment strategy (Java class name)").String()
 	config_file := kingpin.Flag("consumer.config", "Config file").File()
 	debug := kingpin.Flag("debug", "Debug flags").String()
+	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
 	kingpin.Parse()
 
@@ -394,7 +395,6 @@ func main() {
 	conf["group.id"] = *group
 	conf["session.timeout.ms"] = *session_timeout
 	conf["enable.auto.commit"] = *enable_autocommit
-	fmt.Println("Config: ", conf)
 
 	if len(*debug) > 0 {
 		conf["debug"] = *debug
@@ -411,11 +411,22 @@ func main() {
 	}
 
 	if *config_file != nil {
-		fmt.Fprintf(os.Stderr, "%% Ignoring config file %s\n", *config_file)
+		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *config_file)
 	}
 
 	conf["go.events.channel.enable"] = false
 	conf["go.application.rebalance.enable"] = true
+
+	if len(*xconf) > 0 {
+		for _, kv := range strings.Split(*xconf, ",") {
+			x := strings.Split(kv, "=")
+			if len(x) != 2 {
+				panic("-X expects a ,-separated list of confprop=val pairs")
+			}
+			conf[x[0]] = x[1]
+		}
+	}
+	fmt.Println("Config: ", conf)
 
 	state.auto_commit = *enable_autocommit
 	state.max_messages = *max_messages

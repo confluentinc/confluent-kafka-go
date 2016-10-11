@@ -22,6 +22,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -192,19 +193,30 @@ func main() {
 	acks := kingpin.Flag("acks", "Required acks").Default("all").String()
 	config_file := kingpin.Flag("producer.config", "Config file").File()
 	debug := kingpin.Flag("debug", "Debug flags").String()
+	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
 	kingpin.Parse()
 
 	conf["bootstrap.servers"] = *brokers
 	conf["default.topic.config"].(kafka.ConfigMap).SetKey("acks", *acks)
-	fmt.Println("Config: ", conf)
 
 	if len(*debug) > 0 {
 		conf["debug"] = *debug
 	}
 
+	if len(*xconf) > 0 {
+		for _, kv := range strings.Split(*xconf, ",") {
+			x := strings.Split(kv, "=")
+			if len(x) != 2 {
+				panic("-X expects a ,-separated list of confprop=val pairs")
+			}
+			conf[x[0]] = x[1]
+		}
+	}
+	fmt.Println("Config: ", conf)
+
 	if *config_file != nil {
-		fmt.Fprintf(os.Stderr, "%% Ignoring config file %s\n", *config_file)
+		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *config_file)
 	}
 
 	if len(*value_prefix) > 0 {
