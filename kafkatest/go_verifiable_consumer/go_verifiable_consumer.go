@@ -36,6 +36,11 @@ var (
 	sigs          chan os.Signal
 )
 
+func fatal(why string) {
+	fmt.Fprintf(os.Stderr, "%% FATAL ERROR: %s", why)
+	panic(why)
+}
+
 func send(name string, msg map[string]interface{}) {
 	if msg == nil {
 		msg = make(map[string]interface{})
@@ -44,7 +49,7 @@ func send(name string, msg map[string]interface{}) {
 	msg["_time"] = time.Now().Unix()
 	b, err := json.Marshal(msg)
 	if err != nil {
-		panic(err)
+		fatal(fmt.Sprintf("json.Marshal failed: %v", err))
 	}
 	fmt.Println(string(b))
 }
@@ -133,6 +138,7 @@ func clear_curr_assignment() {
 }
 
 type comm_state struct {
+	run                          bool
 	consumed_msgs                int
 	consumed_msgs_last_reported  int
 	consumed_msgs_at_last_commit int
@@ -247,79 +253,119 @@ func handle_msg(m *kafka.Message) bool {
 
 }
 
+// handle_event handles an event as returned by Poll().
+func handle_event(c *kafka.Consumer, ev kafka.Event) {
+	switch e := ev.(type) {
+	case kafka.AssignedPartitions:
+		if len(state.curr_assignment) > 0 {
+			fatal(fmt.Sprintf("Assign: curr_assignment should have been empty: %v", state.curr_assignment))
+		}
+		state.curr_assignment = make(map[string]*assigned_partition)
+		for _, tp := range e.Partitions {
+			add_assignment(tp)
+		}
+		send_partitions("partitions_assigned", e.Partitions)
+		c.Assign(e.Partitions)
+
+	case kafka.RevokedPartitions:
+		send_records_consumed(true)
+		do_commit(true, false)
+		send_partitions("partitions_revoked", e.Partitions)
+		clear_curr_assignment()
+		c.Unassign()
+
+	case kafka.OffsetsCommitted:
+		send_offsets_committed(e.Offsets, e.Error)
+
+	case *kafka.Message:
+		state.run = handle_msg(e)
+
+	case kafka.KafkaError:
+		if e.Code() == kafka.ERR_UNKNOWN_TOPIC_OR_PART {
+			fmt.Fprintf(os.Stderr,
+				"%% Ignoring transient error: %v\n", e)
+		} else {
+			fatal(fmt.Sprintf("%% KafkaError: %v\n", e))
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
+	}
+}
+
+// main_loop serves consumer events, signals, etc.
+// will run for at most (roughly) \p timeout seconds.
+func main_loop(c *kafka.Consumer, timeout int) {
+	tmout := time.NewTicker(time.Duration(timeout) * time.Second)
+	every1s := time.NewTicker(1 * time.Second)
+
+out:
+	for state.run == true {
+		select {
+
+		case _ = <-tmout.C:
+			tmout.Stop()
+			break out
+
+		case sig := <-sigs:
+			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
+			state.run = false
+
+		case _ = <-every1s.C:
+			// Report consumed messages
+			send_records_consumed(true)
+			// Commit on timeout as well (not just every 1000 messages)
+			do_commit(false, state.async_commit)
+
+		case _ = <-time.After(100000 * time.Microsecond):
+			for true {
+				ev := c.Poll(0)
+				if ev == nil {
+					break
+				}
+				handle_event(c, ev)
+			}
+		}
+	}
+}
+
 func run_consumer(config *kafka.ConfigMap, topic string) {
 	c, err := kafka.NewConsumer(config)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
-		os.Exit(1)
+		fatal(fmt.Sprintf("Failed to create consumer: %v", err))
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Created Consumer %v\n", c)
+	_, verstr := kafka.LibraryVersion()
+	fmt.Fprintf(os.Stderr, "%% Created Consumer %v (%s)\n", c, verstr)
 	state.c = c
 
 	c.Subscribe(topic, nil)
 
 	send("startup_complete", nil)
-	run := true
+	state.run = true
 
-	for run == true {
-		select {
-
-		case sig := <-sigs:
-			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
-			run = false
-
-		case ev := <-c.Events:
-			switch e := ev.(type) {
-			case kafka.AssignedPartitions:
-				if len(state.curr_assignment) > 0 {
-					panic(fmt.Sprintf("Assign: curr_assignment should have been empty: %v", state.curr_assignment))
-				}
-				state.curr_assignment = make(map[string]*assigned_partition)
-				for _, tp := range e.Partitions {
-					add_assignment(tp)
-				}
-				send_partitions("partitions_assigned", e.Partitions)
-				c.Assign(e.Partitions)
-
-			case kafka.RevokedPartitions:
-				send_records_consumed(true)
-				do_commit(true, false)
-				send_partitions("partitions_revoked", e.Partitions)
-				clear_curr_assignment()
-				c.Unassign()
-
-			case *kafka.Message:
-				run = handle_msg(e)
-
-			case kafka.KafkaError:
-				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
-				run = false
-			default:
-				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
-			}
-
-		case _ = <-time.After(1 * time.Second):
-			// Report consumed messages
-			send_records_consumed(true)
-			// Commit on timeout as well (not just every 1000 messages)
-			do_commit(true, state.async_commit)
-		}
-	}
-
+	main_loop(c, 10*60)
+	t_term_begin := time.Now()
 	fmt.Fprintf(os.Stderr, "%% Consumer shutting down\n")
 
 	send_records_consumed(true)
 
-	if !state.auto_commit {
-		do_commit(true, false)
-	}
+	// Final commit (if auto commit is disabled)
+	do_commit(false, false)
+
+	c.Unsubscribe()
+
+	// Wait for rebalance, final offset commits, etc.
+	state.run = true
+	main_loop(c, 10)
 
 	fmt.Fprintf(os.Stderr, "%% Closing consumer\n")
 
 	c.Close()
 
-	send("shutdown_complete", nil)
+	msg := make(map[string]interface{})
+	msg["_shutdown_duration"] = time.Since(t_term_begin).Seconds()
+	send("shutdown_complete", msg)
 }
 
 func main() {
@@ -368,7 +414,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%% Ignoring config file %s\n", *config_file)
 	}
 
-	conf["go.events.channel.enable"] = true
+	conf["go.events.channel.enable"] = false
 	conf["go.application.rebalance.enable"] = true
 
 	state.auto_commit = *enable_autocommit
