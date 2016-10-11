@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	verbosity     = 2
+	verbosity     = 1
 	exit_eof      = false
 	eof_cnt       = 0
 	partition_cnt = 0
@@ -112,7 +112,7 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Flushing\n")
+	fmt.Fprintf(os.Stderr, "%% Flushing %d message(s)\n", p.Len())
 	p.Flush(10000)
 	fmt.Fprintf(os.Stderr, "%% Closing\n")
 	p.Close()
