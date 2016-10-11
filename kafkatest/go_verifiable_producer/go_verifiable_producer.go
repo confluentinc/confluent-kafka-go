@@ -101,7 +101,7 @@ func handle_dr(m *kafka.Message) bool {
 		drmsg["offset"] = m.TopicPartition.Offset
 		drmsg["key"] = (string)(m.Key)
 		drmsg["value"] = (string)(m.Value)
-		send("producer_send_error", drmsg)
+		send("producer_send_success", drmsg)
 	}
 
 	if state.delivery_cnt+state.err_cnt >= state.max_messages {
