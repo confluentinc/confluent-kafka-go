@@ -238,8 +238,15 @@ func (c *Consumer) Close() (err error) {
 //                                        If set to true the app must handle the AssignedPartitions and
 //                                        RevokedPartitions events and call Assign() and Unassign()
 //                                        respectively.
-//   go.events.channel.enable (bool, false) - Enable the Events channel. Messages and events will be pushed on the Events channel and the Poll() interface will be disabled.
-//                                        (Experimental)
+//   go.events.channel.enable (bool, false) - Enable the Events channel. Messages and events will be pushed on the Events channel and the Poll() interface will be disabled. (Experimental)
+//   go.events.channel.size (int, 1000) - Events channel size
+//
+// WARNING: Due to the buffering nature of channels (and queues in general) the
+//          use of the events channel risks receiving outdated events and
+//          messages. Minimizing go.events.channel.size reduces the risk
+//          and number of outdated events and messages but does not eliminate
+//          the factor completely. With a channel size of 1 at most one
+//          event or message may be outdated.
 func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	groupid, _ := conf.get("group.id", nil)
@@ -263,6 +270,12 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, err
 	}
 	c.events_channel_enable = v.(bool)
+
+	v, err = conf.extract("go.events.channel.size", 1000)
+	if err != nil {
+		return nil, err
+	}
+	events_channel_size := v.(int)
 
 	c_conf, err := conf.convert()
 	if err != nil {
@@ -290,7 +303,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	if c.events_channel_enable {
-		c.Events = make(chan Event, 1000)
+		c.Events = make(chan Event, events_channel_size)
 		c.reader_term_chan = make(chan bool)
 
 		/* Start rdkafka consumer queue reader -> Events writer goroutine */
