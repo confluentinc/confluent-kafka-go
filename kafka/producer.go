@@ -81,7 +81,7 @@ func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event
 		}
 	}
 
-	var cgoid_ptr *int = nil
+	var cgoid uintptr
 
 	// Per-message state that needs to be retained through the C code:
 	//   delivery channel (if specified)
@@ -90,17 +90,16 @@ func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event
 	// due to cgo constraints, we add them to a per-producer map for lookup
 	// when the C code triggers the callbacks or events.
 	if delivery_chan != nil || opaque != nil {
-		cgoid := p.handle.cgo_put(cgo_dr{delivery_chan: delivery_chan, opaque: opaque})
-		cgoid_ptr = &cgoid
+		cgoid = p.handle.cgo_put(cgo_dr{delivery_chan: delivery_chan, opaque: opaque})
 	}
 
 	r := int(C.rd_kafka_produce(c_rkt, C.int32_t(msg.TopicPartition.Partition),
 		C.int(msg_flags)|C.RD_KAFKA_MSG_F_COPY,
 		unsafe.Pointer(valp), C.size_t(val_len),
-		unsafe.Pointer(keyp), C.size_t(key_len), unsafe.Pointer(cgoid_ptr)))
+		unsafe.Pointer(keyp), C.size_t(key_len), unsafe.Pointer(cgoid)))
 	if r == -1 {
-		if cgoid_ptr != nil {
-			p.handle.cgo_get(*cgoid_ptr)
+		if cgoid != 0 {
+			p.handle.cgo_get(cgoid)
 		}
 		return NewKafkaError(C.rd_kafka_last_error())
 	}
@@ -233,7 +232,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.p = p
 	p.handle.setup()
 	p.handle.rkq = C.rd_kafka_queue_get_main(p.handle.rk)
-	p.handle.cgomap = make(map[int]cgoif)
+	p.handle.cgomap = make(map[uintptr]cgoif)
 	p.Events = make(chan Event, 1000000)
 	p.ProduceChannel = make(chan *Message, produce_channel_size)
 	p.poller_term_chan = make(chan bool)
