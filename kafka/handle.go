@@ -109,12 +109,10 @@ func (h *handle) wait_terminated(term_cnt int) {
 func (h *handle) get_rkt0(topic string, c_topic *C.char, do_lock bool) (c_rkt *C.rd_kafka_topic_t) {
 	if do_lock {
 		h.rkt_cache_lock.Lock()
+		defer h.rkt_cache_lock.Unlock()
 	}
 	c_rkt, ok := h.rkt_cache[topic]
 	if ok {
-		if do_lock {
-			h.rkt_cache_lock.Unlock()
-		}
 		return c_rkt
 	}
 
@@ -132,10 +130,6 @@ func (h *handle) get_rkt0(topic string, c_topic *C.char, do_lock bool) (c_rkt *C
 	h.rkt_cache[topic] = c_rkt
 	h.rkt_name_cache[c_rkt] = topic
 
-	if do_lock {
-		h.rkt_cache_lock.Unlock()
-	}
-
 	return c_rkt
 }
 
@@ -148,9 +142,10 @@ func (h *handle) get_rkt(topic string) (c_rkt *C.rd_kafka_topic_t) {
 // using the local cache to avoid a cgo call.
 func (h *handle) get_topic_name_from_rkt(c_rkt *C.rd_kafka_topic_t) (topic string) {
 	h.rkt_cache_lock.Lock()
+	defer h.rkt_cache_lock.Unlock()
+
 	topic, ok := h.rkt_name_cache[c_rkt]
 	if ok {
-		h.rkt_cache_lock.Unlock()
 		return topic
 	}
 
@@ -159,7 +154,6 @@ func (h *handle) get_topic_name_from_rkt(c_rkt *C.rd_kafka_topic_t) (topic strin
 	topic = C.GoString(c_topic)
 
 	c_rkt = h.get_rkt0(topic, c_topic, false /* dont lock */)
-	h.rkt_cache_lock.Unlock()
 
 	return topic
 }
@@ -184,13 +178,14 @@ type cgo_dr struct {
 // FIXME: the uniquity of the id is questionable over time.
 func (h *handle) cgo_put(cg cgoif) (cgoid uintptr) {
 	h.cgo_lock.Lock()
+	defer h.cgo_lock.Unlock()
+
 	h.cgoid_next += 1
 	if h.cgoid_next == 0 {
 		h.cgoid_next += 1
 	}
 	cgoid = h.cgoid_next
 	h.cgomap[cgoid] = cg
-	h.cgo_lock.Unlock()
 	return cgoid
 }
 
@@ -203,10 +198,11 @@ func (h *handle) cgo_get(cgoid uintptr) (cg cgoif, found bool) {
 	}
 
 	h.cgo_lock.Lock()
+	defer h.cgo_lock.Unlock()
 	cg, found = h.cgomap[cgoid]
 	if found {
 		delete(h.cgomap, cgoid)
 	}
-	h.cgo_lock.Unlock()
+
 	return cg, found
 }
