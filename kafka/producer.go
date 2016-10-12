@@ -61,7 +61,7 @@ func (p *Producer) get_handle() *handle {
 // transmit queue, thus returning immediately.
 // The delivery report will be sent on the provided delivery_chan if specified,
 // or on the Producer object's Events channel if not.
-func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event, opaque *interface{}) error {
+func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event, opaque interface{}) error {
 	c_rkt := p.handle.get_rkt(*msg.TopicPartition.Topic)
 
 	var valp *byte = nil
@@ -115,7 +115,7 @@ func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event
 	return nil
 }
 
-func (p *Producer) Produce(msg *Message, delivery_chan chan Event, opaque *interface{}) error {
+func (p *Producer) Produce(msg *Message, delivery_chan chan Event, opaque interface{}) error {
 	return p.produce(msg, 0, delivery_chan, opaque)
 }
 

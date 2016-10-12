@@ -92,7 +92,7 @@ type Message struct {
 	Key            []byte
 	Timestamp      time.Time
 	TimestampType  TimestampType
-	Opaque         *interface{}
+	Opaque         interface{}
 }
 
 // String returns a human readable representation of a Message.

@@ -169,7 +169,7 @@ type cgoif interface{}
 // delivery report cgoif container
 type cgo_dr struct {
 	delivery_chan chan Event
-	opaque        *interface{}
+	opaque        interface{}
 }
 
 // cgo_put adds object cg to the handle's cgo map and returns a
