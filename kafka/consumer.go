@@ -180,8 +180,7 @@ func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 	if m.TopicPartition.Error != nil {
 		return nil, KafkaError{ERR__INVALID_ARG, "Can't commit errored message"}
 	}
-	offsets := make([]TopicPartition, 1)
-	offsets[0] = m.TopicPartition
+	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset += 1
 	return c.commit(offsets)
 }
