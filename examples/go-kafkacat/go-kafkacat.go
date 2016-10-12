@@ -171,6 +171,10 @@ func run_consumer(config *kafka.ConfigMap, topics []string) {
 			case kafka.KafkaError:
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 				run = false
+			case kafka.OffsetsCommitted:
+				if verbosity >= 2 {
+					fmt.Fprintf(os.Stderr, "%% %v\n", e)
+				}
 			default:
 				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}
@@ -212,6 +216,7 @@ func main() {
 	brokers := kingpin.Flag("broker", "Bootstrap broker(s)").Required().String()
 	kingpin.Flag("config", "Configuration property (prop=val)").Short('X').PlaceHolder("PROP=VAL").SetValue(&confargs)
 	key_delim_arg := kingpin.Flag("key-delim", "Key and value delimiter (empty string=dont print/parse key)").Default("").String()
+	verbosity_arg := kingpin.Flag("verbosity", "Output verbosity level").Short('v').Default("1").Int()
 
 	/* Producer mode options */
 	mode_P := kingpin.Command("produce", "Produce messages")
@@ -228,6 +233,7 @@ func main() {
 
 	mode := kingpin.Parse()
 
+	verbosity = *verbosity_arg
 	key_delim = *key_delim_arg
 	exit_eof = *exit_eof_arg
 	confargs.conf["bootstrap.servers"] = *brokers
