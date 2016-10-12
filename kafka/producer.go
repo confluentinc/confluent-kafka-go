@@ -26,6 +26,13 @@ import (
 /*
 #include <stdlib.h>
 #include <librdkafka/rdkafka.h>
+
+rd_kafka_resp_err_t do_produce (rd_kafka_topic_t *rkt, int32_t partition,
+          int msg_flags,
+          void *val, size_t val_len, void *key, size_t key_len, uintptr_t cgoid) {
+  return rd_kafka_produce(rkt, partition, msg_flags, val, val_len, key, key_len,
+                          (void *)cgoid);
+}
 */
 import "C"
 
@@ -81,7 +88,7 @@ func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event
 		}
 	}
 
-	var cgoid uintptr
+	var cgoid int
 
 	// Per-message state that needs to be retained through the C code:
 	//   delivery channel (if specified)
@@ -93,10 +100,11 @@ func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event
 		cgoid = p.handle.cgo_put(cgo_dr{delivery_chan: delivery_chan, opaque: opaque})
 	}
 
-	r := int(C.rd_kafka_produce(c_rkt, C.int32_t(msg.TopicPartition.Partition),
+	r := int(C.do_produce(c_rkt, C.int32_t(msg.TopicPartition.Partition),
 		C.int(msg_flags)|C.RD_KAFKA_MSG_F_COPY,
 		unsafe.Pointer(valp), C.size_t(val_len),
-		unsafe.Pointer(keyp), C.size_t(key_len), unsafe.Pointer(cgoid)))
+		unsafe.Pointer(keyp), C.size_t(key_len),
+		(C.uintptr_t)(cgoid)))
 	if r == -1 {
 		if cgoid != 0 {
 			p.handle.cgo_get(cgoid)
@@ -232,7 +240,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.p = p
 	p.handle.setup()
 	p.handle.rkq = C.rd_kafka_queue_get_main(p.handle.rk)
-	p.handle.cgomap = make(map[uintptr]cgoif)
+	p.handle.cgomap = make(map[int]cgoif)
 	p.Events = make(chan Event, 1000000)
 	p.ProduceChannel = make(chan *Message, produce_channel_size)
 	p.poller_term_chan = make(chan bool)

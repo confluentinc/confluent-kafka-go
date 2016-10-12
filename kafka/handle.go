@@ -55,7 +55,7 @@ type handle struct {
 	// Maps C callbacks based on cgoid back to its Go object
 	cgo_lock   sync.Mutex
 	cgoid_next uintptr
-	cgomap     map[uintptr]cgoif
+	cgomap     map[int]cgoif
 
 	//
 	// producer
@@ -176,7 +176,7 @@ type cgo_dr struct {
 // unique id for the added entry.
 // Thread-safe.
 // FIXME: the uniquity of the id is questionable over time.
-func (h *handle) cgo_put(cg cgoif) (cgoid uintptr) {
+func (h *handle) cgo_put(cg cgoif) (cgoid int) {
 	h.cgo_lock.Lock()
 	defer h.cgo_lock.Unlock()
 
@@ -184,7 +184,7 @@ func (h *handle) cgo_put(cg cgoif) (cgoid uintptr) {
 	if h.cgoid_next == 0 {
 		h.cgoid_next += 1
 	}
-	cgoid = h.cgoid_next
+	cgoid = (int)(h.cgoid_next)
 	h.cgomap[cgoid] = cg
 	return cgoid
 }
@@ -192,7 +192,7 @@ func (h *handle) cgo_put(cg cgoif) (cgoid uintptr) {
 // cgo_get looks up cgoid in the cgo map, deletes the reference from the map
 // and returns the object, if found. Else returns nil, false.
 // Thread-safe.
-func (h *handle) cgo_get(cgoid uintptr) (cg cgoif, found bool) {
+func (h *handle) cgo_get(cgoid int) (cg cgoif, found bool) {
 	if cgoid == 0 {
 		return nil, false
 	}

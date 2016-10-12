@@ -203,7 +203,7 @@ out:
 
 				if rkmessage._private != nil {
 					// Find cgoif by id
-					cg, found := h.cgo_get((uintptr)(rkmessage._private))
+					cg, found := h.cgo_get((int)((uintptr)(rkmessage._private)))
 					if found {
 						cdr := cg.(cgo_dr)
 

@@ -295,7 +295,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	c.handle.c = c
 	c.handle.setup()
-	c.handle.cgomap = make(map[uintptr]cgoif)
+	c.handle.cgomap = make(map[int]cgoif)
 	c.handle.rkq = C.rd_kafka_queue_get_consumer(c.handle.rk)
 	if c.handle.rkq == nil {
 		// no cgrp (no group.id configured), revert to main queue.
