@@ -80,7 +80,7 @@ func (h *handle) String() string {
 func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
-
+	h.cgomap = make(map[int]cgoif)
 	h.terminatedChan = make(chan string, 10)
 }
 

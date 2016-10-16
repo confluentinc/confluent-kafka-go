@@ -241,7 +241,6 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.p = p
 	p.handle.setup()
 	p.handle.rkq = C.rd_kafka_queue_get_main(p.handle.rk)
-	p.handle.cgomap = make(map[int]cgoif)
 	p.Events = make(chan Event, 1000000)
 	p.ProduceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
