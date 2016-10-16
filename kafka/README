@@ -42,8 +42,8 @@ To run benchmark tests:
 
 
 
-Build tags
-==========
+Build tags (static linking)
+===========================
 
 Different build types are supported through Go build tags (`-tags ..`),
 these tags should be specified on the **application** build command.

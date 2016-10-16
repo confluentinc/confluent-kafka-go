@@ -1,31 +1,23 @@
 Confluent's Apache Kafka client for Golang
 ==========================================
 
-**WARNING: This client is in initial development, NOT FOR PRODUCTION USE**
-
 Confluent's Kafka client for Golang wraps the librdkafka C library, providing
 full Kafka protocol support with great performance and reliability.
 
 The Golang bindings provides a high-level Producer and Consumer with support
-for the balanced consumer groups of Apache Kafka 0.9.
-
-See the [API documentation: FIXME]()
+for the balanced consumer groups of Apache Kafka 0.9 and above.
 
 **License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 
-Early preview information
-=========================
+Beta information
+================
+The Go client is currently in beta and APIs are subject to (minor) change.
 
-The Go client is currently under heavy initial development and is not
-ready for production use. APIs are not be considered stable.
 
-As an excercise for early birds the Go client currently provides
-a number of possibly competing interfaces to various functionality.
-Your feedback is highly valuable to us on which APIs that should go into
-the final client.
-
-There are two main strands: channel based or function based.
+API strands
+===========
+There are two main API strands: channel based or function based.
 
 Channel based consumer
 ----------------------
@@ -137,8 +129,8 @@ Static builds
 
 **NOTE**: Requires pkg-config
 
-To link librdkafka statically append `-tags static` to your application's
-`go build` command, e.g.:
+To link your application statically with librdkafka append `-tags static` to
+your application's `go build` command, e.g.:
 
     $ cd kafkatest/go_verifiable_consumer
     $ go build -tags static
