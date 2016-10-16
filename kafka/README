@@ -53,3 +53,16 @@ these tags should be specified on the **application** build command.
  * `static_all` - Build with all libraries linked statically.
  * neither - Build with librdkafka (and its dependencies) linked dynamically.
 
+
+
+Generate HTML documentation
+===========================
+
+To generate one-page HTML documentation run the mk/doc-gen.py script from the
+top-level directory. This script requires the beautifulsoup4 Python package.
+
+    $ source .../your/virtualenv/bin/activate
+    $ pip install beautifulsoup4
+    ..
+    $ mk/doc-gen.py > kafka.html
+
