@@ -56,7 +56,7 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event, opaque interface{}) error {
+func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
 	var valp *byte
@@ -91,8 +91,8 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event, 
 	// Since these cant be passed as opaque pointers to the C code,
 	// due to cgo constraints, we add them to a per-producer map for lookup
 	// when the C code triggers the callbacks or events.
-	if deliveryChan != nil || opaque != nil {
-		cgoid = p.handle.cgoPut(cgoDr{deliveryChan: deliveryChan, opaque: opaque})
+	if deliveryChan != nil || msg.Opaque != nil {
+		cgoid = p.handle.cgoPut(cgoDr{deliveryChan: deliveryChan, opaque: msg.Opaque})
 	}
 
 	r := int(C.do_produce(crkt, C.int32_t(msg.TopicPartition.Partition),
@@ -116,8 +116,8 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event, 
 // The delivery report will be sent on the provided deliveryChan if specified,
 // or on the Producer object's Events channel if not.
 // Returns an error if message could not be enqueued.
-func (p *Producer) Produce(msg *Message, deliveryChan chan Event, opaque interface{}) error {
-	return p.produce(msg, 0, deliveryChan, opaque)
+func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
+	return p.produce(msg, 0, deliveryChan)
 }
 
 // Produce a batch of messages.
@@ -262,7 +262,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 func channelProducer(p *Producer) {
 
 	for m := range p.ProduceChannel {
-		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil, nil)
+		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
 		if err != nil {
 			m.TopicPartition.Error = err
 			p.Events <- m

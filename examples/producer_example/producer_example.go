@@ -48,7 +48,7 @@ func main() {
 	deliveryChan := make(chan kafka.Event)
 
 	value := "Hello Go!"
-	err = p.Produce(&kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: []byte(value)}, deliveryChan, nil)
+	err = p.Produce(&kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: []byte(value)}, deliveryChan)
 
 	e := <-deliveryChan
 	m := e.(*kafka.Message)

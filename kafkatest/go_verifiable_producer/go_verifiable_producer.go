@@ -136,7 +136,7 @@ func runProducer(config *kafka.ConfigMap, topic string) {
 				TopicPartition: kafka.TopicPartition{
 					Topic:     &topic,
 					Partition: kafka.PartitionAny},
-				Value: []byte(value)}, nil, nil)
+				Value: []byte(value)}, nil)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%% Produce failed: %v\n", err)
 				state.errCnt++

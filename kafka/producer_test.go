@@ -40,7 +40,7 @@ func TestProducerAPIs(t *testing.T) {
 	// Produce with function, DR on passed drChan
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
 		Value: []byte("Own drChan"), Key: []byte("This is my key")},
-		drChan, nil)
+		drChan)
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
@@ -48,14 +48,17 @@ func TestProducerAPIs(t *testing.T) {
 	// Produce with function, use default DR channel (Events)
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
 		Value: []byte("Events DR"), Key: []byte("This is my key")},
-		nil, nil)
+		nil)
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
 
-	// Produce through ProducerChannel, uses default DR channel (Events)
+	// Produce through ProducerChannel, uses default DR channel (Events),
+	// pass Opaque object.
+	myOpq := "My opaque"
 	p.ProduceChannel <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
-		Value: []byte("ProducerChannel"), Key: []byte("This is my key")}
+		Opaque: &myOpq,
+		Value:  []byte("ProducerChannel"), Key: []byte("This is my key")}
 
 	// Len() will not report messages on private delivery report chans (our drChan for example),
 	// so expect at least 2 messages, not 3.
@@ -86,6 +89,22 @@ func TestProducerAPIs(t *testing.T) {
 		switch e := ev.(type) {
 		case *Message:
 			msgCnt++
+			if (string)(e.Value) == "ProducerChannel" {
+				s := e.Opaque.(*string)
+				if s != &myOpq {
+					t.Errorf("Opaque should point to %v, not %v", &myOpq, s)
+				}
+				if *s != myOpq {
+					t.Errorf("Opaque should be \"%s\", not \"%v\"",
+						myOpq, *s)
+				}
+				t.Logf("Message \"%s\" with opaque \"%s\"\n",
+					(string)(e.Value), *s)
+			} else {
+				if e.Opaque != nil {
+					t.Errorf("Message opaque should be nil, not %v", e.Opaque)
+				}
+			}
 		default:
 			t.Logf("Ignored event %s", e)
 		}

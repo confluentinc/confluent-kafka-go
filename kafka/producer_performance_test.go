@@ -149,7 +149,7 @@ func BenchmarkProducerFunc(b *testing.B) {
 	producerPerfTest(b, "Function producer (without DR)",
 		0, false, false, false,
 		func(p *Producer, m *Message, drChan chan Event) {
-			err := p.Produce(m, drChan, nil)
+			err := p.Produce(m, drChan)
 			if err != nil {
 				b.Errorf("Produce() failed: %v", err)
 			}
@@ -160,7 +160,7 @@ func BenchmarkProducerFuncDR(b *testing.B) {
 	producerPerfTest(b, "Function producer (with DR)",
 		0, true, false, false,
 		func(p *Producer, m *Message, drChan chan Event) {
-			err := p.Produce(m, drChan, nil)
+			err := p.Produce(m, drChan)
 			if err != nil {
 				b.Errorf("Produce() failed: %v", err)
 			}
