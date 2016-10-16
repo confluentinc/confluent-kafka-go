@@ -39,8 +39,7 @@ func main() {
 	broker := os.Args[1]
 	group := os.Args[2]
 	topics := os.Args[3:]
-
-	sigchan := make(chan os.Signal)
+	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
