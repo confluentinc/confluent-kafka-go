@@ -1,3 +1,6 @@
+// Example channel-based Apache Kafka producer
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 import (
 	"fmt"
@@ -41,7 +43,7 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	done_chan := make(chan bool)
+	doneChan := make(chan bool)
 
 	go func() {
 	outer:
@@ -62,14 +64,14 @@ func main() {
 			}
 		}
 
-		close(done_chan)
+		close(doneChan)
 	}()
 
 	value := "Hello Go!"
-	p.ProduceChannel <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.KAFKA_PARTITION_ANY}, Value: []byte(value)}
+	p.ProduceChannel <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: []byte(value)}
 
 	// wait for delivery report goroutine to finish
-	_ = <-done_chan
+	_ = <-doneChan
 
 	p.Close()
 }

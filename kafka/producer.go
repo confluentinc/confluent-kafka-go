@@ -36,14 +36,14 @@ rd_kafka_resp_err_t do_produce (rd_kafka_topic_t *rkt, int32_t partition,
 */
 import "C"
 
-// Producer: High-level Apache Kafka Producer instance
+// Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
 	Events         chan Event
 	ProduceChannel chan *Message
 	handle         handle
 
 	// Terminates the poller() goroutine
-	poller_term_chan chan bool
+	pollerTermChan chan bool
 }
 
 // String returns a human readable name for a Producer instance
@@ -52,36 +52,31 @@ func (p *Producer) String() string {
 }
 
 // get_handle implements the Handle interface
-func (p *Producer) get_handle() *handle {
+func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-// Produce single message.
-// This is an asynchronous call that enqueues the message on the internal
-// transmit queue, thus returning immediately.
-// The delivery report will be sent on the provided delivery_chan if specified,
-// or on the Producer object's Events channel if not.
-func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event, opaque interface{}) error {
-	c_rkt := p.handle.get_rkt(*msg.TopicPartition.Topic)
+func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event, opaque interface{}) error {
+	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
-	var valp *byte = nil
-	var keyp *byte = nil
+	var valp *byte
+	var keyp *byte
 	var empty byte
-	val_len := 0
-	key_len := 0
+	valLen := 0
+	keyLen := 0
 
 	if msg.Value != nil {
-		val_len = len(msg.Value)
+		valLen = len(msg.Value)
 		// allow sending 0-length messages (as opposed to null messages)
-		if val_len > 0 {
+		if valLen > 0 {
 			valp = &msg.Value[0]
 		} else {
 			valp = &empty
 		}
 	}
 	if msg.Key != nil {
-		key_len = len(msg.Key)
-		if key_len > 0 {
+		keyLen = len(msg.Key)
+		if keyLen > 0 {
 			keyp = &msg.Key[0]
 		} else {
 			keyp = &empty
@@ -96,44 +91,50 @@ func (p *Producer) produce(msg *Message, msg_flags int, delivery_chan chan Event
 	// Since these cant be passed as opaque pointers to the C code,
 	// due to cgo constraints, we add them to a per-producer map for lookup
 	// when the C code triggers the callbacks or events.
-	if delivery_chan != nil || opaque != nil {
-		cgoid = p.handle.cgo_put(cgo_dr{delivery_chan: delivery_chan, opaque: opaque})
+	if deliveryChan != nil || opaque != nil {
+		cgoid = p.handle.cgoPut(cgoDr{deliveryChan: deliveryChan, opaque: opaque})
 	}
 
-	r := int(C.do_produce(c_rkt, C.int32_t(msg.TopicPartition.Partition),
-		C.int(msg_flags)|C.RD_KAFKA_MSG_F_COPY,
-		unsafe.Pointer(valp), C.size_t(val_len),
-		unsafe.Pointer(keyp), C.size_t(key_len),
+	r := int(C.do_produce(crkt, C.int32_t(msg.TopicPartition.Partition),
+		C.int(msgFlags)|C.RD_KAFKA_MSG_F_COPY,
+		unsafe.Pointer(valp), C.size_t(valLen),
+		unsafe.Pointer(keyp), C.size_t(keyLen),
 		(C.uintptr_t)(cgoid)))
 	if r == -1 {
 		if cgoid != 0 {
-			p.handle.cgo_get(cgoid)
+			p.handle.cgoGet(cgoid)
 		}
-		return NewKafkaError(C.rd_kafka_last_error())
+		return newError(C.rd_kafka_last_error())
 	}
 
 	return nil
 }
 
-func (p *Producer) Produce(msg *Message, delivery_chan chan Event, opaque interface{}) error {
-	return p.produce(msg, 0, delivery_chan, opaque)
+// Produce single message.
+// This is an asynchronous call that enqueues the message on the internal
+// transmit queue, thus returning immediately.
+// The delivery report will be sent on the provided deliveryChan if specified,
+// or on the Producer object's Events channel if not.
+// Returns an error if message could not be enqueued.
+func (p *Producer) Produce(msg *Message, deliveryChan chan Event, opaque interface{}) error {
+	return p.produce(msg, 0, deliveryChan, opaque)
 }
 
 // Produce a batch of messages.
 // These batches do not relate to the message batches sent to the broker, the latter
 // are collected on the fly internally in librdkafka.
 // This is an experimental API.
-func (p *Producer) produce_batch(topic string, msgs []*Message, msg_flags int) error {
-	c_rkt := p.handle.get_rkt(topic)
+func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) error {
+	crkt := p.handle.getRkt(topic)
 
-	c_msgs := make([]C.rd_kafka_message_t, len(msgs))
+	cmsgs := make([]C.rd_kafka_message_t, len(msgs))
 	for i, m := range msgs {
-		p.handle.message_to_c(m, &c_msgs[i])
+		p.handle.messageToC(m, &cmsgs[i])
 	}
-	r := C.rd_kafka_produce_batch(c_rkt, C.RD_KAFKA_PARTITION_UA, C.int(msg_flags)|C.RD_KAFKA_MSG_F_FREE,
-		(*C.rd_kafka_message_t)(&c_msgs[0]), C.int(len(msgs)))
+	r := C.rd_kafka_produce_batch(crkt, C.RD_KAFKA_PARTITION_UA, C.int(msgFlags)|C.RD_KAFKA_MSG_F_FREE,
+		(*C.rd_kafka_message_t)(&cmsgs[0]), C.int(len(msgs)))
 	if r == -1 {
-		return NewKafkaError(C.rd_kafka_last_error())
+		return newError(C.rd_kafka_last_error())
 	}
 
 	return nil
@@ -148,21 +149,21 @@ func (p *Producer) Len() int {
 
 // Flush and wait for outstanding messages and requests to complete delivery.
 // Includes messages on ProduceChannel.
-// Runs until value reaches zero or on timeout_ms.
+// Runs until value reaches zero or on timeoutMs.
 // Returns the number of outstanding events still un-flushed.
-func (p *Producer) Flush(timeout_ms int) int {
-	term_chan := make(chan bool) // unused stand-in term_chan
+func (p *Producer) Flush(timeoutMs int) int {
+	termChan := make(chan bool) // unused stand-in termChan
 
-	d, _ := time.ParseDuration(fmt.Sprintf("%dms", timeout_ms))
-	t_end := time.Now().Add(d)
+	d, _ := time.ParseDuration(fmt.Sprintf("%dms", timeoutMs))
+	tEnd := time.Now().Add(d)
 	for p.Len() > 0 {
-		remain := t_end.Sub(time.Now()).Seconds()
+		remain := tEnd.Sub(time.Now()).Seconds()
 		if remain <= 0.0 {
 			return p.Len()
 		}
 
-		p.handle.event_poll(p.Events,
-			int(math.Min(100, remain*1000)), 1000, term_chan)
+		p.handle.eventPoll(p.Events,
+			int(math.Min(100, remain*1000)), 1000, termChan)
 	}
 
 	return 0
@@ -171,11 +172,11 @@ func (p *Producer) Flush(timeout_ms int) int {
 // Close a Producer instance.
 // The Producer object or its channels are no longer usable after this call.
 func (p *Producer) Close() {
-	// Wait for poller() (signaled by closing poller_term_chan)
+	// Wait for poller() (signaled by closing pollerTermChan)
 	// and channel_producer() (signaled by closing ProduceChannel)
-	close(p.poller_term_chan)
+	close(p.pollerTermChan)
 	close(p.ProduceChannel)
-	p.handle.wait_terminated(2)
+	p.handle.waitTerminated(2)
 
 	close(p.Events)
 
@@ -206,35 +207,35 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	if err != nil {
 		return nil, err
 	}
-	batch_producer := v.(bool)
+	batchProducer := v.(bool)
 
 	v, err = conf.extract("go.delivery.reports", true)
 	if err != nil {
 		return nil, err
 	}
-	p.handle.fwd_dr = v.(bool)
+	p.handle.fwdDr = v.(bool)
 
 	v, err = conf.extract("go.produce.channel.size", 1000000)
 	if err != nil {
 		return nil, err
 	}
-	produce_channel_size := v.(int)
+	produceChannelSize := v.(int)
 
 	// Convert ConfigMap to librdkafka conf_t
-	c_conf, err := conf.convert()
+	cConf, err := conf.convert()
 	if err != nil {
 		return nil, err
 	}
 
-	var c_errstr *C.char = (*C.char)(C.malloc(C.size_t(256)))
-	defer C.free(unsafe.Pointer(c_errstr))
+	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
+	defer C.free(unsafe.Pointer(cErrstr))
 
-	C.rd_kafka_conf_set_events(c_conf, C.RD_KAFKA_EVENT_DR)
+	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_DR)
 
 	// Create librdkafka producer instance
-	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, c_conf, c_errstr, 256)
+	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if p.handle.rk == nil {
-		return nil, NewKafkaErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, c_errstr)
+		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
 	p.handle.p = p
@@ -242,23 +243,23 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.rkq = C.rd_kafka_queue_get_main(p.handle.rk)
 	p.handle.cgomap = make(map[int]cgoif)
 	p.Events = make(chan Event, 1000000)
-	p.ProduceChannel = make(chan *Message, produce_channel_size)
-	p.poller_term_chan = make(chan bool)
+	p.ProduceChannel = make(chan *Message, produceChannelSize)
+	p.pollerTermChan = make(chan bool)
 
-	go poller(p, p.poller_term_chan)
+	go poller(p, p.pollerTermChan)
 
 	// non-batch or batch producer, only one must be used
-	if batch_producer {
-		go channel_batch_producer(p)
+	if batchProducer {
+		go channelBatchProducer(p)
 	} else {
-		go channel_producer(p)
+		go channelProducer(p)
 	}
 
 	return p, nil
 }
 
 // channel_producer serves the ProduceChannel channel
-func channel_producer(p *Producer) {
+func channelProducer(p *Producer) {
 
 	for m := range p.ProduceChannel {
 		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil, nil)
@@ -268,21 +269,21 @@ func channel_producer(p *Producer) {
 		}
 	}
 
-	p.handle.terminated_chan <- "channel_producer"
+	p.handle.terminatedChan <- "channelProducer"
 }
 
-// channel_batch_producer serves the ProduceChannel channel and attempts to
-// improve cgo performance by using the produce_batch() interface.
-func channel_batch_producer(p *Producer) {
+// channelBatchProducer serves the ProduceChannel channel and attempts to
+// improve cgo performance by using the produceBatch() interface.
+func channelBatchProducer(p *Producer) {
 	var buffered = make(map[string][]*Message)
-	buffered_cnt := 0
-	const batch_size int = 1000000
-	tot_msg_cnt := 0
-	tot_batch_cnt := 0
+	bufferedCnt := 0
+	const batchSize int = 1000000
+	totMsgCnt := 0
+	totBatchCnt := 0
 
 	for m := range p.ProduceChannel {
 		buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
-		buffered_cnt += 1
+		bufferedCnt++
 
 	loop2:
 		for true {
@@ -298,8 +299,8 @@ func channel_batch_producer(p *Producer) {
 					panic(fmt.Sprintf("message without Topic received on ProduceChannel: %v", m))
 				}
 				buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
-				buffered_cnt += 1
-				if buffered_cnt >= batch_size {
+				bufferedCnt++
+				if bufferedCnt >= batchSize {
 					break loop2
 				}
 			default:
@@ -307,11 +308,11 @@ func channel_batch_producer(p *Producer) {
 			}
 		}
 
-		tot_batch_cnt += 1
-		tot_msg_cnt += len(buffered)
+		totBatchCnt++
+		totMsgCnt += len(buffered)
 
 		for topic, buffered2 := range buffered {
-			err := p.produce_batch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
+			err := p.produceBatch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
 			if err != nil {
 				for _, m = range buffered2 {
 					m.TopicPartition.Error = err
@@ -321,21 +322,21 @@ func channel_batch_producer(p *Producer) {
 		}
 
 		buffered = make(map[string][]*Message)
-		buffered_cnt = 0
+		bufferedCnt = 0
 	}
-	p.handle.terminated_chan <- "channel_batch_producer"
+	p.handle.terminatedChan <- "channelBatchProducer"
 }
 
 // poller polls the rd_kafka_t handle for events until signalled for termination
-func poller(p *Producer, term_chan chan bool) {
+func poller(p *Producer, termChan chan bool) {
 out:
 	for true {
 		select {
-		case _ = <-term_chan:
+		case _ = <-termChan:
 			break out
 
 		default:
-			_, term := p.handle.event_poll(p.Events, 100, 1000, term_chan)
+			_, term := p.handle.eventPoll(p.Events, 100, 1000, termChan)
 			if term {
 				break out
 			}
@@ -343,20 +344,20 @@ out:
 		}
 	}
 
-	p.handle.terminated_chan <- "poller"
+	p.handle.terminatedChan <- "poller"
 
 }
 
 // GetMetadata queries broker for cluster and topic metadata.
 // If topic is non-nil only information about that topic is returned, else if
-// all_topics is false only information about locally used topics is returned,
+// allTopics is false only information about locally used topics is returned,
 // else information about all topics is returned.
-func (p *Producer) GetMetadata(topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
-	return get_metadata(p, topic, all_topics, timeout_ms)
+func (p *Producer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	return getMetadata(p, topic, allTopics, timeoutMs)
 }
 
 // QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
 // and partition.
-func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeout_ms int) (low, high int64, err error) {
-	return queryWatermarkOffsets(p, topic, partition, timeout_ms)
+func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
+	return queryWatermarkOffsets(p, topic, partition, timeoutMs)
 }

@@ -1,3 +1,6 @@
+// Apache Kafka kafkatest VerifiableConsumer implemented in Go
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 import (
 	"encoding/json"
@@ -28,12 +30,8 @@ import (
 )
 
 var (
-	verbosity     = 1
-	exit_eof      = false
-	eof_cnt       = 0
-	partition_cnt = 0
-	key_delim     = ""
-	sigs          chan os.Signal
+	verbosity = 1
+	sigs      chan os.Signal
 )
 
 func fatal(why string) {
@@ -54,7 +52,7 @@ func send(name string, msg map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func partitions_to_map(partitions []kafka.TopicPartition) []map[string]interface{} {
+func partitionsToMap(partitions []kafka.TopicPartition) []map[string]interface{} {
 	parts := make([]map[string]interface{}, len(partitions))
 	for i, tp := range partitions {
 		parts[i] = map[string]interface{}{"topic": *tp.Topic, "partition": tp.Partition, "offset": tp.Offset}
@@ -62,8 +60,8 @@ func partitions_to_map(partitions []kafka.TopicPartition) []map[string]interface
 	return parts
 }
 
-func send_offsets_committed(offsets []kafka.TopicPartition, err error) {
-	if len(state.curr_assignment) == 0 {
+func sendOffsetsCommitted(offsets []kafka.TopicPartition, err error) {
+	if len(state.currAssignment) == 0 {
 		// Dont emit offsets_committed if there is no current assignment
 		// This happens when auto_commit is enabled since we also
 		// force a manual commit on rebalance to make sure
@@ -79,8 +77,8 @@ func send_offsets_committed(offsets []kafka.TopicPartition, err error) {
 		msg["success"] = false
 		msg["error"] = fmt.Sprintf("%v", err)
 
-		kerr, ok := err.(kafka.KafkaError)
-		if ok && kerr.Code() == kafka.ERR__NO_OFFSET {
+		kerr, ok := err.(kafka.Error)
+		if ok && kerr.Code() == kafka.ErrNoOffset {
 			fmt.Fprintf(os.Stderr, "%% No offsets to commit\n")
 			return
 		}
@@ -92,159 +90,160 @@ func send_offsets_committed(offsets []kafka.TopicPartition, err error) {
 	}
 
 	if offsets != nil {
-		msg["offsets"] = partitions_to_map(offsets)
+		msg["offsets"] = partitionsToMap(offsets)
 	}
 
 	// Make sure we report consumption before commit,
 	// otherwise tests may fail because of commit > consumed
-	send_records_consumed(true)
+	sendRecordsConsumed(true)
 
 	send("offsets_committed", msg)
 }
 
-func send_partitions(name string, partitions []kafka.TopicPartition) {
+func sendPartitions(name string, partitions []kafka.TopicPartition) {
 
 	msg := make(map[string]interface{})
-	msg["partitions"] = partitions_to_map(partitions)
+	msg["partitions"] = partitionsToMap(partitions)
 
 	send(name, msg)
 }
 
-type assigned_partition struct {
-	tp            kafka.TopicPartition
-	consumed_msgs int
-	min_offset    int64
-	max_offset    int64
+type assignedPartition struct {
+	tp           kafka.TopicPartition
+	consumedMsgs int
+	minOffset    int64
+	maxOffset    int64
 }
 
-func assignment_key(tp kafka.TopicPartition) string {
+func assignmentKey(tp kafka.TopicPartition) string {
 	return fmt.Sprintf("%s-%d", *tp.Topic, tp.Partition)
 }
 
-func find_assignment(tp kafka.TopicPartition) *assigned_partition {
-	a, ok := state.curr_assignment[assignment_key(tp)]
+func findAssignment(tp kafka.TopicPartition) *assignedPartition {
+	a, ok := state.currAssignment[assignmentKey(tp)]
 	if !ok {
 		return nil
 	}
 	return a
 }
 
-func add_assignment(tp kafka.TopicPartition) {
-	state.curr_assignment[assignment_key(tp)] = &assigned_partition{tp: tp, min_offset: -1, max_offset: -1}
+func addAssignment(tp kafka.TopicPartition) {
+	state.currAssignment[assignmentKey(tp)] = &assignedPartition{tp: tp, minOffset: -1, maxOffset: -1}
 }
 
-func clear_curr_assignment() {
-	state.curr_assignment = make(map[string]*assigned_partition)
+func clearCurrAssignment() {
+	state.currAssignment = make(map[string]*assignedPartition)
 }
 
-type comm_state struct {
-	run                          bool
-	consumed_msgs                int
-	consumed_msgs_last_reported  int
-	consumed_msgs_at_last_commit int
-	curr_assignment              map[string]*assigned_partition
-	max_messages                 int
-	auto_commit                  bool
-	async_commit                 bool
-	c                            *kafka.Consumer
+type commState struct {
+	run                      bool
+	consumedMsgs             int
+	consumedMsgsLastReported int
+	consumedMsgsAtLastCommit int
+	currAssignment           map[string]*assignedPartition
+	maxMessages              int
+	autoCommit               bool
+	asyncCommit              bool
+	c                        *kafka.Consumer
+	termOnRevoke             bool
 }
 
-var state comm_state
+var state commState
 
-func send_records_consumed(immediate bool) {
-	if len(state.curr_assignment) == 0 ||
-		(!immediate && state.consumed_msgs_last_reported+1000 > state.consumed_msgs) {
+func sendRecordsConsumed(immediate bool) {
+	if len(state.currAssignment) == 0 ||
+		(!immediate && state.consumedMsgsLastReported+1000 > state.consumedMsgs) {
 		return
 	}
 
 	msg := map[string]interface{}{}
-	msg["count"] = state.consumed_msgs - state.consumed_msgs_last_reported
-	parts := make([]map[string]interface{}, len(state.curr_assignment))
+	msg["count"] = state.consumedMsgs - state.consumedMsgsLastReported
+	parts := make([]map[string]interface{}, len(state.currAssignment))
 	i := 0
-	for _, a := range state.curr_assignment {
-		if a.min_offset == -1 {
+	for _, a := range state.currAssignment {
+		if a.minOffset == -1 {
 			// Skip partitions that havent had any messages since last time.
 			// This is to circumvent some minOffset checks in kafkatest.
 			continue
 		}
 		parts[i] = map[string]interface{}{"topic": *a.tp.Topic,
 			"partition":     a.tp.Partition,
-			"consumed_msgs": a.consumed_msgs,
-			"minOffset":     a.min_offset,
-			"maxOffset":     a.max_offset}
-		a.min_offset = -1
-		i += 1
+			"consumed_msgs": a.consumedMsgs,
+			"minOffset":     a.minOffset,
+			"maxOffset":     a.maxOffset}
+		a.minOffset = -1
+		i++
 	}
 	msg["partitions"] = parts[0:i]
 
 	send("records_consumed", msg)
 
-	state.consumed_msgs_last_reported = state.consumed_msgs
+	state.consumedMsgsLastReported = state.consumedMsgs
 }
 
 // do_commit commits every 1000 messages or whenever there is a consume timeout, or when immediate==true
-func do_commit(immediate bool, async bool) {
+func doCommit(immediate bool, async bool) {
 	if !immediate &&
-		(state.auto_commit ||
-			state.consumed_msgs_at_last_commit+1000 > state.consumed_msgs) {
+		(state.autoCommit ||
+			state.consumedMsgsAtLastCommit+1000 > state.consumedMsgs) {
 		return
 	}
 
-	async = state.async_commit
+	async = state.asyncCommit
 
 	fmt.Fprintf(os.Stderr, "%% Committing %d messages (async=%v)\n",
-		state.consumed_msgs-state.consumed_msgs_at_last_commit, async)
+		state.consumedMsgs-state.consumedMsgsAtLastCommit, async)
 
-	state.consumed_msgs_at_last_commit = state.consumed_msgs
+	state.consumedMsgsAtLastCommit = state.consumedMsgs
 
-	var wait_committed chan bool
+	var waitCommitted chan bool
 
 	if !async {
-		wait_committed = make(chan bool)
+		waitCommitted = make(chan bool)
 	}
 
 	go func() {
 		offsets, err := state.c.Commit()
 
-		send_offsets_committed(offsets, err)
+		sendOffsetsCommitted(offsets, err)
 
 		if !async {
-			close(wait_committed)
+			close(waitCommitted)
 		}
 	}()
 
 	if !async {
-		_, _ = <-wait_committed
+		_, _ = <-waitCommitted
 	}
 }
 
 // returns false when consumer should terminate, else true to keep running.
-func handle_msg(m *kafka.Message) bool {
+func handleMsg(m *kafka.Message) bool {
 	if verbosity >= 2 {
 		fmt.Fprintf(os.Stderr, "%% Message receved: %v:\n", m.TopicPartition)
 	}
 
-	a := find_assignment(m.TopicPartition)
+	a := findAssignment(m.TopicPartition)
 	if a == nil {
 		fmt.Fprintf(os.Stderr, "%% Received message on unassigned partition: %v\n", m.TopicPartition)
 		return true
 	}
 
-	a.consumed_msgs += 1
+	a.consumedMsgs++
 	offset := int64(m.TopicPartition.Offset)
-	if a.min_offset == -1 {
-		a.min_offset = offset
+	if a.minOffset == -1 {
+		a.minOffset = offset
 	}
-	if a.max_offset < offset {
-		a.max_offset = offset
+	if a.maxOffset < offset {
+		a.maxOffset = offset
 	}
 
-	state.consumed_msgs += 1
+	state.consumedMsgs++
 
-	send_records_consumed(false)
-	do_commit(false, state.async_commit)
+	sendRecordsConsumed(false)
+	doCommit(false, state.asyncCommit)
 
-	if state.max_messages > 0 && state.consumed_msgs >= state.max_messages {
+	if state.maxMessages > 0 && state.consumedMsgs >= state.maxMessages {
 		// ignore extra messages
 		return false
 	}
@@ -254,38 +253,41 @@ func handle_msg(m *kafka.Message) bool {
 }
 
 // handle_event handles an event as returned by Poll().
-func handle_event(c *kafka.Consumer, ev kafka.Event) {
+func handleEvent(c *kafka.Consumer, ev kafka.Event) {
 	switch e := ev.(type) {
 	case kafka.AssignedPartitions:
-		if len(state.curr_assignment) > 0 {
-			fatal(fmt.Sprintf("Assign: curr_assignment should have been empty: %v", state.curr_assignment))
+		if len(state.currAssignment) > 0 {
+			fatal(fmt.Sprintf("Assign: currAssignment should have been empty: %v", state.currAssignment))
 		}
-		state.curr_assignment = make(map[string]*assigned_partition)
+		state.currAssignment = make(map[string]*assignedPartition)
 		for _, tp := range e.Partitions {
-			add_assignment(tp)
+			addAssignment(tp)
 		}
-		send_partitions("partitions_assigned", e.Partitions)
+		sendPartitions("partitions_assigned", e.Partitions)
 		c.Assign(e.Partitions)
 
 	case kafka.RevokedPartitions:
-		send_records_consumed(true)
-		do_commit(true, false)
-		send_partitions("partitions_revoked", e.Partitions)
-		clear_curr_assignment()
+		sendRecordsConsumed(true)
+		doCommit(true, false)
+		sendPartitions("partitions_revoked", e.Partitions)
+		clearCurrAssignment()
 		c.Unassign()
+		if state.termOnRevoke {
+			state.run = false
+		}
 
 	case kafka.OffsetsCommitted:
-		send_offsets_committed(e.Offsets, e.Error)
+		sendOffsetsCommitted(e.Offsets, e.Error)
 
 	case *kafka.Message:
-		state.run = handle_msg(e)
+		state.run = handleMsg(e)
 
-	case kafka.KafkaError:
-		if e.Code() == kafka.ERR_UNKNOWN_TOPIC_OR_PART {
+	case kafka.Error:
+		if e.Code() == kafka.ErrUnknownTopicOrPart {
 			fmt.Fprintf(os.Stderr,
 				"%% Ignoring transient error: %v\n", e)
 		} else {
-			fatal(fmt.Sprintf("%% KafkaError: %v\n", e))
+			fatal(fmt.Sprintf("%% Error: %v\n", e))
 		}
 
 	default:
@@ -295,7 +297,7 @@ func handle_event(c *kafka.Consumer, ev kafka.Event) {
 
 // main_loop serves consumer events, signals, etc.
 // will run for at most (roughly) \p timeout seconds.
-func main_loop(c *kafka.Consumer, timeout int) {
+func mainLoop(c *kafka.Consumer, timeout int) {
 	tmout := time.NewTicker(time.Duration(timeout) * time.Second)
 	every1s := time.NewTicker(1 * time.Second)
 
@@ -313,23 +315,24 @@ out:
 
 		case _ = <-every1s.C:
 			// Report consumed messages
-			send_records_consumed(true)
+			sendRecordsConsumed(true)
 			// Commit on timeout as well (not just every 1000 messages)
-			do_commit(false, state.async_commit)
+			doCommit(false, state.asyncCommit)
 
-		case _ = <-time.After(100000 * time.Microsecond):
+		default:
+			//case _ = <-time.After(100000 * time.Microsecond):
 			for true {
 				ev := c.Poll(0)
 				if ev == nil {
 					break
 				}
-				handle_event(c, ev)
+				handleEvent(c, ev)
 			}
 		}
 	}
 }
 
-func run_consumer(config *kafka.ConfigMap, topic string) {
+func runConsumer(config *kafka.ConfigMap, topic string) {
 	c, err := kafka.NewConsumer(config)
 	if err != nil {
 		fatal(fmt.Sprintf("Failed to create consumer: %v", err))
@@ -344,32 +347,34 @@ func run_consumer(config *kafka.ConfigMap, topic string) {
 	send("startup_complete", nil)
 	state.run = true
 
-	main_loop(c, 10*60)
-	t_term_begin := time.Now()
+	mainLoop(c, 10*60)
+
+	tTermBegin := time.Now()
 	fmt.Fprintf(os.Stderr, "%% Consumer shutting down\n")
 
-	send_records_consumed(true)
+	sendRecordsConsumed(true)
 
 	// Final commit (if auto commit is disabled)
-	do_commit(false, false)
+	doCommit(false, false)
 
 	c.Unsubscribe()
 
 	// Wait for rebalance, final offset commits, etc.
 	state.run = true
-	main_loop(c, 10)
+	state.termOnRevoke = true
+	mainLoop(c, 10)
 
 	fmt.Fprintf(os.Stderr, "%% Closing consumer\n")
 
 	c.Close()
 
 	msg := make(map[string]interface{})
-	msg["_shutdown_duration"] = time.Since(t_term_begin).Seconds()
+	msg["_shutdown_duration"] = time.Since(tTermBegin).Seconds()
 	send("shutdown_complete", msg)
 }
 
 func main() {
-	sigs = make(chan os.Signal)
+	sigs = make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Default config
@@ -379,13 +384,13 @@ func main() {
 	group := kingpin.Flag("group-id", "Consumer group").Required().String()
 	topic := kingpin.Flag("topic", "Topic to consume").Required().String()
 	brokers := kingpin.Flag("broker-list", "Bootstrap broker(s)").Required().String()
-	session_timeout := kingpin.Flag("session-timeout", "Session timeout").Required().Int()
+	sessionTimeout := kingpin.Flag("session-timeout", "Session timeout").Required().Int()
 
 	/* Optionals */
-	enable_autocommit := kingpin.Flag("enable-autocommit", "Enable auto-commit").Default("true").Bool()
-	max_messages := kingpin.Flag("max-messages", "Max messages to consume").Default("10000000").Int()
-	java_assignment_strategy := kingpin.Flag("assignment-strategy", "Assignment strategy (Java class name)").String()
-	config_file := kingpin.Flag("consumer.config", "Config file").File()
+	enableAutocommit := kingpin.Flag("enable-autocommit", "Enable auto-commit").Default("true").Bool()
+	maxMessages := kingpin.Flag("max-messages", "Max messages to consume").Default("10000000").Int()
+	javaAssignmentStrategy := kingpin.Flag("assignment-strategy", "Assignment strategy (Java class name)").String()
+	configFile := kingpin.Flag("consumer.config", "Config file").File()
 	debug := kingpin.Flag("debug", "Debug flags").String()
 	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
@@ -393,8 +398,8 @@ func main() {
 
 	conf["bootstrap.servers"] = *brokers
 	conf["group.id"] = *group
-	conf["session.timeout.ms"] = *session_timeout
-	conf["enable.auto.commit"] = *enable_autocommit
+	conf["session.timeout.ms"] = *sessionTimeout
+	conf["enable.auto.commit"] = *enableAutocommit
 
 	if len(*debug) > 0 {
 		conf["debug"] = *debug
@@ -402,16 +407,16 @@ func main() {
 
 	/* Convert Java assignment strategy to librdkafka one.
 	 * "[java.class.path.]Strategy[Assignor]" -> "strategy" */
-	if java_assignment_strategy != nil && len(*java_assignment_strategy) > 0 {
-		s := strings.Split(*java_assignment_strategy, ".")
+	if javaAssignmentStrategy != nil && len(*javaAssignmentStrategy) > 0 {
+		s := strings.Split(*javaAssignmentStrategy, ".")
 		strategy := strings.ToLower(strings.TrimSuffix(s[len(s)-1], "Assignor"))
 		conf["partition.assignment.strategy"] = strategy
 		fmt.Fprintf(os.Stderr, "%% Mapped %s -> %s\n",
-			*java_assignment_strategy, conf["partition.assignment.strategy"])
+			*javaAssignmentStrategy, conf["partition.assignment.strategy"])
 	}
 
-	if *config_file != nil {
-		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *config_file)
+	if *configFile != nil {
+		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *configFile)
 	}
 
 	conf["go.events.channel.enable"] = false
@@ -428,8 +433,8 @@ func main() {
 	}
 	fmt.Println("Config: ", conf)
 
-	state.auto_commit = *enable_autocommit
-	state.max_messages = *max_messages
-	run_consumer((*kafka.ConfigMap)(&conf), *topic)
+	state.autoCommit = *enableAutocommit
+	state.maxMessages = *maxMessages
+	runConsumer((*kafka.ConfigMap)(&conf), *topic)
 
 }

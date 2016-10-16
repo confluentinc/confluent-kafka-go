@@ -1,3 +1,6 @@
+// Apache Kafka kafkatest VerifiableProducer implemented in Go
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 import (
 	"encoding/json"
@@ -28,12 +30,8 @@ import (
 )
 
 var (
-	verbosity     = 1
-	exit_eof      = false
-	eof_cnt       = 0
-	partition_cnt = 0
-	key_delim     = ""
-	sigs          chan os.Signal
+	verbosity = 1
+	sigs      chan os.Signal
 )
 
 func send(name string, msg map[string]interface{}) {
@@ -49,7 +47,7 @@ func send(name string, msg map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func partitions_to_map(partitions []kafka.TopicPartition) []map[string]interface{} {
+func partitionsToMap(partitions []kafka.TopicPartition) []map[string]interface{} {
 	parts := make([]map[string]interface{}, len(partitions))
 	for i, tp := range partitions {
 		parts[i] = map[string]interface{}{"topic": *tp.Topic, "partition": tp.Partition}
@@ -57,35 +55,35 @@ func partitions_to_map(partitions []kafka.TopicPartition) []map[string]interface
 	return parts
 }
 
-func send_partitions(name string, partitions []kafka.TopicPartition) {
+func sendPartitions(name string, partitions []kafka.TopicPartition) {
 
 	msg := make(map[string]interface{})
-	msg["partitions"] = partitions_to_map(partitions)
+	msg["partitions"] = partitionsToMap(partitions)
 
 	send(name, msg)
 }
 
-type comm_state struct {
-	max_messages int // messages to send
-	msg_cnt      int // messages produced
-	delivery_cnt int // messages delivered
-	err_cnt      int // messages failed to deliver
-	value_prefix string
-	throughput   int
-	p            *kafka.Producer
+type commState struct {
+	maxMessages int // messages to send
+	msgCnt      int // messages produced
+	deliveryCnt int // messages delivered
+	errCnt      int // messages failed to deliver
+	valuePrefix string
+	throughput  int
+	p           *kafka.Producer
 }
 
-var state comm_state
+var state commState
 
 // handle_dr handles delivery reports
 // returns false when producer should terminate, else true to keep running.
-func handle_dr(m *kafka.Message) bool {
+func handleDr(m *kafka.Message) bool {
 	if verbosity >= 2 {
 		fmt.Fprintf(os.Stderr, "%% DR: %v:\n", m.TopicPartition)
 	}
 
 	if m.TopicPartition.Error != nil {
-		state.err_cnt += 1
+		state.errCnt++
 		errmsg := make(map[string]interface{})
 		errmsg["message"] = m.TopicPartition.Error.Error()
 		errmsg["topic"] = *m.TopicPartition.Topic
@@ -94,7 +92,7 @@ func handle_dr(m *kafka.Message) bool {
 		errmsg["value"] = (string)(m.Value)
 		send("producer_send_error", errmsg)
 	} else {
-		state.delivery_cnt += 1
+		state.deliveryCnt++
 		drmsg := make(map[string]interface{})
 		drmsg["topic"] = *m.TopicPartition.Topic
 		drmsg["partition"] = m.TopicPartition.Partition
@@ -104,7 +102,7 @@ func handle_dr(m *kafka.Message) bool {
 		send("producer_send_success", drmsg)
 	}
 
-	if state.delivery_cnt+state.err_cnt >= state.max_messages {
+	if state.deliveryCnt+state.errCnt >= state.maxMessages {
 		// we're done
 		return false
 	}
@@ -113,7 +111,7 @@ func handle_dr(m *kafka.Message) bool {
 
 }
 
-func run_producer(config *kafka.ConfigMap, topic string) {
+func runProducer(config *kafka.ConfigMap, topic string) {
 	p, err := kafka.NewProducer(config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
@@ -132,19 +130,19 @@ func run_producer(config *kafka.ConfigMap, topic string) {
 		select {
 		case <-throttle.C:
 			// produce a message (async) on each throttler tick
-			value := fmt.Sprintf("%s%d", state.value_prefix, state.msg_cnt)
-			state.msg_cnt += 1
+			value := fmt.Sprintf("%s%d", state.valuePrefix, state.msgCnt)
+			state.msgCnt++
 			err := p.Produce(&kafka.Message{
 				TopicPartition: kafka.TopicPartition{
 					Topic:     &topic,
-					Partition: kafka.KAFKA_PARTITION_ANY},
+					Partition: kafka.PartitionAny},
 				Value: []byte(value)}, nil, nil)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%% Produce failed: %v\n", err)
-				state.err_cnt += 1
+				state.errCnt++
 			}
 
-			if state.msg_cnt == state.max_messages {
+			if state.msgCnt == state.maxMessages {
 				// all messages sent, now wait for deliveries
 				throttle.Stop()
 			}
@@ -156,8 +154,8 @@ func run_producer(config *kafka.ConfigMap, topic string) {
 		case ev := <-p.Events:
 			switch e := ev.(type) {
 			case *kafka.Message:
-				run = handle_dr(e)
-			case kafka.KafkaError:
+				run = handleDr(e)
+			case kafka.Error:
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 				run = false
 			default:
@@ -188,10 +186,10 @@ func main() {
 
 	/* Optionals */
 	throughput := kingpin.Flag("throughput", "Msgs/s").Default("1000000").Int()
-	max_messages := kingpin.Flag("max-messages", "Max message count").Default("1000000").Int()
-	value_prefix := kingpin.Flag("value-prefix", "Payload value string prefix").Default("").String()
+	maxMessages := kingpin.Flag("max-messages", "Max message count").Default("1000000").Int()
+	valuePrefix := kingpin.Flag("value-prefix", "Payload value string prefix").Default("").String()
 	acks := kingpin.Flag("acks", "Required acks").Default("all").String()
-	config_file := kingpin.Flag("producer.config", "Config file").File()
+	configFile := kingpin.Flag("producer.config", "Config file").File()
 	debug := kingpin.Flag("debug", "Debug flags").String()
 	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
@@ -215,18 +213,18 @@ func main() {
 	}
 	fmt.Println("Config: ", conf)
 
-	if *config_file != nil {
-		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *config_file)
+	if *configFile != nil {
+		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *configFile)
 	}
 
-	if len(*value_prefix) > 0 {
-		state.value_prefix = fmt.Sprintf("%s.", *value_prefix)
+	if len(*valuePrefix) > 0 {
+		state.valuePrefix = fmt.Sprintf("%s.", *valuePrefix)
 	} else {
-		state.value_prefix = ""
+		state.valuePrefix = ""
 	}
 
 	state.throughput = *throughput
-	state.max_messages = *max_messages
-	run_producer((*kafka.ConfigMap)(&conf), *topic)
+	state.maxMessages = *maxMessages
+	runProducer((*kafka.ConfigMap)(&conf), *topic)
 
 }

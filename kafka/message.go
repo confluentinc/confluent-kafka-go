@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -14,11 +16,6 @@
  * limitations under the License.
  */
 
-// kafka client.
-// This package implements high-level Apache Kafka producer and consumers
-// using bindings on-top of the C librdkafka library.
-package kafka
-
 import (
 	"fmt"
 	"time"
@@ -33,13 +30,13 @@ import (
 void setup_rkmessage (rd_kafka_message_t *rkmessage,
                       rd_kafka_topic_t *rkt, int32_t partition,
                       const void *payload, size_t len,
-                      void *key, size_t key_len, void *opaque) {
+                      void *key, size_t keyLen, void *opaque) {
      rkmessage->rkt       = rkt;
      rkmessage->partition = partition;
      rkmessage->payload   = (void *)payload;
      rkmessage->len       = len;
      rkmessage->key       = (void *)key;
-     rkmessage->key_len   = key_len;
+     rkmessage->key_len   = keyLen;
      rkmessage->_private  = opaque;
 }
 
@@ -64,21 +61,21 @@ import "C"
 type TimestampType int
 
 const (
-	// Timestamp not set, or not available due to lacking broker support
-	TIMESTAMP_NOT_AVAILABLE = TimestampType(C.RD_KAFKA_TIMESTAMP_NOT_AVAILABLE)
-	// Timestamp set by producer (source time)
-	TIMESTAMP_CREATE_TIME = TimestampType(C.RD_KAFKA_TIMESTAMP_CREATE_TIME)
-	// Timestamp set by broker (store time)
-	TIMESTAMP_LOG_APPEND_TIME = TimestampType(C.RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME)
+	// TimestampNotAvailable indicates no timestamp was set, or not available due to lacking broker support
+	TimestampNotAvailable = TimestampType(C.RD_KAFKA_TIMESTAMP_NOT_AVAILABLE)
+	// TimestampCreateTime indicates timestamp set by producer (source time)
+	TimestampCreateTime = TimestampType(C.RD_KAFKA_TIMESTAMP_CREATE_TIME)
+	// TimestampLogAppendTime indicates timestamp set set by broker (store time)
+	TimestampLogAppendTime = TimestampType(C.RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME)
 )
 
 func (t TimestampType) String() string {
 	switch t {
-	case TIMESTAMP_CREATE_TIME:
+	case TimestampCreateTime:
 		return "CreateTime"
-	case TIMESTAMP_LOG_APPEND_TIME:
+	case TimestampLogAppendTime:
 		return "LogAppendTime"
-	case TIMESTAMP_NOT_AVAILABLE:
+	case TimestampNotAvailable:
 		fallthrough
 	default:
 		return "NotAvailable"
@@ -107,86 +104,86 @@ func (m *Message) String() string {
 	return fmt.Sprintf("%s[%d]@%s", topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 }
 
-func (h *handle) get_rkt_from_message(msg *Message) (c_rkt *C.rd_kafka_topic_t) {
+func (h *handle) getRktFromMessage(msg *Message) (crkt *C.rd_kafka_topic_t) {
 	if msg.TopicPartition.Topic == nil {
 		return nil
 	}
 
-	return h.get_rkt(*msg.TopicPartition.Topic)
+	return h.getRkt(*msg.TopicPartition.Topic)
 }
 
-// new_message_from_event reads a message from the provided C event
+// newMessageFromEvent reads a message from the provided C event
 // and creates a new Message object from the extracted information.
 // returns nil if no message was available.
-func (h *handle) new_message_from_event(rkev *C.rd_kafka_event_t) (msg *Message) {
+func (h *handle) newMessageFromEvent(rkev *C.rd_kafka_event_t) (msg *Message) {
 	var tstype C.rd_kafka_timestamp_type_t
-	var c_ts C.int64_t
+	var cts C.int64_t
 
-	c_msg := C.event_rkmessage_next(rkev, &tstype, &c_ts)
-	if c_msg == nil {
+	cmsg := C.event_rkmessage_next(rkev, &tstype, &cts)
+	if cmsg == nil {
 		return nil
 	}
 
 	msg = &Message{}
 
-	if c_ts != -1 {
-		ts := int64(c_ts)
+	if cts != -1 {
+		ts := int64(cts)
 		msg.TimestampType = TimestampType(tstype)
 		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
 	}
 
-	h.setup_message_from_c(msg, c_msg)
+	h.setupMessageFromC(msg, cmsg)
 
 	return msg
 }
 
-func (h *handle) new_message_from_fc_msg(fc_msg *C.fetched_c_msg_t) (msg *Message) {
+func (h *handle) newMessageFromFcMsg(fcMsg *C.fetched_c_msg_t) (msg *Message) {
 	msg = &Message{}
 
-	if fc_msg.ts != -1 {
-		ts := int64(fc_msg.ts)
-		msg.TimestampType = TimestampType(fc_msg.tstype)
+	if fcMsg.ts != -1 {
+		ts := int64(fcMsg.ts)
+		msg.TimestampType = TimestampType(fcMsg.tstype)
 		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
 	}
 
-	h.setup_message_from_c(msg, fc_msg.msg)
+	h.setupMessageFromC(msg, fcMsg.msg)
 
 	return msg
 }
 
-// setup_message_from_c sets up a message object from a C rd_kafka_message_t
-func (h *handle) setup_message_from_c(msg *Message, c_msg *C.rd_kafka_message_t) {
-	if c_msg.rkt != nil {
-		topic := h.get_topic_name_from_rkt(c_msg.rkt)
+// setupMessageFromC sets up a message object from a C rd_kafka_message_t
+func (h *handle) setupMessageFromC(msg *Message, cmsg *C.rd_kafka_message_t) {
+	if cmsg.rkt != nil {
+		topic := h.getTopicNameFromRkt(cmsg.rkt)
 		msg.TopicPartition.Topic = &topic
 	}
-	msg.TopicPartition.Partition = int32(c_msg.partition)
-	if c_msg.payload != nil {
-		msg.Value = C.GoBytes(unsafe.Pointer(c_msg.payload), C.int(c_msg.len))
+	msg.TopicPartition.Partition = int32(cmsg.partition)
+	if cmsg.payload != nil {
+		msg.Value = C.GoBytes(unsafe.Pointer(cmsg.payload), C.int(cmsg.len))
 	}
-	if c_msg.key != nil {
-		msg.Key = C.GoBytes(unsafe.Pointer(c_msg.key), C.int(c_msg.key_len))
+	if cmsg.key != nil {
+		msg.Key = C.GoBytes(unsafe.Pointer(cmsg.key), C.int(cmsg.key_len))
 	}
-	msg.TopicPartition.Offset = Offset(c_msg.offset)
-	if c_msg.err != 0 {
-		msg.TopicPartition.Error = NewKafkaError(c_msg.err)
+	msg.TopicPartition.Offset = Offset(cmsg.offset)
+	if cmsg.err != 0 {
+		msg.TopicPartition.Error = newError(cmsg.err)
 	}
 }
 
-// new_message_from_c creates a new message object from a C rd_kafka_message_t
+// newMessageFromC creates a new message object from a C rd_kafka_message_t
 // NOTE: For use with Producer: does not set message timestamp fields.
-func (h *handle) new_message_from_c(c_msg *C.rd_kafka_message_t) (msg *Message) {
+func (h *handle) newMessageFromC(cmsg *C.rd_kafka_message_t) (msg *Message) {
 	msg = &Message{}
 
-	h.setup_message_from_c(msg, c_msg)
+	h.setupMessageFromC(msg, cmsg)
 
 	return msg
 }
 
-// message_to_C sets up c_msg as a clone of msg
-func (h *handle) message_to_c(msg *Message, c_msg *C.rd_kafka_message_t) {
-	var valp unsafe.Pointer = nil
-	var keyp unsafe.Pointer = nil
+// messageToC sets up cmsg as a clone of msg
+func (h *handle) messageToC(msg *Message, cmsg *C.rd_kafka_message_t) {
+	var valp unsafe.Pointer
+	var keyp unsafe.Pointer
 
 	// to circumvent Cgo constraints we need to allocate C heap memory
 	// for both Value and Key (one allocation back to back)
@@ -195,39 +192,39 @@ func (h *handle) message_to_c(msg *Message, c_msg *C.rd_kafka_message_t) {
 	// C memory pointer when it is done.
 	var payload unsafe.Pointer
 
-	value_len := 0
-	key_len := 0
+	valueLen := 0
+	keyLen := 0
 	if msg.Value != nil {
-		value_len = len(msg.Value)
+		valueLen = len(msg.Value)
 	}
 	if msg.Key != nil {
-		key_len = len(msg.Key)
+		keyLen = len(msg.Key)
 	}
 
-	alloc_len := value_len + key_len
-	if alloc_len > 0 {
-		payload = C.malloc(C.size_t(alloc_len))
-		if value_len > 0 {
-			copy((*[1 << 31]byte)(payload)[0:value_len], msg.Value)
+	allocLen := valueLen + keyLen
+	if allocLen > 0 {
+		payload = C.malloc(C.size_t(allocLen))
+		if valueLen > 0 {
+			copy((*[1 << 31]byte)(payload)[0:valueLen], msg.Value)
 			valp = payload
 		}
-		if key_len > 0 {
-			copy((*[1 << 31]byte)(payload)[value_len:key_len], msg.Key)
-			keyp = unsafe.Pointer(&((*[1 << 31]byte)(payload)[value_len]))
+		if keyLen > 0 {
+			copy((*[1 << 31]byte)(payload)[valueLen:keyLen], msg.Key)
+			keyp = unsafe.Pointer(&((*[1 << 31]byte)(payload)[valueLen]))
 		}
 	}
 
-	c_msg.rkt = h.get_rkt_from_message(msg)
-	c_msg.partition = C.int32_t(msg.TopicPartition.Partition)
-	c_msg.payload = valp
-	c_msg.len = C.size_t(value_len)
-	c_msg.key = keyp
-	c_msg.key_len = C.size_t(key_len)
-	c_msg._private = nil
+	cmsg.rkt = h.getRktFromMessage(msg)
+	cmsg.partition = C.int32_t(msg.TopicPartition.Partition)
+	cmsg.payload = valp
+	cmsg.len = C.size_t(valueLen)
+	cmsg.key = keyp
+	cmsg.key_len = C.size_t(keyLen)
+	cmsg._private = nil
 }
 
-// used for testing message_to_c performance
-func (h *handle) message_to_c_dummy(msg *Message) {
-	var c_msg C.rd_kafka_message_t
-	h.message_to_c(msg, &c_msg)
+// used for testing messageToC performance
+func (h *handle) messageToCDummy(msg *Message) {
+	var cmsg C.rd_kafka_message_t
+	h.messageToC(msg, &cmsg)
 }

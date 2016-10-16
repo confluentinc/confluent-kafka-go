@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,11 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-// kafka client.
-// This package implements high-level Apache Kafka producer and consumers
-// using bindings on-top of the C librdkafka library.
-package kafka
 
 import (
 	"fmt"
@@ -60,11 +57,12 @@ func (m ConfigMap) SetKey(key string, value ConfigValue) error {
 	return nil
 }
 
-// implements flag.Set
+// Set implements flag.Set (command line argument parser) as a convenience
+// for `-X key=value` config.
 func (m ConfigMap) Set(kv string) error {
 	i := strings.Index(kv, "=")
 	if i == -1 {
-		return KafkaError{ERR__INVALID_ARG, "Expected key=value"}
+		return Error{ErrInvalidArg, "Expected key=value"}
 	}
 
 	k := kv[:i]
@@ -99,36 +97,41 @@ func value2string(v ConfigValue) (ret string, errstr string) {
 	return ret, ""
 }
 
-// rdk_anyconf abstracts rd_kafka_conf_t and rd_kafka_topic_conf_t
+// rdkAnyconf abstracts rd_kafka_conf_t and rd_kafka_topic_conf_t
 // into a common interface.
-type rdk_anyconf interface {
-	Set(c_key *C.char, c_val *C.char, c_errstr *C.char, errstr_size int) C.rd_kafka_conf_res_t
+type rdkAnyconf interface {
+	set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t
 }
 
-func anyconf_set(anyconf rdk_anyconf, key string, value string) (err error) {
-	var c_key *C.char = C.CString(key)
-	var c_val *C.char = C.CString(value)
-	var c_errstr *C.char = (*C.char)(C.malloc(C.size_t(128)))
-	defer C.free(unsafe.Pointer(c_errstr))
+func anyconfSet(anyconf rdkAnyconf, key string, value string) (err error) {
+	cKey := C.CString(key)
+	cVal := C.CString(value)
+	cErrstr := (*C.char)(C.malloc(C.size_t(128)))
+	defer C.free(unsafe.Pointer(cErrstr))
 
-	if anyconf.Set(c_key, c_val, c_errstr, 128) != C.RD_KAFKA_CONF_OK {
-		C.free(unsafe.Pointer(c_key))
-		C.free(unsafe.Pointer(c_val))
-		return NewKafkaErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, c_errstr)
+	if anyconf.set(cKey, cVal, cErrstr, 128) != C.RD_KAFKA_CONF_OK {
+		C.free(unsafe.Pointer(cKey))
+		C.free(unsafe.Pointer(cVal))
+		return newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
 	return nil
 }
 
-func (c_conf *C.rd_kafka_conf_t) Set(c_key *C.char, c_val *C.char, c_errstr *C.char, errstr_size int) C.rd_kafka_conf_res_t {
-	return C.rd_kafka_conf_set(c_conf, c_key, c_val, c_errstr, C.size_t(errstr_size))
+// we need these typedefs to workaround a crash in golint
+// when parsing the set() methods below
+type rdkConf C.rd_kafka_conf_t
+type rdkTopicConf C.rd_kafka_topic_conf_t
+
+func (cConf *rdkConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t {
+	return C.rd_kafka_conf_set(cConf, cKey, cVal, cErrstr, C.size_t(errstrSize))
 }
 
-func (c_topic_conf *C.rd_kafka_topic_conf_t) Set(c_key *C.char, c_val *C.char, c_errstr *C.char, errstr_size int) C.rd_kafka_conf_res_t {
-	return C.rd_kafka_topic_conf_set(c_topic_conf, c_key, c_val, c_errstr, C.size_t(errstr_size))
+func (ctopicConf *rdkTopicConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t {
+	return C.rd_kafka_topic_conf_set(ctopicConf, cKey, cVal, cErrstr, C.size_t(errstrSize))
 }
 
-func config_convert_anyconf(m ConfigMap, anyconf rdk_anyconf) (err error) {
+func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 
 	for k, v := range m {
 		switch v.(type) {
@@ -136,26 +139,29 @@ func config_convert_anyconf(m ConfigMap, anyconf rdk_anyconf) (err error) {
 			/* Special sub-ConfigMap, only used for default.topic.config */
 
 			if k != "default.topic.config" {
-				return KafkaError{ERR__INVALID_ARG, fmt.Sprintf("Invalid type for key %s", k)}
+				return Error{ErrInvalidArg, fmt.Sprintf("Invalid type for key %s", k)}
 			}
 
-			var c_topic_conf = C.rd_kafka_topic_conf_new()
+			var cTopicConf = C.rd_kafka_topic_conf_new()
 
-			err = config_convert_anyconf(v.(ConfigMap), c_topic_conf)
+			err = configConvertAnyconf(v.(ConfigMap),
+				(*rdkTopicConf)(cTopicConf))
 			if err != nil {
-				C.rd_kafka_topic_conf_destroy(c_topic_conf)
+				C.rd_kafka_topic_conf_destroy(cTopicConf)
 				return err
 			}
 
-			C.rd_kafka_conf_set_default_topic_conf(anyconf.(*C.rd_kafka_conf_t), c_topic_conf)
+			C.rd_kafka_conf_set_default_topic_conf(
+				anyconf.(*rdkConf),
+				(*rdkTopicConf)(cTopicConf))
 
 		default:
 			val, errstr := value2string(v)
 			if errstr != "" {
-				return KafkaError{ERR__INVALID_ARG, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, k)}
+				return Error{ErrInvalidArg, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, k)}
 			}
 
-			err = anyconf_set(anyconf, k, val)
+			err = anyconfSet(anyconf, k, val)
 			if err != nil {
 				return err
 			}
@@ -165,16 +171,16 @@ func config_convert_anyconf(m ConfigMap, anyconf rdk_anyconf) (err error) {
 	return nil
 }
 
-// Convert ConfigMap to C rd_kafka_conf_t *
-func (m ConfigMap) convert() (c_conf *C.rd_kafka_conf_t, err error) {
-	c_conf = C.rd_kafka_conf_new()
+// convert ConfigMap to C rd_kafka_conf_t *
+func (m ConfigMap) convert() (cConf *C.rd_kafka_conf_t, err error) {
+	cConf = C.rd_kafka_conf_new()
 
-	err = config_convert_anyconf(m, c_conf)
+	err = configConvertAnyconf(m, (*rdkConf)(cConf))
 	if err != nil {
-		C.rd_kafka_conf_destroy(c_conf)
+		C.rd_kafka_conf_destroy(cConf)
 		return nil, err
 	}
-	return c_conf, nil
+	return cConf, nil
 }
 
 // get finds key in the configmap and returns its value.
@@ -187,7 +193,7 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 	}
 
 	if defval != nil && reflect.TypeOf(defval) != reflect.TypeOf(v) {
-		return nil, KafkaError{ERR__INVALID_ARG, fmt.Sprintf("%s expects type %T, not %T", key, defval, v)}
+		return nil, Error{ErrInvalidArg, fmt.Sprintf("%s expects type %T, not %T", key, defval, v)}
 	}
 
 	return v, nil

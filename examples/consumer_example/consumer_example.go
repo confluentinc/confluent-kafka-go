@@ -1,3 +1,6 @@
+// Example function-based high-level Apache Kafka consumer
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 // consumer_example implements a consumer using the non-channel Poll() API
 // to retrieve messages and events.
@@ -79,9 +81,9 @@ func main() {
 						e.TopicPartition, string(e.Value))
 				}
 
-			case kafka.PartitionEof:
+			case kafka.PartitionEOF:
 				fmt.Printf("%% Reached %v\n", e)
-			case kafka.KafkaError:
+			case kafka.Error:
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 				run = false
 			default:

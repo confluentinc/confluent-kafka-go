@@ -44,7 +44,7 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 
 	err = c.SubscribeTopics([]string{"gotest1", "gotest2"},
-		func(_c *Consumer, ev Event) error {
+		func(my_c *Consumer, ev Event) error {
 			t.Logf("%s", ev)
 			return nil
 		})
@@ -53,7 +53,7 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 
 	_, err = c.Commit()
-	if err != nil && err.(KafkaError).Code() != ERR__NO_OFFSET {
+	if err != nil && err.(Error).Code() != ErrNoOffset {
 		t.Errorf("Commit() failed: %s", err)
 	}
 

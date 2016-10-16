@@ -1,3 +1,6 @@
+// Example function-based Apache Kafka producer
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 import (
 	"fmt"
@@ -43,12 +45,12 @@ func main() {
 
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
-	delivery_chan := make(chan kafka.Event)
+	deliveryChan := make(chan kafka.Event)
 
 	value := "Hello Go!"
-	err = p.Produce(&kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.KAFKA_PARTITION_ANY}, Value: []byte(value)}, delivery_chan, nil)
+	err = p.Produce(&kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: []byte(value)}, deliveryChan, nil)
 
-	e := <-delivery_chan
+	e := <-deliveryChan
 	m := e.(*kafka.Message)
 
 	if m.TopicPartition.Error != nil {
@@ -58,5 +60,5 @@ func main() {
 			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 	}
 
-	close(delivery_chan)
+	close(deliveryChan)
 }

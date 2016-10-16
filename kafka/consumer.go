@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -14,9 +16,6 @@
  * limitations under the License.
  */
 
-// kafka client.
-package kafka
-
 import (
 	"fmt"
 	"unsafe"
@@ -25,24 +24,22 @@ import (
 /*
 #include <stdlib.h>
 #include <librdkafka/rdkafka.h>
-
-void _rebalance_cb_trampoline (rd_kafka_t *rk, rd_kafka_resp_err_t err, rd_kafka_topic_partition_list_t *c_parts, void *opaque) {
-
-}
 */
 import "C"
 
+// RebalanceCb provides a per-Subscribe*() rebalance event callback.
+// The passed Event will be either AssignedPartitions or RevokedPartitions
 type RebalanceCb func(*Consumer, Event) error
 
-// Consumer: High-level Kafka Consumer instance
+// Consumer implements a High-level Apache Kafka Consumer instance
 type Consumer struct {
-	Events                chan Event
-	handle                handle
-	events_channel_enable bool
-	reader_term_chan      chan bool
-	rebalance_cb          RebalanceCb
-	app_reassigned        bool
-	app_rebalance_enable  bool // config setting
+	Events             chan Event
+	handle             handle
+	eventsChanEnable   bool
+	readerTermChan     chan bool
+	rebalanceCb        RebalanceCb
+	appReassigned      bool
+	appRebalanceEnable bool // config setting
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -50,36 +47,36 @@ func (c *Consumer) String() string {
 	return c.handle.String()
 }
 
-// get_handle implements the Handle interface
-func (c *Consumer) get_handle() *handle {
+// getHandle implements the Handle interface
+func (c *Consumer) gethandle() *handle {
 	return &c.handle
 }
 
 // Subscribe to a single topic
 // This replaces the current subscription
-func (c *Consumer) Subscribe(topic string, rebalance_cb RebalanceCb) error {
-	return c.SubscribeTopics([]string{topic}, rebalance_cb)
+func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
+	return c.SubscribeTopics([]string{topic}, rebalanceCb)
 }
 
-// Subscribe to list of topics.
+// SubscribeTopics subscribes to the provided list of topics.
 // This replaces the current subscription.
-func (c *Consumer) SubscribeTopics(topics []string, rebalance_cb RebalanceCb) (err error) {
-	c_topics := C.rd_kafka_topic_partition_list_new(C.int(len(topics)))
-	defer C.rd_kafka_topic_partition_list_destroy(c_topics)
+func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (err error) {
+	ctopics := C.rd_kafka_topic_partition_list_new(C.int(len(topics)))
+	defer C.rd_kafka_topic_partition_list_destroy(ctopics)
 
 	for _, topic := range topics {
-		c_topic := C.CString(topic)
-		defer C.free(unsafe.Pointer(c_topic))
-		C.rd_kafka_topic_partition_list_add(c_topics, c_topic, C.RD_KAFKA_PARTITION_UA)
+		ctopic := C.CString(topic)
+		defer C.free(unsafe.Pointer(ctopic))
+		C.rd_kafka_topic_partition_list_add(ctopics, ctopic, C.RD_KAFKA_PARTITION_UA)
 	}
 
-	e := C.rd_kafka_subscribe(c.handle.rk, c_topics)
+	e := C.rd_kafka_subscribe(c.handle.rk, ctopics)
 	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
+		return newError(e)
 	}
 
-	c.rebalance_cb = rebalance_cb
-	c.handle.curr_app_rebalance_enable = c.rebalance_cb != nil || c.app_rebalance_enable
+	c.rebalanceCb = rebalanceCb
+	c.handle.currAppRebalanceEnable = c.rebalanceCb != nil || c.appRebalanceEnable
 
 	return nil
 }
@@ -93,14 +90,14 @@ func (c *Consumer) Unsubscribe() (err error) {
 // Assign an atomic set of partitions to consume.
 // This replaces the current assignment.
 func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
-	c.app_reassigned = true
+	c.appReassigned = true
 
-	c_parts := new_c_parts_from_TopicPartitions(partitions)
-	defer C.rd_kafka_topic_partition_list_destroy(c_parts)
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 
-	e := C.rd_kafka_assign(c.handle.rk, c_parts)
+	e := C.rd_kafka_assign(c.handle.rk, cparts)
 	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
+		return newError(e)
 	}
 
 	return nil
@@ -108,11 +105,11 @@ func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 
 // Unassign the current set of partitions to consume.
 func (c *Consumer) Unassign() (err error) {
-	c.app_reassigned = true
+	c.appReassigned = true
 
 	e := C.rd_kafka_assign(c.handle.rk, nil)
 	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
+		return newError(e)
 	}
 
 	return nil
@@ -122,27 +119,27 @@ func (c *Consumer) Unassign() (err error) {
 // If offsets is nil the currently assigned partitions' offsets are committed.
 // This is a blocking call, caller will need to wrap in go-routine to
 // get async or throw-away behaviour.
-func (c *Consumer) commit(offsets []TopicPartition) (committed_offsets []TopicPartition, err error) {
+func (c *Consumer) commit(offsets []TopicPartition) (committedOffsets []TopicPartition, err error) {
 	var rkqu *C.rd_kafka_queue_t
 
 	rkqu = C.rd_kafka_queue_new(c.handle.rk)
 	defer C.rd_kafka_queue_destroy(rkqu)
 
-	var c_offsets *C.rd_kafka_topic_partition_list_t
+	var coffsets *C.rd_kafka_topic_partition_list_t
 	if offsets != nil {
-		c_offsets = new_c_parts_from_TopicPartitions(offsets)
-		defer C.rd_kafka_topic_partition_list_destroy(c_offsets)
+		coffsets = newCPartsFromTopicPartitions(offsets)
+		defer C.rd_kafka_topic_partition_list_destroy(coffsets)
 	}
 
-	c_err := C.rd_kafka_commit_queue(c.handle.rk, c_offsets, rkqu, nil, nil)
-	if c_err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return nil, NewKafkaError(c_err)
+	cErr := C.rd_kafka_commit_queue(c.handle.rk, coffsets, rkqu, nil, nil)
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newError(cErr)
 	}
 
 	rkev := C.rd_kafka_queue_poll(rkqu, C.int(-1))
 	if rkev == nil {
 		// shouldn't happen
-		return nil, NewKafkaError(C.RD_KAFKA_RESP_ERR__DESTROY)
+		return nil, newError(C.RD_KAFKA_RESP_ERR__DESTROY)
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -151,19 +148,19 @@ func (c *Consumer) commit(offsets []TopicPartition) (committed_offsets []TopicPa
 			C.GoString(C.rd_kafka_event_name(rkev))))
 	}
 
-	c_err = C.rd_kafka_event_error(rkev)
-	if c_err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return nil, NewKafkaErrorFromCString(c_err, C.rd_kafka_event_error_string(rkev))
+	cErr = C.rd_kafka_event_error(rkev)
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
 	}
 
-	c_retoffsets := C.rd_kafka_event_topic_partition_list(rkev)
-	if c_retoffsets == nil {
+	cRetoffsets := C.rd_kafka_event_topic_partition_list(rkev)
+	if cRetoffsets == nil {
 		// no offsets, no error
 		return nil, nil
 	}
-	committed_offsets = new_TopicPartitions_from_c_parts(c_retoffsets)
+	committedOffsets = newTopicPartitionsFromCparts(cRetoffsets)
 
-	return committed_offsets, nil
+	return committedOffsets, nil
 }
 
 // Commit offsets for currently assigned partitions
@@ -173,19 +170,19 @@ func (c *Consumer) Commit() ([]TopicPartition, error) {
 	return c.commit(nil)
 }
 
-// Commit offset based on the provided message.
+// CommitMessage commits offset based on the provided message.
 // This is a blocking call.
 // Returns the committed offsets on success.
 func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 	if m.TopicPartition.Error != nil {
-		return nil, KafkaError{ERR__INVALID_ARG, "Can't commit errored message"}
+		return nil, Error{ErrInvalidArg, "Can't commit errored message"}
 	}
 	offsets := []TopicPartition{m.TopicPartition}
-	offsets[0].Offset += 1
+	offsets[0].Offset++
 	return c.commit(offsets)
 }
 
-// Commit offset(s) provided in offsets list
+// CommitOffsets commits the provided list of offsets
 // This is a blocking call.
 // Returns the committed offsets on success.
 func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, error) {
@@ -194,14 +191,14 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 
 // Poll the consumer for messages or events.
 //
-// Will block for at most timeout_ms milliseconds
+// Will block for at most timeoutMs milliseconds
 //
 // The following callbacks may be triggered:
-//   Subscribe()'s rebalance_cb
+//   Subscribe()'s rebalanceCb
 //
 // Returns nil on timeout, else an Event
-func (c *Consumer) Poll(timeout_ms int) (event Event) {
-	ev, _ := c.handle.event_poll(nil, timeout_ms, 1, nil)
+func (c *Consumer) Poll(timeoutMs int) (event Event) {
+	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil)
 	return ev
 }
 
@@ -209,10 +206,10 @@ func (c *Consumer) Poll(timeout_ms int) (event Event) {
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
 
-	if c.events_channel_enable {
-		// Wait for consumer_reader() to terminate (by closing reader_term_chan)
-		close(c.reader_term_chan)
-		c.handle.wait_terminated(1)
+	if c.eventsChanEnable {
+		// Wait for consumerReader() to terminate (by closing readerTermChan)
+		close(c.readerTermChan)
+		c.handle.waitTerminated(1)
 
 	}
 
@@ -221,7 +218,7 @@ func (c *Consumer) Close() (err error) {
 
 	e := C.rd_kafka_consumer_close(c.handle.rk)
 	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return NewKafkaError(e)
+		return newError(e)
 	}
 
 	c.handle.cleanup()
@@ -242,11 +239,11 @@ func (c *Consumer) Close() (err error) {
 //   go.events.channel.size (int, 1000) - Events channel size
 //
 // WARNING: Due to the buffering nature of channels (and queues in general) the
-//          use of the events channel risks receiving outdated events and
-//          messages. Minimizing go.events.channel.size reduces the risk
-//          and number of outdated events and messages but does not eliminate
-//          the factor completely. With a channel size of 1 at most one
-//          event or message may be outdated.
+// use of the events channel risks receiving outdated events and
+// messages. Minimizing go.events.channel.size reduces the risk
+// and number of outdated events and messages but does not eliminate
+// the factor completely. With a channel size of 1 at most one
+// event or message may be outdated.
 func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	groupid, _ := conf.get("group.id", nil)
@@ -254,7 +251,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		// without a group.id the underlying cgrp subsystem in librdkafka wont get started
 		// and without it there is no way to consume assigned partitions.
 		// So for now require the group.id, this might change in the future.
-		return nil, NewKafkaErrorFromString(ERR__INVALID_ARG, "Required property group.id not set")
+		return nil, newErrorFromString(ErrInvalidArg, "Required property group.id not set")
 	}
 
 	c := &Consumer{}
@@ -263,32 +260,32 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.app_rebalance_enable = v.(bool)
+	c.appRebalanceEnable = v.(bool)
 
 	v, err = conf.extract("go.events.channel.enable", false)
 	if err != nil {
 		return nil, err
 	}
-	c.events_channel_enable = v.(bool)
+	c.eventsChanEnable = v.(bool)
 
 	v, err = conf.extract("go.events.channel.size", 1000)
 	if err != nil {
 		return nil, err
 	}
-	events_channel_size := v.(int)
+	eventsChanSize := v.(int)
 
-	c_conf, err := conf.convert()
+	cConf, err := conf.convert()
 	if err != nil {
 		return nil, err
 	}
-	var c_errstr *C.char = (*C.char)(C.malloc(C.size_t(256)))
-	defer C.free(unsafe.Pointer(c_errstr))
+	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
+	defer C.free(unsafe.Pointer(cErrstr))
 
-	C.rd_kafka_conf_set_events(c_conf, C.RD_KAFKA_EVENT_REBALANCE|C.RD_KAFKA_EVENT_OFFSET_COMMIT)
+	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_REBALANCE|C.RD_KAFKA_EVENT_OFFSET_COMMIT)
 
-	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, c_conf, c_errstr, 256)
+	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, cConf, cErrstr, 256)
 	if c.handle.rk == nil {
-		return nil, NewKafkaErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, c_errstr)
+		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
 	C.rd_kafka_poll_set_consumer(c.handle.rk)
@@ -302,12 +299,12 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		c.handle.rkq = C.rd_kafka_queue_get_main(c.handle.rk)
 	}
 
-	if c.events_channel_enable {
-		c.Events = make(chan Event, events_channel_size)
-		c.reader_term_chan = make(chan bool)
+	if c.eventsChanEnable {
+		c.Events = make(chan Event, eventsChanSize)
+		c.readerTermChan = make(chan bool)
 
 		/* Start rdkafka consumer queue reader -> Events writer goroutine */
-		go consumer_reader(c, c.reader_term_chan)
+		go consumerReader(c, c.readerTermChan)
 	}
 
 	return c, nil
@@ -316,27 +313,27 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 // rebalance calls the application's rebalance callback, if any.
 // Returns true if the underlying assignment was updated, else false.
 func (c *Consumer) rebalance(ev Event) bool {
-	c.app_reassigned = false
+	c.appReassigned = false
 
-	if c.rebalance_cb != nil {
-		c.rebalance_cb(c, ev)
+	if c.rebalanceCb != nil {
+		c.rebalanceCb(c, ev)
 	}
 
-	return c.app_reassigned
+	return c.appReassigned
 }
 
-// consumer_reader reads messages and events from the librdkafka consumer queue
+// consumerReader reads messages and events from the librdkafka consumer queue
 // and posts them on the consumer channel.
-// Runs until term_chan closes
-func consumer_reader(c *Consumer, term_chan chan bool) {
+// Runs until termChan closes
+func consumerReader(c *Consumer, termChan chan bool) {
 
 out:
 	for true {
 		select {
-		case _ = <-term_chan:
+		case _ = <-termChan:
 			break out
 		default:
-			_, term := c.handle.event_poll(c.Events, 100, 1000, term_chan)
+			_, term := c.handle.eventPoll(c.Events, 100, 1000, termChan)
 			if term {
 				break out
 			}
@@ -344,21 +341,21 @@ out:
 		}
 	}
 
-	c.handle.terminated_chan <- "consumer_reader"
+	c.handle.terminatedChan <- "consumerReader"
 	return
 
 }
 
 // GetMetadata queries broker for cluster and topic metadata.
 // If topic is non-nil only information about that topic is returned, else if
-// all_topics is false only information about locally used topics is returned,
+// allTopics is false only information about locally used topics is returned,
 // else information about all topics is returned.
-func (c *Consumer) GetMetadata(topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
-	return get_metadata(c, topic, all_topics, timeout_ms)
+func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
 // QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
 // and partition.
-func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeout_ms int) (low, high int64, err error) {
-	return queryWatermarkOffsets(c, topic, partition, timeout_ms)
+func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
+	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }

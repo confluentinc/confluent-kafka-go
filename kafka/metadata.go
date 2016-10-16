@@ -24,15 +24,15 @@ import (
 #include <stdlib.h>
 #include <librdkafka/rdkafka.h>
 
-struct rd_kafka_metadata_broker *_get_metadata_broker_element(struct rd_kafka_metadata *m, int i) {
+struct rd_kafka_metadata_broker *_getMetadata_broker_element(struct rd_kafka_metadata *m, int i) {
   return &m->brokers[i];
 }
 
-struct rd_kafka_metadata_topic *_get_metadata_topic_element(struct rd_kafka_metadata *m, int i) {
+struct rd_kafka_metadata_topic *_getMetadata_topic_element(struct rd_kafka_metadata *m, int i) {
   return &m->topics[i];
 }
 
-struct rd_kafka_metadata_partition *_get_metadata_partition_element(struct rd_kafka_metadata *m, int topic_idx, int partition_idx) {
+struct rd_kafka_metadata_partition *_getMetadata_partition_element(struct rd_kafka_metadata *m, int topic_idx, int partition_idx) {
   return &m->topics[topic_idx].partitions[partition_idx];
 }
 
@@ -43,26 +43,30 @@ int32_t _get_int32_element (int32_t *arr, int i) {
 */
 import "C"
 
+// BrokerMetadata contains per-broker metadata
 type BrokerMetadata struct {
-	Id   int32
+	ID   int32
 	Host string
 	Port int
 }
 
+// PartitionMetadata contains per-partition metadata
 type PartitionMetadata struct {
-	Id       int32
-	Error    KafkaError
+	ID       int32
+	Error    Error
 	Leader   int32
 	Replicas []int32
 	Isrs     []int32
 }
 
+// TopicMetadata contains per-topic metadata
 type TopicMetadata struct {
 	Topic      string
 	Partitions []PartitionMetadata
-	Error      KafkaError
+	Error      Error
 }
 
+// Metadata contains broker and topic metadata for all (matching) topics
 type Metadata struct {
 	Brokers []BrokerMetadata
 	Topics  map[string]TopicMetadata
@@ -70,84 +74,84 @@ type Metadata struct {
 	OriginatingBroker BrokerMetadata
 }
 
-// get_metadata queries broker for cluster and topic metadata.
+// getMetadata queries broker for cluster and topic metadata.
 // If topic is non-nil only information about that topic is returned, else if
-// all_topics is false only information about locally used topics is returned,
+// allTopics is false only information about locally used topics is returned,
 // else information about all topics is returned.
-func get_metadata(H Handle, topic *string, all_topics bool, timeout_ms int) (*Metadata, error) {
-	h := H.get_handle()
+func getMetadata(H Handle, topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	h := H.gethandle()
 
 	var rkt *C.rd_kafka_topic_t
 	if topic != nil {
-		rkt = h.get_rkt(*topic)
+		rkt = h.getRkt(*topic)
 	}
 
-	var c_md *C.struct_rd_kafka_metadata
-	c_err := C.rd_kafka_metadata(h.rk, bool2cint(all_topics),
-		rkt, &c_md, C.int(timeout_ms))
-	if c_err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return nil, NewKafkaError(c_err)
+	var cMd *C.struct_rd_kafka_metadata
+	cErr := C.rd_kafka_metadata(h.rk, bool2cint(allTopics),
+		rkt, &cMd, C.int(timeoutMs))
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newError(cErr)
 	}
 
 	m := Metadata{}
 
-	m.Brokers = make([]BrokerMetadata, c_md.broker_cnt)
-	for i := 0; i < int(c_md.broker_cnt); i += 1 {
-		b := C._get_metadata_broker_element(c_md, C.int(i))
+	m.Brokers = make([]BrokerMetadata, cMd.broker_cnt)
+	for i := 0; i < int(cMd.broker_cnt); i++ {
+		b := C._getMetadata_broker_element(cMd, C.int(i))
 		m.Brokers[i] = BrokerMetadata{int32(b.id), C.GoString(b.host),
 			int(b.port)}
 	}
 
-	m.Topics = make(map[string]TopicMetadata, int(c_md.topic_cnt))
-	for i := 0; i < int(c_md.topic_cnt); i += 1 {
-		t := C._get_metadata_topic_element(c_md, C.int(i))
+	m.Topics = make(map[string]TopicMetadata, int(cMd.topic_cnt))
+	for i := 0; i < int(cMd.topic_cnt); i++ {
+		t := C._getMetadata_topic_element(cMd, C.int(i))
 
-		this_topic := C.GoString(t.topic)
-		m.Topics[this_topic] = TopicMetadata{Topic: this_topic,
-			Error:      NewKafkaError(t.err),
+		thisTopic := C.GoString(t.topic)
+		m.Topics[thisTopic] = TopicMetadata{Topic: thisTopic,
+			Error:      newError(t.err),
 			Partitions: make([]PartitionMetadata, int(t.partition_cnt))}
 
-		for j := 0; j < int(t.partition_cnt); j += 1 {
-			p := C._get_metadata_partition_element(c_md, C.int(i), C.int(j))
-			m.Topics[this_topic].Partitions[j] = PartitionMetadata{
-				Id:     int32(p.id),
-				Error:  NewKafkaError(p.err),
+		for j := 0; j < int(t.partition_cnt); j++ {
+			p := C._getMetadata_partition_element(cMd, C.int(i), C.int(j))
+			m.Topics[thisTopic].Partitions[j] = PartitionMetadata{
+				ID:     int32(p.id),
+				Error:  newError(p.err),
 				Leader: int32(p.leader)}
-			m.Topics[this_topic].Partitions[j].Replicas = make([]int32, int(p.replica_cnt))
-			for ir := 0; ir < int(p.replica_cnt); ir += 1 {
-				m.Topics[this_topic].Partitions[j].Replicas[ir] = int32(C._get_int32_element(p.replicas, C.int(ir)))
+			m.Topics[thisTopic].Partitions[j].Replicas = make([]int32, int(p.replica_cnt))
+			for ir := 0; ir < int(p.replica_cnt); ir++ {
+				m.Topics[thisTopic].Partitions[j].Replicas[ir] = int32(C._get_int32_element(p.replicas, C.int(ir)))
 			}
 
-			m.Topics[this_topic].Partitions[j].Isrs = make([]int32, int(p.isr_cnt))
-			for ii := 0; ii < int(p.isr_cnt); ii += 1 {
-				m.Topics[this_topic].Partitions[j].Isrs[ii] = int32(C._get_int32_element(p.isrs, C.int(ii)))
+			m.Topics[thisTopic].Partitions[j].Isrs = make([]int32, int(p.isr_cnt))
+			for ii := 0; ii < int(p.isr_cnt); ii++ {
+				m.Topics[thisTopic].Partitions[j].Isrs[ii] = int32(C._get_int32_element(p.isrs, C.int(ii)))
 			}
 		}
 	}
 
-	m.OriginatingBroker = BrokerMetadata{int32(c_md.orig_broker_id),
-		C.GoString(c_md.orig_broker_name), 0}
+	m.OriginatingBroker = BrokerMetadata{int32(cMd.orig_broker_id),
+		C.GoString(cMd.orig_broker_name), 0}
 
 	return &m, nil
 }
 
 // queryWatermarkOffsets returns the broker's low and high offsets for the given topic
 // and partition.
-func queryWatermarkOffsets(H Handle, topic string, partition int32, timeout_ms int) (low, high int64, err error) {
-	h := H.get_handle()
+func queryWatermarkOffsets(H Handle, topic string, partition int32, timeoutMs int) (low, high int64, err error) {
+	h := H.gethandle()
 
-	c_topic := C.CString(topic)
-	defer C.free(unsafe.Pointer(c_topic))
+	ctopic := C.CString(topic)
+	defer C.free(unsafe.Pointer(ctopic))
 
-	var c_low, c_high C.int64_t
+	var cLow, cHigh C.int64_t
 
-	e := C.rd_kafka_query_watermark_offsets(h.rk, c_topic, C.int32_t(partition),
-		&c_low, &c_high, C.int(timeout_ms))
+	e := C.rd_kafka_query_watermark_offsets(h.rk, ctopic, C.int32_t(partition),
+		&cLow, &cHigh, C.int(timeoutMs))
 	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return 0, 0, NewKafkaError(e)
+		return 0, 0, newError(e)
 	}
 
-	low = int64(c_low)
-	high = int64(c_high)
+	low = int64(cLow)
+	high = int64(cHigh)
 	return low, high, nil
 }
