@@ -47,7 +47,7 @@ func main() {
 
 	go func() {
 	outer:
-		for e := range p.Events {
+		for e := range p.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:
 				m := ev
@@ -68,7 +68,7 @@ func main() {
 	}()
 
 	value := "Hello Go!"
-	p.ProduceChannel <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: []byte(value)}
+	p.ProduceChannel() <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: []byte(value)}
 
 	// wait for delivery report goroutine to finish
 	_ = <-doneChan

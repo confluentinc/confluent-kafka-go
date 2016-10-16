@@ -33,7 +33,7 @@ type RebalanceCb func(*Consumer, Event) error
 
 // Consumer implements a High-level Apache Kafka Consumer instance
 type Consumer struct {
-	Events             chan Event
+	events             chan Event
 	handle             handle
 	eventsChanEnable   bool
 	readerTermChan     chan bool
@@ -202,6 +202,11 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	return ev
 }
 
+// Events returns the Events channel (if enabled)
+func (c *Consumer) Events() chan Event {
+	return c.events
+}
+
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
@@ -231,12 +236,12 @@ func (c *Consumer) Close() (err error) {
 // NewConsumer creates a new high-level Consumer instance.
 //
 // Supported special configuration properties:
-//   go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events channel.
+//   go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
 //                                        If set to true the app must handle the AssignedPartitions and
 //                                        RevokedPartitions events and call Assign() and Unassign()
 //                                        respectively.
-//   go.events.channel.enable (bool, false) - Enable the Events channel. Messages and events will be pushed on the Events channel and the Poll() interface will be disabled. (Experimental)
-//   go.events.channel.size (int, 1000) - Events channel size
+//   go.events.channel.enable (bool, false) - Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled. (Experimental)
+//   go.events.channel.size (int, 1000) - Events() channel size
 //
 // WARNING: Due to the buffering nature of channels (and queues in general) the
 // use of the events channel risks receiving outdated events and
@@ -299,10 +304,10 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	if c.eventsChanEnable {
-		c.Events = make(chan Event, eventsChanSize)
+		c.events = make(chan Event, eventsChanSize)
 		c.readerTermChan = make(chan bool)
 
-		/* Start rdkafka consumer queue reader -> Events writer goroutine */
+		/* Start rdkafka consumer queue reader -> events writer goroutine */
 		go consumerReader(c, c.readerTermChan)
 	}
 
@@ -332,7 +337,7 @@ out:
 		case _ = <-termChan:
 			break out
 		default:
-			_, term := c.handle.eventPoll(c.Events, 100, 1000, termChan)
+			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan)
 			if term {
 				break out
 			}

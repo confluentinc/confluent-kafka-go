@@ -38,8 +38,8 @@ import "C"
 
 // Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
-	Events         chan Event
-	ProduceChannel chan *Message
+	events         chan Event
+	produceChannel chan *Message
 	handle         handle
 
 	// Terminates the poller() goroutine
@@ -114,7 +114,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // This is an asynchronous call that enqueues the message on the internal
 // transmit queue, thus returning immediately.
 // The delivery report will be sent on the provided deliveryChan if specified,
-// or on the Producer object's Events channel if not.
+// or on the Producer object's Events() channel if not.
 // Returns an error if message could not be enqueued.
 func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
 	return p.produce(msg, 0, deliveryChan)
@@ -140,11 +140,21 @@ func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) err
 	return nil
 }
 
+// Events returns the Events channel (read)
+func (p *Producer) Events() chan Event {
+	return p.events
+}
+
+// ProduceChannel returns the produce *Message channel (write)
+func (p *Producer) ProduceChannel() chan *Message {
+	return p.produceChannel
+}
+
 // Len returns the number of messages and requests waiting to be transmitted to the broker
 // as well as delivery reports queued for the application.
 // Includes messages on ProduceChannel.
 func (p *Producer) Len() int {
-	return len(p.ProduceChannel) + len(p.Events) + int(C.rd_kafka_outq_len(p.handle.rk))
+	return len(p.produceChannel) + len(p.events) + int(C.rd_kafka_outq_len(p.handle.rk))
 }
 
 // Flush and wait for outstanding messages and requests to complete delivery.
@@ -162,7 +172,7 @@ func (p *Producer) Flush(timeoutMs int) int {
 			return p.Len()
 		}
 
-		p.handle.eventPoll(p.Events,
+		p.handle.eventPoll(p.events,
 			int(math.Min(100, remain*1000)), 1000, termChan)
 	}
 
@@ -175,10 +185,10 @@ func (p *Producer) Close() {
 	// Wait for poller() (signaled by closing pollerTermChan)
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)
-	close(p.ProduceChannel)
+	close(p.produceChannel)
 	p.handle.waitTerminated(2)
 
-	close(p.Events)
+	close(p.events)
 
 	p.handle.cleanup()
 
@@ -197,8 +207,8 @@ func (p *Producer) Close() {
 //   go.batch.producer (bool, false) - Enable batch producer (experimental for increased performance).
 //                                     These batches do not relate to Kafka message batches in any way.
 //   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
-//                                      Events channel.
-//   go.produce.channel.size (int, 1000000) - ProduceChannel buffer size (in number of messages)
+//                                      Events() channel.
+//   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //
 func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p := &Producer{}
@@ -241,8 +251,8 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.p = p
 	p.handle.setup()
 	p.handle.rkq = C.rd_kafka_queue_get_main(p.handle.rk)
-	p.Events = make(chan Event, 1000000)
-	p.ProduceChannel = make(chan *Message, produceChannelSize)
+	p.events = make(chan Event, 1000000)
+	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
 
 	go poller(p, p.pollerTermChan)
@@ -260,11 +270,11 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 // channel_producer serves the ProduceChannel channel
 func channelProducer(p *Producer) {
 
-	for m := range p.ProduceChannel {
+	for m := range p.produceChannel {
 		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
 		if err != nil {
 			m.TopicPartition.Error = err
-			p.Events <- m
+			p.events <- m
 		}
 	}
 
@@ -280,14 +290,14 @@ func channelBatchProducer(p *Producer) {
 	totMsgCnt := 0
 	totBatchCnt := 0
 
-	for m := range p.ProduceChannel {
+	for m := range p.produceChannel {
 		buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
 		bufferedCnt++
 
 	loop2:
 		for true {
 			select {
-			case m, ok := <-p.ProduceChannel:
+			case m, ok := <-p.produceChannel:
 				if !ok {
 					break loop2
 				}
@@ -315,7 +325,7 @@ func channelBatchProducer(p *Producer) {
 			if err != nil {
 				for _, m = range buffered2 {
 					m.TopicPartition.Error = err
-					p.Events <- m
+					p.events <- m
 				}
 			}
 		}
@@ -335,7 +345,7 @@ out:
 			break out
 
 		default:
-			_, term := p.handle.eventPoll(p.Events, 100, 1000, termChan)
+			_, term := p.handle.eventPoll(p.events, 100, 1000, termChan)
 			if term {
 				break out
 			}

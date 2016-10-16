@@ -151,7 +151,7 @@ func runProducer(config *kafka.ConfigMap, topic string) {
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
 			run = false
 
-		case ev := <-p.Events:
+		case ev := <-p.Events():
 			switch e := ev.(type) {
 			case *kafka.Message:
 				run = handleDr(e)

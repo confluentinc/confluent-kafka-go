@@ -90,8 +90,8 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 
 	if withDr {
 		doneChan = make(chan int64)
-		drChan = p.Events
-		go deliveryHandler(b, int64(msgcnt), p.Events, doneChan)
+		drChan = p.Events()
+		go deliveryHandler(b, int64(msgcnt), p.Events(), doneChan)
 	}
 
 	if !silent {
@@ -171,7 +171,7 @@ func BenchmarkProducerChannel(b *testing.B) {
 	producerPerfTest(b, "Channel producer (without DR)",
 		0, false, false, false,
 		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel <- m
+			p.ProduceChannel() <- m
 		})
 }
 
@@ -179,7 +179,7 @@ func BenchmarkProducerChannelDR(b *testing.B) {
 	producerPerfTest(b, "Channel producer (with DR)",
 		testconf.PerfMsgCount, true, false, false,
 		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel <- m
+			p.ProduceChannel() <- m
 		})
 
 }
@@ -188,7 +188,7 @@ func BenchmarkProducerBatchChannel(b *testing.B) {
 	producerPerfTest(b, "Channel producer (without DR, batch channel)",
 		0, false, true, false,
 		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel <- m
+			p.ProduceChannel() <- m
 		})
 }
 
@@ -196,7 +196,7 @@ func BenchmarkProducerBatchChannelDR(b *testing.B) {
 	producerPerfTest(b, "Channel producer (DR, batch channel)",
 		0, true, true, false,
 		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel <- m
+			p.ProduceChannel() <- m
 		})
 }
 

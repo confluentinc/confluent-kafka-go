@@ -65,7 +65,7 @@ func main() {
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
 
-		case ev := <-c.Events:
+		case ev := <-c.Events():
 			switch e := ev.(type) {
 			case kafka.AssignedPartitions:
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)

@@ -60,7 +60,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 				fmt.Fprintf(os.Stderr, "%% Delivered %v\n", m)
 			}
 		}
-	}(p.Events)
+	}(p.Events())
 
 	reader := bufio.NewReader(os.Stdin)
 	stdinChan := make(chan string)
@@ -110,7 +110,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 				msg.Value = ([]byte)(line)
 			}
 
-			p.ProduceChannel <- &msg
+			p.ProduceChannel() <- &msg
 		}
 	}
 
@@ -140,7 +140,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
 			run = false
 
-		case ev := <-c.Events:
+		case ev := <-c.Events():
 			switch e := ev.(type) {
 			case kafka.AssignedPartitions:
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)

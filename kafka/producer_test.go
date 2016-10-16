@@ -56,7 +56,7 @@ func TestProducerAPIs(t *testing.T) {
 	// Produce through ProducerChannel, uses default DR channel (Events),
 	// pass Opaque object.
 	myOpq := "My opaque"
-	p.ProduceChannel <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
+	p.ProduceChannel() <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
 		Opaque: &myOpq,
 		Value:  []byte("ProducerChannel"), Key: []byte("This is my key")}
 
@@ -85,7 +85,7 @@ func TestProducerAPIs(t *testing.T) {
 
 	// Events chan (2 messages and possibly events)
 	for msgCnt := 0; msgCnt < 2; {
-		ev = <-p.Events
+		ev = <-p.Events()
 		switch e := ev.(type) {
 		case *Message:
 			msgCnt++

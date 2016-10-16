@@ -102,7 +102,7 @@ func handleEvent(c *Consumer, rd *ratedisp, expCnt int, ev Event) bool {
 
 // consume messages through the Events channel
 func eventChannelConsumer(c *Consumer, rd *ratedisp, expCnt int) {
-	for ev := range c.Events {
+	for ev := range c.Events() {
 		if !handleEvent(c, rd, expCnt, ev) {
 			break
 		}
@@ -148,7 +148,7 @@ func testconsumerInit(b *testing.B) int {
 		producerPerfTest(b, "Priming producer", msgcnt, false, false,
 			true,
 			func(p *Producer, m *Message, drChan chan Event) {
-				p.ProduceChannel <- m
+				p.ProduceChannel() <- m
 			})
 	}
 
