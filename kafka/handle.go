@@ -122,7 +122,7 @@ func (h *handle) getRkt0(topic string, ctopic *C.char, doLock bool) (crkt *C.rd_
 
 	crkt = C.rd_kafka_topic_new(h.rk, ctopic, nil)
 	if crkt == nil {
-		panic(fmt.Sprintf("Unable to create now C topic \"%s\": %s",
+		panic(fmt.Sprintf("Unable to create new C topic \"%s\": %s",
 			topic, C.GoString(C.rd_kafka_err2str(C.rd_kafka_last_error()))))
 	}
 

@@ -90,7 +90,7 @@ func (o OffsetsCommitted) String() string {
 	return fmt.Sprintf("OffsetsCommitted (%v, %v)", o.Error, o.Offsets)
 }
 
-// event_poll polls an event from the handler's C rd_kafka_queue_t,
+// eventPoll polls an event from the handler's C rd_kafka_queue_t,
 // translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
 // term_chan is an optional channel to monitor along with producing to channel
 // to indicate that `channel` is being terminated.

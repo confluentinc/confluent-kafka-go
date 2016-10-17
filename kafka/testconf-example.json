@@ -1,6 +1,6 @@
 {
     "Brokers": "mybroker",
-    "Topic": "test"
+    "Topic": "test",
     "PerfMsgCount": 1000000,
     "PerfMsgSize": 100,
     "Config": ["api.version.request=true"]
