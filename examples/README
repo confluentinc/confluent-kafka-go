@@ -7,13 +7,13 @@ Examples:
   producer_channel_example - Channel based producer
   producer_example - Function based producer
 
-  gofkacat - Channel based kafkacat Go clone
+  go-kafkacat - Channel based kafkacat Go clone
 
 
 Usage example:
 
     $ cd consumer_example
-    $ go build
+    $ go build   (or 'go install')
     $ ./consumer_example    # see usage
     $ ./consumer_example mybroker mygroup mytopic
 

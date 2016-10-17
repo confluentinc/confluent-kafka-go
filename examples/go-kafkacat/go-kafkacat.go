@@ -1,3 +1,6 @@
+// Example kafkacat clone written in Golang
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 import (
 	"bufio"
@@ -27,15 +29,15 @@ import (
 )
 
 var (
-	verbosity     = 2
-	exit_eof      = false
-	eof_cnt       = 0
-	partition_cnt = 0
-	key_delim     = ""
-	sigs          chan os.Signal
+	verbosity    = 1
+	exitEOF      = false
+	eofCnt       = 0
+	partitionCnt = 0
+	keyDelim     = ""
+	sigs         chan os.Signal
 )
 
-func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
+func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 	p, err := kafka.NewProducer(config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
@@ -58,10 +60,10 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 				fmt.Fprintf(os.Stderr, "%% Delivered %v\n", m)
 			}
 		}
-	}(p.Events)
+	}(p.Events())
 
 	reader := bufio.NewReader(os.Stdin)
-	stdin_chan := make(chan string)
+	stdinChan := make(chan string)
 
 	go func() {
 		for true {
@@ -75,9 +77,9 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 				continue
 			}
 
-			stdin_chan <- line
+			stdinChan <- line
 		}
-		close(stdin_chan)
+		close(stdinChan)
 	}()
 
 	run := true
@@ -88,7 +90,7 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
 			run = false
 
-		case line, ok := <-stdin_chan:
+		case line, ok := <-stdinChan:
 			if !ok {
 				run = false
 				break
@@ -96,8 +98,8 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 
 			msg := kafka.Message{TopicPartition: tp}
 
-			if key_delim != "" {
-				vec := strings.SplitN(line, key_delim, 2)
+			if keyDelim != "" {
+				vec := strings.SplitN(line, keyDelim, 2)
 				if len(vec[0]) > 0 {
 					msg.Key = ([]byte)(vec[0])
 				}
@@ -108,17 +110,17 @@ func run_producer(config *kafka.ConfigMap, topic string, partition int32) {
 				msg.Value = ([]byte)(line)
 			}
 
-			p.ProduceChannel <- &msg
+			p.ProduceChannel() <- &msg
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Flushing\n")
+	fmt.Fprintf(os.Stderr, "%% Flushing %d message(s)\n", p.Len())
 	p.Flush(10000)
 	fmt.Fprintf(os.Stderr, "%% Closing\n")
 	p.Close()
 }
 
-func run_consumer(config *kafka.ConfigMap, topics []string) {
+func runConsumer(config *kafka.ConfigMap, topics []string) {
 	c, err := kafka.NewConsumer(config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
@@ -138,39 +140,43 @@ func run_consumer(config *kafka.ConfigMap, topics []string) {
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
 			run = false
 
-		case ev := <-c.Events:
+		case ev := <-c.Events():
 			switch e := ev.(type) {
 			case kafka.AssignedPartitions:
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				c.Assign(e.Partitions)
-				partition_cnt = len(e.Partitions)
-				eof_cnt = 0
+				partitionCnt = len(e.Partitions)
+				eofCnt = 0
 			case kafka.RevokedPartitions:
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				c.Unassign()
-				partition_cnt = 0
-				eof_cnt = 0
+				partitionCnt = 0
+				eofCnt = 0
 			case *kafka.Message:
 				if verbosity >= 2 {
 					fmt.Fprintf(os.Stderr, "%% %v:\n", e.TopicPartition)
 				}
-				if key_delim != "" {
+				if keyDelim != "" {
 					if e.Key != nil {
-						fmt.Printf("%s%s", string(e.Key), key_delim)
+						fmt.Printf("%s%s", string(e.Key), keyDelim)
 					} else {
-						fmt.Printf("%s", key_delim)
+						fmt.Printf("%s", keyDelim)
 					}
 				}
 				fmt.Println(string(e.Value))
-			case kafka.PartitionEof:
+			case kafka.PartitionEOF:
 				fmt.Fprintf(os.Stderr, "%% Reached %v\n", e)
-				eof_cnt += 1
-				if exit_eof && eof_cnt >= partition_cnt {
+				eofCnt++
+				if exitEOF && eofCnt >= partitionCnt {
 					run = false
 				}
-			case kafka.KafkaError:
+			case kafka.Error:
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 				run = false
+			case kafka.OffsetsCommitted:
+				if verbosity >= 2 {
+					fmt.Fprintf(os.Stderr, "%% %v\n", e)
+				}
 			default:
 				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}
@@ -181,19 +187,19 @@ func run_consumer(config *kafka.ConfigMap, topics []string) {
 	c.Close()
 }
 
-type ConfigArgs struct {
+type configArgs struct {
 	conf kafka.ConfigMap
 }
 
-func (c *ConfigArgs) String() string {
+func (c *configArgs) String() string {
 	return "FIXME"
 }
 
-func (c *ConfigArgs) Set(value string) error {
+func (c *configArgs) Set(value string) error {
 	return c.conf.Set(value)
 }
 
-func (c *ConfigArgs) IsCumulative() bool {
+func (c *configArgs) IsCumulative() bool {
 	return true
 }
 
@@ -201,45 +207,49 @@ func main() {
 	sigs = make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
+	_, libver := kafka.LibraryVersion()
+	kingpin.Version(fmt.Sprintf("confluent-kafka-go (librdkafka v%s)", libver))
+
 	// Default config
-	var confargs ConfigArgs
+	var confargs configArgs
 	confargs.conf = kafka.ConfigMap{"session.timeout.ms": 6000}
 
 	/* General options */
 	brokers := kingpin.Flag("broker", "Bootstrap broker(s)").Required().String()
 	kingpin.Flag("config", "Configuration property (prop=val)").Short('X').PlaceHolder("PROP=VAL").SetValue(&confargs)
-	key_delim_arg := kingpin.Flag("key-delim", "Key and value delimiter (empty string=dont print/parse key)").Default("").String()
+	keyDelimArg := kingpin.Flag("key-delim", "Key and value delimiter (empty string=dont print/parse key)").Default("").String()
+	verbosityArg := kingpin.Flag("verbosity", "Output verbosity level").Short('v').Default("1").Int()
 
 	/* Producer mode options */
-	mode_P := kingpin.Command("produce", "Produce messages")
-	topic := mode_P.Flag("topic", "Topic to produce to").Required().String()
-	partition := mode_P.Flag("partition", "Partition to produce to").Default("-1").Int()
+	modeP := kingpin.Command("produce", "Produce messages")
+	topic := modeP.Flag("topic", "Topic to produce to").Required().String()
+	partition := modeP.Flag("partition", "Partition to produce to").Default("-1").Int()
 
 	/* Consumer mode options */
-	mode_C := kingpin.Command("consume", "Consume messages").Default()
-	group := mode_C.Flag("group", "Consumer group").Required().String()
-	topics := mode_C.Arg("topic", "Topic(s) to subscribe to").Required().Strings()
-	var initial_offset kafka.Offset = kafka.KAFKA_OFFSET_BEGINNING
-	mode_C.Flag("offset", "Initial offset").Short('o').SetValue(&initial_offset)
-	exit_eof_arg := mode_C.Flag("eof", "Exit when EOF is reached for all partitions").Bool()
+	modeC := kingpin.Command("consume", "Consume messages").Default()
+	group := modeC.Flag("group", "Consumer group").Required().String()
+	topics := modeC.Arg("topic", "Topic(s) to subscribe to").Required().Strings()
+	initialOffset := modeC.Flag("offset", "Initial offset").Short('o').Default(kafka.OffsetBeginning.String()).String()
+	exitEOFArg := modeC.Flag("eof", "Exit when EOF is reached for all partitions").Bool()
 
 	mode := kingpin.Parse()
 
-	key_delim = *key_delim_arg
-	exit_eof = *exit_eof_arg
+	verbosity = *verbosityArg
+	keyDelim = *keyDelimArg
+	exitEOF = *exitEOFArg
 	confargs.conf["bootstrap.servers"] = *brokers
 
 	switch mode {
 	case "produce":
 		confargs.conf["default.topic.config"] = kafka.ConfigMap{"produce.offset.report": true}
-		run_producer((*kafka.ConfigMap)(&confargs.conf), *topic, int32(*partition))
+		runProducer((*kafka.ConfigMap)(&confargs.conf), *topic, int32(*partition))
 
 	case "consume":
 		confargs.conf["group.id"] = *group
 		confargs.conf["go.events.channel.enable"] = true
 		confargs.conf["go.application.rebalance.enable"] = true
-		confargs.conf["default.topic.config"] = kafka.ConfigMap{"auto.offset.reset": initial_offset}
-		run_consumer((*kafka.ConfigMap)(&confargs.conf), *topics)
+		confargs.conf["default.topic.config"] = kafka.ConfigMap{"auto.offset.reset": *initialOffset}
+		runConsumer((*kafka.ConfigMap)(&confargs.conf), *topics)
 	}
 
 }

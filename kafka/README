@@ -27,7 +27,7 @@ The format of testconf.json is a JSON object:
     }
 ```
 
-See testconf-example.json for an example.
+See testconf-example.json for an example and full set of available options.
 
 
 To run unit-tests:
@@ -38,4 +38,31 @@ To run unit-tests:
 To run benchmark tests:
 
     $ go test -bench .
+
+
+
+
+Build tags (static linking)
+===========================
+
+Different build types are supported through Go build tags (`-tags ..`),
+these tags should be specified on the **application** build command.
+
+ * `static` - Build with librdkafka linked statically (but librdkafka
+              dependencies linked dynamically).
+ * `static_all` - Build with all libraries linked statically.
+ * neither - Build with librdkafka (and its dependencies) linked dynamically.
+
+
+
+Generate HTML documentation
+===========================
+
+To generate one-page HTML documentation run the mk/doc-gen.py script from the
+top-level directory. This script requires the beautifulsoup4 Python package.
+
+    $ source .../your/virtualenv/bin/activate
+    $ pip install beautifulsoup4
+    ..
+    $ mk/doc-gen.py > kafka.html
 

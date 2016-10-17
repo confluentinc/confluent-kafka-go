@@ -22,11 +22,11 @@ import (
 	"testing"
 )
 
-func delivery_handler(b *testing.B, exp_cnt int64, delivery_chan chan Event, done_chan chan int64) {
+func deliveryHandler(b *testing.B, expCnt int64, deliveryChan chan Event, doneChan chan int64) {
 
 	var cnt, size int64
 
-	for ev := range delivery_chan {
+	for ev := range deliveryChan {
 		m, ok := ev.(*Message)
 		if !ok {
 			continue
@@ -37,26 +37,26 @@ func delivery_handler(b *testing.B, exp_cnt int64, delivery_chan chan Event, don
 			break
 		}
 
-		cnt += 1
-		// b.Logf("Delivered %d/%d to %s", cnt, exp_cnt, m.TopicPartition)
+		cnt++
+		// b.Logf("Delivered %d/%d to %s", cnt, expCnt, m.TopicPartition)
 
 		if m.Value != nil {
 			size += int64(len(m.Value))
 		}
-		if cnt >= exp_cnt {
+		if cnt >= expCnt {
 			break
 		}
 
 	}
 
-	done_chan <- cnt
-	done_chan <- size
-	close(done_chan)
+	doneChan <- cnt
+	doneChan <- size
+	close(doneChan)
 }
 
-func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool, batch_producer bool, produce_func func(p *Producer, m *Message, dr_chan chan Event)) {
+func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, batchProducer bool, silent bool, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
 
-	if !testconf_read() {
+	if !testconfRead() {
 		b.Skipf("Missing testconf.json")
 	}
 
@@ -65,12 +65,15 @@ func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool,
 	}
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"go.batch.producer":            batch_producer,
-		"go.delivery.reports":          with_dr,
+		"go.batch.producer":            batchProducer,
+		"go.delivery.reports":          withDr,
 		"queue.buffering.max.messages": msgcnt,
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
 		"default.topic.config":         ConfigMap{"acks": 1}}
+
+	conf.updateFromTestconf()
+
 	p, err := NewProducer(&conf)
 	if err != nil {
 		panic(err)
@@ -82,61 +85,71 @@ func producer_perf_test(b *testing.B, testname string, msgcnt int, with_dr bool,
 	pattern := "Hello"
 	buf := []byte(strings.Repeat(pattern, size/len(pattern)))
 
-	var done_chan chan int64
-	var dr_chan chan Event = nil
+	var doneChan chan int64
+	var drChan chan Event
 
-	if with_dr {
-		done_chan = make(chan int64)
-		dr_chan = p.Events
-		go delivery_handler(b, int64(msgcnt), p.Events, done_chan)
+	if withDr {
+		doneChan = make(chan int64)
+		drChan = p.Events()
+		go deliveryHandler(b, int64(msgcnt), p.Events(), doneChan)
 	}
 
-	b.Logf("%s: produce %d messages", testname, msgcnt)
+	if !silent {
+		b.Logf("%s: produce %d messages", testname, msgcnt)
+	}
 
-	rd := ratedisp_start(b, fmt.Sprintf("%s: produce", testname))
-	rd_delivery := ratedisp_start(b, fmt.Sprintf("%s: delivery", testname))
+	displayInterval := 5.0
+	if !silent {
+		displayInterval = 1000.0
+	}
+	rd := ratedispStart(b, fmt.Sprintf("%s: produce", testname), displayInterval)
+	rdDelivery := ratedispStart(b, fmt.Sprintf("%s: delivery", testname), displayInterval)
 
-	for i := 0; i < msgcnt; i += 1 {
+	for i := 0; i < msgcnt; i++ {
 		m := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: partition}, Value: buf}
 
-		produce_func(p, &m, dr_chan)
+		produceFunc(p, &m, drChan)
 
 		rd.tick(1, int64(size))
 	}
 
-	rd.print("produce done: ")
+	if !silent {
+		rd.print("produce done: ")
+	}
 
 	// Wait for messages in-flight and in-queue to get delivered.
-	b.Logf("%s: %d messages in queue", testname, p.Len())
+	if !silent {
+		b.Logf("%s: %d messages in queue", testname, p.Len())
+	}
 	r := p.Flush(10000)
-	b.Logf("%s: %d messages remains in queue after Flush()", testname, r)
+	if r > 0 {
+		b.Errorf("%s: %d messages remains in queue after Flush()", testname, r)
+	}
 
 	// Close producer
-	b.Logf("%s: Close()ing producer", testname)
 	p.Close()
-	b.Logf("%s: Close() done", testname)
 
-	var delivery_cnt, delivery_size int64
+	var deliveryCnt, deliverySize int64
 
-	if with_dr {
-		delivery_cnt = <-done_chan
-		delivery_size = <-done_chan
+	if withDr {
+		deliveryCnt = <-doneChan
+		deliverySize = <-doneChan
 	} else {
-		delivery_cnt = int64(msgcnt)
-		delivery_size = delivery_cnt * int64(size)
+		deliveryCnt = int64(msgcnt)
+		deliverySize = deliveryCnt * int64(size)
 	}
-	rd_delivery.tick(delivery_cnt, delivery_size)
+	rdDelivery.tick(deliveryCnt, deliverySize)
 
 	rd.print("TOTAL: ")
 
-	b.SetBytes(delivery_size)
+	b.SetBytes(deliverySize)
 }
 
 func BenchmarkProducerFunc(b *testing.B) {
-	producer_perf_test(b, "Function producer (without DR)",
-		0, false, false,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			err := p.Produce(m, dr_chan, nil)
+	producerPerfTest(b, "Function producer (without DR)",
+		0, false, false, false,
+		func(p *Producer, m *Message, drChan chan Event) {
+			err := p.Produce(m, drChan)
 			if err != nil {
 				b.Errorf("Produce() failed: %v", err)
 			}
@@ -144,10 +157,10 @@ func BenchmarkProducerFunc(b *testing.B) {
 }
 
 func BenchmarkProducerFuncDR(b *testing.B) {
-	producer_perf_test(b, "Function producer (with DR)",
-		0, true, false,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			err := p.Produce(m, dr_chan, nil)
+	producerPerfTest(b, "Function producer (with DR)",
+		0, true, false, false,
+		func(p *Producer, m *Message, drChan chan Event) {
+			err := p.Produce(m, drChan)
 			if err != nil {
 				b.Errorf("Produce() failed: %v", err)
 			}
@@ -155,49 +168,49 @@ func BenchmarkProducerFuncDR(b *testing.B) {
 }
 
 func BenchmarkProducerChannel(b *testing.B) {
-	producer_perf_test(b, "Channel producer (without DR)",
-		0, false, false,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			p.ProduceChannel <- m
+	producerPerfTest(b, "Channel producer (without DR)",
+		0, false, false, false,
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
 		})
 }
 
 func BenchmarkProducerChannelDR(b *testing.B) {
-	producer_perf_test(b, "Channel producer (with DR)",
-		testconf.PerfMsgCount, true, false,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			p.ProduceChannel <- m
+	producerPerfTest(b, "Channel producer (with DR)",
+		testconf.PerfMsgCount, true, false, false,
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
 		})
 
 }
 
 func BenchmarkProducerBatchChannel(b *testing.B) {
-	producer_perf_test(b, "Channel producer (without DR, batch channel)",
-		0, false, true,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			p.ProduceChannel <- m
+	producerPerfTest(b, "Channel producer (without DR, batch channel)",
+		0, false, true, false,
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
 		})
 }
 
 func BenchmarkProducerBatchChannelDR(b *testing.B) {
-	producer_perf_test(b, "Channel producer (DR, batch channel)",
-		0, true, true,
-		func(p *Producer, m *Message, dr_chan chan Event) {
-			p.ProduceChannel <- m
+	producerPerfTest(b, "Channel producer (DR, batch channel)",
+		0, true, true, false,
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
 		})
 }
 
-func BenchmarkProducerInternal_MessageInstantiation(b *testing.B) {
+func BenchmarkProducerInternalMessageInstantiation(b *testing.B) {
 	topic := "test"
 	buf := []byte(strings.Repeat("Ten bytes!", 10))
 	v := 0
-	for i := 0; i < b.N; i += 1 {
+	for i := 0; i < b.N; i++ {
 		msg := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0}, Value: buf}
 		v += int(msg.TopicPartition.Partition) // avoid msg unused error
 	}
 }
 
-func BenchmarkProducerInternal_message_to_c(b *testing.B) {
+func BenchmarkProducerInternalMessageToC(b *testing.B) {
 	p, err := NewProducer(&ConfigMap{})
 	if err != nil {
 		b.Fatalf("NewProducer failed: %s", err)
@@ -205,8 +218,8 @@ func BenchmarkProducerInternal_message_to_c(b *testing.B) {
 	b.ResetTimer()
 	topic := "test"
 	buf := []byte(strings.Repeat("Ten bytes!", 10))
-	for i := 0; i < b.N; i += 1 {
+	for i := 0; i < b.N; i++ {
 		msg := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0}, Value: buf}
-		p.handle.message_to_c_dummy(&msg)
+		p.handle.messageToCDummy(&msg)
 	}
 }

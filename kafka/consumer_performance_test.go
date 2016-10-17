@@ -23,10 +23,10 @@ import (
 	"time"
 )
 
-// consumer_perf_test measures the consumer performance using a pre-primed (produced to) topic
-func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel bool, consume_func func(c *Consumer, rd *ratedisp, exp_cnt int), rebalance_cb func(c *Consumer, event Event) error) {
+// consumerPerfTest measures the consumer performance using a pre-primed (produced to) topic
+func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool, consumeFunc func(c *Consumer, rd *ratedisp, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
 
-	r := testconsumer_init(b)
+	r := testconsumerInit(b)
 	if r == -1 {
 		b.Skipf("Missing testconf.json")
 		return
@@ -38,27 +38,30 @@ func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel b
 	rand.Seed(int64(time.Now().Unix()))
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"go.events.channel.enable": use_channel,
+		"go.events.channel.enable": useChannel,
 		"group.id":                 fmt.Sprintf("go_cperf_%d", rand.Intn(1000000)),
 		"session.timeout.ms":       6000,
 		"api.version.request":      "true",
 		"enable.auto.commit":       false,
 		"debug":                    ",",
 		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
+
+	conf.updateFromTestconf()
+
 	c, err := NewConsumer(&conf)
 
 	if err != nil {
 		panic(err)
 	}
 
-	exp_cnt := msgcnt
-	b.Logf("%s, expecting %d messages", testname, exp_cnt)
+	expCnt := msgcnt
+	b.Logf("%s, expecting %d messages", testname, expCnt)
 
-	c.Subscribe(testconf.Topic, rebalance_cb)
+	c.Subscribe(testconf.Topic, rebalanceCb)
 
-	rd := ratedisp_start(b, testname)
+	rd := ratedispStart(b, testname, 10)
 
-	consume_func(c, &rd, exp_cnt)
+	consumeFunc(c, &rd, expCnt)
 
 	rd.print("TOTAL: ")
 
@@ -68,100 +71,105 @@ func consumer_perf_test(b *testing.B, testname string, msgcnt int, use_channel b
 
 }
 
-// consume messages through the Events channel
-func event_channel_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
-	for ev := range c.Events {
-		m, ok := ev.(*Message)
-		if !ok {
-			rd.b.Logf("Ignoring %v", ev)
-			continue
-		}
-		if m.TopicPartition.Error != nil {
-			rd.b.Logf("Error: %v", m.TopicPartition.Error)
-			continue
+// handleEvent returns false if processing should stop, else true
+func handleEvent(c *Consumer, rd *ratedisp, expCnt int, ev Event) bool {
+	switch e := ev.(type) {
+	case *Message:
+		if e.TopicPartition.Error != nil {
+			rd.b.Logf("Error: %v", e.TopicPartition)
 		}
 
 		if rd.cnt == 0 {
-			// start measuring time from first message to avoid including
-			// rebalancing time.
+			// start measuring time from first message to avoid
+			// including rebalancing time.
 			rd.b.ResetTimer()
 			rd.reset()
 		}
 
-		rd.tick(1, int64(len(m.Value)))
+		rd.tick(1, int64(len(e.Value)))
 
-		if rd.cnt >= int64(exp_cnt) {
+		if rd.cnt >= int64(expCnt) {
+			return false
+		}
+	case PartitionEOF:
+		break // silence
+	default:
+		rd.b.Fatalf("Consumer error: %v", e)
+	}
+	return true
+
+}
+
+// consume messages through the Events channel
+func eventChannelConsumer(c *Consumer, rd *ratedisp, expCnt int) {
+	for ev := range c.Events() {
+		if !handleEvent(c, rd, expCnt, ev) {
 			break
 		}
 	}
 }
 
 // consume messages through the Poll() interface
-func event_poll_consumer(c *Consumer, rd *ratedisp, exp_cnt int) {
-	for rd.cnt < int64(exp_cnt) {
+func eventPollConsumer(c *Consumer, rd *ratedisp, expCnt int) {
+	for true {
 		ev := c.Poll(100)
 		if ev == nil {
 			// timeout
 			continue
 		}
-
-		switch e := ev.(type) {
-		case *Message:
-			rd.tick(1, int64(len(e.Value)))
-		case PartitionEof:
-			rd.b.Logf("Reached %s", e)
-		default:
-			rd.b.Fatalf("Consumer error: %v", e)
+		if !handleEvent(c, rd, expCnt, ev) {
+			break
 		}
 	}
 }
 
-var testconsumer_inited bool = false
+var testconsumerInited = false
 
 // Produce messages to consume (if needed)
 // Query watermarks of topic to see if we need to prime it at all.
 // NOTE: This wont work for compacted topics..
 // returns the number of messages to consume
-func testconsumer_init(b *testing.B) int {
-	if testconsumer_inited {
+func testconsumerInit(b *testing.B) int {
+	if testconsumerInited {
 		return testconf.PerfMsgCount
 	}
 
-	if !testconf_read() {
+	if !testconfRead() {
 		return -1
 	}
 
 	msgcnt := testconf.PerfMsgCount
 
-	currcnt, err := get_message_count_in_topic(testconf.Topic)
+	currcnt, err := getMessageCountInTopic(testconf.Topic)
 	if err == nil {
 		b.Logf("Topic %s has %d messages, need %d", testconf.Topic, currcnt, msgcnt)
 	}
 	if currcnt < msgcnt {
-		producer_perf_test(b, "Priming producer", msgcnt, false, false,
-			func(p *Producer, m *Message, dr_chan chan Event) {
-				p.ProduceChannel <- m
+		producerPerfTest(b, "Priming producer", msgcnt, false, false,
+			true,
+			func(p *Producer, m *Message, drChan chan Event) {
+				p.ProduceChannel() <- m
 			})
 	}
 
-	testconsumer_inited = true
+	testconsumerInited = true
 	b.ResetTimer()
 	return msgcnt
 }
 
 func BenchmarkConsumerChannelPerformance(b *testing.B) {
-	consumer_perf_test(b, "Channel Consumer",
-		0, true, event_channel_consumer, nil)
+	consumerPerfTest(b, "Channel Consumer",
+		0, true, eventChannelConsumer, nil)
 }
 
 func BenchmarkConsumerPollPerformance(b *testing.B) {
-	consumer_perf_test(b, "Poll Consumer",
-		0, false, event_poll_consumer, nil)
+	consumerPerfTest(b, "Poll Consumer",
+		0, false, eventPollConsumer, nil)
 }
 
 func BenchmarkConsumerPollRebalancePerformance(b *testing.B) {
-	consumer_perf_test(b, "Poll Consumer (rebalance callback)",
-		0, false, event_poll_consumer,
+	consumerPerfTest(b, "Poll Consumer (rebalance callback)",
+		0, false, eventPollConsumer,
 		func(c *Consumer, event Event) error {
 			b.Logf("Rebalanced: %s", event)
 			return nil

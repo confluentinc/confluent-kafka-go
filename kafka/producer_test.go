@@ -32,15 +32,15 @@ func TestProducerAPIs(t *testing.T) {
 
 	t.Logf("Producer %s", p)
 
-	dr_chan := make(chan Event, 10)
+	drChan := make(chan Event, 10)
 
 	topic1 := "gotest"
 	topic2 := "gotest2"
 
-	// Produce with function, DR on passed dr_chan
+	// Produce with function, DR on passed drChan
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
-		Value: []byte("Own dr_chan"), Key: []byte("This is my key")},
-		dr_chan, nil)
+		Value: []byte("Own drChan"), Key: []byte("This is my key")},
+		drChan)
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
@@ -48,16 +48,19 @@ func TestProducerAPIs(t *testing.T) {
 	// Produce with function, use default DR channel (Events)
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
 		Value: []byte("Events DR"), Key: []byte("This is my key")},
-		nil, nil)
+		nil)
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
 
-	// Produce through ProducerChannel, uses default DR channel (Events)
-	p.ProduceChannel <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
-		Value: []byte("ProducerChannel"), Key: []byte("This is my key")}
+	// Produce through ProducerChannel, uses default DR channel (Events),
+	// pass Opaque object.
+	myOpq := "My opaque"
+	p.ProduceChannel() <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
+		Opaque: &myOpq,
+		Value:  []byte("ProducerChannel"), Key: []byte("This is my key")}
 
-	// Len() will not report messages on private delivery report chans (our dr_chan for example),
+	// Len() will not report messages on private delivery report chans (our drChan for example),
 	// so expect at least 2 messages, not 3.
 	if p.Len() < 2 {
 		t.Errorf("Expected at least 2 messages (+requests) in queue, only %d reported", p.Len())
@@ -67,25 +70,41 @@ func TestProducerAPIs(t *testing.T) {
 	// Now wait for messages to time out so that delivery reports are triggered
 	//
 
-	// dr_chan (1 message)
-	ev := <-dr_chan
+	// drChan (1 message)
+	ev := <-drChan
 	m := ev.(*Message)
-	if string(m.Value) != "Own dr_chan" {
-		t.Errorf("DR for wrong message (wanted 'Own dr_chan'), got %s",
+	if string(m.Value) != "Own drChan" {
+		t.Errorf("DR for wrong message (wanted 'Own drChan'), got %s",
 			string(m.Value))
 	} else if m.TopicPartition.Error == nil {
 		t.Errorf("Expected error for message")
 	} else {
 		t.Logf("Message %s", m.TopicPartition)
 	}
-	close(dr_chan)
+	close(drChan)
 
 	// Events chan (2 messages and possibly events)
-	for msg_cnt := 0; msg_cnt < 2; {
-		ev = <-p.Events
+	for msgCnt := 0; msgCnt < 2; {
+		ev = <-p.Events()
 		switch e := ev.(type) {
 		case *Message:
-			msg_cnt += 1
+			msgCnt++
+			if (string)(e.Value) == "ProducerChannel" {
+				s := e.Opaque.(*string)
+				if s != &myOpq {
+					t.Errorf("Opaque should point to %v, not %v", &myOpq, s)
+				}
+				if *s != myOpq {
+					t.Errorf("Opaque should be \"%s\", not \"%v\"",
+						myOpq, *s)
+				}
+				t.Logf("Message \"%s\" with opaque \"%s\"\n",
+					(string)(e.Value), *s)
+			} else {
+				if e.Opaque != nil {
+					t.Errorf("Message opaque should be nil, not %v", e.Opaque)
+				}
+			}
 		default:
 			t.Logf("Ignored event %s", e)
 		}

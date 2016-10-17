@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -14,11 +16,6 @@
  * limitations under the License.
  */
 
-// kafka client.
-// This package implements high-level Apache Kafka producer and consumers
-// using bindings on-top of the C librdkafka library.
-package kafka
-
 // Automatically generate error codes from librdkafka
 // See README for instructions
 //go:generate $GOPATH/bin/go_rdkafka_generr generated_errors.go
@@ -28,41 +25,45 @@ package kafka
 */
 import "C"
 
-type KafkaError struct {
-	code KafkaErrorCode
+// Error provides a Kafka-specific error container
+type Error struct {
+	code ErrorCode
 	str  string
 }
 
-func NewKafkaError(code C.rd_kafka_resp_err_t) (err KafkaError) {
-	return KafkaError{KafkaErrorCode(code), ""}
+func newError(code C.rd_kafka_resp_err_t) (err Error) {
+	return Error{ErrorCode(code), ""}
 }
 
-func NewKafkaErrorFromString(code KafkaErrorCode, str string) (err KafkaError) {
-	return KafkaError{code, str}
+func newErrorFromString(code ErrorCode, str string) (err Error) {
+	return Error{code, str}
 }
 
-func NewKafkaErrorFromCString(code C.rd_kafka_resp_err_t, cstr *C.char) (err KafkaError) {
+func newErrorFromCString(code C.rd_kafka_resp_err_t, cstr *C.char) (err Error) {
 	var str string
 	if cstr != nil {
 		str = C.GoString(cstr)
 	} else {
 		str = ""
 	}
-	return KafkaError{KafkaErrorCode(code), str}
+	return Error{ErrorCode(code), str}
 }
 
-func (e KafkaError) Error() string {
+// Error returns a human readable representation of an Error
+// Same as Error.String()
+func (e Error) Error() string {
 	return e.String()
 }
 
-func (e KafkaError) String() string {
+// String returns a human readable representation of an Error
+func (e Error) String() string {
 	if len(e.str) > 0 {
 		return e.str
-	} else {
-		return e.code.String()
 	}
+	return e.code.String()
 }
 
-func (e KafkaError) Code() KafkaErrorCode {
+// Code returns the ErrorCode of an Error
+func (e Error) Code() ErrorCode {
 	return e.code
 }

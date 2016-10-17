@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -14,11 +16,6 @@
  * limitations under the License.
  */
 
-// kafka client.
-// This package implements high-level Apache Kafka producer and consumers
-// using bindings on-top of the C librdkafka library.
-package kafka
-
 import (
 	"fmt"
 	"os"
@@ -29,21 +26,21 @@ import (
 #include <librdkafka/rdkafka.h>
 #include "glue_rdkafka.h"
 
-rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeout_ms,
+rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
                                   rd_kafka_event_type_t *evtype,
-                                  fetched_c_msg_t *fc_msg,
+                                  fetched_c_msg_t *fcMsg,
                                   rd_kafka_event_t *prev_rkev) {
     rd_kafka_event_t *rkev;
 
     if (prev_rkev)
       rd_kafka_event_destroy(prev_rkev);
 
-    rkev = rd_kafka_queue_poll(rkq, timeout_ms);
+    rkev = rd_kafka_queue_poll(rkq, timeoutMs);
     *evtype = rd_kafka_event_type(rkev);
 
     if (*evtype == RD_KAFKA_EVENT_FETCH) {
-        fc_msg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
-        fc_msg->ts = rd_kafka_message_timestamp(fc_msg->msg, &fc_msg->tstype);
+        fcMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
+        fcMsg->ts = rd_kafka_message_timestamp(fcMsg->msg, &fcMsg->tstype);
     }
     return rkev;
 }
@@ -52,10 +49,13 @@ import "C"
 
 // Event generic interface
 type Event interface {
+	// String returns a human-readable representation of the event
 	String() string
 }
 
 // Specific event types
+
+// AssignedPartitions consumer group rebalance event: assigned partition set
 type AssignedPartitions struct {
 	Partitions []TopicPartition
 }
@@ -64,6 +64,7 @@ func (e AssignedPartitions) String() string {
 	return fmt.Sprintf("AssignedPartitions: %v", e.Partitions)
 }
 
+// RevokedPartitions consumer group rebalance event: revoked partition set
 type RevokedPartitions struct {
 	Partitions []TopicPartition
 }
@@ -72,38 +73,54 @@ func (e RevokedPartitions) String() string {
 	return fmt.Sprintf("RevokedPartitions: %v", e.Partitions)
 }
 
-type PartitionEof TopicPartition
+// PartitionEOF consumer reached end of partition
+type PartitionEOF TopicPartition
 
-func (p PartitionEof) String() string {
+func (p PartitionEOF) String() string {
 	return fmt.Sprintf("EOF at %s", TopicPartition(p))
 }
 
-// event_poll polls an event from the handler's C rd_kafka_queue_t,
-// translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
-func (h *handle) event_poll(channel chan Event, timeout_ms int, max_events int) Event {
+// OffsetsCommitted reports committed offsets
+type OffsetsCommitted struct {
+	Error   error
+	Offsets []TopicPartition
+}
 
-	var prev_rkev *C.rd_kafka_event_t
+func (o OffsetsCommitted) String() string {
+	return fmt.Sprintf("OffsetsCommitted (%v, %v)", o.Error, o.Offsets)
+}
+
+// eventPoll polls an event from the handler's C rd_kafka_queue_t,
+// translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
+// term_chan is an optional channel to monitor along with producing to channel
+// to indicate that `channel` is being terminated.
+// returns (event Event, terminate Bool) tuple, where Terminate indicates
+// if termChan received a termination event.
+func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, termChan chan bool) (Event, bool) {
+
+	var prevRkev *C.rd_kafka_event_t
+	term := false
 
 	var retval Event
 
 	if channel == nil {
-		max_events = 1
+		maxEvents = 1
 	}
 out:
-	for evcnt := 0; evcnt < max_events; evcnt += 1 {
+	for evcnt := 0; evcnt < maxEvents; evcnt++ {
 		var evtype C.rd_kafka_event_type_t
-		var fc_msg C.fetched_c_msg_t
-		rkev := C._rk_queue_poll(h.rkq, C.int(timeout_ms), &evtype, &fc_msg, prev_rkev)
-		prev_rkev = rkev
-		timeout_ms = 0
+		var fcMsg C.fetched_c_msg_t
+		rkev := C._rk_queue_poll(h.rkq, C.int(timeoutMs), &evtype, &fcMsg, prevRkev)
+		prevRkev = rkev
+		timeoutMs = 0
 
 		retval = nil
 
 		switch evtype {
 		case C.RD_KAFKA_EVENT_FETCH:
 			// Consumer fetch event, new message.
-			// Extracted into temporary fc_msg for optimization
-			retval = h.new_message_from_fc_msg(&fc_msg)
+			// Extracted into temporary fcMsg for optimization
+			retval = h.newMessageFromFcMsg(&fcMsg)
 
 		case C.RD_KAFKA_EVENT_REBALANCE:
 			// Consumer rebalance event
@@ -119,58 +136,58 @@ out:
 			// Failure to do so will "hang" the consumer, e.g., it wont start consuming
 			// and it wont close cleanly, so this error case should be visible
 			// immediately to the application developer.
-			app_reassigned := false
+			appReassigned := false
 			if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
-				if h.curr_app_rebalance_enable {
+				if h.currAppRebalanceEnable {
 					// Application must perform Assign() call
 					var ev AssignedPartitions
-					ev.Partitions = new_TopicPartitions_from_c_parts(C.rd_kafka_event_topic_partition_list(rkev))
-					if channel != nil {
-						channel <- ev
-						app_reassigned = true
+					ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
+					if channel != nil || h.c.rebalanceCb == nil {
+						retval = ev
+						appReassigned = true
 					} else {
-						app_reassigned = h.c.rebalance(ev)
+						appReassigned = h.c.rebalance(ev)
 					}
 				}
 
-				if !app_reassigned {
+				if !appReassigned {
 					C.rd_kafka_assign(h.rk, C.rd_kafka_event_topic_partition_list(rkev))
 				}
 			} else {
-				if h.curr_app_rebalance_enable {
+				if h.currAppRebalanceEnable {
 					// Application must perform Unassign() call
 					var ev RevokedPartitions
-					ev.Partitions = new_TopicPartitions_from_c_parts(C.rd_kafka_event_topic_partition_list(rkev))
-					if channel != nil {
-						channel <- ev
-						app_reassigned = true
+					ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
+					if channel != nil || h.c.rebalanceCb == nil {
+						retval = ev
+						appReassigned = true
 					} else {
-						app_reassigned = h.c.rebalance(ev)
+						appReassigned = h.c.rebalance(ev)
 					}
 				}
 
-				if !app_reassigned {
+				if !appReassigned {
 					C.rd_kafka_assign(h.rk, nil)
 				}
 			}
 
 		case C.RD_KAFKA_EVENT_ERROR:
 			// Error event
-			c_err := C.rd_kafka_event_error(rkev)
-			switch c_err {
+			cErr := C.rd_kafka_event_error(rkev)
+			switch cErr {
 			case C.RD_KAFKA_RESP_ERR__PARTITION_EOF:
-				c_rktpar := C.rd_kafka_event_topic_partition(rkev)
-				if c_rktpar == nil {
+				crktpar := C.rd_kafka_event_topic_partition(rkev)
+				if crktpar == nil {
 					break
 				}
 
-				defer C.rd_kafka_topic_partition_destroy(c_rktpar)
-				var peof PartitionEof
-				setup_TopicPartition_from_c_rktpar((*TopicPartition)(&peof), c_rktpar)
+				defer C.rd_kafka_topic_partition_destroy(crktpar)
+				var peof PartitionEOF
+				setupTopicPartitionFromCrktpar((*TopicPartition)(&peof), crktpar)
 
 				retval = peof
 			default:
-				retval = NewKafkaErrorFromCString(c_err, C.rd_kafka_event_error_string(rkev))
+				retval = newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
 			}
 
 		case C.RD_KAFKA_EVENT_DR:
@@ -184,35 +201,57 @@ out:
 			cnt := int(C.rd_kafka_event_message_array(rkev, (**C.rd_kafka_message_t)(unsafe.Pointer(&rkmessages[0])), C.size_t(len(rkmessages))))
 
 			for _, rkmessage := range rkmessages[:cnt] {
-				msg := h.new_message_from_c(rkmessage)
-				var ch *chan Event = nil
+				msg := h.newMessageFromC(rkmessage)
+				var ch *chan Event
 
 				if rkmessage._private != nil {
 					// Find cgoif by id
-					cgoid := *(*int)(rkmessage._private)
-
-					cg, found := h.cgo_get(cgoid)
+					cg, found := h.cgoGet((int)((uintptr)(rkmessage._private)))
 					if found {
-						cdr := cg.(cgo_dr)
+						cdr := cg.(cgoDr)
 
-						if cdr.delivery_chan != nil {
-							ch = &cdr.delivery_chan
+						if cdr.deliveryChan != nil {
+							ch = &cdr.deliveryChan
 						}
 						msg.Opaque = cdr.opaque
 					}
 				}
 
-				if ch == nil && h.fwd_dr {
+				if ch == nil && h.fwdDr {
 					ch = &channel
 				}
 
 				if ch != nil {
-					*ch <- msg
+					select {
+					case *ch <- msg:
+					case <-termChan:
+						break out
+					}
+
 				} else {
 					retval = msg
 					break out
 				}
 			}
+
+		case C.RD_KAFKA_EVENT_OFFSET_COMMIT:
+			// Offsets committed
+			cErr := C.rd_kafka_event_error(rkev)
+			coffsets := C.rd_kafka_event_topic_partition_list(rkev)
+			var offsets []TopicPartition
+			if coffsets != nil {
+				offsets = newTopicPartitionsFromCparts(coffsets)
+			}
+
+			if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+				retval = OffsetsCommitted{newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev)), offsets}
+			} else {
+				retval = OffsetsCommitted{nil, offsets}
+			}
+
+		case C.RD_KAFKA_EVENT_NONE:
+			// poll timed out: no events available
+			break out
 
 		default:
 			if rkev != nil {
@@ -224,16 +263,22 @@ out:
 
 		if retval != nil {
 			if channel != nil {
-				channel <- retval
+				select {
+				case channel <- retval:
+				case <-termChan:
+					retval = nil
+					term = true
+					break out
+				}
 			} else {
 				break out
 			}
 		}
 	}
 
-	if prev_rkev != nil {
-		C.rd_kafka_event_destroy(prev_rkev)
+	if prevRkev != nil {
+		C.rd_kafka_event_destroy(prevRkev)
 	}
 
-	return retval
+	return retval, term
 }

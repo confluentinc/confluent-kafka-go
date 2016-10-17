@@ -1,3 +1,6 @@
+// Example channel-based high-level Apache Kafka consumer
+package main
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package main
 
 import (
 	"fmt"
@@ -63,7 +65,7 @@ func main() {
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
 
-		case ev := <-c.Events:
+		case ev := <-c.Events():
 			switch e := ev.(type) {
 			case kafka.AssignedPartitions:
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)
@@ -81,9 +83,9 @@ func main() {
 						e.TopicPartition, string(e.Value))
 				}
 
-			case kafka.PartitionEof:
+			case kafka.PartitionEOF:
 				fmt.Printf("%% Reached %v\n", e)
-			case kafka.KafkaError:
+			case kafka.Error:
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 				run = false
 			}
