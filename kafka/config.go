@@ -71,25 +71,21 @@ func (m ConfigMap) Set(kv string) error {
 	return m.SetKey(k, v)
 }
 
-type stringable interface {
-	String() string
-}
-
 func value2string(v ConfigValue) (ret string, errstr string) {
 
-	switch v.(type) {
+	switch x := v.(type) {
 	case bool:
-		if v.(bool) {
+		if x {
 			ret = "true"
 		} else {
 			ret = "false"
 		}
 	case int:
-		ret = fmt.Sprintf("%d", v)
+		ret = fmt.Sprintf("%d", x)
 	case string:
-		ret = v.(string)
-	case stringable:
-		ret = v.(stringable).String()
+		ret = x
+	case fmt.Stringer:
+		ret = x.String()
 	default:
 		return "", fmt.Sprintf("Invalid value type %T", v)
 	}
