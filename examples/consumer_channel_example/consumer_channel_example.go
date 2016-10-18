@@ -73,16 +73,9 @@ func main() {
 			case kafka.RevokedPartitions:
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				c.Unassign()
-
 			case *kafka.Message:
-				if e.TopicPartition.Error != nil {
-					fmt.Printf("Consumer error: %v\n", e.TopicPartition.Error)
-					run = false
-				} else {
-					fmt.Printf("%% Message on %s:\n%s\n",
-						e.TopicPartition, string(e.Value))
-				}
-
+				fmt.Printf("%% Message on %s:\n%s\n",
+					e.TopicPartition, string(e.Value))
 			case kafka.PartitionEOF:
 				fmt.Printf("%% Reached %v\n", e)
 			case kafka.Error:
