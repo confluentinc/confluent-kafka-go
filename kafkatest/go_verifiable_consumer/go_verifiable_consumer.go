@@ -405,12 +405,15 @@ func main() {
 		conf["debug"] = *debug
 	}
 
-	/* Convert Java assignment strategy to librdkafka one.
-	 * "[java.class.path.]Strategy[Assignor]" -> "strategy" */
+	/* Convert Java assignment strategy(s) (CSV) to librdkafka one.
+	 * "[java.class.path.]Strategy[Assignor],.." -> "strategy,.." */
 	if javaAssignmentStrategy != nil && len(*javaAssignmentStrategy) > 0 {
-		s := strings.Split(*javaAssignmentStrategy, ".")
-		strategy := strings.ToLower(strings.TrimSuffix(s[len(s)-1], "Assignor"))
-		conf["partition.assignment.strategy"] = strategy
+		var strats []string
+		for _, jstrat := range strings.Split(*javaAssignmentStrategy, ",") {
+			s := strings.Split(jstrat, ".")
+			strats = append(strats, strings.ToLower(strings.TrimSuffix(s[len(s)-1], "Assignor")))
+		}
+		conf["partition.assignment.strategy"] = strings.Join(strats, ",")
 		fmt.Fprintf(os.Stderr, "%% Mapped %s -> %s\n",
 			*javaAssignmentStrategy, conf["partition.assignment.strategy"])
 	}
