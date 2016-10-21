@@ -124,11 +124,11 @@ type rdkConf C.rd_kafka_conf_t
 type rdkTopicConf C.rd_kafka_topic_conf_t
 
 func (cConf *rdkConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t {
-	return C.rd_kafka_conf_set(cConf, cKey, cVal, cErrstr, C.size_t(errstrSize))
+	return C.rd_kafka_conf_set((*C.rd_kafka_conf_t)(cConf), cKey, cVal, cErrstr, C.size_t(errstrSize))
 }
 
 func (ctopicConf *rdkTopicConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t {
-	return C.rd_kafka_topic_conf_set(ctopicConf, cKey, cVal, cErrstr, C.size_t(errstrSize))
+	return C.rd_kafka_topic_conf_set((*C.rd_kafka_conf_t)(ctopicConf), cKey, cVal, cErrstr, C.size_t(errstrSize))
 }
 
 func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
@@ -152,8 +152,8 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 			}
 
 			C.rd_kafka_conf_set_default_topic_conf(
-				anyconf.(*rdkConf),
-				(*rdkTopicConf)(cTopicConf))
+				(*C.rd_kafka_conf_t)(anyconf.(*rdkConf)),
+				(*C.rd_kafka_topic_conf_t)((*rdkTopicConf)(cTopicConf)))
 
 		default:
 			val, errstr := value2string(v)
