@@ -32,6 +32,7 @@ import "C"
 var testconf struct {
 	Brokers      string
 	Topic        string
+	GroupID      string
 	PerfMsgCount int
 	PerfMsgSize  int
 	Config       []string
@@ -52,6 +53,7 @@ func testconfRead() bool {
 	// Default values
 	testconf.PerfMsgCount = 2000000
 	testconf.PerfMsgSize = 100
+	testconf.GroupID = "testgroup"
 
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
@@ -136,7 +138,8 @@ func (rd *ratedisp) tick(cnt, size int64) {
 func getMessageCountInTopic(topic string) (int, error) {
 
 	// Create consumer
-	c, err := NewConsumer(&ConfigMap{"bootstrap.servers": testconf.Brokers})
+	c, err := NewConsumer(&ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"group.id": testconf.GroupID})
 	if err != nil {
 		return 0, err
 	}
