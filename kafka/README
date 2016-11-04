@@ -15,7 +15,7 @@ Testing
 =======
 
 
-Some of the tests included in this directory, the benchmark tests in particular,
+Some of the tests included in this directory, the benchmark and integration tests in particular,
 require an existing Kafka cluster and a testconf.json configuration file to
 provide tests with bootstrap brokers, topic name, etc.
 
@@ -39,7 +39,10 @@ To run benchmark tests:
 
     $ go test -bench .
 
+For the code coverage:
 
+    $ go test -coverprofile=coverage.out -bench=.
+    $ go tool cover -func=coverage.out
 
 
 Build tags (static linking)
