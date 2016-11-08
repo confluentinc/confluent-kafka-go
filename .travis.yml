@@ -1,0 +1,18 @@
+language: go
+go:
+  - 1.6
+  - 1.7
+before_install:
+  - bash mk/bootstrap-librdkafka.sh v0.9.2 tmp-build
+env:
+  global:
+    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+    - PATH="$PATH:$GOPATH/bin"
+install:
+  - go get -tags static ./...
+  - go install -tags static ./...
+  - cd examples/go-kafkacat && go install -tags static
+
+script:
+  - go test -v -tags static ./...
+  - go-kafkacat --help
