@@ -16,5 +16,6 @@ install:
   - (cd examples/go-kafkacat && go install -tags static)
 
 script:
+  - golint ./...
   - go test -v -tags static ./...
   - go-kafkacat --help
