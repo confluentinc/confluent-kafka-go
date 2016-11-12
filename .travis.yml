@@ -4,19 +4,23 @@ go:
   - 1.5
   - 1.6
   - 1.7
-before_install:
-  - bash mk/bootstrap-librdkafka.sh v0.9.2 tmp-build
-  - go get github.com/golang/lint/golint
 env:
   global:
-    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+    - LIBRDKAFKA_VERSION=v0.9.2
+    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build-${LIBRDKAFKA_VERSION}/lib/pkgconfig"
     - PATH="$PATH:$GOPATH/bin"
+cache:
+  directories:
+    - tmp-build-${LIBRDKAFKA_VERSION}
+before_install:
+  - test -f tmp-build-${LIBRDKAFKA_VERSION}/lib/librdkafka.a || bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build-${LIBRDKAFKA_VERSION}
+  - if [[ $TRAVIS_GO_VERSION == 1.7* ]]; then go get -u github.com/golang/lint/golint ; fi
 install:
   - go get -tags static ./...
   - go install -tags static ./...
   - (cd examples/go-kafkacat && go install -tags static)
 
 script:
-  - golint ./...
+  - if [[ $TRAVIS_GO_VERSION == 1.7* ]]; then golint -set_exit_status ./... ; fi
   - go test -v -tags static ./...
   - go-kafkacat --help
