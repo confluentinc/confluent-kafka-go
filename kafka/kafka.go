@@ -152,22 +152,23 @@ static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafk
 */
 import "C"
 
-// Any partition (for partitioning), or unspecified value (for all other cases)
+// PartitionAny represents any partition (for partitioning),
+// or unspecified value (for all other cases)
 const PartitionAny = int32(C.RD_KAFKA_PARTITION_UA)
 
 // Offset type (int64) with support for canonical names
 type Offset int64
 
-// Earliest offset (logical)
+// OffsetBeginning represents the earliest offset (logical)
 const OffsetBeginning = Offset(C.RD_KAFKA_OFFSET_BEGINNING)
 
-// Latest offset (logical)
+// OffsetEnd represents the latest offset (logical)
 const OffsetEnd = Offset(C.RD_KAFKA_OFFSET_END)
 
-// Invalid/unspecified offset
+// OffsetInvalid represents an invalid/unspecified offset
 const OffsetInvalid = Offset(C.RD_KAFKA_OFFSET_INVALID)
 
-// Use stored offset
+// OffsetStored represents a stored offset
 const OffsetStored = Offset(C.RD_KAFKA_OFFSET_STORED)
 
 func (o Offset) String() string {
