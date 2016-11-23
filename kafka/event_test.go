@@ -22,15 +22,15 @@ import (
 
 // TestEventAPIs dry-tests the public event related APIs, no broker is needed.
 func TestEventAPIs(t *testing.T) {
-	assigned_partitions := AssignedPartitions{}
-	t.Logf("%s\n", assigned_partitions.String())
+	assignedPartitions := AssignedPartitions{}
+	t.Logf("%s\n", assignedPartitions.String())
 
-	revoked_partitions := RevokedPartitions{}
-	t.Logf("%s\n", revoked_partitions.String())
+	revokedPartitions := RevokedPartitions{}
+	t.Logf("%s\n", revokedPartitions.String())
 
 	partition := PartitionEOF{}
 	t.Logf("%s\n", partition.String())
 
-	committed_offsets := OffsetsCommitted{}
-	t.Logf("%s\n", committed_offsets.String())
+	committedOffsets := OffsetsCommitted{}
+	t.Logf("%s\n", committedOffsets.String())
 }
