@@ -186,11 +186,11 @@ func (o Offset) String() string {
 }
 
 // Set offset value, see NewOffset()
-func (o Offset) Set(offset interface{}) error {
+func (o *Offset) Set(offset interface{}) error {
 	n, err := NewOffset(offset)
 
 	if err == nil {
-		o = n
+		*o = n
 	}
 
 	return err
