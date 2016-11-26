@@ -22,7 +22,7 @@ import (
 )
 
 // producer test control
-type PC struct {
+type producerCtrl struct {
 	silent        bool
 	withDr        bool // use delivery channel
 	batchProducer bool // enable batch producer
@@ -38,7 +38,7 @@ const (
 )
 
 // consumer test control
-type CC struct {
+type consumerCtrl struct {
 	autoCommit bool // set enable.auto.commit property
 	useChannel bool
 	commitMode commitMode // which commit api to use
@@ -218,7 +218,7 @@ func deliveryTestHandler(t *testing.T, expCnt int64, deliveryChan chan Event, mt
 }
 
 // producerTest produces messages in <testmsgs> to topic. Verifies delivered messages
-func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc PC, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
+func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc producerCtrl, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
 
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -319,11 +319,11 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc PC,
 }
 
 // consumerTest consumes messages from a pre-primed (produced to) topic
-func consumerTest(t *testing.T, testname string, msgcnt int, cc CC, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
 
 	if msgcnt == 0 {
 		createTestMessages()
-		producerTest(t, "Priming producer", p0TestMsgs, PC{},
+		producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{},
 			func(p *Producer, m *Message, drChan chan Event) {
 				p.ProduceChannel() <- m
 			})
@@ -402,7 +402,7 @@ func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 
 	// Prime topic with test messages
 	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, PC{silent: true},
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})
@@ -477,7 +477,7 @@ func TestProducerQueryWatermarkOffsets(t *testing.T) {
 	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
 
 	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, PC{silent: true},
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})
@@ -530,7 +530,7 @@ func TestProducerGetMetadata(t *testing.T) {
 // test producer function-based API without delivery report
 func TestProducerFunc(t *testing.T) {
 	producerTest(t, "Function producer (without DR)",
-		nil, PC{},
+		nil, producerCtrl{},
 		func(p *Producer, m *Message, drChan chan Event) {
 			err := p.Produce(m, drChan)
 			if err != nil {
@@ -542,7 +542,7 @@ func TestProducerFunc(t *testing.T) {
 // test producer function-based API with delivery report
 func TestProducerFuncDR(t *testing.T) {
 	producerTest(t, "Function producer (with DR)",
-		nil, PC{withDr: true},
+		nil, producerCtrl{withDr: true},
 		func(p *Producer, m *Message, drChan chan Event) {
 			err := p.Produce(m, drChan)
 			if err != nil {
@@ -584,7 +584,7 @@ func TestProducerWithBadMessages(t *testing.T) {
 // test producer channel-based API without delivery report
 func TestProducerChannel(t *testing.T) {
 	producerTest(t, "Channel producer (without DR)",
-		nil, PC{},
+		nil, producerCtrl{},
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})
@@ -593,7 +593,7 @@ func TestProducerChannel(t *testing.T) {
 // test producer channel-based API with delivery report
 func TestProducerChannelDR(t *testing.T) {
 	producerTest(t, "Channel producer (with DR)",
-		nil, PC{withDr: true},
+		nil, producerCtrl{withDr: true},
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})
@@ -603,7 +603,7 @@ func TestProducerChannelDR(t *testing.T) {
 // test batch producer channel-based API without delivery report
 func TestProducerBatchChannel(t *testing.T) {
 	producerTest(t, "Channel producer (without DR, batch channel)",
-		nil, PC{batchProducer: true},
+		nil, producerCtrl{batchProducer: true},
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})
@@ -612,7 +612,7 @@ func TestProducerBatchChannel(t *testing.T) {
 // test batch producer channel-based API with delivery report
 func TestProducerBatchChannelDR(t *testing.T) {
 	producerTest(t, "Channel producer (DR, batch channel)",
-		nil, PC{withDr: true, batchProducer: true},
+		nil, producerCtrl{withDr: true, batchProducer: true},
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})
@@ -677,16 +677,16 @@ func verifyMessages(t *testing.T, msgs []*Message, expected []*testmsgType) {
 // test consumer APIs with various message commit modes
 func consumerTestWithCommits(t *testing.T, testname string, msgcnt int, useChannel bool, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
 	consumerTest(t, testname+" auto commit",
-		msgcnt, CC{useChannel: useChannel, autoCommit: true}, consumeFunc, rebalanceCb)
+		msgcnt, consumerCtrl{useChannel: useChannel, autoCommit: true}, consumeFunc, rebalanceCb)
 
 	consumerTest(t, testname+" using CommitMessage() API",
-		msgcnt, CC{useChannel: useChannel, commitMode: ViaCommitMessageAPI}, consumeFunc, rebalanceCb)
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitMessageAPI}, consumeFunc, rebalanceCb)
 
 	consumerTest(t, testname+" using CommitOffsets() API",
-		msgcnt, CC{useChannel: useChannel, commitMode: ViaCommitOffsetsAPI}, consumeFunc, rebalanceCb)
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitOffsetsAPI}, consumeFunc, rebalanceCb)
 
 	consumerTest(t, testname+" using Commit() API",
-		msgcnt, CC{useChannel: useChannel, commitMode: ViaCommitAPI}, consumeFunc, rebalanceCb)
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitAPI}, consumeFunc, rebalanceCb)
 
 }
 
