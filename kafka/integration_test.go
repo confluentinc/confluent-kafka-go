@@ -64,7 +64,7 @@ func msgtrackerStart(t *testing.T, expectedCnt int) (mt msgtracker) {
 	return mt
 }
 
-var testMsgsInit  = false
+var testMsgsInit = false
 var p0TestMsgs []*testmsgType // partition 0 test messages
 // pAllTestMsgs holds messages for various partitions including PartitionAny and  invalid partitions
 var pAllTestMsgs []*testmsgType
@@ -80,11 +80,9 @@ func createTestMessages() {
 	testmsgs := make([]*testmsgType, 100)
 	i := 0
 
-	/*
-		// a test message with default initialization
-		testmsgs[i] = &testmsgType{}
-		i++
-	*/
+	// a test message with default initialization
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0}}}
+	i++
 
 	// a test message for partition 0 with only Opaque specified
 	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
@@ -143,201 +141,6 @@ func createTestMessages() {
 	i++
 
 	pAllTestMsgs = testmsgs[:i]
-}
-
-//Test LibraryVersion()
-func TestLibraryVersion(t *testing.T) {
-	ver, verstr := LibraryVersion()
-	if ver >= 0x00090200 {
-		t.Logf("Library version %d: %s\n", ver, verstr)
-	} else {
-		t.Errorf("Unexpected Library version %d: %s\n", ver, verstr)
-	}
-}
-
-//Test TimestampType
-func TestTimestampType(t *testing.T) {
-	timestampMap := map[TimestampType]string{TimestampCreateTime: "CreateTime",
-		TimestampLogAppendTime: "LogAppendTime",
-		TimestampNotAvailable:  "NotAvailable"}
-	for ts, desc := range timestampMap {
-		if ts.String() != desc {
-			t.Errorf("Wrong timestamp description for %s, expected %s\n", desc, ts.String())
-		}
-	}
-}
-
-//Test Offset APIs
-func TestOffsetAPIs(t *testing.T) {
-	offsets := []Offset{OffsetBeginning, OffsetEnd, OffsetInvalid, OffsetStored, 1001}
-	for _, offset := range offsets {
-		t.Logf("Offset: %s\n", offset.String())
-	}
-
-	// test known offset strings
-	testOffsets := map[string]Offset{"beginning": OffsetBeginning,
-		"earliest": OffsetBeginning,
-		"end":      OffsetEnd,
-		"latest":   OffsetEnd,
-		"unset":    OffsetInvalid,
-		"invalid":  OffsetInvalid,
-		"stored":   OffsetStored}
-
-	for key, expectedOffset := range testOffsets {
-		offset, err := NewOffset(key)
-		if err != nil {
-			t.Errorf("Cannot create offset for %s, error: %s\n", key, err)
-		} else {
-			if offset != expectedOffset {
-				t.Errorf("Offset does not equal expected: %s != %s\n", offset, expectedOffset)
-			}
-		}
-	}
-
-	// test numeric string conversion
-	offset, err := NewOffset("10")
-	if err != nil {
-		t.Errorf("Cannot create offset for 10, error: %s\n", err)
-	} else {
-		if offset != Offset(10) {
-			t.Errorf("Offset does not equal expected: %s != %s\n", offset, Offset(10))
-		}
-	}
-
-	// test integer offset
-	var intOffset = 10
-	offset, err = NewOffset(intOffset)
-	if err != nil {
-		t.Errorf("Cannot create offset for int 10, Error: %s\n", err)
-	} else {
-		if offset != Offset(10) {
-			t.Errorf("Offset does not equal expected: %s != %s\n", offset, Offset(10))
-		}
-	}
-
-	// test int64 offset
-	var int64Offset int64 = 10
-	offset, err = NewOffset(int64Offset)
-	if err != nil {
-		t.Errorf("Cannot create offset for int64 10, Error: %s \n", err)
-	} else {
-		if offset != Offset(10) {
-			t.Errorf("Offset does not equal expected: %s != %s\n", offset, Offset(10))
-		}
-	}
-
-	// test invalid string offset
-	invalidOffsetString := "what is this offset"
-	offset, err = NewOffset(invalidOffsetString)
-	if err == nil {
-		t.Errorf("Expected error for this string offset. Error: %s\n", err)
-	} else if offset != Offset(0) {
-		t.Errorf("Expected offset (%v), got (%v)\n", Offset(0), offset)
-	}
-	t.Logf("Offset for string (%s): %v\n", invalidOffsetString, offset)
-
-	// test double offset
-	doubleOffset := 12.15
-	offset, err = NewOffset(doubleOffset)
-	if err == nil {
-		t.Errorf("Expected error for this double offset: %f. Error: %s\n", doubleOffset, err)
-	} else if offset != OffsetInvalid {
-		t.Errorf("Expected offset (%v), got (%v)\n", OffsetInvalid, offset)
-	}
-	t.Logf("Offset for double (%f): %v\n", doubleOffset, offset)
-
-	// test change offset via Set()
-	offset, err = NewOffset("beginning")
-	if err != nil {
-		t.Errorf("Cannot create offset for 'beginning'. Error: %s\n", err)
-	}
-
-	// test change to a logical offset
-	err = offset.Set("latest")
-	if err != nil {
-		t.Errorf("Cannot set offset to 'latest'. Error: %s \n", err)
-	} else if offset != OffsetEnd {
-		t.Errorf("Failed to change offset. Expect (%v), got (%v)\n", OffsetEnd, offset)
-	}
-
-	// test change to an integer offset
-	err = offset.Set(int(10))
-	if err != nil {
-		t.Errorf("Cannot set offset to (%v). Error: %s \n", 10, err)
-	} else if offset != 10 {
-		t.Errorf("Failed to change offset. Expect (%v), got (%v)\n", 10, offset)
-	}
-
-	// test OffsetTail()
-	tail := OffsetTail(offset)
-	t.Logf("offset tail %v\n", tail)
-
-}
-
-// A custom type with Stringer interface to be used to test config map APIs
-type HostPortType struct {
-	Host string
-	Port int
-}
-
-// implements String() interface
-func (hp HostPortType) String() string {
-	return fmt.Sprintf("%s:%d", hp.Host, hp.Port)
-}
-
-//Test config map APIs
-func TestConfigMapAPIs(t *testing.T) {
-	config := &ConfigMap{}
-
-	// set a good key via SetKey()
-	err := config.SetKey("bootstrap.servers", testconf.Brokers)
-	if err != nil {
-		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
-	}
-
-	// test custom Stringer type
-	hostPort := HostPortType{Host: "localhost", Port: 9092}
-	err = config.SetKey("bootstrap.servers", hostPort)
-	if err != nil {
-		t.Errorf("Failed to set custom Stringer type via SetKey(). Error: %s\n", err)
-	}
-
-	err = config.SetKey("{topic}.produce.offset.report", true)
-	if err != nil {
-		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
-	}
-
-	// test offset literal string
-	err = config.SetKey("{topic}.auto.offset.reset", "earliest")
-	if err != nil {
-		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
-	}
-
-	//test offset constant
-	err = config.SetKey("{topic}.auto.offset.reset", OffsetBeginning)
-	if err != nil {
-		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
-	}
-
-	//test integer offset
-	err = config.SetKey("{topic}.auto.offset.reset", 10)
-	if err != nil {
-		t.Errorf("Failed to set integer value via SetKey(). Error: %s\n", err)
-	}
-
-	// set a good key-value pair via Set()
-	err = config.Set("group.id=test.id")
-	if err != nil {
-		t.Errorf("Failed to set key-value pair via Set(). Error: %s\n", err)
-	}
-
-	// negative test cases
-	// set a bad key-value pair via Set()
-	err = config.Set("group.id:test.id")
-	if err == nil {
-		t.Errorf("Expected failure when setting invalid key-value pair via Set()")
-	}
-
 }
 
 // consume messages through the Poll() interface
@@ -446,7 +249,6 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc PC,
 	if err != nil {
 		panic(err)
 	}
-	defer p.Close()
 
 	mt := msgtrackerStart(t, len(testmsgs))
 
@@ -491,6 +293,8 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc PC,
 	if !pc.silent {
 		t.Logf("delivered %d messages\n", mt.msgcnt)
 	}
+
+	p.Close()
 
 	//get the number of messages afterward
 	postrunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
@@ -747,6 +551,36 @@ func TestProducerFuncDR(t *testing.T) {
 		})
 }
 
+// test producer with bad messages
+func TestProducerWithBadMessages(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	p, err := NewProducer(&conf)
+	if err != nil {
+		panic(err)
+	}
+	defer p.Close()
+
+	// producing a nil message should return an error without crash
+	err = p.Produce(nil, p.Events())
+	if err == nil {
+		t.Errorf("Producing a nil message should return error\n")
+	} else {
+		t.Logf("Producing a nil message returns expected error: %s\n", err)
+	}
+
+	// producing a blank message (with nil Topic) should return an error without crash
+	err = p.Produce(&Message{}, p.Events())
+	if err == nil {
+		t.Errorf("Producing a blank message should return error\n")
+	} else {
+		t.Logf("Producing a blank message returns expected error: %s\n", err)
+	}
+}
+
 // test producer channel-based API without delivery report
 func TestProducerChannel(t *testing.T) {
 	producerTest(t, "Channel producer (without DR)",
@@ -767,7 +601,7 @@ func TestProducerChannelDR(t *testing.T) {
 }
 
 // test batch producer channel-based API without delivery report
-func xTestProducerBatchChannel(t *testing.T) {
+func TestProducerBatchChannel(t *testing.T) {
 	producerTest(t, "Channel producer (without DR, batch channel)",
 		nil, PC{batchProducer: true},
 		func(p *Producer, m *Message, drChan chan Event) {
@@ -776,7 +610,7 @@ func xTestProducerBatchChannel(t *testing.T) {
 }
 
 // test batch producer channel-based API with delivery report
-func xTestProducerBatchChannelDR(t *testing.T) {
+func TestProducerBatchChannelDR(t *testing.T) {
 	producerTest(t, "Channel producer (DR, batch channel)",
 		nil, PC{withDr: true, batchProducer: true},
 		func(p *Producer, m *Message, drChan chan Event) {
@@ -787,7 +621,7 @@ func xTestProducerBatchChannelDR(t *testing.T) {
 // use opaque string to locate the matching test message for message verification
 func findExpectedMessage(expected []*testmsgType, opaque string) *testmsgType {
 	for i, m := range expected {
-		if expected[i].msg.Opaque.(string) == opaque {
+		if expected[i].msg.Opaque != nil && expected[i].msg.Opaque.(string) == opaque {
 			return m
 		}
 	}

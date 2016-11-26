@@ -57,6 +57,10 @@ func (p *Producer) gethandle() *handle {
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
+	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
+		return newErrorFromString(ErrUnknownTopic, "")
+	}
+
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
 	var valp *byte
