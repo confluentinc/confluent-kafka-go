@@ -28,7 +28,11 @@ func TestEventAPIs(t *testing.T) {
 	revokedPartitions := RevokedPartitions{}
 	t.Logf("%s\n", revokedPartitions.String())
 
-	partition := PartitionEOF{}
+	topic := "test"
+	partition := PartitionEOF{Topic: &topic}
+	t.Logf("%s\n", partition.String())
+
+	partition = PartitionEOF{}
 	t.Logf("%s\n", partition.String())
 
 	committedOffsets := OffsetsCommitted{}
