@@ -187,11 +187,11 @@ func (o Offset) String() string {
 }
 
 // Set offset value, see NewOffset()
-func (o Offset) Set(offset interface{}) error {
+func (o *Offset) Set(offset interface{}) error {
 	n, err := NewOffset(offset)
 
 	if err == nil {
-		o = n
+		*o = n
 	}
 
 	return err
@@ -252,12 +252,16 @@ type TopicPartition struct {
 }
 
 func (p TopicPartition) String() string {
+	topic := "<null>"
+	if p.Topic != nil {
+		topic = *p.Topic
+	}
 	if p.Error != nil {
 		return fmt.Sprintf("%s[%d]@%s(%s)",
-			*p.Topic, p.Partition, p.Offset, p.Error)
+			topic, p.Partition, p.Offset, p.Error)
 	}
 	return fmt.Sprintf("%s[%d]@%s",
-		*p.Topic, p.Partition, p.Offset)
+		topic, p.Partition, p.Offset)
 }
 
 // new_cparts_from_TopicPartitions creates a new C rd_kafka_topic_partition_list_t

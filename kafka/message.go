@@ -209,7 +209,7 @@ func (h *handle) messageToC(msg *Message, cmsg *C.rd_kafka_message_t) {
 			valp = payload
 		}
 		if keyLen > 0 {
-			copy((*[1 << 30]byte)(payload)[valueLen:keyLen], msg.Key)
+			copy((*[1 << 30]byte)(payload)[valueLen:allocLen], msg.Key)
 			keyp = unsafe.Pointer(&((*[1 << 31]byte)(payload)[valueLen]))
 		}
 	}
