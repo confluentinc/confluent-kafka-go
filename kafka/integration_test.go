@@ -553,10 +553,6 @@ func TestProducerFuncDR(t *testing.T) {
 
 // test producer with bad messages
 func TestProducerWithBadMessages(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
 	p, err := NewProducer(&conf)
 	if err != nil {
