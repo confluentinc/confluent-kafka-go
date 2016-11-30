@@ -49,6 +49,7 @@ func TestConfigMapAPIs(t *testing.T) {
 		t.Errorf("Failed to set custom Stringer type via SetKey(). Error: %s\n", err)
 	}
 
+        // test boolean type
 	err = config.SetKey("{topic}.produce.offset.report", true)
 	if err != nil {
 		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
@@ -67,7 +68,7 @@ func TestConfigMapAPIs(t *testing.T) {
 	}
 
 	//test integer offset
-	err = config.SetKey("{topic}.auto.offset.reset", 10)
+	err = config.SetKey("{topic}.message.timeout.ms", 10)
 	if err != nil {
 		t.Errorf("Failed to set integer value via SetKey(). Error: %s\n", err)
 	}
