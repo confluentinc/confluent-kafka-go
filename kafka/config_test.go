@@ -49,7 +49,7 @@ func TestConfigMapAPIs(t *testing.T) {
 		t.Errorf("Failed to set custom Stringer type via SetKey(). Error: %s\n", err)
 	}
 
-        // test boolean type
+	// test boolean type
 	err = config.SetKey("{topic}.produce.offset.report", true)
 	if err != nil {
 		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
