@@ -19,6 +19,7 @@ package kafka
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 // producer test control
@@ -704,4 +705,134 @@ func TestConsumerPollRebalance(t *testing.T) {
 			t.Logf("Rebalanced: %s", event)
 			return nil
 		})
+}
+
+// TestProducerConsumerTimestamps produces messages with timestamps
+// and verifies them on consumption.
+// Requires librdkafka >=0.9.3 and Kafka >=0.10.0.0
+func TestProducerConsumerTimestamps(t *testing.T) {
+	numver, strver := LibraryVersion()
+	if numver < 0x00090300 {
+		t.Skipf("Requires librdkafka >=0.9.3 (currently on %s)", strver)
+	}
+
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"api.version.request":      true,
+		"go.events.channel.enable": true,
+		"group.id":                 testconf.Topic,
+	}
+
+	conf.updateFromTestconf()
+
+	/* Create consumer and find recognizable message, verify timestamp.
+	 * The consumer is started before the producer to make sure
+	 * the message isn't missed. */
+	t.Logf("Creating consumer")
+	c, err := NewConsumer(&conf)
+	if err != nil {
+		t.Fatalf("NewConsumer: %v", err)
+	}
+
+	t.Logf("Assign %s [0]", testconf.Topic)
+	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+		Offset: OffsetEnd}})
+	if err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+
+	/* Wait until EOF is reached so we dont miss the produced message */
+	for ev := range c.Events() {
+		t.Logf("Awaiting initial EOF")
+		_, ok := ev.(PartitionEOF)
+		if ok {
+			break
+		}
+	}
+
+	/*
+	 * Create producer and produce one recognizable message with timestamp
+	 */
+	t.Logf("Creating producer")
+	conf.SetKey("{topic}.produce.offset.report", true)
+	p, err := NewProducer(&conf)
+	if err != nil {
+		t.Fatalf("NewProducer: %v", err)
+	}
+
+	drChan := make(chan Event, 1)
+
+	/* Offset the timestamp to avoid comparison with system clock */
+	future, _ := time.ParseDuration("87658h") // 10y
+	timestamp := time.Now().Add(future)
+	key := fmt.Sprintf("TS: %v", timestamp)
+	t.Logf("Producing message with timestamp %v", timestamp)
+	err = p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		Key:            []byte(key),
+		Timestamp:      timestamp},
+		drChan)
+
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+
+	// Wait for delivery
+	t.Logf("Awaiting delivery report")
+	ev := <-drChan
+	m, ok := ev.(*Message)
+	if !ok {
+		t.Fatalf("drChan: Expected *Message, got %v", ev)
+	}
+	if m.TopicPartition.Error != nil {
+		t.Fatalf("Delivery failed: %v", m.TopicPartition)
+	}
+	t.Logf("Produced message to %v", m.TopicPartition)
+	producedOffset := m.TopicPartition.Offset
+
+	p.Close()
+
+	/* Now consume messages, waiting for that recognizable one. */
+	t.Logf("Consuming messages")
+outer:
+	for ev := range c.Events() {
+		switch m := ev.(type) {
+		case *Message:
+			if m.TopicPartition.Error != nil {
+				continue
+			}
+			if m.Key == nil || string(m.Key) != key {
+				continue
+			}
+
+			t.Logf("Found message at %v with timestamp %s %s",
+				m.TopicPartition,
+				m.TimestampType, m.Timestamp)
+
+			if m.TopicPartition.Offset != producedOffset {
+				t.Fatalf("Produced Offset %d does not match consumed offset %d", producedOffset, m.TopicPartition.Offset)
+			}
+
+			if m.TimestampType != TimestampCreateTime {
+				t.Fatalf("Expected timestamp CreateTime, not %s",
+					m.TimestampType)
+			}
+
+			/* Since Kafka timestamps are milliseconds we need to
+			 * shave off some precision for the comparison */
+			if m.Timestamp.UnixNano()/1000000 !=
+				timestamp.UnixNano()/1000000 {
+				t.Fatalf("Expected timestamp %v (%d), not %v (%d)",
+					timestamp, timestamp.UnixNano(),
+					m.Timestamp, m.Timestamp.UnixNano())
+			}
+			break outer
+		default:
+		}
+	}
+
+	c.Close()
 }

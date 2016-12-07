@@ -27,11 +27,32 @@ import (
 #include <stdlib.h>
 #include <librdkafka/rdkafka.h>
 
-rd_kafka_resp_err_t do_produce (rd_kafka_topic_t *rkt, int32_t partition,
-          int msg_flags,
-          void *val, size_t val_len, void *key, size_t key_len, uintptr_t cgoid) {
-  return rd_kafka_produce(rkt, partition, msg_flags, val, val_len, key, key_len,
-                          (void *)cgoid);
+rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
+          rd_kafka_topic_t *rkt, int32_t partition,
+          int msgflags,
+          void *val, size_t val_len, void *key, size_t key_len,
+          int64_t timestamp,
+          uintptr_t cgoid) {
+
+#if RD_KAFKA_VERSION >= 0x00090300
+  return rd_kafka_producev(rk,
+        RD_KAFKA_V_RKT(rkt),
+        RD_KAFKA_V_PARTITION(partition),
+        RD_KAFKA_V_MSGFLAGS(msgflags),
+        RD_KAFKA_V_VALUE(val, val_len),
+        RD_KAFKA_V_KEY(key, key_len),
+        RD_KAFKA_V_TIMESTAMP(timestamp),
+        RD_KAFKA_V_OPAQUE((void *)cgoid),
+        RD_KAFKA_V_END);
+#else
+  if (timestamp)
+      return RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
+  if (rd_kafka_produce(rkt, partition, msgflags, val, val_len, key, key_len,
+                       (void *)cgoid) == -1)
+      return rd_kafka_last_error();
+  else
+      return RD_KAFKA_RESP_ERR_NO_ERROR;
+#endif
 }
 */
 import "C"
@@ -99,16 +120,23 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		cgoid = p.handle.cgoPut(cgoDr{deliveryChan: deliveryChan, opaque: msg.Opaque})
 	}
 
-	r := int(C.do_produce(crkt, C.int32_t(msg.TopicPartition.Partition),
+	var timestamp int64
+	if !msg.Timestamp.IsZero() {
+		timestamp = msg.Timestamp.UnixNano() / 1000000
+	}
+
+	cErr := C.do_produce(p.handle.rk, crkt,
+		C.int32_t(msg.TopicPartition.Partition),
 		C.int(msgFlags)|C.RD_KAFKA_MSG_F_COPY,
 		unsafe.Pointer(valp), C.size_t(valLen),
 		unsafe.Pointer(keyp), C.size_t(keyLen),
-		(C.uintptr_t)(cgoid)))
-	if r == -1 {
+		C.int64_t(timestamp),
+		(C.uintptr_t)(cgoid))
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		if cgoid != 0 {
 			p.handle.cgoGet(cgoid)
 		}
-		return newError(C.rd_kafka_last_error())
+		return newError(cErr)
 	}
 
 	return nil
@@ -119,6 +147,8 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // transmit queue, thus returning immediately.
 // The delivery report will be sent on the provided deliveryChan if specified,
 // or on the Producer object's Events() channel if not.
+// msg.Timestamp requires librdkafka >= 0.9.3 (else returns ErrNotImplemented),
+// api.version.request=true, and broker >= 0.10.0.0.
 // Returns an error if message could not be enqueued.
 func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
 	return p.produce(msg, 0, deliveryChan)
@@ -127,7 +157,8 @@ func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
 // Produce a batch of messages.
 // These batches do not relate to the message batches sent to the broker, the latter
 // are collected on the fly internally in librdkafka.
-// This is an experimental API.
+// WARNING: This is an experimental API.
+// NOTE: timestamps are not supported with this API.
 func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) error {
 	crkt := p.handle.getRkt(topic)
 

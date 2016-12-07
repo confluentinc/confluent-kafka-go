@@ -18,11 +18,14 @@ package kafka
 
 import (
 	"testing"
+	"time"
 )
 
 // TestProducerAPIs dry-tests all Producer APIs, no broker is needed.
 func TestProducerAPIs(t *testing.T) {
 
+	// expected message dr count on events channel
+	expMsgCnt := 0
 	p, err := NewProducer(&ConfigMap{
 		"socket.timeout.ms":    10,
 		"default.topic.config": ConfigMap{"message.timeout.ms": 10}})
@@ -52,6 +55,25 @@ func TestProducerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
+	expMsgCnt++
+
+	// Produce with function and timestamp,
+	// success depends on librdkafka version
+	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0}, Timestamp: time.Now()}, nil)
+	numver, strver := LibraryVersion()
+	t.Logf("Produce with timestamp on %s returned: %s", strver, err)
+	if numver < 0x00090300 {
+		if err == nil || err.(Error).Code() != ErrNotImplemented {
+			t.Errorf("Expected Produce with timestamp to fail with ErrNotImplemented on %s, got: %s", strver, err)
+		}
+	} else {
+		if err != nil {
+			t.Errorf("Produce with timestamp failed on %s: %s", strver, err)
+		}
+	}
+	if err == nil {
+		expMsgCnt++
+	}
 
 	// Produce through ProducerChannel, uses default DR channel (Events),
 	// pass Opaque object.
@@ -59,9 +81,11 @@ func TestProducerAPIs(t *testing.T) {
 	p.ProduceChannel() <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
 		Opaque: &myOpq,
 		Value:  []byte("ProducerChannel"), Key: []byte("This is my key")}
+	expMsgCnt++
 
 	// Len() will not report messages on private delivery report chans (our drChan for example),
 	// so expect at least 2 messages, not 3.
+	// And completely ignore the timestamp message.
 	if p.Len() < 2 {
 		t.Errorf("Expected at least 2 messages (+requests) in queue, only %d reported", p.Len())
 	}
@@ -83,8 +107,8 @@ func TestProducerAPIs(t *testing.T) {
 	}
 	close(drChan)
 
-	// Events chan (2 messages and possibly events)
-	for msgCnt := 0; msgCnt < 2; {
+	// Events chan (3 messages and possibly events)
+	for msgCnt := 0; msgCnt < expMsgCnt; {
 		ev = <-p.Events()
 		switch e := ev.(type) {
 		case *Message:
