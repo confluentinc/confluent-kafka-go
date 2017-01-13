@@ -84,7 +84,6 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
-	var valp *byte
 	var keyp *byte
 	var empty byte
 	valLen := 0
@@ -92,12 +91,6 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 
 	if msg.Value != nil {
 		valLen = len(msg.Value)
-		// allow sending 0-length messages (as opposed to null messages)
-		if valLen > 0 {
-			valp = &msg.Value[0]
-		} else {
-			valp = &empty
-		}
 	}
 	if msg.Key != nil {
 		keyLen = len(msg.Key)
@@ -128,7 +121,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	cErr := C.do_produce(p.handle.rk, crkt,
 		C.int32_t(msg.TopicPartition.Partition),
 		C.int(msgFlags)|C.RD_KAFKA_MSG_F_COPY,
-		unsafe.Pointer(valp), C.size_t(valLen),
+		C.CBytes(msg.Value), C.size_t(valLen),
 		unsafe.Pointer(keyp), C.size_t(keyLen),
 		C.int64_t(timestamp),
 		(C.uintptr_t)(cgoid))

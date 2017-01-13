@@ -17,9 +17,14 @@
 package kafka
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
+
+type Envelope struct {
+	M string
+}
 
 // TestProducerAPIs dry-tests all Producer APIs, no broker is needed.
 func TestProducerAPIs(t *testing.T) {
@@ -40,9 +45,16 @@ func TestProducerAPIs(t *testing.T) {
 	topic1 := "gotest"
 	topic2 := "gotest2"
 
+	envelope := Envelope{M: "Own drChan"}
+	data, err := json.Marshal(envelope)
+
+	if err != nil {
+		t.Error(err)
+	}
+
 	// Produce with function, DR on passed drChan
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
-		Value: []byte("Own drChan"), Key: []byte("This is my key")},
+		Value: data, Key: []byte("This is my key")},
 		drChan)
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
@@ -97,9 +109,18 @@ func TestProducerAPIs(t *testing.T) {
 	// drChan (1 message)
 	ev := <-drChan
 	m := ev.(*Message)
-	if string(m.Value) != "Own drChan" {
+
+	var envelope2 Envelope
+
+	err = json.Unmarshal(m.Value, &envelope2)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if envelope2.M != "Own drChan" {
 		t.Errorf("DR for wrong message (wanted 'Own drChan'), got %s",
-			string(m.Value))
+			string(envelope2.M))
 	} else if m.TopicPartition.Error == nil {
 		t.Errorf("Expected error for message")
 	} else {
