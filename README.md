@@ -179,3 +179,9 @@ in `$GOPATH/src/github.com/confluentinc/confluent-kafka-go`:
     cd kafka
     go install
 
+
+Contributing
+------------
+Contributions to the code, examples, documentation, et.al, are very much appreciated.
+
+Make your changes, run gofmt, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).
