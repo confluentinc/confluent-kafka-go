@@ -84,22 +84,8 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
-	var keyp *byte
-	var empty byte
-	valLen := 0
-	keyLen := 0
-
-	if msg.Value != nil {
-		valLen = len(msg.Value)
-	}
-	if msg.Key != nil {
-		keyLen = len(msg.Key)
-		if keyLen > 0 {
-			keyp = &msg.Key[0]
-		} else {
-			keyp = &empty
-		}
-	}
+	valLen := len(msg.Value)
+	keyLen := len(msg.Key)
 
 	var cgoid int
 
@@ -122,7 +108,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		C.int32_t(msg.TopicPartition.Partition),
 		C.int(msgFlags)|C.RD_KAFKA_MSG_F_COPY,
 		C.CBytes(msg.Value), C.size_t(valLen),
-		unsafe.Pointer(keyp), C.size_t(keyLen),
+		C.CBytes(msg.Key), C.size_t(keyLen),
 		C.int64_t(timestamp),
 		(C.uintptr_t)(cgoid))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {

@@ -22,6 +22,10 @@ import (
 	"time"
 )
 
+type Key struct {
+	K string
+}
+
 type Envelope struct {
 	M string
 }
@@ -45,8 +49,15 @@ func TestProducerAPIs(t *testing.T) {
 	topic1 := "gotest"
 	topic2 := "gotest2"
 
+	key := Key{K: "This is my key"}
+	keyData, err := json.Marshal(key)
+
+	if err != nil {
+		t.Error(err)
+	}
+
 	envelope := Envelope{M: "Own drChan"}
-	data, err := json.Marshal(envelope)
+	envelopeData, err := json.Marshal(envelope)
 
 	if err != nil {
 		t.Error(err)
@@ -54,7 +65,7 @@ func TestProducerAPIs(t *testing.T) {
 
 	// Produce with function, DR on passed drChan
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
-		Value: data, Key: []byte("This is my key")},
+		Value: envelopeData, Key: keyData},
 		drChan)
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
