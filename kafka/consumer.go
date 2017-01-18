@@ -189,6 +189,21 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 	return c.commit(offsets)
 }
 
+// Seek seeks the given topic partitions using the offset from the TopicPartition.
+// This is a blocking call.
+// Returns an error on failure or nil otherwise.
+func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
+	rkt := c.handle.getRkt(*partition.Topic)
+	cErr := C.rd_kafka_seek(rkt,
+		C.int32_t(partition.Partition),
+		C.int64_t(partition.Offset),
+		C.int(timeoutMs))
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cErr)
+	}
+	return nil
+}
+
 // Poll the consumer for messages or events.
 //
 // Will block for at most timeoutMs milliseconds
