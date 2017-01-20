@@ -153,7 +153,7 @@ After a succesful static build verify the dependencies by running
 Tests
 =====
 
-See [kafka/README](kafka/README)
+See [kafka/README](kafka/README.md)
 
 
 
