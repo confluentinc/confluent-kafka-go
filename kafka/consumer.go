@@ -189,6 +189,32 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 	return c.commit(offsets)
 }
 
+// Seek seeks the given topic partitions using the offset from the TopicPartition.
+//
+// If timeoutMs is not 0 the call will wait this long for the
+// seek to be performed. If the timeout is reached the internal state
+// will be unknown and this function returns ErrTimedOut.
+// If timeoutMs is 0 it will initiate the seek but return
+// immediately without any error reporting (e.g., async).
+//
+// Seek() may only be used for partitions already being consumed
+// (through Assign() or implicitly through a self-rebalanced Subscribe()).
+// To set the starting offset it is preferred to use Assign() and provide
+// a starting offset for each partition.
+// 
+// Returns an error on failure or nil otherwise.
+func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
+	rkt := c.handle.getRkt(*partition.Topic)
+	cErr := C.rd_kafka_seek(rkt,
+		C.int32_t(partition.Partition),
+		C.int64_t(partition.Offset),
+		C.int(timeoutMs))
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cErr)
+	}
+	return nil
+}
+
 // Poll the consumer for messages or events.
 //
 // Will block for at most timeoutMs milliseconds

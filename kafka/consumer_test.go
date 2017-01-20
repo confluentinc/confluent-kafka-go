@@ -70,6 +70,11 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Assign failed: %s", err)
 	}
 
+	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1000)
+	if err != nil {
+		t.Errorf("Seek failed: %s", err)
+	}
+
 	err = c.Unassign()
 	if err != nil {
 		t.Errorf("Unassign failed: %s", err)
