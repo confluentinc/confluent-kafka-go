@@ -24,6 +24,11 @@ import (
 /*
 #include <stdlib.h>
 #include <librdkafka/rdkafka.h>
+
+
+static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafka_topic_partition_list_t *rktparlist, int idx) {
+   return idx < rktparlist->cnt ? &rktparlist->elems[idx] : NULL;
+}
 */
 import "C"
 
@@ -201,7 +206,7 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 // (through Assign() or implicitly through a self-rebalanced Subscribe()).
 // To set the starting offset it is preferred to use Assign() and provide
 // a starting offset for each partition.
-// 
+//
 // Returns an error on failure or nil otherwise.
 func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 	rkt := c.handle.getRkt(*partition.Topic)
@@ -388,4 +393,40 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 // and partition.
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
+}
+
+// Subscription returns the current subscription as set by Subscribe()
+func (c *Consumer) Subscription() (topics []string, err error) {
+	var cTopics *C.rd_kafka_topic_partition_list_t
+
+	cErr := C.rd_kafka_subscription(c.handle.rk, &cTopics)
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newError(cErr)
+	}
+	defer C.rd_kafka_topic_partition_list_destroy(cTopics)
+
+	topicCnt := int(cTopics.cnt)
+	topics = make([]string, topicCnt)
+	for i := 0; i < topicCnt; i++ {
+		crktpar := C._c_rdkafka_topic_partition_list_entry(cTopics,
+			C.int(i))
+		topics[i] = C.GoString(crktpar.topic)
+	}
+
+	return topics, nil
+}
+
+// Assignment returns the current partition assignments
+func (c *Consumer) Assignment() (partitions []TopicPartition, err error) {
+	var cParts *C.rd_kafka_topic_partition_list_t
+
+	cErr := C.rd_kafka_assignment(c.handle.rk, &cParts)
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newError(cErr)
+	}
+	defer C.rd_kafka_topic_partition_list_destroy(cParts)
+
+	partitions = newTopicPartitionsFromCparts(cParts)
+
+	return partitions, nil
 }

@@ -17,6 +17,9 @@
 package kafka
 
 import (
+	"fmt"
+	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -84,4 +87,76 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Close failed: %s", err)
 	}
+}
+
+func TestConsumerSubscription(t *testing.T) {
+	c, err := NewConsumer(&ConfigMap{"group.id": "gotest"})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	topics := []string{"gotest1", "gotest2", "gotest3"}
+	sort.Strings(topics)
+
+	err = c.SubscribeTopics(topics, nil)
+	if err != nil {
+		t.Fatalf("SubscribeTopics failed: %s", err)
+	}
+
+	subscription, err := c.Subscription()
+	if err != nil {
+		t.Fatalf("Subscription() failed: %s", err)
+	}
+
+	sort.Strings(subscription)
+
+	t.Logf("Compare Subscription %v to original list of topics %v\n",
+		subscription, topics)
+
+	r := reflect.DeepEqual(topics, subscription)
+	if r != true {
+		t.Fatalf("Subscription() %v does not match original topics %v",
+			subscription, topics)
+	}
+	c.Close()
+}
+
+func TestConsumerAssignment(t *testing.T) {
+	c, err := NewConsumer(&ConfigMap{"group.id": "gotest"})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	topic0 := "topic0"
+	topic1 := "topic1"
+	partitions := TopicPartitions{
+		{Topic: &topic1, Partition: 1},
+		{Topic: &topic1, Partition: 3},
+		{Topic: &topic0, Partition: 2}}
+	sort.Sort(partitions)
+
+	err = c.Assign(partitions)
+	if err != nil {
+		t.Fatalf("Assign failed: %s", err)
+	}
+
+	assignment, err := c.Assignment()
+	if err != nil {
+		t.Fatalf("Assignment() failed: %s", err)
+	}
+
+	sort.Sort(TopicPartitions(assignment))
+
+	t.Logf("Compare Assignment %v to original list of partitions %v\n",
+		assignment, partitions)
+
+	// reflect.DeepEqual() can't be used since TopicPartition.Topic
+	// is a pointer to a string rather than a string and the pointer
+	// will differ between partitions and assignment.
+	// Instead do a simple stringification + string compare.
+	if fmt.Sprintf("%v", assignment) != fmt.Sprintf("%v", partitions) {
+		t.Fatalf("Assignment() %v does not match original partitions %v",
+			assignment, partitions)
+	}
+	c.Close()
 }
