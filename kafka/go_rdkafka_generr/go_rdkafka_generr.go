@@ -26,7 +26,7 @@ import (
 
 /*
 #cgo pkg-config: --static rdkafka
-#cgo LDFLAGS: -Wl,-Bstatic -lrdkafka -Wl,-Bdynamic
+#cgo LDFLAGS: -lrdkafka
 #include <librdkafka/rdkafka.h>
 
 static const char *errdesc_to_string (const struct rd_kafka_err_desc *ed, int idx) {
