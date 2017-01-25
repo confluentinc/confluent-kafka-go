@@ -264,6 +264,27 @@ func (p TopicPartition) String() string {
 		topic, p.Partition, p.Offset)
 }
 
+// TopicPartitions is a slice of TopicPartitions that also implements
+// the sort interface
+type TopicPartitions []TopicPartition
+
+func (tps TopicPartitions) Len() int {
+	return len(tps)
+}
+
+func (tps TopicPartitions) Less(i, j int) bool {
+	if *tps[i].Topic < *tps[j].Topic {
+		return true
+	} else if *tps[i].Topic > *tps[j].Topic {
+		return false
+	}
+	return tps[i].Partition < tps[j].Partition
+}
+
+func (tps TopicPartitions) Swap(i, j int) {
+	tps[i], tps[j] = tps[j], tps[i]
+}
+
 // new_cparts_from_TopicPartitions creates a new C rd_kafka_topic_partition_list_t
 // from a TopicPartition array.
 func newCPartsFromTopicPartitions(partitions []TopicPartition) (cparts *C.rd_kafka_topic_partition_list_t) {
