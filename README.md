@@ -7,6 +7,8 @@ full Kafka protocol support with great performance and reliability.
 The Golang bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9 and above.
 
+See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-go/index.html) for more information.
+
 **License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 
