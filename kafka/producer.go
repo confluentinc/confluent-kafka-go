@@ -104,11 +104,17 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		timestamp = msg.Timestamp.UnixNano() / 1000000
 	}
 
+	msgBytes := C.CBytes(msg.Value)
+	defer C.free(msgBytes)
+
+	keyBytes := C.CBytes(msg.Key)
+	defer C.free(keyBytes)
+
 	cErr := C.do_produce(p.handle.rk, crkt,
 		C.int32_t(msg.TopicPartition.Partition),
 		C.int(msgFlags)|C.RD_KAFKA_MSG_F_COPY,
-		C.CBytes(msg.Value), C.size_t(valLen),
-		C.CBytes(msg.Key), C.size_t(keyLen),
+		msgBytes, C.size_t(valLen),
+		keyBytes, C.size_t(keyLen),
 		C.int64_t(timestamp),
 		(C.uintptr_t)(cgoid))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
