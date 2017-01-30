@@ -34,7 +34,7 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
           int64_t timestamp,
           uintptr_t cgoid) {
 
-#if RD_KAFKA_VERSION >= 0x00090300
+#ifdef RD_KAFKA_V_TIMESTAMP
   return rd_kafka_producev(rk,
         RD_KAFKA_V_RKT(rkt),
         RD_KAFKA_V_PARTITION(partition),
@@ -147,7 +147,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // transmit queue, thus returning immediately.
 // The delivery report will be sent on the provided deliveryChan if specified,
 // or on the Producer object's Events() channel if not.
-// msg.Timestamp requires librdkafka >= 0.9.3 (else returns ErrNotImplemented),
+// msg.Timestamp requires librdkafka >= 0.9.4 (else returns ErrNotImplemented),
 // api.version.request=true, and broker >= 0.10.0.0.
 // Returns an error if message could not be enqueued.
 func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {

@@ -709,11 +709,11 @@ func TestConsumerPollRebalance(t *testing.T) {
 
 // TestProducerConsumerTimestamps produces messages with timestamps
 // and verifies them on consumption.
-// Requires librdkafka >=0.9.3 and Kafka >=0.10.0.0
+// Requires librdkafka >=0.9.4 and Kafka >=0.10.0.0
 func TestProducerConsumerTimestamps(t *testing.T) {
 	numver, strver := LibraryVersion()
-	if numver < 0x00090300 {
-		t.Skipf("Requires librdkafka >=0.9.3 (currently on %s)", strver)
+	if numver < 0x00090400 {
+		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
 	}
 
 	if !testconfRead() {

@@ -62,9 +62,9 @@ func TestProducerAPIs(t *testing.T) {
 	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0}, Timestamp: time.Now()}, nil)
 	numver, strver := LibraryVersion()
 	t.Logf("Produce with timestamp on %s returned: %s", strver, err)
-	if numver < 0x00090300 {
+	if numver < 0x00090400 {
 		if err == nil || err.(Error).Code() != ErrNotImplemented {
-			t.Errorf("Expected Produce with timestamp to fail with ErrNotImplemented on %s, got: %s", strver, err)
+			t.Errorf("Expected Produce with timestamp to fail with ErrNotImplemented on %s (0x%x), got: %s", strver, numver, err)
 		}
 	} else {
 		if err != nil {
