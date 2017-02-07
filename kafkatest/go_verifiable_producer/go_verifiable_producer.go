@@ -39,7 +39,7 @@ func send(name string, msg map[string]interface{}) {
 		msg = make(map[string]interface{})
 	}
 	msg["name"] = name
-	msg["_time"] = time.Now().Unix()
+	msg["_time"] = time.Now().Format("2006-01-02 15:04:05.000")
 	b, err := json.Marshal(msg)
 	if err != nil {
 		panic(err)
