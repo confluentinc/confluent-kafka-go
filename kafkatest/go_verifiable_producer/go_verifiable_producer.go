@@ -164,7 +164,7 @@ func runProducer(config *kafka.ConfigMap, topic string) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Closing\n")
+	fmt.Fprintf(os.Stderr, "%% Closing, %d/%d messages delivered, %d failed\n", state.deliveryCnt, state.msgCnt, state.errCnt)
 
 	p.Close()
 
