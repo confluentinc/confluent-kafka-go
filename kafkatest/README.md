@@ -6,11 +6,15 @@ Instructions
 
 **Build both clients with statically linked librdkafka:**
 
+    $ mkdir ~/src/kafka/tests/go
+    
     $ cd go_verifiable_consumer
     $ go build -tags static
+    $ cp go_verifiable_producer ~/src/kafka/tests/go
 
     $ cd go_verifiable_consumer
     $ go build -tags static
+    $ $ cp go_verifiable_consumer ~/src/kafka/tests/go
 
 
 **Install librdkafka's dependencies on kafkatest VMs:**
@@ -28,6 +32,7 @@ Instructions
 
     $ cd ~/src/kafka # your Kafka git checkout
     $ source ~/src/venv2.7/bin/activate # your virtualenv containing ducktape
+    $ vagrant rsync  # to copy go_verifiable_* clients to worker instances
     $ ducktape --debug tests/kafkatest/tests/client --globals $GOPATH/src/github.com/confluentinc/confluent-kafka-go/kafkatest/globals.json
     # Go do something else for 40 minutes
     # Come back and look at the results
