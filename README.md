@@ -31,15 +31,15 @@ See the [API documentation](http://docs.confluent.io/current/clients/confluent-k
 **License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 
-Beta information
+Beta Information
 ================
 The Go client is currently in beta and APIs are subject to (minor) change.
 
-API strands
+API Strands
 ===========
 There are two main API strands: channel based or function based.
 
-Channel based consumer
+Channel Based Consumer
 ----------------------
 
 Messages, errors and events are posted on the consumer.Events channel
@@ -61,7 +61,7 @@ See [examples/consumer_channel_example](examples/consumer_channel_example)
 
 
 
-Function based consumer
+Function Based Consumer
 -----------------------
 
 Messages, errors and events are polled through the consumer.Poll() function.
@@ -80,7 +80,7 @@ See [examples/consumer_example](examples/consumer_example)
 
 
 
-Channel based producer
+Channel Based Producer
 ----------------------
 
 Application writes messages to the producer.ProducerChannel.
@@ -99,7 +99,7 @@ Cons:
 See [examples/producer_channel_example](examples/producer_channel_example)
 
 
-Function based producer
+Function Based Producer
 -----------------------
 
 Application calls producer.Produce() to produce messages.
@@ -144,7 +144,7 @@ Build
     $ go install
 
 
-Static builds
+Static Builds
 =============
 
 **NOTE**: Requires pkg-config
@@ -178,7 +178,7 @@ See [kafka/README](kafka/README.md)
 
 
 
-Getting started
+Getting Started
 ===============
 
 Installing librdkafka
@@ -191,7 +191,7 @@ Installing librdkafka
     sudo make install
 
 
-Build the Go client
+Build the Go Client
 -------------------
 
 From the confluent-kafka-go directory which should reside
