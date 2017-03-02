@@ -2,7 +2,7 @@ Confluent's Golang Client for Apache Kafka<sup>TM</sup>
 =====================================================
 
 **confluent-kafka-go** is Confluent's Golang client for [Apache Kafka](http://kafka.apache.org/) and the
-[Confluent Platform](https://www.confluent.io/product/).
+[Confluent Platform](https://www.confluent.io/product/compare/).
 
 Features:
 
@@ -19,9 +19,9 @@ and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dot
 [Confluent](https://confluent.io/).
 
 - **Future proof** - Confluent, founded by the
-creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/)
+creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
 with Apache Kafka at its core. It's high priority for us that client features keep
-pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/).
+pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
 The Golang bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9 and above.
