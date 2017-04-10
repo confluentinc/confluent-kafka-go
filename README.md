@@ -23,6 +23,7 @@ creators of Kafka, is building a [streaming platform](https://www.confluent.io/p
 with Apache Kafka at its core. It's high priority for us that client features keep
 pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
+
 The Golang bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9 and above.
 
@@ -31,12 +32,9 @@ See the [API documentation](http://docs.confluent.io/current/clients/confluent-k
 **License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 
-Beta Information
-================
-The Go client is currently in beta and APIs are subject to (minor) change.
-
 API Strands
 ===========
+
 There are two main API strands: channel based or function based.
 
 Channel Based Consumer
@@ -133,7 +131,7 @@ See [examples](examples)
 Prerequisites
 =============
 
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.2 (or `master` branch => 2016-08-16)
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.4
 
 
 
@@ -167,7 +165,7 @@ by default but are available in the corresponding `..-dev` or `..-devel`
 packages (e.g., libsasl2-dev).
 
 After a succesful static build verify the dependencies by running
-`ldd ./your_program`, librdkafka should not be listed.
+`ldd ./your_program` (or `otool -L ./your_program` on OSX), librdkafka should not be listed.
 
 
 
@@ -183,6 +181,20 @@ Getting Started
 
 Installing librdkafka
 ---------------------
+
+Either install librdkafka through your OS/distributions package manager,
+or download and build it from source.
+
+For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
+repositories or using [Confluent's Deb repository](http://docs.confluent.io/3.2.0/installation.html#installation-apt).
+
+For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/3.2.0/installation.html#rpm-packages-via-yum).
+
+For MacOS X, install `librdkafka` from Homebrew.
+
+For Windows, see the `librdkafka.redist` NuGet package.
+
+Build from source:
 
     git clone https://github.com/edenhill/librdkafka.git
     cd librdkafka
