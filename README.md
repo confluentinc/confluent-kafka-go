@@ -1,7 +1,7 @@
 Confluent's Apache Kafka client for Golang
 ==========================================
 
-Confluent's Kafka client for Golang wraps the librdkafka C library, providing
+Confluent's Kafka client for Golang wraps the [librdkafka](https://github.com/edenhill/librdkafka) C library, providing
 full Kafka protocol support with great performance and reliability.
 
 The Golang bindings provides a high-level Producer and Consumer with support
@@ -11,10 +11,6 @@ See the [API documentation](http://docs.confluent.io/current/clients/confluent-k
 
 **License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
-
-Beta information
-================
-The Go client is currently in beta and APIs are subject to (minor) change.
 
 API strands
 ===========
@@ -148,7 +144,7 @@ by default but are available in the corresponding `..-dev` or `..-devel`
 packages (e.g., libsasl2-dev).
 
 After a succesful static build verify the dependencies by running
-`ldd ./your_program`, librdkafka should not be listed.
+`ldd ./your_program` (or `otool -L ./your_program` on OSX), librdkafka should not be listed.
 
 
 
@@ -164,6 +160,20 @@ Getting started
 
 Installing librdkafka
 ---------------------
+
+Either install librdkafka through your OS/distributions package manager,
+or download and build it from source.
+
+For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
+repositories or using [Confluent's Deb repository](http://docs.confluent.io/3.2.0/installation.html#installation-apt).
+
+For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/3.2.0/installation.html#rpm-packages-via-yum).
+
+For MacOS X, install `librdkafka` from Homebrew.
+
+For Windows, see the `librdkafka.redist` NuGet package.
+
+Build from source:
 
     git clone https://github.com/edenhill/librdkafka.git
     cd librdkafka
