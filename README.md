@@ -131,7 +131,7 @@ See [examples](examples)
 Prerequisites
 =============
 
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.4
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.6 (or master)
 
 
 
