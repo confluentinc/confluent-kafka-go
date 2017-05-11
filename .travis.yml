@@ -10,7 +10,6 @@ env:
     - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
     - PATH="$PATH:$GOPATH/bin"
   matrix:
-    - LIBRDKAFKA_VERSION=v0.9.4
     - LIBRDKAFKA_VERSION=master
 
 before_install:
