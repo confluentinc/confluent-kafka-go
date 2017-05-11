@@ -37,4 +37,7 @@ func TestEventAPIs(t *testing.T) {
 
 	committedOffsets := OffsetsCommitted{}
 	t.Logf("%s\n", committedOffsets.String())
+
+	stats := Stats{"{\"name\": \"Producer-1\"}"}
+	t.Logf("Stats: %s\n", stats.String())
 }

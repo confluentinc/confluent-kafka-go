@@ -55,6 +55,15 @@ type Event interface {
 
 // Specific event types
 
+// Stats statistics event
+type Stats struct {
+	statsJSON string
+}
+
+func (e Stats) String() string {
+	return e.statsJSON
+}
+
 // AssignedPartitions consumer group rebalance event: assigned partition set
 type AssignedPartitions struct {
 	Partitions []TopicPartition
@@ -189,6 +198,9 @@ out:
 			default:
 				retval = newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
 			}
+
+		case C.RD_KAFKA_EVENT_STATS:
+			retval = &Stats{C.GoString(C.rd_kafka_event_stats(rkev))}
 
 		case C.RD_KAFKA_EVENT_DR:
 			// Producer Delivery Report event
