@@ -17,6 +17,7 @@ package kafka
  */
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"unsafe"
@@ -56,12 +57,109 @@ type Event interface {
 // Specific event types
 
 // Stats statistics event
+
+type windowStats struct {
+	Min int `json:"min"`
+	Max int `json:"max"`
+	Avg int `json:"avg"`
+	Sum int `json:"sum"`
+	Cnt int `json:"cnt"`
+}
+
+// Parsed Stats statistics event
+type ParsedStats struct {
+	Name             string `json:"name"`
+	Type             string `json:"type"`
+	Ts               uint64 `json:"ts"`
+	Time             int    `json:"time"`
+	ReplQ            int    `json:"replyq"`
+	MsgCnt           int    `json:"msg_cnt"`
+	MsgSize          int64  `json:"msg_size"`
+	MsgMax           int    `json:"msg_max"`
+	MsgSizeMax       int64  `json:"msg_size_max"`
+	SimpleCnt        int    `json:"simple_cnt"`
+	MetadataCacheCnt int    `json:"metadata_cache_cnt"`
+	Brokers          map[string]struct {
+		Name           string      `json:"name"`
+		NodeId         int         `json:"nodeid"`
+		State          string      `json:"state"`
+		Stateage       int64       `json:"stateage"`
+		OutbufCnt      int         `json:"outbuf_cnt"`
+		OutbufMsgCnt   int         `json:"outbuf_msg_cnt"`
+		WaitrespCnt    int         `json:"waitresp_cnt"`
+		WaitrespMsgCnt int         `json:"waitresp_msg_cnt"`
+		Tx             int64       `json:"tx"`
+		TxBytes        int64       `json:"txbytes"`
+		TxErrs         int64       `json:"txerrs"`
+		TxRetries      int64       `json:"txretries"`
+		ReqTimeouts    int64       `json:"req_timeouts"`
+		Rx             int64       `json:"rx"`
+		RxBytes        int64       `json:"rxbytes"`
+		RxErrs         int64       `json:"rxerrs"`
+		RxCorriderrs   int64       `json:"rxcorriderrs"`
+		RxPartial      int64       `json:"rxpartial"`
+		ZbufGrow       int64       `json:"zbuf_grow"`
+		BufGrow        int64       `json:"buf_grow"`
+		Wakeups        int         `json:"wakeups"`
+		IntLatency     windowStats `json:"int_latency"`
+		Rtt            windowStats `json:"rtt"`
+		Throttle       windowStats `json:"throttle"`
+		Toppars        map[string]struct {
+			Topic     string `json:"topic"`
+			Partition int    `json:"partition"`
+		} `json:"toppars"`
+	} `json:"brokers"`
+	Topics map[string]struct {
+		Topic       string `json:"topic"`
+		MetadataAge int64  `json:"metadata_age"`
+		Partitions  map[string]struct {
+			Partition       int    `json:"partition"`
+			Leader          int    `json:"leader"`
+			Desired         bool   `json:"desired"`
+			Unknown         bool   `json:"unknown"`
+			MsgQCnt         int    `json:"msgq_cnt"`
+			MsgQBytes       int64  `json:"msgq_bytes"`
+			XmitMsgQCnt     int    `json:"xmit_msgq_cnt"`
+			XmitMsgQBytes   int64  `json:"xmit_msgq_bytes"`
+			FetchQCnt       int    `json:"fetchq_cnt"`
+			FetchQSize      int64  `json:"fetchq_size"`
+			FetchState      string `json:"fetch_state"`
+			QueryOffset     int64  `json:"query_offset"`
+			NextOffset      int64  `json:"next_offset"`
+			AppOffset       int64  `json:"app_offset"`
+			StoredOffset    int64  `json:"stored_offset"`
+			CommittedOffset int64  `json:"committed_offset"`
+			EofOffset       int64  `json:"eof_offset"`
+			LoOffset        int64  `json:"lo_offset"`
+			HiOffset        int64  `json:"hi_offset"`
+			ConsumerLag     int64  `json:"consumer_lag"`
+			TxMsgs          int64  `json:"txmsgs"`
+			TxBytes         int64  `json:"txbytes"`
+			Msgs            int64  `json:"msgs"`
+			RxVerDrops      int64  `json:"rx_ver_drops"`
+		} `json:"partitions"`
+	} `json:"topics"`
+	Cgrp struct {
+		RebalanceAge   int64 `json:"rebalance_age"`
+		RebalanceCnt   int   `json:"rebalance_cnt"`
+		AssignmentSize int   `json:"assignment_size"`
+	} `json:"cgrp"`
+}
+
+// Stats statistics event
 type Stats struct {
 	statsJSON string
 }
 
 func (e Stats) String() string {
 	return e.statsJSON
+}
+
+// Use Parse to retrive stats in a parsed go struct
+func (s *Stats) Parse() (ParsedStats, error) {
+	var stats ParsedStats
+	err := json.Unmarshal([]byte(s.statsJSON), &stats)
+	return stats, err
 }
 
 // AssignedPartitions consumer group rebalance event: assigned partition set
