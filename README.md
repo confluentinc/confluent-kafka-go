@@ -31,6 +31,42 @@ See the [API documentation](http://docs.confluent.io/current/clients/confluent-k
 
 **License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
+Getting Started
+===============
+
+Installing librdkafka
+---------------------
+
+This client for Go depends on librdkafka, so you either need to install librdkafka through your OS/distributions package manager,
+or download and build it from source.
+
+- For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
+repositories or using [Confluent's Deb repository](http://docs.confluent.io/3.2.0/installation.html#installation-apt).
+- For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/3.2.0/installation.html#rpm-packages-via-yum).
+- For MacOS X, install `librdkafka` from Homebrew.
+- For Windows, see the `librdkafka.redist` NuGet package.
+
+Build from source:
+
+    git clone https://github.com/edenhill/librdkafka.git
+    cd librdkafka
+    ./configure --prefix /usr
+    make
+    sudo make install
+
+
+Install the client
+-------------------
+
+```
+go get -u github.com/confluentinc/confluent-kafka-go/kafka
+```
+
+See the [examples](examples) for usage details.
+
+Note that the development of librdkafka and the Go client are kept in synch. So
+if you use HEAD on master of the Go client, then you need to use HEAD on master of
+librdkafka. See this [issue](https://github.com/confluentinc/confluent-kafka-go/issues/61#issuecomment-303746159) for more details.
 
 API Strands
 ===========
@@ -116,32 +152,6 @@ Cons:
 See [examples/producer_example](examples/producer_example)
 
 
-
-
-
-
-
-Usage
-=====
-
-See [examples](examples)
-
-
-
-Prerequisites
-=============
-
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.6 (or master)
-
-
-
-Build
-=====
-
-    $ cd kafka
-    $ go install
-
-
 Static Builds
 =============
 
@@ -168,50 +178,10 @@ After a succesful static build verify the dependencies by running
 `ldd ./your_program` (or `otool -L ./your_program` on OSX), librdkafka should not be listed.
 
 
-
 Tests
 =====
 
 See [kafka/README](kafka/README.md)
-
-
-
-Getting Started
-===============
-
-Installing librdkafka
----------------------
-
-Either install librdkafka through your OS/distributions package manager,
-or download and build it from source.
-
-For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
-repositories or using [Confluent's Deb repository](http://docs.confluent.io/3.2.0/installation.html#installation-apt).
-
-For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/3.2.0/installation.html#rpm-packages-via-yum).
-
-For MacOS X, install `librdkafka` from Homebrew.
-
-For Windows, see the `librdkafka.redist` NuGet package.
-
-Build from source:
-
-    git clone https://github.com/edenhill/librdkafka.git
-    cd librdkafka
-    ./configure --prefix /usr
-    make
-    sudo make install
-
-
-Build the Go Client
--------------------
-
-From the confluent-kafka-go directory which should reside
-in `$GOPATH/src/github.com/confluentinc/confluent-kafka-go`:
-
-    cd kafka
-    go install
-
 
 Contributing
 ------------
