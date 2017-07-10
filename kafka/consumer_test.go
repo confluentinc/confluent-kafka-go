@@ -54,7 +54,6 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("SubscribeTopics failed: %s", err)
 	}
-
 	_, err = c.Commit()
 	if err != nil && err.(Error).Code() != ErrNoOffset {
 		t.Errorf("Commit() failed: %s", err)
@@ -63,6 +62,20 @@ func TestConsumerAPIs(t *testing.T) {
 	err = c.Unsubscribe()
 	if err != nil {
 		t.Errorf("Unsubscribe failed: %s", err)
+	}
+
+	topic := "gotest"
+	stored, err := c.OffsetsStore([]TopicPartition{{Topic: &topic, Partition: 0, Offset: 1}})
+	if err != nil && err.(Error).Code() != ErrUnknownPartition {
+		t.Errorf("OffsetsStore() failed: %s", err)
+		toppar := stored[0]
+		if toppar.Error.(Error).Code() == ErrUnknownPartition {
+			t.Errorf("OffsetsStore() TopicPartition error: %s", toppar.Error)
+		}
+	}
+	stored, err = c.OffsetsStore(nil)
+	if err != nil {
+		t.Errorf("OffsetsStore(nil) failed: %s", err)
 	}
 
 	topic1 := "gotest1"
