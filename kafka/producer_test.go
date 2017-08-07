@@ -138,4 +138,14 @@ func TestProducerAPIs(t *testing.T) {
 	if r > 0 {
 		t.Errorf("Expected empty queue after Flush, still has %d", r)
 	}
+
+	// OffsetsForTimes
+	offsets, err := p.OffsetsForTimes([]TopicPartition{{Topic: &topic2, Offset: 12345}}, 100)
+	t.Logf("OffsetsForTimes() returned Offsets %s and error %s\n", offsets, err)
+	if err == nil {
+		t.Errorf("OffsetsForTimes() should have failed\n")
+	}
+	if offsets != nil {
+		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
+	}
 }

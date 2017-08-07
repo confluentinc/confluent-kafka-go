@@ -421,6 +421,72 @@ func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 
 }
 
+//TestConsumerOffsetsForTimes
+func TestConsumerOffsetsForTimes(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"group.id":            testconf.GroupID,
+		"api.version.request": true}
+
+	conf.updateFromTestconf()
+
+	c, err := NewConsumer(&conf)
+
+	if err != nil {
+		panic(err)
+	}
+	defer c.Close()
+
+	// Prime topic with test messages
+	createTestMessages()
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+
+	times := make([]TopicPartition, 1)
+	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
+	offsets, err := c.OffsetsForTimes(times, 5000)
+	if err != nil {
+		t.Errorf("OffsetsForTimes() failed: %s\n", err)
+		return
+	}
+
+	if len(offsets) != 1 {
+		t.Errorf("OffsetsForTimes() returned wrong length %d, expected 1\n", len(offsets))
+		return
+	}
+
+	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
+		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
+		return
+	}
+
+	if offsets[0].Error != nil {
+		t.Errorf("OffsetsForTimes() returned error for partition 0: %s\n", err)
+		return
+	}
+
+	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+
+	t.Logf("OffsetsForTimes() returned offset %d for timestamp %d\n", offsets[0].Offset, times[0].Offset)
+
+	// Since we're using a phony low timestamp it is assumed that the returned
+	// offset will be oldest message.
+	if offsets[0].Offset != Offset(low) {
+		t.Errorf("OffsetsForTimes() returned invalid offset %d for timestamp %d, expected %d\n", offsets[0].Offset, times[0].Offset, low)
+		return
+	}
+
+}
+
 // test consumer GetMetadata API
 func TestConsumerGetMetadata(t *testing.T) {
 	if !testconfRead() {
