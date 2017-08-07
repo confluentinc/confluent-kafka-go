@@ -11,7 +11,9 @@ env:
     - PATH="$PATH:$GOPATH/bin"
   matrix:
     - LIBRDKAFKA_VERSION=master
-
+os:
+  - linux
+  - osx
 before_install:
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
