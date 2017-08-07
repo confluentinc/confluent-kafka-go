@@ -183,6 +183,14 @@ func (m ConfigMap) convert() (cConf *C.rd_kafka_conf_t, err error) {
 // If the key is not found defval is returned.
 // If the key is found but the type is mismatched an error is returned.
 func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
+	if strings.HasPrefix(key, "{topic}.") {
+		defconfCv, found := m["default.topic.config"]
+		if !found {
+			return defval, nil
+		}
+		return defconfCv.(ConfigMap).get(strings.TrimPrefix(key, "{topic}."), defval)
+	}
+
 	v, ok := m[key]
 	if !ok {
 		return defval, nil
@@ -206,4 +214,12 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 	delete(m, key)
 
 	return v, nil
+}
+
+// Get finds the given key in the ConfigMap and returns its value.
+// If the key is not found `defval` is returned.
+// If the key is found but the type does not match that of `defval` (unless nil)
+// an ErrInvalidArg error is returned.
+func (m ConfigMap) Get(key string, defval ConfigValue) (ConfigValue, error) {
+	return m.get(key, defval)
 }

@@ -81,9 +81,46 @@ func TestConfigMapAPIs(t *testing.T) {
 
 	// negative test cases
 	// set a bad key-value pair via Set()
-	err = config.Set("group.id:test.id")
+	err = config.Set("group.id:test.id2")
 	if err == nil {
-		t.Errorf("Expected failure when setting invalid key-value pair via Set()")
+		t.Errorf("Expected failure when setting invalid key-value pair via Set()\n")
+	}
+
+	// get string value
+	v, err := config.Get("group.id", nil)
+	if err != nil {
+		t.Errorf("Expected Get(group.id) to succeed: %s\n", err)
+	}
+	if v == nil {
+		t.Errorf("Expected Get(group.id) to return non-nil value\n")
+	}
+	if v.(string) != "test.id" {
+		t.Errorf("group.id mismatch: %s\n", v)
+	}
+
+	// get string value but request int
+	dummyInt := 12
+	_, err = config.Get("group.id", dummyInt)
+	if err == nil {
+		t.Errorf("Expected Get(group.id) to fail\n")
+	}
+
+	// get integer value
+	v, err = config.Get("{topic}.message.timeout.ms", dummyInt)
+	if err != nil {
+		t.Errorf("Expected Get(message.timeout.ms) to succeed: %s\n", err)
+	}
+	if v == nil {
+		t.Errorf("Expected Get(message.timeout.ms) to return non-nil value\n")
+	}
+	if v.(int) != 10 {
+		t.Errorf("message.timeout.ms mismatch: %d\n", v.(int))
+	}
+
+	// get unknown value
+	v, err = config.Get("dummy.value.not.found", nil)
+	if v != nil {
+		t.Errorf("Expected nil for dummy value, got %v\n", v)
 	}
 
 }
