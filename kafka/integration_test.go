@@ -773,6 +773,37 @@ func TestConsumerPollRebalance(t *testing.T) {
 		})
 }
 
+// Test Committed() API
+func TestConsumerCommitted(t *testing.T) {
+	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
+		0, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s", event)
+			rp, ok := event.(RevokedPartitions)
+			if ok {
+				offsets, err := c.Committed(rp.Partitions, 5000)
+				if err != nil {
+					t.Errorf("Failed to get committed offsets: %s\n", err)
+					return nil
+				}
+
+				t.Logf("Retrieved Committed offsets: %s\n", offsets)
+
+				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
+					t.Errorf("Invalid number of partitions %d, shoudl be %d (and >0)\n", len(offsets), len(rp.Partitions))
+				}
+
+				// Verify proper offsets
+				for _, p := range offsets {
+					if p.Error != nil || p.Offset < 0 {
+						t.Errorf("Failed Committed offset: %s\n", p)
+					}
+				}
+			}
+			return nil
+		})
+}
+
 // TestProducerConsumerTimestamps produces messages with timestamps
 // and verifies them on consumption.
 // Requires librdkafka >=0.9.4 and Kafka >=0.10.0.0

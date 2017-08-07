@@ -448,3 +448,15 @@ func (c *Consumer) Assignment() (partitions []TopicPartition, err error) {
 
 	return partitions, nil
 }
+
+// Committed retrieves committed offsets for the given set of partitions
+func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
+	cerr := C.rd_kafka_committed(c.handle.rk, cparts, C.int(timeoutMs))
+	if cerr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newError(cerr)
+	}
+
+	return newTopicPartitionsFromCparts(cparts), nil
+}

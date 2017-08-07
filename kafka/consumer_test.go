@@ -95,6 +95,15 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 
 	// Committed
+	offsets, err = c.Committed([]TopicPartition{{Topic: &topic, Partition: 5}}, 10)
+	t.Logf("Committed() returned Offsets %s and error %s\n", offsets, err)
+	if err == nil {
+		t.Errorf("Committed() should have failed\n")
+	}
+	if offsets != nil {
+		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
+	}
+
 	err = c.Close()
 	if err != nil {
 		t.Errorf("Close failed: %s", err)
