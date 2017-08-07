@@ -78,6 +78,18 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Seek failed: %s", err)
 	}
 
+	// Pause & Resume
+	err = c.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Pause failed: %s", err)
+	}
+	err = c.Resume([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Resume failed: %s", err)
+	}
+
 	err = c.Unassign()
 	if err != nil {
 		t.Errorf("Unassign failed: %s", err)

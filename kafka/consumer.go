@@ -460,3 +460,29 @@ func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offset
 
 	return newTopicPartitionsFromCparts(cparts), nil
 }
+
+// Pause consumption for the provided list of partitions
+//
+// Note that messages already enqueued on the consumer's Event channel
+// (if `go.events.channel.enable` has been set) will NOT be purged by
+// this call, set `go.events.channel.size` accordingly.
+func (c *Consumer) Pause(partitions []TopicPartition) (err error) {
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
+	cerr := C.rd_kafka_pause_partitions(c.handle.rk, cparts)
+	if cerr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cerr)
+	}
+	return nil
+}
+
+// Resume consumption for the provided list of partitions
+func (c *Consumer) Resume(partitions []TopicPartition) (err error) {
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
+	cerr := C.rd_kafka_resume_partitions(c.handle.rk, cparts)
+	if cerr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cerr)
+	}
+	return nil
+}
