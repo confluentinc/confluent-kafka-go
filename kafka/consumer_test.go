@@ -54,6 +54,7 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("SubscribeTopics failed: %s", err)
 	}
+
 	_, err = c.Commit()
 	if err != nil && err.(Error).Code() != ErrNoOffset {
 		t.Errorf("Commit() failed: %s", err)
