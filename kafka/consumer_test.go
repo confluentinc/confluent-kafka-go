@@ -65,17 +65,17 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 
 	topic := "gotest"
-	stored, err := c.OffsetsStore([]TopicPartition{{Topic: &topic, Partition: 0, Offset: 1}})
+	stored, err := c.StoreOffsets([]TopicPartition{{Topic: &topic, Partition: 0, Offset: 1}})
 	if err != nil && err.(Error).Code() != ErrUnknownPartition {
-		t.Errorf("OffsetsStore() failed: %s", err)
+		t.Errorf("StoreOffsets() failed: %s", err)
 		toppar := stored[0]
 		if toppar.Error.(Error).Code() == ErrUnknownPartition {
-			t.Errorf("OffsetsStore() TopicPartition error: %s", toppar.Error)
+			t.Errorf("StoreOffsets() TopicPartition error: %s", toppar.Error)
 		}
 	}
-	stored, err = c.OffsetsStore(nil)
+	stored, err = c.StoreOffsets(nil)
 	if err != nil {
-		t.Errorf("OffsetsStore(nil) failed: %s", err)
+		t.Errorf("StoreOffsets(nil) failed: %s", err)
 	}
 
 	topic1 := "gotest1"

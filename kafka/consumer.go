@@ -194,14 +194,14 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 	return c.commit(offsets)
 }
 
-// OffsetsStore stores the provided list of offsets that will be committed
+// StoreOffsets stores the provided list of offsets that will be committed
 // to the offset store according to `auto.commit.interval.ms` or manual
 // offset-less Commit().
 //
 // Returns the stored offsets on success. If at least one offset couldn't be stored,
 // an error and a list of offsets is returned. Each offset can be checked for
 // specific errors via its `.Error` member.
-func (c *Consumer) OffsetsStore(offsets []TopicPartition) (storedOffsets []TopicPartition, err error) {
+func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []TopicPartition, err error) {
 	coffsets := newCPartsFromTopicPartitions(offsets)
 	defer C.rd_kafka_topic_partition_list_destroy(coffsets)
 
