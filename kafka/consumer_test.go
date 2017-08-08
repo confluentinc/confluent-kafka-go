@@ -73,9 +73,10 @@ func TestConsumerAPIs(t *testing.T) {
 			t.Errorf("StoreOffsets() TopicPartition error: %s", toppar.Error)
 		}
 	}
-	stored, err = c.StoreOffsets(nil)
+	var empty []TopicPartition
+	stored, err = c.StoreOffsets(empty)
 	if err != nil {
-		t.Errorf("StoreOffsets(nil) failed: %s", err)
+		t.Errorf("StoreOffsets(empty) failed: %s", err)
 	}
 
 	topic1 := "gotest1"
