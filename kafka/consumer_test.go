@@ -110,7 +110,7 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Unassign failed: %s", err)
 	}
 
-	topic := "mytopic"
+	topic = "mytopic"
 	// OffsetsForTimes
 	offsets, err := c.OffsetsForTimes([]TopicPartition{{Topic: &topic, Offset: 12345}}, 100)
 	t.Logf("OffsetsForTimes() returned Offsets %s and error %s\n", offsets, err)
