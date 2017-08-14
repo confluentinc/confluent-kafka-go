@@ -157,6 +157,8 @@ Static Builds
 
 **NOTE**: Requires pkg-config
 
+**NOTE**: Static builds are currently only supported on Linux.
+
 To link your application statically with librdkafka append `-tags static` to
 your application's `go build` command, e.g.:
 
