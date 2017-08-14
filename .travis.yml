@@ -15,15 +15,16 @@ os:
   - linux
   - osx
 before_install:
+  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then export BUILD_TAGS="" ; else export BUILD_TAGS="-tags static" ; fi
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
   - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then go get -u github.com/golang/lint/golint ; fi
 install:
-  - go get -tags static ./...
-  - go install -tags static ./...
-  - (cd examples/go-kafkacat && go install -tags static)
+  - go get $BUILD_TAGS ./...
+  - go install $BUILD_TAGS ./...
+  - (cd examples/go-kafkacat && go install $BUILD_TAGS)
 
 script:
   - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then golint -set_exit_status ./... ; fi
-  - go test -v -tags static ./...
+  - go test -v $BUILD_TAGS ./...
   - go-kafkacat --help
