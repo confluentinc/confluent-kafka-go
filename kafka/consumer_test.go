@@ -93,9 +93,42 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Seek failed: %s", err)
 	}
 
+	// Pause & Resume
+	err = c.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Pause failed: %s", err)
+	}
+	err = c.Resume([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Resume failed: %s", err)
+	}
+
 	err = c.Unassign()
 	if err != nil {
 		t.Errorf("Unassign failed: %s", err)
+	}
+
+	topic := "mytopic"
+	// OffsetsForTimes
+	offsets, err := c.OffsetsForTimes([]TopicPartition{{Topic: &topic, Offset: 12345}}, 100)
+	t.Logf("OffsetsForTimes() returned Offsets %s and error %s\n", offsets, err)
+	if err == nil {
+		t.Errorf("OffsetsForTimes() should have failed\n")
+	}
+	if offsets != nil {
+		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
+	}
+
+	// Committed
+	offsets, err = c.Committed([]TopicPartition{{Topic: &topic, Partition: 5}}, 10)
+	t.Logf("Committed() returned Offsets %s and error %s\n", offsets, err)
+	if err == nil {
+		t.Errorf("Committed() should have failed\n")
+	}
+	if offsets != nil {
+		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
 	err = c.Close()
