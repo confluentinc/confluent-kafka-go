@@ -46,7 +46,7 @@ func main() {
 	doneChan := make(chan bool)
 
 	go func() {
-	outer:
+		defer close(doneChan)
 		for e := range p.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:
@@ -57,14 +57,12 @@ func main() {
 					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
 						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 				}
-				break outer
+				return
 
 			default:
 				fmt.Printf("Ignored event: %s\n", ev)
 			}
 		}
-
-		close(doneChan)
 	}()
 
 	value := "Hello Go!"
