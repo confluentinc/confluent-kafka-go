@@ -273,6 +273,7 @@ func (p *Producer) Close() {
 //                                     These batches do not relate to Kafka message batches in any way.
 //   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
 //                                      Events() channel.
+//   go.events.channel.size (int, 1000000) - Events() channel size
 //   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //
 func NewProducer(conf *ConfigMap) (*Producer, error) {
@@ -289,6 +290,12 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		return nil, err
 	}
 	p.handle.fwdDr = v.(bool)
+
+	v, err = conf.extract("go.events.channel.size", 1000000)
+	if err != nil {
+		return nil, err
+	}
+	eventsChanSize := v.(int)
 
 	v, err = conf.extract("go.produce.channel.size", 1000000)
 	if err != nil {
@@ -316,7 +323,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.p = p
 	p.handle.setup()
 	p.handle.rkq = C.rd_kafka_queue_get_main(p.handle.rk)
-	p.events = make(chan Event, 1000000)
+	p.events = make(chan Event, eventsChanSize)
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
 
