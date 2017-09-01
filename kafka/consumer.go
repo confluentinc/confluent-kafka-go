@@ -305,6 +305,11 @@ func (c *Consumer) Close() (err error) {
 // event or message may be outdated.
 func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
+	err := versionCheck()
+	if err != nil {
+		return nil, err
+	}
+
 	groupid, _ := conf.get("group.id", nil)
 	if groupid == nil {
 		// without a group.id the underlying cgrp subsystem in librdkafka wont get started
