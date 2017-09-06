@@ -277,6 +277,12 @@ func (p *Producer) Close() {
 //   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //
 func NewProducer(conf *ConfigMap) (*Producer, error) {
+
+	err := versionCheck()
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Producer{}
 
 	v, err := conf.extract("go.batch.producer", false)
