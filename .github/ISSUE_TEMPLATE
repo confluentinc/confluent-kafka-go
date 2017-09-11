@@ -1,0 +1,24 @@
+Description
+===========
+
+
+
+
+How to reproduce
+================
+
+
+
+
+Checklist
+=========
+Please provide the following information:
+
+ - [ ] confluent-kafka-go and librdkafka version (`LibraryVersion()`):
+ - [ ] Apache Kafka broker version:
+ - [ ] Client configuration: `ConfigMap{...}`
+ - [ ] Operating system:
+ - [ ] Provide client logs (with `"debug": ".."` as necessary)
+ - [ ] Provide broker log excerpts
+ - [ ] Critical issue
+
