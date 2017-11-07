@@ -3,6 +3,6 @@
 
 package kafka
 
-// #cgo pkg-config: --static rdkafka
 // #cgo LDFLAGS: -static
+// #cgo pkg-config: rdkafka-static
 import "C"
