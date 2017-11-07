@@ -26,4 +26,6 @@ install:
 script:
   - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then golint -set_exit_status ./... ; fi
   - go test -v -tags static ./...
+  - (if [[ $TRAVIS_OS_NAME == linux ]]; then ldd $(which go-kafkacat) ; else otool -L $(which go-kafkacat) ; fi) | tee ldd.out
+  - ! grep -q librdkafka ldd.out
   - go-kafkacat --help
