@@ -27,5 +27,5 @@ script:
   - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then golint -set_exit_status ./... ; fi
   - go test -v -tags static ./...
   - (if [[ $TRAVIS_OS_NAME == linux ]]; then ldd $(which go-kafkacat) ; else otool -L $(which go-kafkacat) ; fi) | tee ldd.out
-  - if ! grep -q librdkafka ldd.out ; then echo "ERROR: librdkafka is linked in static binary" ; exit 1 ; fi
+  - (if ! grep -q librdkafka ldd.out ; then exit 1 ; fi)
   - go-kafkacat --help
