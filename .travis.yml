@@ -16,7 +16,6 @@ os:
   - osx
 before_install:
   - rm -rf tmp-build
-  - if [[ $TRAVIS_OS_NAME == osx ]]; then brew update ; brew install openssl ; fi
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
   - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then go get -u github.com/golang/lint/golint ; fi
 install:

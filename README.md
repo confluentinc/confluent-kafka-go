@@ -163,9 +163,9 @@ your application's `go build` command, e.g.:
     $ cd kafkatest/go_verifiable_consumer
     $ go build -tags static
 
-On OS X you might need to specify an alternate pkg-config path:
+On OS X you might need to specify an alternate pkg-config path (openssl version may vary):
 
-    $ PKG_CONFIG_PATH=/usr/local/lib go build -tags static
+    $ PKG_CONFIG_PATH=/usr/local/Cellar/openssl/1.0.2l/lib/pkgconfig go build -tags static
 
 This will create a binary with librdkafka statically linked, do note however
 that any librdkafka dependencies (such as ssl, sasl2, lz4, etc, depending
