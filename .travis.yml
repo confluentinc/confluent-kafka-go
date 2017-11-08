@@ -7,7 +7,7 @@ go:
   - 1.8rc3
 env:
   global:
-    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig:/usr/local/Cellar/openssl/1.0.2j/lib/pkgconfig/"
     - PATH="$PATH:$GOPATH/bin"
   matrix:
     - LIBRDKAFKA_VERSION=static_pc
