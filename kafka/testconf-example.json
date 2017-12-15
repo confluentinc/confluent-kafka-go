@@ -1,5 +1,5 @@
 {
-    "Brokers": "mybroker",
+    "Brokers": "mybroker or $BROKERS env",
     "Topic": "test",
     "GroupID": "testgroup",
     "PerfMsgCount": 1000000,

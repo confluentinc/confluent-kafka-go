@@ -61,8 +61,13 @@ func testconfRead() bool {
 
 	cf.Close()
 
+	if testconf.Brokers[0] == '$' {
+		// Read broker list from environment variable
+		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
+	}
+
 	if testconf.Brokers == "" || testconf.Topic == "" {
-		panic("Missing Brokers and Topic in testconf.json")
+		panic("Missing Brokers or Topic in testconf.json")
 	}
 
 	return true
