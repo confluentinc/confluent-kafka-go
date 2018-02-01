@@ -22,6 +22,18 @@
 
 
 /**
+ * Temporary C to Go header representation
+ */
+typedef struct tmphdr_s {
+  const char *key;
+  const void *val;   // producer: malloc()ed by Go code if size > 0
+                     // consumer: owned by librdkafka
+  ssize_t     size;
+} tmphdr_t;
+
+
+
+/**
  * Represents a fetched C message, with all extra fields extracted
  * to struct fields.
  */
@@ -29,4 +41,6 @@ typedef struct fetched_c_msg {
   rd_kafka_message_t *msg;
   rd_kafka_timestamp_type_t tstype;
   int64_t ts;
+  tmphdr_t *tmphdrs;
+  size_t    tmphdrsCnt;
 } fetched_c_msg_t;

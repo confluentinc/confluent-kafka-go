@@ -24,6 +24,7 @@ import (
 
 /*
 #include <string.h>
+#include <stdlib.h>
 #include <librdkafka/rdkafka.h>
 #include "glue_rdkafka.h"
 
@@ -38,20 +39,6 @@ void setup_rkmessage (rd_kafka_message_t *rkmessage,
      rkmessage->key       = (void *)key;
      rkmessage->key_len   = keyLen;
      rkmessage->_private  = opaque;
-}
-
-
-rd_kafka_message_t *event_rkmessage_next(rd_kafka_event_t *rkev,
-                    rd_kafka_timestamp_type_t *tstype, int64_t *ts) {
-  const rd_kafka_message_t *rkmessage;
-
-  rkmessage = rd_kafka_event_message_next(rkev);
-  if (!rkmessage)
-     return NULL;
-
-  *ts = rd_kafka_message_timestamp(rkmessage, tstype);
-
-  return (rd_kafka_message_t *)rkmessage;
 }
 */
 import "C"
@@ -90,6 +77,7 @@ type Message struct {
 	Timestamp      time.Time
 	TimestampType  TimestampType
 	Opaque         interface{}
+	Headers        []Header
 }
 
 // String returns a human readable representation of a Message.
@@ -112,31 +100,6 @@ func (h *handle) getRktFromMessage(msg *Message) (crkt *C.rd_kafka_topic_t) {
 	return h.getRkt(*msg.TopicPartition.Topic)
 }
 
-// newMessageFromEvent reads a message from the provided C event
-// and creates a new Message object from the extracted information.
-// returns nil if no message was available.
-func (h *handle) newMessageFromEvent(rkev *C.rd_kafka_event_t) (msg *Message) {
-	var tstype C.rd_kafka_timestamp_type_t
-	var cts C.int64_t
-
-	cmsg := C.event_rkmessage_next(rkev, &tstype, &cts)
-	if cmsg == nil {
-		return nil
-	}
-
-	msg = &Message{}
-
-	if cts != -1 {
-		ts := int64(cts)
-		msg.TimestampType = TimestampType(tstype)
-		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
-	}
-
-	h.setupMessageFromC(msg, cmsg)
-
-	return msg
-}
-
 func (h *handle) newMessageFromFcMsg(fcMsg *C.fetched_c_msg_t) (msg *Message) {
 	msg = &Message{}
 
@@ -144,6 +107,20 @@ func (h *handle) newMessageFromFcMsg(fcMsg *C.fetched_c_msg_t) (msg *Message) {
 		ts := int64(fcMsg.ts)
 		msg.TimestampType = TimestampType(fcMsg.tstype)
 		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
+	}
+
+	if fcMsg.tmphdrsCnt > 0 {
+		msg.Headers = make([]Header, fcMsg.tmphdrsCnt)
+		for n := range msg.Headers {
+			tmphdr := (*[1 << 30]C.tmphdr_t)(unsafe.Pointer(fcMsg.tmphdrs))[n]
+			msg.Headers[n].Key = C.GoString(tmphdr.key)
+			if tmphdr.val != nil {
+				msg.Headers[n].Value = C.GoBytes(unsafe.Pointer(tmphdr.val), C.int(tmphdr.size))
+			} else {
+				msg.Headers[n].Value = nil
+			}
+		}
+		C.free(unsafe.Pointer(fcMsg.tmphdrs))
 	}
 
 	h.setupMessageFromC(msg, fcMsg.msg)

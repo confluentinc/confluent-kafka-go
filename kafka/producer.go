@@ -26,6 +26,42 @@ import (
 /*
 #include <stdlib.h>
 #include <librdkafka/rdkafka.h>
+#include "glue_rdkafka.h"
+
+
+#ifdef RD_KAFKA_V_HEADERS
+// Convert tmphdrs to chdrs (created by this function).
+// If tmphdr.size == -1: value is considered Null
+//    tmphdr.size == 0:  value is considered empty (ignored)
+//    tmphdr.size > 0:   value is considered non-empty
+//
+// WARNING: The header values will be freed by this function.
+void tmphdrs_to_chdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt,
+                       rd_kafka_headers_t **chdrs) {
+   size_t i;
+
+   *chdrs = rd_kafka_headers_new(tmphdrsCnt);
+
+   for (i = 0 ; i < tmphdrsCnt ; i++) {
+      rd_kafka_header_add(*chdrs,
+                          tmphdrs[i].key, -1,
+                          tmphdrs[i].size == -1 ? NULL :
+                          (tmphdrs[i].size == 0 ? "" : tmphdrs[i].val),
+                          tmphdrs[i].size == -1 ? 0 : tmphdrs[i].size);
+      if (tmphdrs[i].size > 0)
+         free((void *)tmphdrs[i].val);
+   }
+}
+
+#else
+void free_tmphdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt) {
+   for (i = 0 ; i < tmphdrsCnt ; i++) {
+      if (tmphdrs[i].size > 0)
+         free((void *)tmphdrs[i].val);
+   }
+}
+#endif
+
 
 rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
           rd_kafka_topic_t *rkt, int32_t partition,
@@ -33,9 +69,24 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
           int valIsNull, void *val, size_t val_len,
           int keyIsNull, void *key, size_t key_len,
           int64_t timestamp,
+          tmphdr_t *tmphdrs, size_t tmphdrsCnt,
           uintptr_t cgoid) {
   void *valp = valIsNull ? NULL : val;
   void *keyp = keyIsNull ? NULL : key;
+#ifdef RD_KAFKA_V_HEADERS
+  rd_kafka_headers_t *hdrs = NULL;
+#endif
+
+
+  if (tmphdrsCnt > 0) {
+#ifdef RD_KAFKA_V_HEADERS
+     tmphdrs_to_chdrs(tmphdrs, tmphdrsCnt, &hdrs);
+#else
+     free_tmphdrs(tmphdrs, tmphdrsCnt);
+     return RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
+#endif
+  }
+
 
 #ifdef RD_KAFKA_V_TIMESTAMP
   return rd_kafka_producev(rk,
@@ -45,6 +96,9 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
         RD_KAFKA_V_VALUE(valp, val_len),
         RD_KAFKA_V_KEY(keyp, key_len),
         RD_KAFKA_V_TIMESTAMP(timestamp),
+#ifdef RD_KAFKA_V_HEADERS
+        RD_KAFKA_V_HEADERS(hdrs),
+#endif
         RD_KAFKA_V_OPAQUE((void *)cgoid),
         RD_KAFKA_V_END);
 #else
@@ -155,12 +209,42 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		timestamp = msg.Timestamp.UnixNano() / 1000000
 	}
 
+	// Convert headers to C-friendly tmphdrs
+	var tmphdrs []C.tmphdr_t
+	tmphdrsCnt := len(msg.Headers)
+
+	if tmphdrsCnt > 0 {
+		tmphdrs = make([]C.tmphdr_t, tmphdrsCnt)
+
+		for n, hdr := range msg.Headers {
+			tmphdrs[n].key = C.CString(hdr.Key)
+			if hdr.Value != nil {
+				tmphdrs[n].size = C.ssize_t(len(hdr.Value))
+				if tmphdrs[n].size > 0 {
+					// Make a copy of the value
+					// to avoid runtime panic with
+					// foreign Go pointers in cgo.
+					tmphdrs[n].val = C.CBytes(hdr.Value)
+				}
+			} else {
+				// null value
+				tmphdrs[n].size = C.ssize_t(-1)
+			}
+		}
+	} else {
+		// no headers, need a dummy tmphdrs of size 1 to avoid index
+		// out of bounds panic in do_produce() call below.
+		// tmphdrsCnt will be 0.
+		tmphdrs = []C.tmphdr_t{{nil, nil, 0}}
+	}
+
 	cErr := C.do_produce(p.handle.rk, crkt,
 		C.int32_t(msg.TopicPartition.Partition),
 		C.int(msgFlags)|C.RD_KAFKA_MSG_F_COPY,
 		valIsNull, unsafe.Pointer(&valp[0]), C.size_t(valLen),
 		keyIsNull, unsafe.Pointer(&keyp[0]), C.size_t(keyLen),
 		C.int64_t(timestamp),
+		(*C.tmphdr_t)(unsafe.Pointer(&tmphdrs[0])), C.size_t(tmphdrsCnt),
 		(C.uintptr_t)(cgoid))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		if cgoid != 0 {
@@ -179,6 +263,8 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // or on the Producer object's Events() channel if not.
 // msg.Timestamp requires librdkafka >= 0.9.4 (else returns ErrNotImplemented),
 // api.version.request=true, and broker >= 0.10.0.0.
+// msg.Headers requires librdkafka >= 0.11.4 (else returns ErrNotImplemented),
+// api.version.request=true, and broker >= 0.11.0.0.
 // Returns an error if message could not be enqueued.
 func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
 	return p.produce(msg, 0, deliveryChan)
@@ -188,7 +274,7 @@ func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
 // These batches do not relate to the message batches sent to the broker, the latter
 // are collected on the fly internally in librdkafka.
 // WARNING: This is an experimental API.
-// NOTE: timestamps are not supported with this API.
+// NOTE: timestamps and headers are not supported with this API.
 func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) error {
 	crkt := p.handle.getRkt(topic)
 
@@ -269,8 +355,9 @@ func (p *Producer) Close() {
 //
 //
 // Supported special configuration properties:
-//   go.batch.producer (bool, false) - Enable batch producer (experimental for increased performance).
+//   go.batch.producer (bool, false) - EXPERIMENTAL: Enable batch producer (for increased performance).
 //                                     These batches do not relate to Kafka message batches in any way.
+//                                     Note: timestamps and headers are not supported with this interface.
 //   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
 //                                      Events() channel.
 //   go.events.channel.size (int, 1000000) - Events() channel size

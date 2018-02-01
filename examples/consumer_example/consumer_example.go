@@ -74,6 +74,9 @@ func main() {
 			case *kafka.Message:
 				fmt.Printf("%% Message on %s:\n%s\n",
 					e.TopicPartition, string(e.Value))
+				if e.Headers != nil {
+					fmt.Printf("%% Headers: %v\n", e.Headers)
+				}
 			case kafka.PartitionEOF:
 				fmt.Printf("%% Reached %v\n", e)
 			case kafka.Error:
