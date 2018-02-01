@@ -796,14 +796,22 @@ func TestConsumerCommitted(t *testing.T) {
 				t.Logf("Retrieved Committed offsets: %s\n", offsets)
 
 				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
-					t.Errorf("Invalid number of partitions %d, shoudl be %d (and >0)\n", len(offsets), len(rp.Partitions))
+					t.Errorf("Invalid number of partitions %d, should be %d (and >0)\n", len(offsets), len(rp.Partitions))
 				}
 
-				// Verify proper offsets
+				// Verify proper offsets: at least one partition needs
+				// to have a committed offset.
+				validCnt := 0
 				for _, p := range offsets {
-					if p.Error != nil || p.Offset < 0 {
-						t.Errorf("Failed Committed offset: %s\n", p)
+					if p.Error != nil {
+						t.Errorf("Committed() partition error: %v: %v", p, p.Error)
+					} else if p.Offset >= 0 {
+						validCnt++
 					}
+				}
+
+				if validCnt == 0 {
+					t.Errorf("Committed(): no partitions with valid offsets: %v", offsets)
 				}
 			}
 			return nil

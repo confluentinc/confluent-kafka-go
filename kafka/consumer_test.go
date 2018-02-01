@@ -33,9 +33,11 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 
 	c, err = NewConsumer(&ConfigMap{
-		"group.id":           "gotest",
-		"socket.timeout.ms":  10,
-		"session.timeout.ms": 10})
+		"group.id":                 "gotest",
+		"socket.timeout.ms":        10,
+		"session.timeout.ms":       10,
+		"enable.auto.offset.store": false, // permit StoreOffsets()
+	})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -71,7 +73,7 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil && err.(Error).Code() != ErrUnknownPartition {
 		t.Errorf("StoreOffsets() failed: %s", err)
 		toppar := stored[0]
-		if toppar.Error.(Error).Code() == ErrUnknownPartition {
+		if toppar.Error != nil && toppar.Error.(Error).Code() == ErrUnknownPartition {
 			t.Errorf("StoreOffsets() TopicPartition error: %s", toppar.Error)
 		}
 	}
