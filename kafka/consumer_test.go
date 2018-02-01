@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 )
 
 // TestConsumerAPIs dry-tests most Consumer APIs, no broker is needed.
@@ -197,6 +198,21 @@ func TestConsumerAssignment(t *testing.T) {
 
 	t.Logf("Compare Assignment %v to original list of partitions %v\n",
 		assignment, partitions)
+
+	// Test ReadMessage()
+	start := time.Now()
+	m, err := c.ReadMessage(200)
+	duration := time.Since(start)
+	t.Logf("ReadMessage ret %v and %v in %v", m, err, duration)
+	if m != nil || err == nil {
+		t.Errorf("Expected ReadMessage to fail: %v, %v", m, err)
+	}
+	if err.(Error).Code() != ErrTimedOut {
+		t.Errorf("Expected ReadMessage to fail with ErrTimedOut, not %v", err)
+	}
+	if duration.Seconds() < 0.100 || duration.Seconds() > 0.400 {
+		t.Errorf("Expected ReadMessage() to fail after 200ms, not %v", duration)
+	}
 
 	// reflect.DeepEqual() can't be used since TopicPartition.Topic
 	// is a pointer to a string rather than a string and the pointer

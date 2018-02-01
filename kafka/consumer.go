@@ -18,6 +18,8 @@ package kafka
 
 import (
 	"fmt"
+	"math"
+	"time"
 	"unsafe"
 )
 
@@ -259,6 +261,58 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 // Events returns the Events channel (if enabled)
 func (c *Consumer) Events() chan Event {
 	return c.events
+}
+
+// ReadMessage polls the consumer for a message.
+//
+// This is a conveniance API that wraps Poll() and only returns
+// messages or errors. All other event types are discarded.
+//
+// The call will block for at most `timeoutMs` waiting for
+// a new message or error. `timeoutMs` may be set to -1 for
+// indefinate wait.
+//
+// Timeout is returned as (nil, err) where err is `kafka.(Error).Code == Kafka.ErrTimedOut`.
+//
+// Messages are returned as (msg, nil),
+// while general errors are returned as (nil, err),
+// and partition-specific errors are returned as (msg, err) where
+// msg.TopicPartition provides partition-specific information (such as topic, partition and offset).
+//
+// All other event types, such as PartitionEOF, AssignedPartitions, etc, are silently discarded.
+//
+func (c *Consumer) ReadMessage(timeoutMs int) (*Message, error) {
+
+	var absTimeout time.Time
+	if timeoutMs > 0 {
+		absTimeout = time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
+	}
+
+	effectiveTimeoutMs := timeoutMs
+	for {
+		ev := c.Poll(effectiveTimeoutMs)
+		if ev == nil {
+			return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+		}
+
+		switch e := ev.(type) {
+		case *Message:
+			if e.TopicPartition.Error != nil {
+				return e, e.TopicPartition.Error
+			}
+			return e, nil
+		case Error:
+			return nil, e
+		default:
+			// Ignore other event types
+		}
+
+		if timeoutMs > 0 {
+			// Calculate remaining time
+			effectiveTimeoutMs = int(math.Max(0.0, absTimeout.Sub(time.Now()).Seconds()*1000.0))
+		}
+	}
+
 }
 
 // Close Consumer instance.
