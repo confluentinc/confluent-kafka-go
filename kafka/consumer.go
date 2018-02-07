@@ -268,9 +268,9 @@ func (c *Consumer) Events() chan Event {
 // This is a conveniance API that wraps Poll() and only returns
 // messages or errors. All other event types are discarded.
 //
-// The call will block for at most `timeoutMs` waiting for
-// a new message or error. `timeoutMs` may be set to -1 for
-// indefinate wait.
+// The call will block for at most `timeout` waiting for
+// a new message or error. `timeout` may be set to -1 for
+// indefinite wait.
 //
 // Timeout is returned as (nil, err) where err is `kafka.(Error).Code == Kafka.ErrTimedOut`.
 //
@@ -281,19 +281,20 @@ func (c *Consumer) Events() chan Event {
 //
 // All other event types, such as PartitionEOF, AssignedPartitions, etc, are silently discarded.
 //
-func (c *Consumer) ReadMessage(timeoutMs int) (*Message, error) {
+func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 
 	var absTimeout time.Time
-	if timeoutMs > 0 {
-		absTimeout = time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
+	var timeoutMs int
+
+	if timeout > 0 {
+		absTimeout = time.Now().Add(timeout)
+		timeoutMs = (int)(timeout.Seconds() * 1000.0)
+	} else {
+		timeoutMs = (int)(timeout)
 	}
 
-	effectiveTimeoutMs := timeoutMs
 	for {
-		ev := c.Poll(effectiveTimeoutMs)
-		if ev == nil {
-			return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
-		}
+		ev := c.Poll(timeoutMs)
 
 		switch e := ev.(type) {
 		case *Message:
@@ -307,10 +308,15 @@ func (c *Consumer) ReadMessage(timeoutMs int) (*Message, error) {
 			// Ignore other event types
 		}
 
-		if timeoutMs > 0 {
+		if timeout > 0 {
 			// Calculate remaining time
-			effectiveTimeoutMs = int(math.Max(0.0, absTimeout.Sub(time.Now()).Seconds()*1000.0))
+			timeoutMs = int(math.Max(0.0, absTimeout.Sub(time.Now()).Seconds()*1000.0))
 		}
+
+		if timeoutMs == 0 && ev == nil {
+			return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+		}
+
 	}
 
 }

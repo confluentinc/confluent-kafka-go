@@ -202,18 +202,28 @@ func TestConsumerAssignment(t *testing.T) {
 		assignment, partitions)
 
 	// Test ReadMessage()
-	start := time.Now()
-	m, err := c.ReadMessage(200)
-	duration := time.Since(start)
-	t.Logf("ReadMessage ret %v and %v in %v", m, err, duration)
-	if m != nil || err == nil {
-		t.Errorf("Expected ReadMessage to fail: %v, %v", m, err)
-	}
-	if err.(Error).Code() != ErrTimedOut {
-		t.Errorf("Expected ReadMessage to fail with ErrTimedOut, not %v", err)
-	}
-	if duration.Seconds() < 0.100 || duration.Seconds() > 0.400 {
-		t.Errorf("Expected ReadMessage() to fail after 200ms, not %v", duration)
+	for _, tmout := range []time.Duration{0, 200 * time.Millisecond} {
+		start := time.Now()
+		m, err := c.ReadMessage(tmout)
+		duration := time.Since(start)
+
+		t.Logf("ReadMessage(%v) ret %v and %v in %v", tmout, m, err, duration)
+		if m != nil || err == nil {
+			t.Errorf("Expected ReadMessage to fail: %v, %v", m, err)
+		}
+		if err.(Error).Code() != ErrTimedOut {
+			t.Errorf("Expected ReadMessage to fail with ErrTimedOut, not %v", err)
+		}
+
+		if tmout == 0 {
+			if duration.Seconds() > 0.1 {
+				t.Errorf("Expected ReadMessage(%v) to fail after max 100ms, not %v", tmout, duration)
+			}
+		} else if tmout > 0 {
+			if duration.Seconds() < tmout.Seconds()*0.75 || duration.Seconds() > tmout.Seconds()*1.25 {
+				t.Errorf("Expected ReadMessage() to fail after %v -+25%%, not %v", tmout, duration)
+			}
+		}
 	}
 
 	// reflect.DeepEqual() can't be used since TopicPartition.Topic
