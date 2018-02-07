@@ -129,6 +129,8 @@
 // Hint: If your application registers a signal notification
 // (signal.Notify) makes sure the signals channel is buffered to avoid
 // possible complications with blocking Poll() calls.
+//
+// Note: The Confluent Kafka Go client is safe for concurrent use.
 package kafka
 
 import (
