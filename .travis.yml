@@ -1,10 +1,8 @@
 language: go
 go:
-  - 1.2
-  - 1.5
-  - 1.6
   - 1.7
   - 1.8rc3
+  - 1.9
 env:
   global:
     - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
@@ -17,13 +15,14 @@ os:
 before_install:
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-  - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then go get -u github.com/golang/lint/golint ; fi
+  - go get -u github.com/golang/lint/golint
+
 install:
   - go get -tags static ./...
   - go install -tags static ./...
   - (cd examples/go-kafkacat && go install -tags static)
 
 script:
-  - if [[ $TRAVIS_GO_VERSION == 1.[78]* ]]; then golint -set_exit_status ./... ; fi
+  - golint -set_exit_status ./...
   - go test -v -tags static ./...
   - go-kafkacat --help

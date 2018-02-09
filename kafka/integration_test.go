@@ -17,7 +17,9 @@
 package kafka
 
 import (
+	"encoding/binary"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -796,14 +798,22 @@ func TestConsumerCommitted(t *testing.T) {
 				t.Logf("Retrieved Committed offsets: %s\n", offsets)
 
 				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
-					t.Errorf("Invalid number of partitions %d, shoudl be %d (and >0)\n", len(offsets), len(rp.Partitions))
+					t.Errorf("Invalid number of partitions %d, should be %d (and >0)\n", len(offsets), len(rp.Partitions))
 				}
 
-				// Verify proper offsets
+				// Verify proper offsets: at least one partition needs
+				// to have a committed offset.
+				validCnt := 0
 				for _, p := range offsets {
-					if p.Error != nil || p.Offset < 0 {
-						t.Errorf("Failed Committed offset: %s\n", p)
+					if p.Error != nil {
+						t.Errorf("Committed() partition error: %v: %v", p, p.Error)
+					} else if p.Offset >= 0 {
+						validCnt++
 					}
+				}
+
+				if validCnt == 0 {
+					t.Errorf("Committed(): no partitions with valid offsets: %v", offsets)
 				}
 			}
 			return nil
@@ -935,6 +945,141 @@ outer:
 			break outer
 		default:
 		}
+	}
+
+	c.Close()
+}
+
+// TestProducerConsumerHeaders produces messages with headers
+// and verifies them on consumption.
+// Requires librdkafka >=0.11.4 and Kafka >=0.11.0.0
+func TestProducerConsumerHeaders(t *testing.T) {
+	numver, strver := LibraryVersion()
+	if numver < 0x000b0400 {
+		t.Skipf("Requires librdkafka >=0.11.4 (currently on %s, 0x%x)", strver, numver)
+	}
+
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"api.version.request": true,
+		"enable.auto.commit":  false,
+		"group.id":            testconf.Topic,
+	}
+
+	conf.updateFromTestconf()
+
+	/*
+	 * Create producer and produce a couple of messages with and without
+	 * headers.
+	 */
+	t.Logf("Creating producer")
+	p, err := NewProducer(&conf)
+	if err != nil {
+		t.Fatalf("NewProducer: %v", err)
+	}
+
+	drChan := make(chan Event, 1)
+
+	// prepare some header values
+	bigBytes := make([]byte, 2500)
+	for i := 0; i < len(bigBytes); i++ {
+		bigBytes[i] = byte(i)
+	}
+
+	myVarint := make([]byte, binary.MaxVarintLen64)
+	myVarintLen := binary.PutVarint(myVarint, 12345678901234)
+
+	expMsgHeaders := [][]Header{
+		{
+			{"msgid", []byte("1")},
+			{"a key with SPACES ", bigBytes[:15]},
+			{"BIGONE!", bigBytes},
+		},
+		{
+			{"msgid", []byte("2")},
+			{"myVarint", myVarint[:myVarintLen]},
+			{"empty", []byte("")},
+			{"theNullIsNil", nil},
+		},
+		nil, // no headers
+		{
+			{"msgid", []byte("4")},
+			{"order", []byte("1")},
+			{"order", []byte("2")},
+			{"order", nil},
+			{"order", []byte("4")},
+		},
+	}
+
+	t.Logf("Producing %d messages", len(expMsgHeaders))
+	for _, hdrs := range expMsgHeaders {
+		err = p.Produce(&Message{
+			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			Headers:        hdrs},
+			drChan)
+	}
+
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+
+	var firstOffset Offset = OffsetInvalid
+	for _ = range expMsgHeaders {
+		ev := <-drChan
+		m, ok := ev.(*Message)
+		if !ok {
+			t.Fatalf("drChan: Expected *Message, got %v", ev)
+		}
+		if m.TopicPartition.Error != nil {
+			t.Fatalf("Delivery failed: %v", m.TopicPartition)
+		}
+		t.Logf("Produced message to %v", m.TopicPartition)
+		if firstOffset == OffsetInvalid {
+			firstOffset = m.TopicPartition.Offset
+		}
+	}
+
+	p.Close()
+
+	/* Now consume the produced messages and verify the headers */
+	t.Logf("Creating consumer starting at offset %v", firstOffset)
+	c, err := NewConsumer(&conf)
+	if err != nil {
+		t.Fatalf("NewConsumer: %v", err)
+	}
+
+	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+		Offset: firstOffset}})
+	if err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+
+	for n, hdrs := range expMsgHeaders {
+		m, err := c.ReadMessage(-1)
+		if err != nil {
+			t.Fatalf("Expected message #%d, not error %v", n, err)
+		}
+
+		if m.Headers == nil {
+			if hdrs == nil {
+				continue
+			}
+			t.Fatalf("Expected message #%d to have headers", n)
+		}
+
+		if hdrs == nil {
+			t.Fatalf("Expected message #%d not to have headers, but found %v", n, m.Headers)
+		}
+
+		// Compare headers
+		if !reflect.DeepEqual(hdrs, m.Headers) {
+			t.Fatalf("Expected message #%d headers to match %v, but found %v", n, hdrs, m.Headers)
+		}
+
+		t.Logf("Message #%d headers matched: %v", n, m.Headers)
 	}
 
 	c.Close()

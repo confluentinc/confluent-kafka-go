@@ -17,7 +17,9 @@
 package kafka
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -91,6 +93,22 @@ func TestProducerAPIs(t *testing.T) {
 		t.Errorf("Expected at least 2 messages (+requests) in queue, only %d reported", p.Len())
 	}
 
+	// Message Headers
+	varIntHeader := make([]byte, binary.MaxVarintLen64)
+	varIntLen := binary.PutVarint(varIntHeader, 123456789)
+
+	myHeaders := []Header{
+		{"thisHdrIsNullOrNil", nil},
+		{"empty", []byte("")},
+		{"MyVarIntHeader", varIntHeader[:varIntLen]},
+		{"mystring", []byte("This is a simple string")},
+	}
+
+	p.ProduceChannel() <- &Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
+		Value:   []byte("Headers"),
+		Headers: myHeaders}
+	expMsgCnt++
+
 	//
 	// Now wait for messages to time out so that delivery reports are triggered
 	//
@@ -125,6 +143,15 @@ func TestProducerAPIs(t *testing.T) {
 				}
 				t.Logf("Message \"%s\" with opaque \"%s\"\n",
 					(string)(e.Value), *s)
+
+			} else if (string)(e.Value) == "Headers" {
+				if e.Opaque != nil {
+					t.Errorf("Message opaque should be nil, not %v", e.Opaque)
+				}
+				if !reflect.DeepEqual(e.Headers, myHeaders) {
+					// FIXME: Headers are currently not available on the delivery report.
+					// t.Errorf("Message headers should be %v, not %v", myHeaders, e.Headers)
+				}
 			} else {
 				if e.Opaque != nil {
 					t.Errorf("Message opaque should be nil, not %v", e.Opaque)
@@ -178,6 +205,10 @@ func TestProducerBufferSafety(t *testing.T) {
 	p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic}, Value: value, Key: empty}, nil)
 	p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic}, Value: value, Key: value}, nil)
 	p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic}, Value: empty, Key: value}, nil)
+
+	// And Headers
+	p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic}, Value: empty, Key: value,
+		Headers: []Header{{"hdr", value}, {"hdr2", empty}, {"hdr3", nil}}}, nil)
 
 	p.Flush(100)
 
