@@ -427,7 +427,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		c.readerTermChan = make(chan bool)
 
 		/* Start rdkafka consumer queue reader -> events writer goroutine */
-		go consumerReader(c, c.readerTermChan)
+		go consumerReader(c, c.readerTermChan, eventsChanSize)
 	}
 
 	return c, nil
@@ -448,7 +448,7 @@ func (c *Consumer) rebalance(ev Event) bool {
 // consumerReader reads messages and events from the librdkafka consumer queue
 // and posts them on the consumer channel.
 // Runs until termChan closes
-func consumerReader(c *Consumer, termChan chan bool) {
+func consumerReader(c *Consumer, termChan chan bool, eventsChanSize int) {
 
 out:
 	for true {
@@ -456,7 +456,12 @@ out:
 		case _ = <-termChan:
 			break out
 		default:
-			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan)
+			_, term := c.handle.eventPoll(
+				c.events,
+				100,
+				eventsChanSize - len(c.events), // max events depends on available buffer
+				termChan,
+			)
 			if term {
 				break out
 			}
