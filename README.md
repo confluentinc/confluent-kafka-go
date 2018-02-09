@@ -43,7 +43,7 @@ or download and build it from source.
 - For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
 repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
 - For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
-- For MacOS X, install `librdkafka` from Homebrew.
+- For MacOS X, install `librdkafka` from Homebrew.  You may also need to brew install pkg-config if you don't already have it.
 - For Windows, see the `librdkafka.redist` NuGet package.
 
 Build from source:
