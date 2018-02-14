@@ -329,7 +329,7 @@ func (c *Consumer) Close() (err error) {
 		// Wait for consumerReader() to terminate (by closing readerTermChan)
 		close(c.readerTermChan)
 		c.handle.waitTerminated(1)
-
+		close(c.events)
 	}
 
 	C.rd_kafka_queue_destroy(c.handle.rkq)
