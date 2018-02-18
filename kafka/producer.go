@@ -55,6 +55,7 @@ void tmphdrs_to_chdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt,
 
 #else
 void free_tmphdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt) {
+   size_t i;
    for (i = 0 ; i < tmphdrsCnt ; i++) {
       if (tmphdrs[i].size > 0)
          free((void *)tmphdrs[i].val);
