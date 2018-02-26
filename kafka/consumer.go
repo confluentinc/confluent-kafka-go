@@ -17,6 +17,7 @@ package kafka
  */
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -256,6 +257,27 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil)
 	return ev
+}
+
+// PollContext polls the consumer for messages using a context. If the provided context has deadline set,
+// use (deadline - now) in milliseconds as the timeout. Othwerwise, use timeout of 0ms.
+// The following callbacks may be triggered:
+//   Subscribe()'s rebalanceCb
+//
+// Returns nil on timeout or cancel, else an Event
+func (c *Consumer) PollContext(ctx context.Context) (event Event) {
+	var timeout time.Duration
+	if d, ok := ctx.Deadline(); ok {
+		timeout = d.Sub(time.Now())
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+		ev, _ := c.handle.eventPoll(nil, int(timeout/time.Millisecond), 1, nil)
+		return ev
+	}
 }
 
 // Events returns the Events channel (if enabled)
