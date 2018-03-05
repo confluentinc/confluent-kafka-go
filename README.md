@@ -123,7 +123,7 @@ Getting Started
 Installing librdkafka
 ---------------------
 
-This client for Go depends on librdkafka v0.11.0 or later, so you either need to install librdkafka through your OS/distributions package manager,
+This client for Go depends on librdkafka v0.11.4 or later, so you either need to install librdkafka through your OS/distributions package manager,
 or download and build it from source.
 
 - For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
