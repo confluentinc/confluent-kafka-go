@@ -9,6 +9,7 @@ env:
     - PATH="$PATH:$GOPATH/bin"
   matrix:
     - LIBRDKAFKA_VERSION=master
+osx_image: xcode9.2
 os:
   - linux
   - osx
@@ -19,10 +20,9 @@ before_install:
 
 install:
   - go get -tags static ./...
-  - go install -tags static ./...
-  - (cd examples/go-kafkacat && go install -tags static)
+  - go install tags static ./...
 
 script:
   - golint -set_exit_status ./...
-  - go test -v -tags static ./...
+  - go test -timeout 60s -v -tags static ./...
   - go-kafkacat --help
