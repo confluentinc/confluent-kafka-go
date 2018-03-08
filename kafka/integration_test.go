@@ -1027,7 +1027,7 @@ func TestProducerConsumerHeaders(t *testing.T) {
 	}
 
 	var firstOffset Offset = OffsetInvalid
-	for _ = range expMsgHeaders {
+	for range expMsgHeaders {
 		ev := <-drChan
 		m, ok := ev.(*Message)
 		if !ok {
