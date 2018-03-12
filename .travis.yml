@@ -1,7 +1,7 @@
 language: go
 go:
   - 1.7
-  - 1.8rc3
+  - 1.8
   - 1.9
 env:
   global:
