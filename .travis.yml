@@ -3,26 +3,32 @@ go:
   - 1.7
   - 1.8
   - 1.9
-env:
-  global:
-    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-    - PATH="$PATH:$GOPATH/bin"
-  matrix:
-    - LIBRDKAFKA_VERSION=master
 osx_image: xcode9.2
 os:
   - linux
   - osx
+env:
+  global:
+    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+    - PATH="$PATH:$GOPATH/bin"
+    - LIBRDKAFKA_VERSION=master
+
+# Travis OSX worker has problems running our Go binaries for 1.7 and 1.8,
+# workaround for now is to skip exec for those.
+
 before_install:
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
   - go get -u github.com/golang/lint/golint
+  - if [[ $TRAVIS_OS_NAME == osx && $TRAVIS_GO_VERSION =~ ^1\.[78] ]] ; then touch .no_exec ; fi
 
 install:
   - go get -tags static ./...
-  - go install tags static ./...
+  - go install -tags static ./...
 
 script:
   - golint -set_exit_status ./...
-  - go test -timeout 60s -v -tags static ./...
-  - go-kafkacat --help
+  - if [[ ! -f .no_exec ]]; then go test -timeout 60s -v -tags static ./... ; fi
+  - if [[ ! -f .no_exec ]]; then go-kafkacat --help ; fi
