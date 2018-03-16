@@ -137,14 +137,14 @@ repositories or using [Confluent's Deb repository](http://docs.confluent.io/curr
 
 		Pre requiremets form MacOS El Capitan or newer:
 		```
-		brew uninstall --ignore-dependencies openssl
-		brew install openssl
+		brew install pkg-config
+		brew upgrade openssl
 
 		echo 'export PATH="/usr/local/opt/openssl/bin:$PATH"' >> ~/.bash_profile
 		export LDFLAGS=-L/usr/local/opt/openssl/lib
 		export CPPFLAGS=-I/usr/local/opt/openssl/include
 
-		brew install pkg-config
+		
 
 		```
 
