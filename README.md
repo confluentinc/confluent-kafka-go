@@ -129,14 +129,40 @@ or download and build it from source.
 - For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
 repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
 - For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
-- For MacOS X, install `librdkafka` from Homebrew.  You may also need to brew install pkg-config if you don't already have it.
 - For Windows, see the `librdkafka.redist` NuGet package.
+
+- For MacOS X:
+ 	MacOS older then El Capitan: Install `librdkafka` from Homebrew.  You may also need to brew install pkg-config if you don't already have it.
+	
+	Since the El Capitan version of Mac OS, Apple has created a Integrity and Protection System that does not even allow a super user to change anything in these folders: / System, / bin, / sbin, or / usr (except / usr / local). The confluent is dependent of last version of librdkafka that haven’t in Homebrew.
+
+		Pre requiremets form MacOS El Capitan or newer:
+		```
+		brew uninstall --ignore-dependencies openssl
+		brew install openssl
+
+		echo 'export PATH="/usr/local/opt/openssl/bin:$PATH"' >> ~/.bash_profile
+		export LDFLAGS=-L/usr/local/opt/openssl/lib
+		export CPPFLAGS=-I/usr/local/opt/openssl/include
+
+		brew install pkg-config
+
+		```
+
+
+
+
 
 Build from source:
 
     git clone https://github.com/edenhill/librdkafka.git
     cd librdkafka
     ./configure --prefix /usr
+
+	// For MAC OS El Capitan or newer:
+	./configure --clean
+	./configure --prefix /usr/local
+
     make
     sudo make install
 
