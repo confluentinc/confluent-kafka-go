@@ -132,9 +132,9 @@ repositories or using [Confluent's Deb repository](http://docs.confluent.io/curr
 - For Windows, see the `librdkafka.redist` NuGet package.
 
 - For MacOS X:
- 	MacOS older then El Capitan: Install `librdkafka` from Homebrew.  You may also need to brew install pkg-config if you don't already have it.
+ 	* Older: Install `librdkafka` from Homebrew.  You may also need to brew install pkg-config if you don't already have it.
 	
-	Since the El Capitan version of Mac OS, Apple has created a Integrity and Protection System that does not even allow a super user to change anything in these folders: / System, / bin, / sbin, or / usr (except / usr / local). The confluent is dependent of last version of librdkafka that haven’t in Homebrew.
+	* El Capitan 10.11 or newer: Apple has created a System Integrity Protection(SIP) that does not even allow a super user to change anything in these folders: /System, /bin, /sbin, or /usr (except /usr /local). The confluent is dependent of last version of librdkafka that haven’t in Homebrew.
 
 		Pre requiremets form MacOS El Capitan or newer:
 		```
