@@ -370,7 +370,11 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, err
 	}
 
-	groupid, _ := conf.get("group.id", nil)
+	// before we do anything with the configuration, create a copy such that
+	// the original is not mutated.
+	confCopy := conf.clone()
+
+	groupid, _ := confCopy.get("group.id", nil)
 	if groupid == nil {
 		// without a group.id the underlying cgrp subsystem in librdkafka wont get started
 		// and without it there is no way to consume assigned partitions.
@@ -380,25 +384,25 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	c := &Consumer{}
 
-	v, err := conf.extract("go.application.rebalance.enable", false)
+	v, err := confCopy.extract("go.application.rebalance.enable", false)
 	if err != nil {
 		return nil, err
 	}
 	c.appRebalanceEnable = v.(bool)
 
-	v, err = conf.extract("go.events.channel.enable", false)
+	v, err = confCopy.extract("go.events.channel.enable", false)
 	if err != nil {
 		return nil, err
 	}
 	c.eventsChanEnable = v.(bool)
 
-	v, err = conf.extract("go.events.channel.size", 1000)
+	v, err = confCopy.extract("go.events.channel.size", 1000)
 	if err != nil {
 		return nil, err
 	}
 	eventsChanSize := v.(int)
 
-	cConf, err := conf.convert()
+	cConf, err := confCopy.convert()
 	if err != nil {
 		return nil, err
 	}

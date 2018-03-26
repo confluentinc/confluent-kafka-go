@@ -373,38 +373,42 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 	p := &Producer{}
 
-	v, err := conf.extract("go.batch.producer", false)
+	// before we do anything with the configuration, create a copy such that
+	// the original is not mutated.
+	confCopy := conf.clone()
+
+	v, err := confCopy.extract("go.batch.producer", false)
 	if err != nil {
 		return nil, err
 	}
 	batchProducer := v.(bool)
 
-	v, err = conf.extract("go.delivery.reports", true)
+	v, err = confCopy.extract("go.delivery.reports", true)
 	if err != nil {
 		return nil, err
 	}
 	p.handle.fwdDr = v.(bool)
 
-	v, err = conf.extract("go.events.channel.size", 1000000)
+	v, err = confCopy.extract("go.events.channel.size", 1000000)
 	if err != nil {
 		return nil, err
 	}
 	eventsChanSize := v.(int)
 
-	v, err = conf.extract("go.produce.channel.size", 1000000)
+	v, err = confCopy.extract("go.produce.channel.size", 1000000)
 	if err != nil {
 		return nil, err
 	}
 	produceChannelSize := v.(int)
 
-	v, _ = conf.extract("{topic}.produce.offset.report", nil)
+	v, _ = confCopy.extract("{topic}.produce.offset.report", nil)
 	if v == nil {
 		// Enable offset reporting by default, unless overriden.
-		conf.SetKey("{topic}.produce.offset.report", true)
+		confCopy.SetKey("{topic}.produce.offset.report", true)
 	}
 
 	// Convert ConfigMap to librdkafka conf_t
-	cConf, err := conf.convert()
+	cConf, err := confCopy.convert()
 	if err != nil {
 		return nil, err
 	}
