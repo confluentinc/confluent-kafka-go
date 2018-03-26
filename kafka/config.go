@@ -216,6 +216,14 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 	return v, nil
 }
 
+func (m ConfigMap) clone() ConfigMap {
+	m2 := make(ConfigMap)
+	for k, v := range m {
+		m2[k] = v
+	}
+	return m2
+}
+
 // Get finds the given key in the ConfigMap and returns its value.
 // If the key is not found `defval` is returned.
 // If the key is found but the type does not match that of `defval` (unless nil)
