@@ -144,8 +144,14 @@ Build from source:
 Install the client
 -------------------
 
+installing via `go get`:
 ```
 go get -u github.com/confluentinc/confluent-kafka-go/kafka
+```
+
+installing via `dep`:
+```
+dep ensure -add github.com/confluentinc/confluent-kafka-go/kafka
 ```
 
 See the [examples](examples) for usage details.
