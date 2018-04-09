@@ -114,7 +114,7 @@ func main() {
 }
 ```
 
-More elaborate examples are available in the [examples](examples) directory.
+More elaborate examples are available in the [examples](examples) directory, including [how to configure](examples/confluent_cloud_example) the go client for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 
 
 Getting Started
