@@ -3,10 +3,14 @@
 //     
 // https://www.confluent.io/confluent-cloud/
 // 
-// Confluent Cloud does not auto-create topics. You will need to use the ccloud 
-// cli to create the go-test-topic topic before running this example. The 
-// <ccloud bootstrap servers>, <ccloud key> and <ccloud secret> parameters are
-// available via the confluent cloud web interface. For more information,
+// Auto-creation of topics is disabled in Confluent Cloud. You will need to 
+// use the ccloud cli to create the go-test-topic topic before running this
+// example.
+//
+// $ ccloud topic create go-test-topic
+//
+// The <ccloud bootstrap servers>, <ccloud key> and <ccloud secret> parameters
+// are available via the Confluent Cloud web interface. For more information,
 // refer to the quick-start:
 //     
 // https://docs.confluent.io/current/cloud-quickstart.html
@@ -32,25 +36,21 @@ import (
 	"time"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"os"
 )
 
 func main() {
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": "<ccloud bootstrap servers>",
-		"api.version.request": true,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
 		"sasl.mechanisms": "PLAIN",
 		"security.protocol": "SASL_SSL",
-		"ssl.ca.location": "/usr/local/etc/openssl/cert.pem",
 		"sasl.username": "<ccloud key>",
 		"sasl.password": "<ccloud secret>",})
 
 	if err != nil {
-		fmt.Printf("failed to create producer: %s\n", err)
-		os.Exit(1)
+		panic(fmt.Sprintf("Failed to create producer: %s", err))
 	}
 
 	value := "golang test value"
@@ -60,11 +60,12 @@ func main() {
 		Value:          []byte(value),
 	}, nil)
 
+	// Wait for delivery report
 	e := <-p.Events()
-	
+
 	m := e.(*kafka.Message)
 	if m.TopicPartition.Error != nil {
-		fmt.Printf("failed to deliver message: %v\n", m.TopicPartition.Error)
+		fmt.Printf("failed to deliver message: %v\n", m.TopicPartition)
 	} else {
 		fmt.Printf("delivered to topic %s [%d] at offset %v\n",
 			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
@@ -75,12 +76,10 @@ func main() {
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": "<ccloud bootstrap servers>",
-		"api.version.request": true,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
 		"sasl.mechanisms": "PLAIN",
 		"security.protocol": "SASL_SSL",
-		"ssl.ca.location": "/usr/local/etc/openssl/cert.pem",
 		"sasl.username": "<ccloud key>",
 		"sasl.password": "<ccloud secret>",
 		"session.timeout.ms": 6000,
@@ -88,8 +87,7 @@ func main() {
 		"default.topic.config": kafka.ConfigMap{"auto.offset.reset": "earliest"},})
 
 	if err != nil {
-		fmt.Printf("failed to create consumer: %s\n", err)
-		os.Exit(1)
+		panic(fmt.Sprintf("Failed to create consumer: %s", err))
 	}
 
 	topics := []string { topic }
