@@ -125,3 +125,18 @@ func getMessageCountInTopic(topic string) (int, error) {
 
 	return cnt, nil
 }
+
+// getBrokerList returns a list of brokers (ids) in the cluster
+func getBrokerList(H Handle) (brokers []int32, err error) {
+	md, err := getMetadata(H, nil, true, 15*1000)
+	if err != nil {
+		return nil, err
+	}
+
+	brokers = make([]int32, len(md.Brokers))
+	for i, mdBroker := range md.Brokers {
+		brokers[i] = mdBroker.ID
+	}
+
+	return brokers, nil
+}
