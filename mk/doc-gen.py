@@ -28,10 +28,10 @@ if __name__ == '__main__':
 
     # Use golang.org for external resources (such as CSS and JS)
     for t in soup.find_all(href=re.compile(r'^/')):
-        t['href'] = 'http://golang.org' + t['href']
+        t['href'] = '//golang.org' + t['href']
 
     for t in soup.find_all(src=re.compile(r'^/')):
-        t['src'] = 'http://golang.org' + t['src']
+        t['src'] = '//golang.org' + t['src']
 
     # Write updated HTML to stdout
     print(soup.prettify().encode('utf-8'))
