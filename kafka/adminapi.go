@@ -548,10 +548,11 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, optio
 		cTopics[i] = C.rd_kafka_NewTopic_new(
 			C.CString(topic.Topic),
 			C.int(topic.NumPartitions),
-			cReplicationFactor)
+			cReplicationFactor,
+			cErrstr, cErrstrSize)
 		if cTopics[i] == nil {
 			return nil, newErrorFromString(ErrInvalidArg,
-				fmt.Sprintf("Invalid arguments for topic %s", topic.Topic))
+				fmt.Sprintf("Topic %s: %s", topic.Topic, C.GoString(cErrstr)))
 		}
 
 		defer C.rd_kafka_NewTopic_destroy(cTopics[i])
@@ -700,10 +701,10 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPart
 
 	// Convert Go NewPartitions to C NewPartitions
 	for i, part := range partitions {
-		cParts[i] = C.rd_kafka_NewPartitions_new(C.CString(part.Topic), C.size_t(part.NewTotalCount))
+		cParts[i] = C.rd_kafka_NewPartitions_new(C.CString(part.Topic), C.size_t(part.NewTotalCount), cErrstr, cErrstrSize)
 		if cParts[i] == nil {
 			return nil, newErrorFromString(ErrInvalidArg,
-				fmt.Sprintf("Invalid arguments for topic %s", part.Topic))
+				fmt.Sprintf("Topic %s: %s", part.Topic, C.GoString(cErrstr)))
 		}
 
 		defer C.rd_kafka_NewPartitions_destroy(cParts[i])
