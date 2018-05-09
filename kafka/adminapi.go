@@ -128,13 +128,15 @@ func (a *AdminClient) adminOptionsToC(forAPI string, options *AdminOptions) (cOp
 		}
 	}
 
-	cErr := C.rd_kafka_AdminOptions_set_validate_only(
-		cOptions, bool2cint(options.ValidateOnly),
-		cErrstr, cErrstrSize)
-	if cErr != 0 {
-		C.rd_kafka_AdminOptions_destroy(cOptions)
-		return nil, newCErrorFromString(cErr,
-			fmt.Sprintf("Failed to set validate only: %s", C.GoString(cErrstr)))
+	if options.ValidateOnly {
+		cErr := C.rd_kafka_AdminOptions_set_validate_only(
+			cOptions, bool2cint(options.ValidateOnly),
+			cErrstr, cErrstrSize)
+		if cErr != 0 {
+			C.rd_kafka_AdminOptions_destroy(cOptions)
+			return nil, newCErrorFromString(cErr,
+				fmt.Sprintf("Failed to set validate only: %s", C.GoString(cErrstr)))
+		}
 	}
 
 	return cOptions, nil
