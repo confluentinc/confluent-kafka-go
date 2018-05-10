@@ -941,6 +941,15 @@ func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigRes
 	return a.cConfigResourceToResult(cResults, cCnt)
 }
 
+// GetMetadata queries broker for cluster and topic metadata.
+// If topic is non-nil only information about that topic is returned, else if
+// allTopics is false only information about locally used topics is returned,
+// else information about all topics is returned.
+// GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
+func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	return getMetadata(a, topic, allTopics, timeoutMs)
+}
+
 // String returns a human readable name for an AdminClient instance
 func (a *AdminClient) String() string {
 	return fmt.Sprintf("admin-%s", a.handle.String())

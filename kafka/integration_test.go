@@ -1449,3 +1449,35 @@ func TestAdminConfig(t *testing.T) {
 	}
 
 }
+
+//Test AdminClient GetMetadata API
+func TestAdminGetMetadata(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+
+	// Create Admin client
+	a, err := NewAdminClient(config)
+	if err != nil {
+		t.Errorf("Failed to create Admin client: %s\n", err)
+		return
+	}
+	defer a.Close()
+
+	metaData, err := a.GetMetadata(&testconf.Topic, false, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+
+	metaData, err = a.GetMetadata(nil, true, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to get meta data, Error: %s\n", err)
+		return
+	}
+	t.Logf("Meta data for admin client: %v\n", metaData)
+
+}
