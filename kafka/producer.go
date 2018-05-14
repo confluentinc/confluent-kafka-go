@@ -35,7 +35,7 @@ import (
 //    tmphdr.size == 0:  value is considered empty (ignored)
 //    tmphdr.size > 0:   value is considered non-empty
 //
-// WARNING: The header values will be freed by this function.
+// WARNING: The header keys and values will be freed by this function.
 void tmphdrs_to_chdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt,
                        rd_kafka_headers_t **chdrs) {
    size_t i;
@@ -50,6 +50,7 @@ void tmphdrs_to_chdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt,
                           tmphdrs[i].size == -1 ? 0 : tmphdrs[i].size);
       if (tmphdrs[i].size > 0)
          free((void *)tmphdrs[i].val);
+      free((void *)tmphdrs[i].key);
    }
 }
 
@@ -59,6 +60,7 @@ void free_tmphdrs (tmphdr_t *tmphdrs, size_t tmphdrsCnt) {
    for (i = 0 ; i < tmphdrsCnt ; i++) {
       if (tmphdrs[i].size > 0)
          free((void *)tmphdrs[i].val);
+      free((void *)tmphdrs[i].key);
    }
 }
 #endif
@@ -218,6 +220,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		tmphdrs = make([]C.tmphdr_t, tmphdrsCnt)
 
 		for n, hdr := range msg.Headers {
+			// Make a copy of the key
+			// to avoid runtime panic with
+			// foreign Go pointers in cgo.
 			tmphdrs[n].key = C.CString(hdr.Key)
 			if hdr.Value != nil {
 				tmphdrs[n].size = C.ssize_t(len(hdr.Value))
