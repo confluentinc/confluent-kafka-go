@@ -76,8 +76,11 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
           uintptr_t cgoid) {
   void *valp = valIsNull ? NULL : val;
   void *keyp = keyIsNull ? NULL : key;
+#ifdef RD_KAFKA_V_TIMESTAMP
+rd_kafka_resp_err_t err;
 #ifdef RD_KAFKA_V_HEADERS
   rd_kafka_headers_t *hdrs = NULL;
+#endif
 #endif
 
 
@@ -92,7 +95,7 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
 
 
 #ifdef RD_KAFKA_V_TIMESTAMP
-  return rd_kafka_producev(rk,
+  err = rd_kafka_producev(rk,
         RD_KAFKA_V_RKT(rkt),
         RD_KAFKA_V_PARTITION(partition),
         RD_KAFKA_V_MSGFLAGS(msgflags),
@@ -104,6 +107,11 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
 #endif
         RD_KAFKA_V_OPAQUE((void *)cgoid),
         RD_KAFKA_V_END);
+#ifdef RD_KAFKA_V_HEADERS
+  if (err && hdrs)
+    rd_kafka_headers_destroy(hdrs);
+#endif
+  return err;
 #else
   if (timestamp)
       return RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
