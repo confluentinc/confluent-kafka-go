@@ -94,12 +94,12 @@ func durationToMilliseconds(t time.Duration) int {
 
 // adminOptionsToC converts Golang AdminOptions to C AdminOptions
 // forAPI is used to limit what options may be set.
-func (a *AdminClient) adminOptionsToC(forAPI string, options *AdminOptions) (cOptions *C.rd_kafka_AdminOptions_t, err error) {
+func (a *AdminClient) adminOptionsToC(forAPI C.rd_kafka_admin_op_t, options *AdminOptions) (cOptions *C.rd_kafka_AdminOptions_t, err error) {
 	if options == nil {
 		return nil, nil
 	}
 
-	cOptions = C.rd_kafka_AdminOptions_new(a.handle.rk, C.CString(forAPI))
+	cOptions = C.rd_kafka_AdminOptions_new(a.handle.rk, forAPI)
 
 	cErrstrSize := C.size_t(512)
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
@@ -589,7 +589,7 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, optio
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC("CreateTopics", options)
+	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_CREATETOPICS, options)
 	if err != nil {
 		return nil, err
 	}
@@ -654,7 +654,7 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, op
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC("DeleteTopics", options)
+	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_DELETETOPICS, options)
 	if err != nil {
 		return nil, err
 	}
@@ -727,7 +727,7 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPart
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC("CreatePartitions", options)
+	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_CREATEPARTITIONS, options)
 	if err != nil {
 		return nil, err
 	}
@@ -825,7 +825,7 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC("AlterConfigs", options)
+	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_ALTERCONFIGS, options)
 	if err != nil {
 		return nil, err
 	}
@@ -904,7 +904,7 @@ func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigRes
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC("DescribeConfigs", options)
+	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_DESCRIBECONFIGS, options)
 	if err != nil {
 		return nil, err
 	}
