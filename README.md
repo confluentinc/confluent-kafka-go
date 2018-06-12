@@ -86,6 +86,8 @@ func main() {
 		panic(err)
 	}
 
+	defer p.Close()
+
 	// Delivery report handler for produced messages
 	go func() {
 		for e := range p.Events() {
