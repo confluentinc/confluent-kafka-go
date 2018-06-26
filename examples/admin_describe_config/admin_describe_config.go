@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
+	"time"
 )
 
 func main() {
@@ -60,8 +61,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	dur, _ := time.ParseDuration("20s")
 	// Ask cluster for the resource's current configuration
-	results, err := a.DescribeConfigs(ctx, []kafka.ConfigResource{{Type: resourceType, Name: resourceName}}, nil)
+	results, err := a.DescribeConfigs(ctx,
+		[]kafka.ConfigResource{{Type: resourceType, Name: resourceName}},
+		kafka.SetAdminRequestTimeout(dur))
 	if err != nil {
 		fmt.Printf("Failed to DescribeConfigs(%s, %s): %s\n",
 			resourceType, resourceName, err)

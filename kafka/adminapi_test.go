@@ -62,8 +62,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 				ReplicationFactor: 90,
 				Config:            StringMapToConfigEntries(confStrings, AlterOperationSet),
 			},
-		},
-		nil)
+		})
 	if res != nil || err == nil {
 		t.Fatalf("Expected CreateTopics to fail, but got result: %v, err: %v", res, err)
 	}
@@ -87,8 +86,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 					[]int32{3, 2, 1},
 				},
 			},
-		},
-		nil)
+		})
 	if res != nil || err == nil {
 		t.Fatalf("Expected CreateTopics to fail, but got result: %v, err: %v", res, err)
 	}
@@ -114,8 +112,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 					[]int32{3, 2, 1},
 				},
 			},
-		},
-		nil)
+		})
 	if res != nil || err == nil {
 		t.Fatalf("Expected CreateTopics to fail, but got result: %v, err: %v", res, err)
 	}
@@ -153,8 +150,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 					"a":                  "unit test",
 				}, AlterOperationSet),
 			},
-		},
-		nil)
+		})
 	if res != nil || err == nil {
 		t.Fatalf("Expected CreateTopics to fail, but got result: %v, err: %v", res, err)
 	}

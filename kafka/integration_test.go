@@ -1207,7 +1207,7 @@ func TestAdminTopics(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
 	result, err := a.CreateTopics(ctx, newTopics,
-		&AdminOptions{ValidateOnly: true})
+		SetAdminValidateOnly(true))
 	if err != nil {
 		t.Fatalf("CreateTopics(ValidateOnly) failed: %s", err)
 	}
@@ -1218,7 +1218,7 @@ func TestAdminTopics(t *testing.T) {
 	t.Logf("Creating topics\n")
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	result, err = a.CreateTopics(ctx, newTopics, nil)
+	result, err = a.CreateTopics(ctx, newTopics, SetAdminValidateOnly(false))
 	if err != nil {
 		t.Fatalf("CreateTopics() failed: %s", err)
 	}
@@ -1234,7 +1234,7 @@ func TestAdminTopics(t *testing.T) {
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	result, err = a.CreateTopics(ctx, newTopics, nil)
+	result, err = a.CreateTopics(ctx, newTopics)
 	if err != nil {
 		t.Fatalf("CreateTopics#2() failed: %s", err)
 	}
@@ -1264,7 +1264,7 @@ func TestAdminTopics(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	result, err = a.CreatePartitions(ctx, newParts, nil)
+	result, err = a.CreatePartitions(ctx, newParts)
 	if err != nil {
 		t.Fatalf("CreatePartitions() failed: %s", err)
 	}
@@ -1287,7 +1287,7 @@ func TestAdminTopics(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	result2, err := a.DeleteTopics(ctx, deleteTopics, nil)
+	result2, err := a.DeleteTopics(ctx, deleteTopics)
 	if err != nil {
 		t.Fatalf("DeleteTopics() failed: %s", err)
 	}
@@ -1381,7 +1381,7 @@ func TestAdminConfig(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	topicResult, err := a.CreateTopics(ctx, newTopics, nil)
+	topicResult, err := a.CreateTopics(ctx, newTopics)
 	if err != nil {
 		t.Fatalf("Create topic request failed: %v", err)
 	}
@@ -1392,7 +1392,7 @@ func TestAdminConfig(t *testing.T) {
 
 	// Read back config to validate
 	configResources := []ConfigResource{{Type: ResourceTopic, Name: topic}}
-	describeRes, err := a.DescribeConfigs(ctx, configResources, nil)
+	describeRes, err := a.DescribeConfigs(ctx, configResources)
 	if err != nil {
 		t.Fatalf("Describe configs request failed: %v", err)
 	}
@@ -1419,7 +1419,7 @@ func TestAdminConfig(t *testing.T) {
 	}
 
 	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic, Config: StringMapToConfigEntries(newConfig, AlterOperationSet)}}
-	alterRes, err := a.AlterConfigs(ctx, configResources, nil)
+	alterRes, err := a.AlterConfigs(ctx, configResources)
 	if err != nil {
 		t.Fatalf("Alter configs request failed: %v", err)
 	}
@@ -1428,7 +1428,7 @@ func TestAdminConfig(t *testing.T) {
 
 	// Read back config to validate
 	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic}}
-	describeRes, err = a.DescribeConfigs(ctx, configResources, nil)
+	describeRes, err = a.DescribeConfigs(ctx, configResources)
 	if err != nil {
 		t.Fatalf("Describe configs request failed: %v", err)
 	}
@@ -1439,7 +1439,7 @@ func TestAdminConfig(t *testing.T) {
 	// FIXME: wait for topics to become available in metadata instead
 	time.Sleep(5000 * time.Millisecond)
 
-	topicResult, err = a.DeleteTopics(ctx, []DeleteTopic{{topic}}, nil)
+	topicResult, err = a.DeleteTopics(ctx, []DeleteTopic{{topic}})
 	if err != nil {
 		t.Fatalf("DeleteTopics() failed: %s", err)
 	}

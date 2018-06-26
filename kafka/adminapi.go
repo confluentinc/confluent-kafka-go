@@ -57,89 +57,11 @@ type AdminClient struct {
 	isDerived bool // Derived from existing client handle
 }
 
-// AdminOptions provides a generic mechanism for setting optional
-// parameters for the Admin API requests.
-type AdminOptions struct {
-	// OperationTimeout sets the broker's operation timeout, such as the timeout for
-	// CreateTopics to complete the creation of topics on the controller
-	// before returning a result to the application.
-	//
-	// CreateTopics, DeleteTopics, CreatePartitions:
-	// value 0 will return immediately after triggering topic
-	// creation, while > 0 will wait this long for topic creation to propagate
-	// in cluster.
-	// Default: 0 (return immediately)
-	// Valid for CreateTopics, DeleteTopics, CreatePartitions
-	OperationTimeout time.Duration
-	// RequestTimeout Sets the overall request timeout, including broker lookup,
-	// request transmission, operation time on broker, and response.
-	// Default: `socket.timeout.ms`
-	// Valid for all Admin API methods.
-	RequestTimeout time.Duration
-	// ValidateOnly tells the broker to only validate the request, without performing
-	// the requested operation (create topics, etc).
-	// Default: false
-	// Valid for CreateTopics, DeleteTopics, CreatePartitions, AlterConfigs
-	ValidateOnly bool
-	// FIXME: incremental.
-	// FIXME: sync incremental with KIP-248
-}
-
 func durationToMilliseconds(t time.Duration) int {
 	if t > 0 {
 		return (int)(t.Seconds() * 1000.0)
 	}
 	return (int)(t)
-}
-
-// adminOptionsToC converts Golang AdminOptions to C AdminOptions
-// forAPI is used to limit what options may be set.
-func (a *AdminClient) adminOptionsToC(forAPI C.rd_kafka_admin_op_t, options *AdminOptions) (cOptions *C.rd_kafka_AdminOptions_t, err error) {
-	if options == nil {
-		return nil, nil
-	}
-
-	cOptions = C.rd_kafka_AdminOptions_new(a.handle.rk, forAPI)
-
-	cErrstrSize := C.size_t(512)
-	cErrstr := (*C.char)(C.malloc(cErrstrSize))
-	defer C.free(unsafe.Pointer(cErrstr))
-
-	if options.OperationTimeout != 0 {
-		cErr := C.rd_kafka_AdminOptions_set_operation_timeout(
-			cOptions, C.int(durationToMilliseconds(options.OperationTimeout)),
-			cErrstr, cErrstrSize)
-		if cErr != 0 {
-			C.rd_kafka_AdminOptions_destroy(cOptions)
-			return nil, newCErrorFromString(cErr,
-				fmt.Sprintf("Failed to set operation timeout: %s", C.GoString(cErrstr)))
-
-		}
-	}
-
-	if options.RequestTimeout != 0 {
-		cErr := C.rd_kafka_AdminOptions_set_request_timeout(
-			cOptions, C.int(durationToMilliseconds(options.RequestTimeout)),
-			cErrstr, cErrstrSize)
-		if cErr != 0 {
-			C.rd_kafka_AdminOptions_destroy(cOptions)
-			return nil, newCErrorFromString(cErr,
-				fmt.Sprintf("Failed to set request timeout: %s", C.GoString(cErrstr)))
-		}
-	}
-
-	if options.ValidateOnly {
-		cErr := C.rd_kafka_AdminOptions_set_validate_only(
-			cOptions, bool2cint(options.ValidateOnly),
-			cErrstr, cErrstrSize)
-		if cErr != 0 {
-			C.rd_kafka_AdminOptions_destroy(cOptions)
-			return nil, newCErrorFromString(cErr,
-				fmt.Sprintf("Failed to set validate only: %s", C.GoString(cErrstr)))
-		}
-	}
-
-	return cOptions, nil
 }
 
 // TopicResult provides per-topic operation result (error) information.
@@ -282,7 +204,8 @@ func (c ConfigResource) String() string {
 	return fmt.Sprintf("Resource(%s, %s)", c.Type, c.Name)
 }
 
-// AlterOperation specifies the operation to perform on the ConfigEntry
+// AlterOperation specifies the operation to perform on the ConfigEntry.
+// One of AlterOperationAdd, AlterOperationSet, AlterOperationDelete.
 type AlterOperation int
 
 const (
@@ -513,7 +436,7 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 //
 // Topic creation is non-atomic and may succeed for some topics but fail for others,
 // make sure to check the result for topic-specific errors.
-func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, options *AdminOptions) (result []TopicResult, err error) {
+func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, options ...CreateTopicsAdminOption) (result []TopicResult, err error) {
 	cTopics := make([]*C.rd_kafka_NewTopic_t, len(topics))
 
 	cErrstrSize := C.size_t(512)
@@ -589,14 +512,15 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, optio
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_CREATETOPICS, options)
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_CREATETOPICS, genericOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	if cOptions != nil {
-		defer C.rd_kafka_AdminOptions_destroy(cOptions)
-	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
 	// Create temporary queue for async operation
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
@@ -635,7 +559,7 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, optio
 // topic metadata and configuration may continue to return information about deleted topics.
 //
 // Requires broker version >= 0.10.1.0
-func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, options *AdminOptions) (result []TopicResult, err error) {
+func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, options ...DeleteTopicsAdminOption) (result []TopicResult, err error) {
 	cTopics := make([]*C.rd_kafka_DeleteTopic_t, len(topics))
 
 	cErrstrSize := C.size_t(512)
@@ -654,14 +578,15 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, op
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_DELETETOPICS, options)
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_DELETETOPICS, genericOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	if cOptions != nil {
-		defer C.rd_kafka_AdminOptions_destroy(cOptions)
-	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
 	// Create temporary queue for async operation
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
@@ -692,7 +617,7 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, op
 }
 
 // CreatePartitions creates additional partitions for topics.
-func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPartitions, options *AdminOptions) (result []TopicResult, err error) {
+func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPartitions, options ...CreatePartitionsAdminOption) (result []TopicResult, err error) {
 	cParts := make([]*C.rd_kafka_NewPartitions_t, len(partitions))
 
 	cErrstrSize := C.size_t(512)
@@ -727,14 +652,15 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPart
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_CREATEPARTITIONS, options)
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_CREATEPARTITIONS, genericOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	if cOptions != nil {
-		defer C.rd_kafka_AdminOptions_destroy(cOptions)
-	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
 	// Create temporary queue for async operation
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
@@ -777,11 +703,14 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPart
 // AlterConfigs will replace all existing configuration for
 // the provided resources with the new configuration given,
 // reverting all other configuration to their default values.
+// Setting SetAdminIncremental(true) changes the behaviour to
+// only alter specified configuration, leaving remaining configuration intact
+// (requires a broker with KIP-248 support).
 //
 // Multiple resources and resource types may be set, but at most one
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
-func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResource, options *AdminOptions) (result []ConfigResourceResult, err error) {
+func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
 	cErrstrSize := C.size_t(512)
@@ -825,14 +754,15 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_ALTERCONFIGS, options)
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_ALTERCONFIGS, genericOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	if cOptions != nil {
-		defer C.rd_kafka_AdminOptions_destroy(cOptions)
-	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
 	// Create temporary queue for async operation
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
@@ -884,7 +814,7 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 // one resource of type ResourceBroker is allowed per call
 // since these resource requests must be sent to the broker specified
 // in the resource.
-func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigResource, options *AdminOptions) (result []ConfigResourceResult, err error) {
+func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigResource, options ...DescribeConfigsAdminOption) (result []ConfigResourceResult, err error) {
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
 	cErrstrSize := C.size_t(512)
@@ -904,14 +834,15 @@ func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigRes
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions
-	cOptions, err := a.adminOptionsToC(C.RD_KAFKA_ADMIN_OP_DESCRIBECONFIGS, options)
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBECONFIGS, genericOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	if cOptions != nil {
-		defer C.rd_kafka_AdminOptions_destroy(cOptions)
-	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
 	// Create temporary queue for async operation
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
