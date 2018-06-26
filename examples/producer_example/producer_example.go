@@ -51,7 +51,7 @@ func main() {
 	err = p.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          []byte(value),
-		Headers:        []kafka.Header{{"myTestHeader", []byte("header values are binary")}},
+		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 	}, deliveryChan)
 
 	e := <-deliveryChan
