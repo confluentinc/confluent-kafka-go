@@ -60,7 +60,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 				Topic:             "mytopic3",
 				NumPartitions:     10000,
 				ReplicationFactor: 90,
-				Config:            StringMapToConfigEntries(confStrings, AlterOperationSet),
+				Config:            confStrings,
 			},
 		})
 	if res != nil || err == nil {
@@ -143,12 +143,12 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 					[]int32{4},
 					[]int32{1},
 				},
-				Config: StringMapToConfigEntries(map[string]string{
+				Config: map[string]string{
 					"some.topic.config":  "unchecked",
 					"these.are.verified": "on the broker",
 					"and.this.is":        "just",
 					"a":                  "unit test",
-				}, AlterOperationSet),
+				},
 			},
 		})
 	if res != nil || err == nil {

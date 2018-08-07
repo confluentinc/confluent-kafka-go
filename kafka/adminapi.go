@@ -96,16 +96,7 @@ type TopicSpecification struct {
 	// broker id list will be the preferred replica.
 	ReplicaAssignment [][]int32
 	// Topic configuration.
-	// FIXME: Not sure about this one, a simple map[string]string
-	//        would be more convenient, but if the protocol adds per-entry
-	//        settings in the future (which happened with AlterConfigs)
-	//        we must make a breaking change or have two fields:
-	//        Config, ConfigEntries.
-	//        The StringMapToConfigEntries(, AlterOperationSet) can be
-	//        used in the meantime.
-	Config []ConfigEntry
-}
-
+	Config map[string]string
 }
 
 // NewPartitions holds parameters for creating additional partitions for a topic.

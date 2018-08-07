@@ -1376,7 +1376,7 @@ func TestAdminConfig(t *testing.T) {
 		Topic:             topic,
 		NumPartitions:     1,
 		ReplicationFactor: 1,
-		Config:            StringMapToConfigEntries(map[string]string{"compression.type": "snappy"}, AlterOperationSet),
+		Config:            map[string]string{"compression.type": "snappy"},
 	}}
 
 	ctx, cancel := context.WithCancel(context.Background())
