@@ -42,7 +42,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	defer cancel()
 	res, err := a.CreateTopics(
 		ctx,
-		[]NewTopic{
+		[]TopicSpecification{
 			{
 				Topic:             "mytopic",
 				NumPartitions:     7,
@@ -75,7 +75,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	defer cancel()
 	res, err = a.CreateTopics(
 		ctx,
-		[]NewTopic{
+		[]TopicSpecification{
 			{
 				// Must not specify both ReplicationFactor and ReplicaAssignment
 				Topic:             "mytopic",
@@ -102,7 +102,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	defer cancel()
 	res, err = a.CreateTopics(
 		ctx,
-		[]NewTopic{
+		[]TopicSpecification{
 			{
 				// ReplicaAssignment must be same length as Numpartitions
 				Topic:         "mytopic",
@@ -128,7 +128,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	defer cancel()
 	res, err = a.CreateTopics(
 		ctx,
-		[]NewTopic{
+		[]TopicSpecification{
 			{
 				Topic:         "mytopic4",
 				NumPartitions: 9,

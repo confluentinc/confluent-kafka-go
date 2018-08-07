@@ -80,8 +80,9 @@ func (t TopicResult) String() string {
 	return fmt.Sprintf("%s (%s)", t.Topic, t.Error.str)
 }
 
-// NewTopic holds parameters for creating a new topic.
-type NewTopic struct {
+// TopicSpecification holds parameters for creating a new topic.
+// TopicSpecification is analogue to NewTopic in the Java Topic Admin API.
+type TopicSpecification struct {
 	// Topic name to create.
 	Topic string
 	// Number of partitions in topic.
@@ -432,18 +433,20 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 
 // CreateTopics creates topics in cluster.
 //
-// The list of NewTopic objects define the per-topic partition count, replicas, etc.
+// The list of TopicSpecification objects define the per-topic partition count, replicas, etc.
 //
 // Topic creation is non-atomic and may succeed for some topics but fail for others,
 // make sure to check the result for topic-specific errors.
-func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, options ...CreateTopicsAdminOption) (result []TopicResult, err error) {
+//
+// Note: TopicSpecification is analogue to NewTopic in the Java Topic Admin API.
+func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecification, options ...CreateTopicsAdminOption) (result []TopicResult, err error) {
 	cTopics := make([]*C.rd_kafka_NewTopic_t, len(topics))
 
 	cErrstrSize := C.size_t(512)
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
 	defer C.free(unsafe.Pointer(cErrstr))
 
-	// Convert Go NewTopics to C NewTopics
+	// Convert Go TopicSpecifications to C TopicSpecifications
 	for i, topic := range topics {
 
 		var cReplicationFactor C.int
@@ -455,17 +458,17 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []NewTopic, optio
 		if topic.ReplicaAssignment != nil {
 			if cReplicationFactor != -1 {
 				return nil, newErrorFromString(ErrInvalidArg,
-					"NewTopic.ReplicationFactor and NewTopic.ReplicaAssignment are mutually exclusive")
+					"TopicSpecification.ReplicationFactor and TopicSpecification.ReplicaAssignment are mutually exclusive")
 			}
 
 			if len(topic.ReplicaAssignment) != topic.NumPartitions {
 				return nil, newErrorFromString(ErrInvalidArg,
-					"NewTopic.ReplicaAssignment must contain exactly NewTopic.NumPartitions partitions")
+					"TopicSpecification.ReplicaAssignment must contain exactly TopicSpecification.NumPartitions partitions")
 			}
 
 		} else if cReplicationFactor == -1 {
 			return nil, newErrorFromString(ErrInvalidArg,
-				"NewTopic.ReplicationFactor or NewTopic.ReplicaAssignment must be specified")
+				"TopicSpecification.ReplicationFactor or TopicSpecification.ReplicaAssignment must be specified")
 		}
 
 		cTopics[i] = C.rd_kafka_NewTopic_new(

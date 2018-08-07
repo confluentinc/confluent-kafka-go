@@ -1159,13 +1159,13 @@ func TestAdminTopics(t *testing.T) {
 	}
 
 	const topicCnt = 7
-	newTopics := make([]NewTopic, topicCnt)
+	newTopics := make([]TopicSpecification, topicCnt)
 
 	expError := map[string]Error{}
 
 	for i := 0; i < topicCnt; i++ {
 		topic := fmt.Sprintf("%s-create-%d-%d", testconf.Topic, i, rand.Intn(100000))
-		newTopics[i] = NewTopic{
+		newTopics[i] = TopicSpecification{
 			Topic:         topic,
 			NumPartitions: 1 + i*2,
 		}
@@ -1372,7 +1372,7 @@ func TestAdminConfig(t *testing.T) {
 		},
 	}
 	// Create topic
-	newTopics := []NewTopic{{
+	newTopics := []TopicSpecification{{
 		Topic:             topic,
 		NumPartitions:     1,
 		ReplicationFactor: 1,

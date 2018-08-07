@@ -72,8 +72,8 @@ func main() {
 	results, err := a.CreateTopics(
 		ctx,
 		// Multiple topics can be created simultaneously
-		// by providing more NewTopic structs here.
-		[]kafka.NewTopic{{
+		// by providing more TopicSpecification structs here.
+		[]kafka.TopicSpecification{{
 			Topic:             topic,
 			NumPartitions:     numParts,
 			ReplicationFactor: replicationFactor}},
