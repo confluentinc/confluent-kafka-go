@@ -1275,13 +1275,13 @@ func TestAdminTopics(t *testing.T) {
 	time.Sleep(5000 * time.Millisecond)
 
 	// Delete the topics
-	deleteTopics := make([]DeleteTopic, topicCnt)
+	deleteTopics := make([]string, topicCnt)
 	for i := 0; i < topicCnt; i++ {
-		deleteTopics[i] = DeleteTopic{newTopics[i].Topic}
+		deleteTopics[i] = newTopics[i].Topic
 		if i == topicCnt-1 {
-			expError[deleteTopics[i].Topic] = Error{code: ErrUnknownTopicOrPart}
+			expError[deleteTopics[i]] = Error{code: ErrUnknownTopicOrPart}
 		} else {
-			expError[deleteTopics[i].Topic] = Error{}
+			expError[deleteTopics[i]] = Error{}
 		}
 	}
 
@@ -1439,7 +1439,7 @@ func TestAdminConfig(t *testing.T) {
 	// FIXME: wait for topics to become available in metadata instead
 	time.Sleep(5000 * time.Millisecond)
 
-	topicResult, err = a.DeleteTopics(ctx, []DeleteTopic{{topic}})
+	topicResult, err = a.DeleteTopics(ctx, []string{topic})
 	if err != nil {
 		t.Fatalf("DeleteTopics() failed: %s", err)
 	}

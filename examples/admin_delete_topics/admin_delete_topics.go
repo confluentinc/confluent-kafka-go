@@ -35,11 +35,7 @@ func main() {
 	}
 
 	broker := os.Args[1]
-
-	var topics []kafka.DeleteTopic
-	for _, topic := range os.Args[2:] {
-		topics = append(topics, kafka.DeleteTopic{Topic: topic})
-	}
+	topics := os.Args[2:]
 
 	// Create a new AdminClient.
 	// AdminClient can also be instantiated using an existing

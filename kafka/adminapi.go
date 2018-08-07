@@ -106,10 +106,6 @@ type TopicSpecification struct {
 	Config []ConfigEntry
 }
 
-// DeleteTopic holds parameters for deleting a topic.
-type DeleteTopic struct {
-	// Topic name to delete
-	Topic string
 }
 
 // NewPartitions holds parameters for creating additional partitions for a topic.
@@ -562,7 +558,7 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecificat
 // topic metadata and configuration may continue to return information about deleted topics.
 //
 // Requires broker version >= 0.10.1.0
-func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, options ...DeleteTopicsAdminOption) (result []TopicResult, err error) {
+func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options ...DeleteTopicsAdminOption) (result []TopicResult, err error) {
 	cTopics := make([]*C.rd_kafka_DeleteTopic_t, len(topics))
 
 	cErrstrSize := C.size_t(512)
@@ -571,10 +567,10 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []DeleteTopic, op
 
 	// Convert Go DeleteTopics to C DeleteTopics
 	for i, topic := range topics {
-		cTopics[i] = C.rd_kafka_DeleteTopic_new(C.CString(topic.Topic))
+		cTopics[i] = C.rd_kafka_DeleteTopic_new(C.CString(topic))
 		if cTopics[i] == nil {
 			return nil, newErrorFromString(ErrInvalidArg,
-				fmt.Sprintf("Invalid arguments for topic %s", topic.Topic))
+				fmt.Sprintf("Invalid arguments for topic %s", topic))
 		}
 
 		defer C.rd_kafka_DeleteTopic_destroy(cTopics[i])
