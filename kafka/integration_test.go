@@ -1404,7 +1404,7 @@ func TestAdminConfig(t *testing.T) {
 	// need to be passed, otherwise non-passed values will be reverted
 	// to their default values.
 	// Future versions will allow incremental updates:
-	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-248+-+Create+New+ConfigCommand+That+Uses+The+New+AdminClient
+	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API
 	newConfig := make(map[string]string)
 	for _, entry := range describeRes[0].Config {
 		newConfig[entry.Name] = entry.Value

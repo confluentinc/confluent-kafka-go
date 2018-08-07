@@ -193,28 +193,19 @@ func (c ConfigResource) String() string {
 }
 
 // AlterOperation specifies the operation to perform on the ConfigEntry.
-// One of AlterOperationAdd, AlterOperationSet, AlterOperationDelete.
+// Currently only AlterOperationSet.
 type AlterOperation int
 
 const (
-	// AlterOperationAdd adds the configuration setting.
-	AlterOperationAdd = iota
 	// AlterOperationSet sets/overwrites the configuration setting.
 	AlterOperationSet = iota
-	// AlterOperationDelete deletes the configuration setting,
-	// possibly reverting it to default.
-	AlterOperationDelete = iota
 )
 
 // String returns the human-readable representation of an AlterOperation
 func (o AlterOperation) String() string {
 	switch o {
-	case AlterOperationAdd:
-		return "Add"
 	case AlterOperationSet:
 		return "Set"
-	case AlterOperationDelete:
-		return "Delete"
 	default:
 		return fmt.Sprintf("Unknown%d?", int(o))
 	}
@@ -485,18 +476,13 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecificat
 			}
 		}
 
-		for _, entry := range topic.Config {
-			if entry.Operation == AlterOperationDelete {
-				return nil, newErrorFromString(ErrInvalidArg,
-					fmt.Sprintf("Delete is an invalid Operation for NewTopic entries (%s)", entry))
-			}
-
+		for key, value := range topic.Config {
 			cErr := C.rd_kafka_NewTopic_set_config(
 				cTopics[i],
-				C.CString(entry.Name), C.CString(entry.Value))
+				C.CString(key), C.CString(value))
 			if cErr != 0 {
 				return nil, newCErrorFromString(cErr,
-					fmt.Sprintf("Failed to set config %s for topic %s", entry, topic.Topic))
+					fmt.Sprintf("Failed to set config %s=%s for topic %s", key, value, topic.Topic))
 			}
 		}
 	}
@@ -693,9 +679,6 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPart
 // AlterConfigs will replace all existing configuration for
 // the provided resources with the new configuration given,
 // reverting all other configuration to their default values.
-// Setting SetAdminIncremental(true) changes the behaviour to
-// only alter specified configuration, leaving remaining configuration intact
-// (requires a broker with KIP-248 support).
 //
 // Multiple resources and resource types may be set, but at most one
 // resource of type ResourceBroker is allowed per call since these
@@ -721,15 +704,9 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 		for _, entry := range res.Config {
 			var cErr C.rd_kafka_resp_err_t
 			switch entry.Operation {
-			case AlterOperationAdd:
-				cErr = C.rd_kafka_ConfigResource_add_config(
-					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
 			case AlterOperationSet:
 				cErr = C.rd_kafka_ConfigResource_set_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case AlterOperationDelete:
-				cErr = C.rd_kafka_ConfigResource_delete_config(
-					cRes[i], C.CString(entry.Name))
 			default:
 				panic(fmt.Sprintf("Invalid ConfigEntry.Operation: %v", entry.Operation))
 			}

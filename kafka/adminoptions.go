@@ -200,66 +200,6 @@ func SetAdminValidateOnly(validateOnly bool) (ao AdminOptionValidateOnly) {
 	return ao
 }
 
-// AdminOptionIncremental tells the broker to apply the provided configuration
-// incrementally, rather than replacing and reverting all configuration
-// for the resources.
-//
-// Default: false.
-//
-// Valid for AlterConfigs.
-//
-// Requires broker with KIP-248 support.
-//
-// The request will fail (locally) if the broker does not support
-// incremental updates.
-type AdminOptionIncremental struct {
-	isSet bool
-	val   bool
-}
-
-func (ao AdminOptionIncremental) supportsAlterConfigs() {
-}
-
-func (ao AdminOptionIncremental) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
-	if !ao.isSet {
-		return nil
-	}
-
-	cErrstrSize := C.size_t(512)
-	cErrstr := (*C.char)(C.malloc(cErrstrSize))
-	defer C.free(unsafe.Pointer(cErrstr))
-
-	cErr := C.rd_kafka_AdminOptions_set_incremental(
-		cOptions, bool2cint(ao.val),
-		cErrstr, cErrstrSize)
-	if cErr != 0 {
-		C.rd_kafka_AdminOptions_destroy(cOptions)
-		return newCErrorFromString(cErr,
-			fmt.Sprintf("%s", C.GoString(cErrstr)))
-
-	}
-
-	return nil
-}
-
-// SetAdminIncremental tells the broker to apply the provided configuration
-// incrementally, rather than replacing and reverting all configuration
-// for the resources.
-//
-// Default: false.
-//
-// Valid for AlterConfigs.
-//
-// Requires broker with KIP-248 support.
-//
-// The request will fail (locally) if the broker does not support
-// incremental updates.
-func SetAdminIncremental(incremental bool) (ao AdminOptionIncremental) {
-	ao.isSet = true
-	ao.val = incremental
-	return ao
-}
-
 // CreateTopicsAdminOption - see setters.
 //
 // See SetAdminRequestTimeout, SetAdminOperationTimeout, SetAdminValidateOnly.
