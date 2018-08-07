@@ -1308,7 +1308,7 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 		expResult := expResults[i]
 
 		if result.Error.Code() != expResult.Error.Code() {
-			t.Errorf("%s: %v: Expected %v, got %v", caller, result, expResult.Error.Code(), expResult.Error)
+			t.Errorf("%s: %v: Expected %v, got %v", caller, result, expResult.Error.Code(), result.Error.Code())
 			continue
 		}
 
@@ -1389,6 +1389,19 @@ func TestAdminConfig(t *testing.T) {
 	if topicResult[0].Error.Code() != ErrNoError {
 		t.Fatalf("Failed to create topic %s: %s", topic, topicResult[0].Error)
 	}
+
+	// Wait for topic to show up in metadata before performing
+	// subsequent operations on it, otherwise we risk DescribeConfigs()
+	// to fail with UnknownTopic.. (this is really a broker issue).
+	// Sometimes even the metadata is not enough, so we add an
+	// arbitrary 10s sleep too.
+	t.Logf("Waiting for new topic %s to show up in metadata and stabilize", topic)
+	err = waitTopicInMetadata(a, topic, 10*1000) // 10s
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	t.Logf("Topic %s now in metadata, waiting another 10s for stabilization", topic)
+	time.Sleep(10 * 1000 * 1000)
 
 	// Read back config to validate
 	configResources := []ConfigResource{{Type: ResourceTopic, Name: topic}}
