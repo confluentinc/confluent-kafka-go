@@ -128,7 +128,7 @@ func (cConf *rdkConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSiz
 }
 
 func (ctopicConf *rdkTopicConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t {
-	return C.rd_kafka_topic_conf_set((*C.rd_kafka_conf_t)(ctopicConf), cKey, cVal, cErrstr, C.size_t(errstrSize))
+	return C.rd_kafka_topic_conf_set((*C.rd_kafka_topic_conf_t)(ctopicConf), cKey, cVal, cErrstr, C.size_t(errstrSize))
 }
 
 func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
