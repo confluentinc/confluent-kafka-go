@@ -231,3 +231,34 @@ func (m ConfigMap) clone() ConfigMap {
 func (m ConfigMap) Get(key string, defval ConfigValue) (ConfigValue, error) {
 	return m.get(key, defval)
 }
+
+// Return integer value for key if it exists.
+// If the key doesn't exist or there was a type mismatch defaultVal is returned.
+func (m ConfigMap) GetInt(key string, defaultVal int) (int) {
+		switch m[key].(type) {
+		case int:
+			return m[key].(int)
+		default:
+			return defaultVal
+	}
+}
+
+// Return string value for key if it exists.
+// If the key doesn't exist or there was a type mismatch defaultVal is returned.
+func (m ConfigMap) GetString(key string, defaultVal string) (string) {
+	switch m[key].(type) {
+	case string:
+		return m[key].(string)
+	default:
+		return defaultVal
+	}
+}
+
+func (m ConfigMap) GetBool(key string, defaultVal bool) (bool) {
+	switch m[key].(type) {
+	case bool:
+		return m[key].(bool)
+	default:
+		return defaultVal
+	}
+}
