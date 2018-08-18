@@ -248,12 +248,14 @@ func (m ConfigMap) GetInt(key string, defaultVal int) (int) {
 func (m ConfigMap) GetString(key string, defaultVal string) (string) {
 	switch m[key].(type) {
 	case string:
-		return m[key].(string)
+		return strings.ToLower(m[key].(string))
 	default:
 		return defaultVal
 	}
 }
 
+// Return boolean value for key if it exists.
+// If the key doesn't exist or there was a type mismatch defaultVal is returned.
 func (m ConfigMap) GetBool(key string, defaultVal bool) (bool) {
 	switch m[key].(type) {
 	case bool:
