@@ -232,7 +232,7 @@ func (m ConfigMap) Get(key string, defval ConfigValue) (ConfigValue, error) {
 	return m.get(key, defval)
 }
 
-// Return integer value for key if it exists.
+// GetInt performs a get() returning an integer value if the key exists.
 // If the key doesn't exist or there was a type mismatch defaultVal is returned.
 func (m ConfigMap) GetInt(key string, defaultVal int) (int) {
 		switch m[key].(type) {
@@ -243,7 +243,7 @@ func (m ConfigMap) GetInt(key string, defaultVal int) (int) {
 	}
 }
 
-// Return string value for key if it exists.
+// GetString performs a get() returning a string value if the key exists.
 // If the key doesn't exist or there was a type mismatch defaultVal is returned.
 func (m ConfigMap) GetString(key string, defaultVal string) (string) {
 	switch m[key].(type) {
@@ -254,7 +254,7 @@ func (m ConfigMap) GetString(key string, defaultVal string) (string) {
 	}
 }
 
-// Return boolean value for key if it exists.
+// GetBool performs a get() returning a bool value if the key it exists.
 // If the key doesn't exist or there was a type mismatch defaultVal is returned.
 func (m ConfigMap) GetBool(key string, defaultVal bool) (bool) {
 	switch m[key].(type) {

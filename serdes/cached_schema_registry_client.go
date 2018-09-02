@@ -75,7 +75,7 @@ func (c schemaCache) get(schema Schema) *subjectRegistry {
 
 /* Schema and its integer id */
 type schemaDescriptor struct {
-	Id     int    `json:"id,omitempty"`
+	ID     int    `json:"id,omitempty"`
 	Schema Schema `json:"schema,omitempty"`
 }
 
@@ -108,15 +108,15 @@ type idRegistry struct {
 type client struct {
 	sync.Mutex
 	restService *RestService
-	schemaById  *lru.Cache
+	schemaByID  *lru.Cache
 	idBySchema  *schemaCache
 }
 
 /* https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java */
 type SchemaRegistryClient interface {
 	Register(subject Subject, schema Schema) (id int, err error)
-	GetById(id int) (schema Schema, err error)
-	GetId(subject Subject, schema Schema) (id int, err error)
+	GetByID(id int) (schema Schema, err error)
+	GetID(subject Subject, schema Schema) (id int, err error)
 	GetLatestSchemaMetadata(subject Subject) (Version, error)
 	GetSchemaMetadata(subject Subject, version int) (Version, error)
 	GetVersion(subject Subject, schema Schema) (version int, err error)
@@ -142,7 +142,7 @@ func NewCachedSchemaRegistryClient(conf *kafka.ConfigMap) (SchemaRegistryClient 
 	handle := &client{
 		restService: restService,
 		idBySchema:  &schemaCache{lru.New(conf.GetInt("schema.registry.max.cached.schemas", 1000))},
-		schemaById:  lru.New(conf.GetInt("schema.registry.max.cached.schemas", 1000)),
+		schemaByID:  lru.New(conf.GetInt("schema.registry.max.cached.schemas", 1000)),
 	}
 	handle.idBySchema.OnEvicted = OnEvict
 	return handle, nil
@@ -167,7 +167,7 @@ func (c *client) Register(subject Subject, schema Schema) (id int, err error) {
 		}
 		c.Unlock()
 		log.Printf("Subject %s registration served from local cache\n", subject)
-		return sd.Id, s.err
+		return sd.ID, s.err
 	}
 
 	s = &cacheEntry{
@@ -178,24 +178,24 @@ func (c *client) Register(subject Subject, schema Schema) (id int, err error) {
 	c.Unlock()
 
 	err = c.restService.handleRequest(newAPI("POST", version, &sd, subject), &sd)
-	log.Printf("Registered subject %s with schema %d with remote registry\n", subject, sd.Id)
+	log.Printf("Registered subject %s with schema %d with remote registry\n", subject, sd.ID)
 
 	c.Lock()
 	if err != nil {
 		s.err = err
 	}
 	c.idBySchema.Add(schema, sd)
-	s.state = sd.Id
+	s.state = sd.ID
 	s.cond.Broadcast()
 	c.Unlock()
-	return sd.Id, err
+	return sd.ID, err
 }
 
 // Fetch schema identified by input id.
 // Returns Schema object on success
-func (c *client) GetById(id int) (schema Schema, err error) {
+func (c *client) GetByID(id int) (schema Schema, err error) {
 	c.Lock()
-	if entry, ok := c.schemaById.Get(id); ok {
+	if entry, ok := c.schemaByID.Get(id); ok {
 		entry := entry.(*idRegistry)
 		for entry.Schema == nil {
 			log.Printf("Parking redundant fetch for schema %d while request is in flight.\n", id)
@@ -212,7 +212,7 @@ func (c *client) GetById(id int) (schema Schema, err error) {
 		},
 	}
 
-	c.schemaById.Add(id, entry)
+	c.schemaByID.Add(id, entry)
 	c.Unlock()
 
 	log.Printf("Retrieving schema %d from remote registry\n", id)
@@ -220,21 +220,21 @@ func (c *client) GetById(id int) (schema Schema, err error) {
 
 	c.Lock()
 	entry.cond.Broadcast()
-	c.schemaById.Add(id, entry)
+	c.schemaByID.Add(id, entry)
 	c.Unlock()
 
 	return entry.Schema, err
 }
 
 // Fetch schema ID associated with Subject and Schema
-// Returns Schema integer Id
-func (c *client) GetId(subject Subject, schema Schema) (id int, err error) {
+// Returns Schema integer ID
+func (c *client) GetID(subject Subject, schema Schema) (id int, err error) {
 	result := &schemaDescriptor{}
 	result.Schema = schema
 
 	err = c.restService.handleRequest(newAPI("POST", subjects, &result, subject), &result)
 
-	return result.Id, err
+	return result.ID, err
 }
 
 // Find Subject Version associated with the provided schema
