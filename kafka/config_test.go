@@ -128,6 +128,14 @@ func TestConfigMapAPIs(t *testing.T) {
 // Test that plugins will always be configured before their config options
 func TestConfigPluginPaths(t *testing.T) {
 	config := &ConfigMap{
+		"plugin.library.paths": "monitoring-interceptor",
+	}
+	_, err := config.convert()
+	if err != nil {
+		t.Skipf("Missing monitoring-interceptor.so, %s", err)
+	}
+
+	config = &ConfigMap{
 		"plugin.library.paths":                     "monitoring-interceptor",
 		"confluent.monitoring.interceptor.icdebug": true,
 	}
