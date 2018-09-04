@@ -132,7 +132,7 @@ func TestConfigPluginPaths(t *testing.T) {
 	}
 	_, err := config.convert()
 	if err != nil {
-		t.Skipf("Missing monitoring-interceptor.so, %s", err)
+		t.Skipf("Missing monitoring-interceptor: %s", err)
 	}
 
 	config = &ConfigMap{
