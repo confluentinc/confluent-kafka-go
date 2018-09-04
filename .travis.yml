@@ -19,10 +19,10 @@ env:
 # workaround for now is to skip exec for those.
 
 before_install:
-  - wget -qO - https://packages.confluent.io/deb/5.0/archive.key | sudo apt-key add -
-  - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.0 stable main" -y
-  - sudo apt-get update -q
-  - sudo apt-get install confluent-librdkafka-plugins -y
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.0/archive.key | sudo apt-key add - ; fi
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.0 stable main" -y ; fi
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get update -q ; fi
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install confluent-librdkafka-plugins -y ; fi
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
   - go get -u github.com/golang/lint/golint
