@@ -99,7 +99,11 @@ type rdkAnyconf interface {
 	set(cKey *C.char, cVal *C.char, cErrstr *C.char, errstrSize int) C.rd_kafka_conf_res_t
 }
 
-func anyconfSet(anyconf rdkAnyconf, key string, value string) (err error) {
+func anyconfSet(anyconf rdkAnyconf, key string, val ConfigValue) (err error) {
+	value, errstr := value2string(val)
+	if errstr != "" {
+		return Error{ErrInvalidArg, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, key)}
+	}
 	cKey := C.CString(key)
 	cVal := C.CString(value)
 	cErrstr := (*C.char)(C.malloc(C.size_t(128)))
@@ -128,8 +132,19 @@ func (ctopicConf *rdkTopicConf) set(cKey *C.char, cVal *C.char, cErrstr *C.char,
 }
 
 func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
-
+	// set plugins first, any plugin-specific configuration depends on
+	// the plugin to have already been set
+	pluginPaths, ok := m["plugin.library.paths"]
+	if ok {
+		err = anyconfSet(anyconf, "plugin.library.paths", pluginPaths)
+		if err != nil {
+			return err
+		}
+	}
 	for k, v := range m {
+		if k == "plugin.library.paths" {
+			continue
+		}
 		switch v.(type) {
 		case ConfigMap:
 			/* Special sub-ConfigMap, only used for default.topic.config */
@@ -152,12 +167,7 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 				(*C.rd_kafka_topic_conf_t)((*rdkTopicConf)(cTopicConf)))
 
 		default:
-			val, errstr := value2string(v)
-			if errstr != "" {
-				return Error{ErrInvalidArg, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, k)}
-			}
-
-			err = anyconfSet(anyconf, k, val)
+			err = anyconfSet(anyconf, k, v)
 			if err != nil {
 				return err
 			}

@@ -124,3 +124,21 @@ func TestConfigMapAPIs(t *testing.T) {
 	}
 
 }
+
+// Test that plugins will always be configured before their config options
+func TestConfigPluginPaths(t *testing.T) {
+	config := &ConfigMap{
+		"plugin.library.paths":                     "monitoring-interceptor",
+		"confluent.monitoring.interceptor.icdebug": true,
+	}
+
+	// convert() would fail randomly due to random order of ConfigMap key iteration.
+	// running convert() once gave the test case a 50% failure chance,
+	// running it 100 times gives ~100%
+	for i := 1; i <= 100; i++ {
+		_, err := config.convert()
+		if err != nil {
+			t.Fatalf("Failed to convert. Error: %s\n", err)
+		}
+	}
+}
