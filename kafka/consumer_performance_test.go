@@ -37,7 +37,7 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 
 	rand.Seed(int64(time.Now().Unix()))
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
 		"go.events.channel.enable": useChannel,
 		"group.id":                 fmt.Sprintf("go_cperf_%d", rand.Intn(1000000)),
 		"session.timeout.ms":       6000,
@@ -46,7 +46,7 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 		"debug":                    ",",
 		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("consumer")
 
 	c, err := NewConsumer(&conf)
 
@@ -57,7 +57,7 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 	expCnt := msgcnt
 	b.Logf("%s, expecting %d messages", testname, expCnt)
 
-	c.Subscribe(testconf.Topic, rebalanceCb)
+	c.Subscribe(testconf["topic"].(string), rebalanceCb)
 
 	rd := ratedispStart(b, testname, 10)
 
@@ -131,18 +131,18 @@ var testconsumerInited = false
 // returns the number of messages to consume
 func testconsumerInit(b *testing.B) int {
 	if testconsumerInited {
-		return testconf.PerfMsgCount
+		return testconf.getObject("performance").getInt("PerfMsgCount")
 	}
 
 	if !testconfRead() {
 		return -1
 	}
 
-	msgcnt := testconf.PerfMsgCount
+	msgcnt := testconf.getObject("performance").getInt("PerfMsgCount")
 
-	currcnt, err := getMessageCountInTopic(testconf.Topic)
+	currcnt, err := getMessageCountInTopic(testconf["topic"].(string))
 	if err == nil {
-		b.Logf("Topic %s has %d messages, need %d", testconf.Topic, currcnt, msgcnt)
+		b.Logf("Topic %s has %d messages, need %d", testconf.getString("topic"), currcnt, msgcnt)
 	}
 	if currcnt < msgcnt {
 		producerPerfTest(b, "Priming producer", msgcnt, false, false,

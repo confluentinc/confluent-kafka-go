@@ -37,7 +37,7 @@ func TestConfigMapAPIs(t *testing.T) {
 	config := &ConfigMap{}
 
 	// set a good key via SetKey()
-	err := config.SetKey("bootstrap.servers", testconf.Brokers)
+	err := config.SetKey("bootstrap.servers", testconf.getString("bootstrap.servers"))
 	if err != nil {
 		t.Errorf("Failed to set key via SetKey(). Error: %s\n", err)
 	}

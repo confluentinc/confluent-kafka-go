@@ -1,17 +1,18 @@
-package serdes
+package kafka
 
 import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -38,7 +39,7 @@ type api struct {
 }
 
 /* Constructs new API request object */
-func newAPI(method string, endpoint string, body interface{}, arguments ...interface{}) *api {
+func newRequest(method string, endpoint string, body interface{}, arguments ...interface{}) *api {
 	return &api{
 		method:    method,
 		endpoint:  endpoint,
@@ -70,26 +71,44 @@ type httpError struct {
 }
 
 type RestService struct {
-	url *url.URL
+	url     *url.URL
+	headers http.Header
 	*http.Client
 }
 
 /* Instantiates a new RestService client for contacting the Remote Confluent Schema Registry */
-func NewRestService(conf *kafka.ConfigMap) (restService *RestService, err error) {
-	var baseURL *url.URL
-	if baseURL, err = url.Parse(conf.GetString("schema.registry.url", "not configured")); err != nil {
-		log.Printf("Failed to parse schema.registry.url %s\n", err)
+func NewRestService(conf ConfigMap) (restService *RestService, err error) {
+	var url *url.URL
+	if url, err = url.Parse(conf.GetString("url", "")); err != nil {
+		log.Printf("Failed to parse schema registry url %s\n", err)
 		return nil, err
 	}
 
-	configureBasicAuth(conf)
+	headers := http.Header{
+		"Content-Type": []string{"application/vnd.schemaregistry.v1+json"},
+	}
+
+	_, err = configureAuth(url, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	//if auth != "" {
+	//	headers.Add("Authorization", "Basic "+auth)
+	//}
+
+	if err != nil {
+		return nil, err
+	}
+
 	transport, err := configureTransport(conf)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RestService{
-		url: baseURL,
+		url:     url,
+		headers: headers,
 		Client: &http.Client{
 			Transport: transport,
 			Timeout:   time.Duration(conf.GetInt("request.timeout.ms", 30000)) * time.Millisecond,
@@ -97,8 +116,13 @@ func NewRestService(conf *kafka.ConfigMap) (restService *RestService, err error)
 	}, nil
 }
 
+// encodeBasicAuth adds a basic http authentication header to the provided header
+func encodeBasicAuth(userinfo string) string {
+	return base64.StdEncoding.EncodeToString([]byte(userinfo))
+}
+
 /* Configure transport with properties provided in kafka.ConfigMap */
-func configureTransport(conf *kafka.ConfigMap) (*http.Transport, error) {
+func configureTransport(conf ConfigMap) (*http.Transport, error) {
 	certFile := conf.GetString("ssl.certificate.location", "")
 	keyFile := conf.GetString("ssl.key.location", "")
 	caFile := conf.GetString("ssl.ca.location", "")
@@ -126,7 +150,11 @@ func configureTransport(conf *kafka.ConfigMap) (*http.Transport, error) {
 		if err != nil {
 			return nil, err
 		}
-		caCertPool := x509.NewCertPool()
+		caCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
+
 		caCertPool.AppendCertsFromPEM(caCert)
 	}
 
@@ -134,37 +162,50 @@ func configureTransport(conf *kafka.ConfigMap) (*http.Transport, error) {
 
 	return &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: time.Duration(conf.GetInt("schema.registry.connection.timeout.ms", 10000)) *
+			Timeout: time.Duration(conf.GetInt("connection.timeout.ms", 10000)) *
 				time.Millisecond,
 		}).Dial,
 		TLSClientConfig: tlsConfig,
 	}, nil
 }
 
-/* Configure basic http auth using the configured source */
-func configureBasicAuth(conf *kafka.ConfigMap) (userinfo *url.Userinfo, err error) {
-	switch source := conf.GetString("basic.auth.credentials.source", "url"); source {
-	case "url":
-		u, err := url.Parse(conf.GetString("schema.registry.url", "none"))
-		if err != nil {
-			return nil, err
+/* configureAuth returns a base64 encoded userinfo string identified on the configured credentials source */
+func configureAuth(service *url.URL, conf ConfigMap) (auth string, err error) {
+	// Remove userinfo from url regardless of source to avoid confusion/conflicts
+	defer func() {
+		service.User = nil
+	}()
+
+	switch source := strings.ToUpper(conf.GetString("basic.auth.credentials.source", "url")); source {
+	case "URL":
+		return encodeBasicAuth(service.User.String()), nil
+	case "SASL_INHERIT":
+		if strings.ToUpper(conf.GetString("sasl.mechanism", "GSSAPI")) == "GSSAPI" {
+			return "", fmt.Errorf("SASL_INHERIT support PLAIN and SCRAM SASL mechanisms only")
 		}
-		userinfo = u.User
-	case "sasl_inherit":
-		userinfo = url.UserPassword(
-			conf.GetString("sasl.username", "none"),
-			conf.GetString("sasl.password", "none"))
-	case "userinfo":
-		userinfo = url.User(conf.GetString("basic.auth.user.info", "none"))
+
+		user := conf.GetString("sasl.username", "")
+		pass := conf.GetString("sasl.password", "")
+
+		if user != "" && pass != "" {
+			return encodeBasicAuth(user + ":" + pass), nil
+		}
+
+		err = fmt.Errorf("SASL_INHERIT requires both sasl.username and sasl.password be set")
+	case "USER_INFO":
+		if auth := conf.GetString("basic.auth.user.info", ""); auth != "" {
+			return encodeBasicAuth(auth), nil
+		}
+		err = fmt.Errorf("USER_INFO source configured without basic.auth.user.info ")
 	default:
-		return nil, fmt.Errorf("unkown credentials source %s", source)
+		err = fmt.Errorf("unsupported credentials source %s", source)
 	}
-	return userinfo, nil
+	return "", err
 }
 
-/* Send HTTP(S) request to Schema Registry, unmarshal results into response object */
+/* handleRequest ends a HTTP(S) request to the Schema Registry, placing results into the response object */
 func (rs *RestService) handleRequest(request *api, response interface{}) error {
-	u, err := rs.url.Parse(fmt.Sprintf(base+request.endpoint, request.arguments...))
+	endpoint, err := rs.url.Parse(fmt.Sprintf(base+request.endpoint, request.arguments...))
 	if err != nil {
 		return err
 	}
@@ -174,19 +215,20 @@ func (rs *RestService) handleRequest(request *api, response interface{}) error {
 		return err
 	}
 
-	r := &http.Request{
+	req := &http.Request{
 		Method: request.method,
-		URL:    u,
+		URL:    endpoint,
 		Body:   ioutil.NopCloser(bytes.NewBuffer(outbuf)),
+		Header: rs.headers,
 	}
 
-	resp, err := rs.Do(r)
+	resp, err := rs.Do(req)
+
 	if err != nil {
 		return err
 	}
 
 	defer resp.Body.Close()
-
 	if resp.StatusCode == 200 {
 		if err = json.NewDecoder(resp.Body).Decode(response); err != nil {
 			return err

@@ -19,9 +19,12 @@ package kafka
 import (
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"testing"
 	"time"
+	"runtime"
+	"sort"
 )
 
 // producer test control
@@ -72,6 +75,32 @@ var p0TestMsgs []*testmsgType // partition 0 test messages
 // pAllTestMsgs holds messages for various partitions including PartitionAny and  invalid partitions
 var pAllTestMsgs []*testmsgType
 
+var testSchemas = []struct {
+	source string
+	load   func(string) string
+}{
+	{source: "test_resources/adv_schema.avsc",
+		load: readAvsc,
+	},
+	{source: "test_resources/basic_schema.avsc",
+		load: readAvsc,
+	},
+	{   source: "test_resources/primitive_float.avsc",
+		load: readAvsc,
+	},
+	{   source: "test_resources/primitive_string.avsc",
+		load: readAvsc,
+	},
+}
+
+func readAvsc(pathname string) string {
+	buff, err := ioutil.ReadFile(pathname)
+	if err != nil {
+		panic(err)
+	}
+	return string(buff)
+}
+
 // createTestMessages populates p0TestMsgs and pAllTestMsgs
 func createTestMessages() {
 
@@ -81,20 +110,21 @@ func createTestMessages() {
 	defer func() { testMsgsInit = true }()
 
 	testmsgs := make([]*testmsgType, 100)
+	topic := "test-topic"
 	i := 0
 
 	// a test message with default initialization
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0}}}
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0}}}
 	i++
 
 	// a test message for partition 0 with only Opaque specified
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
 	i++
 
 	// a test message for partition 0 with empty Value and Keys
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Value:  []byte(""),
 		Key:    []byte(""),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -102,7 +132,7 @@ func createTestMessages() {
 	i++
 
 	// a test message for partition 0 with Value, Key, and Opaque
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -110,14 +140,14 @@ func createTestMessages() {
 	i++
 
 	// a test message for partition 0 without  Value
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
 	i++
 
 	// a test message for partition 0 without Key
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
@@ -126,7 +156,7 @@ func createTestMessages() {
 	p0TestMsgs = testmsgs[:i]
 
 	// a test message for PartitonAny with Value, Key, and Opaque
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: PartitionAny},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: PartitionAny},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -136,7 +166,7 @@ func createTestMessages() {
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
 	testmsgs[i] = &testmsgType{expectedError: Error{ErrUnknownPartition, ""},
-		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: int32(10000)},
+		msg: Message{TopicPartition: TopicPartition{Topic: &topic, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
 			Opaque: fmt.Sprintf("Op%d", i),
@@ -233,12 +263,12 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	}
 
 	//get the number of messages prior to producing more messages
-	prerunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
+	prerunMsgCnt, err := getMessageCountInTopic("test-topic")
 	if err != nil {
 		t.Fatalf("Cannot get message count, Error: %s\n", err)
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootsrap.broker"),
 		"go.batch.producer":            pc.batchProducer,
 		"go.delivery.reports":          pc.withDr,
 		"queue.buffering.max.messages": len(testmsgs),
@@ -246,7 +276,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"broker.version.fallback":      "0.9.0.1",
 		"default.topic.config":         ConfigMap{"acks": 1}}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("producer")
 
 	p, err := NewProducer(&conf)
 	if err != nil {
@@ -300,7 +330,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	p.Close()
 
 	//get the number of messages afterward
-	postrunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
+	postrunMsgCnt, err := getMessageCountInTopic("test-topic")
 	if err != nil {
 		t.Fatalf("Cannot get message count, Error: %s\n", err)
 	}
@@ -333,16 +363,16 @@ func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, co
 		msgcnt = len(p0TestMsgs)
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
 		"go.events.channel.enable": cc.useChannel,
-		"group.id":                 testconf.GroupID,
+		"group.id":                 testconf.getString("group.id"),
 		"session.timeout.ms":       6000,
 		"api.version.request":      "true",
 		"enable.auto.commit":       cc.autoCommit,
 		"debug":                    ",",
 		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("consumer")
 
 	c, err := NewConsumer(&conf)
 
@@ -355,7 +385,7 @@ func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, co
 	mt := msgtrackerStart(t, expCnt)
 
 	t.Logf("%s, expecting %d messages", testname, expCnt)
-	c.Subscribe(testconf.Topic, rebalanceCb)
+	c.Subscribe("test-topic", rebalanceCb)
 
 	consumeFunc(c, &mt, expCnt)
 
@@ -404,7 +434,7 @@ func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
-	msgcnt, err := getMessageCountInTopic(testconf.Topic)
+	msgcnt, err := getMessageCountInTopic("test-topic")
 	if err != nil {
 		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
@@ -418,7 +448,7 @@ func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
-	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
+	newmsgcnt, err := getMessageCountInTopic("test-topic")
 	if err != nil {
 		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
@@ -435,11 +465,11 @@ func TestConsumerOffsetsForTimes(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id":            testconf.GroupID,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
+		"group.id":            testconf.getString("group.id"),
 		"api.version.request": true}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("consumer")
 
 	c, err := NewConsumer(&conf)
 
@@ -447,6 +477,8 @@ func TestConsumerOffsetsForTimes(t *testing.T) {
 		panic(err)
 	}
 	defer c.Close()
+
+	topic := "test-topic"
 
 	// Prime topic with test messages
 	createTestMessages()
@@ -456,7 +488,7 @@ func TestConsumerOffsetsForTimes(t *testing.T) {
 		})
 
 	times := make([]TopicPartition, 1)
-	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
+	times[0] = TopicPartition{Topic: &topic, Partition: 0, Offset: 12345}
 	offsets, err := c.OffsetsForTimes(times, 5000)
 	if err != nil {
 		t.Errorf("OffsetsForTimes() failed: %s\n", err)
@@ -468,7 +500,7 @@ func TestConsumerOffsetsForTimes(t *testing.T) {
 		return
 	}
 
-	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
+	if *offsets[0].Topic != topic || offsets[0].Partition != 0 {
 		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
 		return
 	}
@@ -478,9 +510,9 @@ func TestConsumerOffsetsForTimes(t *testing.T) {
 		return
 	}
 
-	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, _, err := c.QueryWatermarkOffsets(topic, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", topic, err)
 		return
 	}
 
@@ -501,8 +533,8 @@ func TestConsumerGetMetadata(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id": testconf.GroupID}
+	config := &ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
+		"group.id": testconf.getString("group.id")}
 
 	// Create consumer
 	c, err := NewConsumer(config)
@@ -512,12 +544,14 @@ func TestConsumerGetMetadata(t *testing.T) {
 	}
 	defer c.Close()
 
-	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
+	topic := "test-topic"
+
+	metaData, err := c.GetMetadata(&topic, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", topic, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", topic, metaData)
 
 	metaData, err = c.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -533,7 +567,7 @@ func TestProducerQueryWatermarkOffsets(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config := &ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers")}
 
 	// Create producer
 	p, err := NewProducer(config)
@@ -543,13 +577,13 @@ func TestProducerQueryWatermarkOffsets(t *testing.T) {
 	}
 	defer p.Close()
 
-	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, high, err := p.QueryWatermarkOffsets("test-topic", 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", "test-topic", err)
 		return
 	}
 	cnt := high - low
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", "test-topic", low, high)
 
 	createTestMessages()
 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
@@ -557,12 +591,12 @@ func TestProducerQueryWatermarkOffsets(t *testing.T) {
 			p.ProduceChannel() <- m
 		})
 
-	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, high, err = p.QueryWatermarkOffsets("test-topic", 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", "test-topic", err)
 		return
 	}
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", "test-topic", low, high)
 	newcnt := high - low
 	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
 	if newcnt-cnt != int64(len(p0TestMsgs)) {
@@ -576,7 +610,7 @@ func TestProducerGetMetadata(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config := &ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers")}
 
 	// Create producer
 	p, err := NewProducer(config)
@@ -586,12 +620,14 @@ func TestProducerGetMetadata(t *testing.T) {
 	}
 	defer p.Close()
 
-	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
+	topic := "test-topic"
+
+	metaData, err := p.GetMetadata(&topic, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", topic, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", topic, metaData)
 
 	metaData, err = p.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -628,7 +664,7 @@ func TestProducerFuncDR(t *testing.T) {
 
 // test producer with bad messages
 func TestProducerWithBadMessages(t *testing.T) {
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers")}
 	p, err := NewProducer(&conf)
 	if err != nil {
 		panic(err)
@@ -833,13 +869,13 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
 		"api.version.request":      true,
 		"go.events.channel.enable": true,
-		"group.id":                 testconf.Topic,
+		"group.id":                 "test-topic",
 	}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("consumer")
 
 	/* Create consumer and find recognizable message, verify timestamp.
 	 * The consumer is started before the producer to make sure
@@ -850,8 +886,9 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	t.Logf("Assign %s [0]", testconf.Topic)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+	topic := "test-topic"
+	t.Logf("Assign %s [0]", topic)
+	err = c.Assign([]TopicPartition{{Topic: &topic, Partition: 0,
 		Offset: OffsetEnd}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
@@ -871,6 +908,7 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 	 */
 	t.Logf("Creating producer")
 	conf.SetKey("{topic}.produce.offset.report", true)
+	conf.extract("go.events.channel.enable", false)
 	p, err := NewProducer(&conf)
 	if err != nil {
 		t.Fatalf("NewProducer: %v", err)
@@ -884,7 +922,7 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 	key := fmt.Sprintf("TS: %v", timestamp)
 	t.Logf("Producing message with timestamp %v", timestamp)
 	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Key:            []byte(key),
 		Timestamp:      timestamp},
 		drChan)
@@ -963,13 +1001,13 @@ func TestProducerConsumerHeaders(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
 		"api.version.request": true,
 		"enable.auto.commit":  false,
-		"group.id":            testconf.Topic,
+		"group.id":            "test-topic",
 	}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("consumer")
 
 	/*
 	 * Create producer and produce a couple of messages with and without
@@ -1014,10 +1052,11 @@ func TestProducerConsumerHeaders(t *testing.T) {
 		},
 	}
 
+	topic := "test-topic"
 	t.Logf("Producing %d messages", len(expMsgHeaders))
 	for _, hdrs := range expMsgHeaders {
 		err = p.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 			Headers:        hdrs},
 			drChan)
 	}
@@ -1051,7 +1090,7 @@ func TestProducerConsumerHeaders(t *testing.T) {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+	err = c.Assign([]TopicPartition{{Topic: &topic, Partition: 0,
 		Offset: firstOffset}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
@@ -1083,4 +1122,178 @@ func TestProducerConsumerHeaders(t *testing.T) {
 	}
 
 	c.Close()
+}
+
+type failFunc func(string, ...error)
+var maybeFail failFunc
+
+func initFailFunc(t *testing.T) failFunc {
+	tester := t
+	return func(msg string, errors ...error) {
+		for _, err := range errors {
+			if err != nil {
+				pc := make([]uintptr, 1)
+				runtime.Callers(2, pc)
+				caller := runtime.FuncForPC(pc[0])
+				_, line := caller.FileLine(caller.Entry())
+
+				tester.Fatalf("%s:%d failed: %s %s", caller.Name(), line, msg, err)
+			}
+		}
+	}
+}
+
+func expect(actual, expected interface{}) error {
+	if !reflect.DeepEqual(actual, expected) {
+		return fmt.Errorf("Expected: %v, Actual: %v\n", expected, actual)
+	}
+
+	return nil
+}
+
+func getSubjectName(topic string, isKey bool) string {
+	suffix := "value"
+	if isKey {
+		suffix = "key"
+	}
+	return fmt.Sprintf("%s-%s", topic, suffix)
+}
+
+func testRegister(subject string, schema *string) (id int) {
+	id, err := srClient.Register(subject, schema)
+	maybeFail(subject, err)
+
+	return id
+}
+
+func testGetByID(id int) *string {
+	schema, err := srClient.GetByID(id)
+	maybeFail(fmt.Sprintf("%d ", id), err)
+	return schema
+}
+
+func testGetID(subject string, schema *string, expected int) int {
+	actual, err := srClient.GetID(subject, schema)
+	maybeFail(subject, err, expect(actual.ID, expected))
+	return actual.Version
+}
+
+func testGetLatestSchemaMetadata(subject string) {
+	_, err := srClient.GetLatestSchemaMetadata(subject)
+	maybeFail(subject, err)
+}
+
+func testGetSchemaMetadata(subject string, versionID int, expected string) {
+	actual, err := srClient.GetSchemaMetadata(subject, versionID)
+	// avoid nil pointer dereference
+	maybeFail(subject, err)
+	maybeFail(subject,expect(expected, *actual.Schema))
+}
+
+func testGetVersion(subject string, schema *string, expected int) {
+	actual , err := srClient.GetVersion(subject, schema)
+	maybeFail(subject, err, expect(expected, actual))
+}
+
+func testGetAllVersions(subject string, expected []int) {
+	actual, err := srClient.GetAllVersions(subject)
+	sort.Ints(actual)
+	sort.Ints(actual)
+	maybeFail(subject, err, expect(actual, expected))
+}
+
+func testGetCompatibility(subject string, expected Compatibility) {
+	actual, err := srClient.GetCompatibility(subject)
+	maybeFail(subject, err, expect(actual, expected))
+}
+
+func testUpdateCompatibility(subject string, update Compatibility, expected Compatibility) {
+	actual, err := srClient.UpdateCompatibility(subject, update)
+	maybeFail(subject, err, expect(actual, expected))
+}
+
+func testGetDefaultCompatibility(expected Compatibility) {
+	actual, err := srClient.GetDefaultCompatibility()
+	maybeFail("Default Compatability", err, expect(actual, expected))
+}
+
+func testUpdateDefaultCompatibility(update Compatibility, expected Compatibility) {
+	actual, err := srClient.UpdateDefaultCompatibility(update)
+	maybeFail("Default Compatability", err, expect(actual, expected))
+}
+
+func testGetAllSubjects(expected []string) {
+	actual, err := srClient.GetAllSubjects()
+	sort.Strings(actual)
+	sort.Strings(expected)
+	maybeFail("All Subjects", err, expect(actual, expected))
+}
+
+func testDeleteSubject(subject string, expected []int) {
+	actual, err := srClient.DeleteSubject(subject)
+	sort.Ints(actual)
+	sort.Ints(expected)
+	maybeFail(subject, err, expect(actual, expected))
+}
+
+func testDeleteSubjectVersion(subject string, version int, expected int) {
+	actual, err := srClient.DeleteSubjectVersion(subject, version)
+	maybeFail(subject, err, expect(actual, expected))
+}
+
+func testTestCompatibility(subject string, version int, schema *string, expected bool){
+	actual, err := srClient.TestCompatibility(subject, version, schema)
+	maybeFail(subject, err, expect(actual, expected))
+}
+
+var srClient SchemaRegistryClient
+
+// TODO: examples with avrogen and without to serve as integration tests
+func TestNewCachedSchemaRegistryClient_API(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	maybeFail = initFailFunc(t)
+
+	conf := ConfigMap{
+		"url": testconf.getObject("schema-registry-client").getString("url"),
+	}
+
+	var err error
+	srClient, err = NewCachedSchemaRegistryClient(conf)
+	maybeFail("schema registry client instantiation ", err)
+
+	var subjects []string
+	var version, lastVersion int
+	for idx, elm := range testSchemas {
+		subject := getSubjectName(fmt.Sprintf("schema%d", idx), false)
+		schema := elm.load(elm.source)
+
+		id := testRegister(subject, &schema)
+		lastVersion = version
+		version = testGetID(subject, &schema, id)
+
+		// The schema registry will return a normalized Avro Schema so we can't directly compare the two
+		// To work around this we retrieve a normalized schema from the Schema registry first for comparison
+		normalized := testGetByID(id)
+		testGetSchemaMetadata(subject, version, *normalized)
+		testGetLatestSchemaMetadata(subject)
+
+		testUpdateCompatibility(subject, FORWARD, FORWARD)
+		testGetCompatibility(subject, FORWARD)
+		testTestCompatibility(subject, version, &schema, true)
+
+		testUpdateDefaultCompatibility(NONE, NONE)
+		testGetDefaultCompatibility(NONE)
+
+		testGetAllVersions(subject, []int{version})
+		testGetVersion(subject, &schema, version)
+
+		subjects = append(subjects, subject)
+	}
+
+	testDeleteSubject(subjects[len(subjects)-1], []int{version})
+	testDeleteSubjectVersion(subjects[len(subjects) - 2], lastVersion, lastVersion)
+	testGetAllSubjects(subjects[:len(subjects)-2])
 }

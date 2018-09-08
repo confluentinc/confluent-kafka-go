@@ -243,6 +243,17 @@ func (m ConfigMap) GetInt(key string, defaultVal int) (int) {
 	}
 }
 
+// ExtractInt performs a GetInt() and if found deletes the key.
+func (m ConfigMap) ExtractInt(key string, defaultVal int) (int) {
+	switch v := m[key].(type) {
+	case int:
+		delete(m, key)
+		return v
+	default:
+		return defaultVal
+	}
+}
+
 // GetString performs a get() returning a string value if the key exists.
 // If the key doesn't exist or there was a type mismatch defaultVal is returned.
 func (m ConfigMap) GetString(key string, defaultVal string) (string) {
@@ -254,12 +265,34 @@ func (m ConfigMap) GetString(key string, defaultVal string) (string) {
 	}
 }
 
+// ExtractString performs a GetString() and if found deletes the key.
+func (m ConfigMap) ExtractString(key string, defaultVal string) (string) {
+	switch v := m[key].(type) {
+	case string:
+		delete(m, key)
+		return v
+	default:
+		return defaultVal
+	}
+}
+
 // GetBool performs a get() returning a bool value if the key it exists.
 // If the key doesn't exist or there was a type mismatch defaultVal is returned.
 func (m ConfigMap) GetBool(key string, defaultVal bool) (bool) {
 	switch m[key].(type) {
 	case bool:
 		return m[key].(bool)
+	default:
+		return defaultVal
+	}
+}
+
+// ExtractBool performs a GetBool() and if found deletes the key.
+func (m ConfigMap) ExtractBool(key string, defaultVal bool) (bool) {
+	switch v := m[key].(type) {
+	case bool:
+		delete(m, key)
+		return v
 	default:
 		return defaultVal
 	}

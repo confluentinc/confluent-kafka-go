@@ -61,10 +61,10 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 	}
 
 	if msgcnt == 0 {
-		msgcnt = testconf.PerfMsgCount
+		msgcnt = testconf.getObject("performance").getInt("PerfMsgCount")
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+	conf := ConfigMap{"bootstrap.servers": testconf.getString("bootstrap.servers"),
 		"go.batch.producer":            batchProducer,
 		"go.delivery.reports":          withDr,
 		"queue.buffering.max.messages": msgcnt,
@@ -72,16 +72,16 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 		"broker.version.fallback":      "0.9.0.1",
 		"default.topic.config":         ConfigMap{"acks": 1}}
 
-	conf.updateFromTestconf()
+	conf.updateFromTestconf("producer")
 
 	p, err := NewProducer(&conf)
 	if err != nil {
 		panic(err)
 	}
 
-	topic := testconf.Topic
+	topic := testconf.getString("topic")
 	partition := int32(-1)
-	size := testconf.PerfMsgSize
+	size := testconf.getObject("performance").getInt("PerfMsgSize")
 	pattern := "Hello"
 	buf := []byte(strings.Repeat(pattern, size/len(pattern)))
 
@@ -177,7 +177,7 @@ func BenchmarkProducerChannel(b *testing.B) {
 
 func BenchmarkProducerChannelDR(b *testing.B) {
 	producerPerfTest(b, "Channel producer (with DR)",
-		testconf.PerfMsgCount, true, false, false,
+		testconf.getObject("performance").getInt("PerfMsgCount"), true, false, false,
 		func(p *Producer, m *Message, drChan chan Event) {
 			p.ProduceChannel() <- m
 		})

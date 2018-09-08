@@ -27,77 +27,106 @@ import (
 */
 import "C"
 
-var testconf struct {
-	Brokers      string
-	Topic        string
-	GroupID      string
-	PerfMsgCount int
-	PerfMsgSize  int
-	Config       []string
-	conf         ConfigMap
-}
+type testConf map[string]interface{}
 
-// testconf_read reads the test suite config file testconf.json which must
+var testconf testConf = make(testConf)
+
+// NewTestConf reads the test suite config file testconf.json which must
 // contain at least Brokers and Topic string properties.
-// Returns true if the testconf was found and usable, false if no such file, or panics
-// if the file format is wrong.
-func testconfRead() bool {
+// Returns Testconf if the testconf was found and usable,
+// error if file can't be read correctly
+func testconfRead() (bool) {
 	cf, err := os.Open("testconf.json")
+	defer cf.Close()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%% testconf.json not found - ignoring test\n")
 		return false
 	}
 
-	// Default values
-	testconf.PerfMsgCount = 2000000
-	testconf.PerfMsgSize = 100
-	testconf.GroupID = "testgroup"
-
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
+
 	if err != nil {
 		panic(fmt.Sprintf("Failed to parse testconf: %s", err))
 	}
 
-	cf.Close()
-
-	if testconf.Brokers[0] == '$' {
-		// Read broker list from environment variable
-		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
-	}
-
-	if testconf.Brokers == "" || testconf.Topic == "" {
-		panic("Missing Brokers or Topic in testconf.json")
-	}
+	resolveEnvs(testconf)
 
 	return true
 }
 
-// update existing ConfigMap with key=value pairs from testconf.Config
-func (cm *ConfigMap) updateFromTestconf() error {
-	if testconf.Config == nil {
-		return nil
+// resolveEnvs resolves environment variables
+func resolveEnvs(conf map[string]interface{}) {
+	for key, value := range conf {
+		switch v := value.(type) {
+		case string:
+			if v[0] == '$' {
+				conf[key] = os.Getenv(v[1:])
+			}
+		case int:
+		case bool:
+		case float64:
+		default:
+			resolveEnvs(v.(map[string]interface{}))
+		}
 	}
+}
 
-	// Translate "key=value" pairs in Config to ConfigMap
-	for _, s := range testconf.Config {
-		err := cm.Set(s)
-		if err != nil {
-			return err
+// getObject returns a child object of the root testConf
+func (tc testConf) getObject(name string) testConf {
+	return tc[name].(map[string]interface{})
+}
+
+// getString returns a string representation of the value represented by key from the provided namespace
+// if the namespace is an empty string the root object will be searched.
+func (tc testConf) getString(key string) string {
+	val, ok := tc[key]
+	if ok {
+		return val.(string)
+	}
+	return ""
+}
+
+// getInt returns an integer representation of the value represented by key from the provided namespace
+// If the namespace is an empty string the root object will be searched.
+func (tc testConf) getInt(key string) int {
+	val, ok := tc[key]
+	if ok {
+		return val.(int)
+	}
+	return 0
+}
+
+// updateFromTestConf populates existing ConfigMap with all common configs
+func (cm *ConfigMap) updateFromTestconf(element string) error {
+	for key, value := range testconf {
+		switch value.(type) {
+		case string:
+			cm.SetKey(key, value)
+		case int:
+			cm.SetKey(key, value)
+		case bool:
+			cm.SetKey(key, value)
+		case float64:
+			cm.SetKey(key, value)
+		default:
+			if key == element {
+				cm.updateFromTestconf("")
+			}
 		}
 	}
 
 	return nil
-
 }
 
 // Return the number of messages available in all partitions of a topic.
 // WARNING: This uses watermark offsets so it will be incorrect for compacted topics.
 func getMessageCountInTopic(topic string) (int, error) {
+	cm := ConfigMap{}
+	cm.updateFromTestconf("consumer")
 
 	// Create consumer
-	c, err := NewConsumer(&ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id": testconf.GroupID})
+	c, err := NewConsumer(&cm)
 	if err != nil {
 		return 0, err
 	}
