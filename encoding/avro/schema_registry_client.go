@@ -1,11 +1,12 @@
-package kafka
+package avro
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/golang/groupcache/lru"
 	"log"
 	"sync"
-	"fmt"
-	"encoding/json"
 )
 
 /* Schema Registry API endpoints
@@ -104,7 +105,7 @@ type idRegistry struct {
 /* HTTP(S) Schema Registry Client and schema caches */
 type client struct {
 	sync.Mutex
-	restService *RestService
+	restService *restService
 	schemaByID  *lru.Cache
 	idBySchema  *schemaCache
 }
@@ -129,19 +130,20 @@ type SchemaRegistryClient interface {
 }
 
 /* Returns concrete SchemaRegistry Client to be used by Avro SERDES */
-func NewCachedSchemaRegistryClient(conf ConfigMap) (SchemaRegistryClient *client, err error) {
-	restService, err := NewRestService(conf)
+func NewCachedSchemaRegistryClient(conf kafka.ConfigMap) (SchemaRegistryClient *client, err error) {
+
+	confCopy := conf.Clone()
+	restService, err := newRestService(conf)
 
 	if err != nil {
 		return nil, err
 	}
 
-	confCopy := conf.clone()
-
+	depth, err := confCopy.Extract("max.cached.schemas", 1000)
 	handle := &client{
 		restService: restService,
-		idBySchema:  &schemaCache{lru.New(confCopy.GetInt("max.cached.schemas", 1000))},
-		schemaByID:  lru.New(confCopy.GetInt("max.cached.schemas", 1000)),
+		idBySchema:  &schemaCache{lru.New(depth.(int))},
+		schemaByID:  lru.New(depth.(int)),
 	}
 
 	handle.idBySchema.OnEvicted = OnEvict
@@ -159,13 +161,15 @@ func (c *client) Register(subject string, schema *string) (id int, err error) {
 	sd := c.idBySchema.get(schema)
 
 	var s *cacheEntry
-	if s = sd.subjects[string(subject)]; s != nil {
-		for s.state == 0 {
-			log.Printf("Parking redundant registration for %s while request is in flight.\n", subject)
+	if s = sd.subjects[subject]; s != nil {
+		for s.state == 0 && s.err == nil {
+			//log.Printf("Parking redundant registration for %s while request is in flight.\n", subject)
 			s.cond.Wait()
 		}
 		c.Unlock()
-		log.Printf("Subject %s registration served from local cache\n", subject)
+		if s.err == nil {
+			//log.Printf("Subject %s registration served from local cache\n", subject)
+		}
 		return sd.ID, s.err
 	}
 
@@ -173,21 +177,28 @@ func (c *client) Register(subject string, schema *string) (id int, err error) {
 		cond: sync.NewCond(c),
 	}
 
-	sd.subjects[string(subject)] = s
+	sd.subjects[subject] = s
+
+	defer func(){
+		c.Unlock()
+		s.cond.Broadcast()
+	}()
 	c.Unlock()
 
 	err = c.restService.handleRequest(newRequest("POST", version, &sd, subject), &sd)
-	log.Printf("Successfully registered schema with subject %s\n", subject)
 
 	c.Lock()
+	s.state = sd.ID
+	s.err = err
+
 	if err != nil {
-		s.err = err
+		log.Printf("Failed to register schema with subject %s\n\t%s", subject, err)
+		c.idBySchema.Remove(schema)
+		return 0, err
 	}
 
 	c.idBySchema.Add(schema, sd)
-	s.state = sd.ID
-	s.cond.Broadcast()
-	c.Unlock()
+	log.Printf("Successfully registered schema with subject %s\n", subject)
 	return sd.ID, err
 }
 
@@ -197,15 +208,16 @@ func (c *client) GetByID(id int) (schema *string, err error) {
 	c.Lock()
 	if entry, ok := c.schemaByID.Get(id); ok {
 		entry := entry.(*idRegistry)
-		for entry.Schema == nil {
-			log.Printf("Parking redundant fetch for schema %d while request is in flight.\n", id)
+		for entry.ID == 0 && entry.err == nil {
+			//log.Printf("Parking redundant fetch for schema %d while request is in flight.\n", id)
 			entry.cond.Wait()
 		}
 		c.Unlock()
-		log.Printf("Returning schema %d from local cache\n", id)
+		if entry.err == nil {
+			//log.Printf("Returning schema %d from local cache\n", id)
+		}
 		return entry.Schema, entry.err
 	}
-
 	entry := &idRegistry{
 		cacheEntry: &cacheEntry{
 			cond: sync.NewCond(c),
@@ -213,19 +225,27 @@ func (c *client) GetByID(id int) (schema *string, err error) {
 	}
 
 	c.schemaByID.Add(id, entry)
+
+	defer func() {
+		c.Unlock()
+		entry.cond.Broadcast()
+	}()
 	c.Unlock()
 
 	log.Printf("Retrieving schema %d from remote registry\n", id)
 	err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &entry)
+
+	c.Lock()
+	entry.err = err
+	entry.ID = id
+
 	if err != nil {
-		log.Printf("Error: %s", err)
+		log.Printf("Failed to fetch schema %d\n\t%s", id, err)
+		c.schemaByID.Remove(id)
 		return entry.Schema, err
 	}
 
-	c.Lock()
-	entry.cond.Broadcast()
 	c.schemaByID.Add(id, entry)
-	c.Unlock()
 
 	return entry.Schema, err
 }
@@ -336,12 +356,12 @@ type compatibilityLevel struct {
 	Compatibility       Compatibility `json:"compatibilityLevel,omitempty"`
 }
 
-func (c Compatibility) MarshalJSON()([]byte, error) {
+func (c Compatibility) MarshalJSON() ([]byte, error) {
 	return json.Marshal(compatibilityENUM[c])
 }
 
-func (c *Compatibility) UnmarshalJSON(b []byte)(error) {
-	val := string(b[1:len(b)-1])
+func (c *Compatibility) UnmarshalJSON(b []byte) error {
+	val := string(b[1 : len(b)-1])
 	for idx, elm := range compatibilityENUM {
 		if elm == val {
 			*c = Compatibility(idx)
@@ -351,6 +371,7 @@ func (c *Compatibility) UnmarshalJSON(b []byte)(error) {
 
 	return fmt.Errorf("failed to unmarshal Compatibility")
 }
+
 type compatibilityValue struct {
 	Compatible bool `json:"is_compatible,omitempty"`
 }

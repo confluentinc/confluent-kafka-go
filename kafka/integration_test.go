@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 	"runtime"
-	"sort"
 )
 
 // producer test control
@@ -74,32 +73,6 @@ var testMsgsInit = false
 var p0TestMsgs []*testmsgType // partition 0 test messages
 // pAllTestMsgs holds messages for various partitions including PartitionAny and  invalid partitions
 var pAllTestMsgs []*testmsgType
-
-var testSchemas = []struct {
-	source string
-	load   func(string) string
-}{
-	{source: "test_resources/adv_schema.avsc",
-		load: readAvsc,
-	},
-	{source: "test_resources/basic_schema.avsc",
-		load: readAvsc,
-	},
-	{   source: "test_resources/primitive_float.avsc",
-		load: readAvsc,
-	},
-	{   source: "test_resources/primitive_string.avsc",
-		load: readAvsc,
-	},
-}
-
-func readAvsc(pathname string) string {
-	buff, err := ioutil.ReadFile(pathname)
-	if err != nil {
-		panic(err)
-	}
-	return string(buff)
-}
 
 // createTestMessages populates p0TestMsgs and pAllTestMsgs
 func createTestMessages() {
@@ -1124,32 +1097,6 @@ func TestProducerConsumerHeaders(t *testing.T) {
 	c.Close()
 }
 
-type failFunc func(string, ...error)
-var maybeFail failFunc
-
-func initFailFunc(t *testing.T) failFunc {
-	tester := t
-	return func(msg string, errors ...error) {
-		for _, err := range errors {
-			if err != nil {
-				pc := make([]uintptr, 1)
-				runtime.Callers(2, pc)
-				caller := runtime.FuncForPC(pc[0])
-				_, line := caller.FileLine(caller.Entry())
-
-				tester.Fatalf("%s:%d failed: %s %s", caller.Name(), line, msg, err)
-			}
-		}
-	}
-}
-
-func expect(actual, expected interface{}) error {
-	if !reflect.DeepEqual(actual, expected) {
-		return fmt.Errorf("Expected: %v, Actual: %v\n", expected, actual)
-	}
-
-	return nil
-}
 
 func getSubjectName(topic string, isKey bool) string {
 	suffix := "value"
@@ -1157,143 +1104,4 @@ func getSubjectName(topic string, isKey bool) string {
 		suffix = "key"
 	}
 	return fmt.Sprintf("%s-%s", topic, suffix)
-}
-
-func testRegister(subject string, schema *string) (id int) {
-	id, err := srClient.Register(subject, schema)
-	maybeFail(subject, err)
-
-	return id
-}
-
-func testGetByID(id int) *string {
-	schema, err := srClient.GetByID(id)
-	maybeFail(fmt.Sprintf("%d ", id), err)
-	return schema
-}
-
-func testGetID(subject string, schema *string, expected int) int {
-	actual, err := srClient.GetID(subject, schema)
-	maybeFail(subject, err, expect(actual.ID, expected))
-	return actual.Version
-}
-
-func testGetLatestSchemaMetadata(subject string) {
-	_, err := srClient.GetLatestSchemaMetadata(subject)
-	maybeFail(subject, err)
-}
-
-func testGetSchemaMetadata(subject string, versionID int, expected string) {
-	actual, err := srClient.GetSchemaMetadata(subject, versionID)
-	// avoid nil pointer dereference
-	maybeFail(subject, err)
-	maybeFail(subject,expect(expected, *actual.Schema))
-}
-
-func testGetVersion(subject string, schema *string, expected int) {
-	actual , err := srClient.GetVersion(subject, schema)
-	maybeFail(subject, err, expect(expected, actual))
-}
-
-func testGetAllVersions(subject string, expected []int) {
-	actual, err := srClient.GetAllVersions(subject)
-	sort.Ints(actual)
-	sort.Ints(actual)
-	maybeFail(subject, err, expect(actual, expected))
-}
-
-func testGetCompatibility(subject string, expected Compatibility) {
-	actual, err := srClient.GetCompatibility(subject)
-	maybeFail(subject, err, expect(actual, expected))
-}
-
-func testUpdateCompatibility(subject string, update Compatibility, expected Compatibility) {
-	actual, err := srClient.UpdateCompatibility(subject, update)
-	maybeFail(subject, err, expect(actual, expected))
-}
-
-func testGetDefaultCompatibility(expected Compatibility) {
-	actual, err := srClient.GetDefaultCompatibility()
-	maybeFail("Default Compatability", err, expect(actual, expected))
-}
-
-func testUpdateDefaultCompatibility(update Compatibility, expected Compatibility) {
-	actual, err := srClient.UpdateDefaultCompatibility(update)
-	maybeFail("Default Compatability", err, expect(actual, expected))
-}
-
-func testGetAllSubjects(expected []string) {
-	actual, err := srClient.GetAllSubjects()
-	sort.Strings(actual)
-	sort.Strings(expected)
-	maybeFail("All Subjects", err, expect(actual, expected))
-}
-
-func testDeleteSubject(subject string, expected []int) {
-	actual, err := srClient.DeleteSubject(subject)
-	sort.Ints(actual)
-	sort.Ints(expected)
-	maybeFail(subject, err, expect(actual, expected))
-}
-
-func testDeleteSubjectVersion(subject string, version int, expected int) {
-	actual, err := srClient.DeleteSubjectVersion(subject, version)
-	maybeFail(subject, err, expect(actual, expected))
-}
-
-func testTestCompatibility(subject string, version int, schema *string, expected bool){
-	actual, err := srClient.TestCompatibility(subject, version, schema)
-	maybeFail(subject, err, expect(actual, expected))
-}
-
-var srClient SchemaRegistryClient
-
-// TODO: examples with avrogen and without to serve as integration tests
-func TestNewCachedSchemaRegistryClient_API(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	maybeFail = initFailFunc(t)
-
-	conf := ConfigMap{
-		"url": testconf.getObject("schema-registry-client").getString("url"),
-	}
-
-	var err error
-	srClient, err = NewCachedSchemaRegistryClient(conf)
-	maybeFail("schema registry client instantiation ", err)
-
-	var subjects []string
-	var version, lastVersion int
-	for idx, elm := range testSchemas {
-		subject := getSubjectName(fmt.Sprintf("schema%d", idx), false)
-		schema := elm.load(elm.source)
-
-		id := testRegister(subject, &schema)
-		lastVersion = version
-		version = testGetID(subject, &schema, id)
-
-		// The schema registry will return a normalized Avro Schema so we can't directly compare the two
-		// To work around this we retrieve a normalized schema from the Schema registry first for comparison
-		normalized := testGetByID(id)
-		testGetSchemaMetadata(subject, version, *normalized)
-		testGetLatestSchemaMetadata(subject)
-
-		testUpdateCompatibility(subject, FORWARD, FORWARD)
-		testGetCompatibility(subject, FORWARD)
-		testTestCompatibility(subject, version, &schema, true)
-
-		testUpdateDefaultCompatibility(NONE, NONE)
-		testGetDefaultCompatibility(NONE)
-
-		testGetAllVersions(subject, []int{version})
-		testGetVersion(subject, &schema, version)
-
-		subjects = append(subjects, subject)
-	}
-
-	testDeleteSubject(subjects[len(subjects)-1], []int{version})
-	testDeleteSubjectVersion(subjects[len(subjects) - 2], lastVersion, lastVersion)
-	testGetAllSubjects(subjects[:len(subjects)-2])
 }

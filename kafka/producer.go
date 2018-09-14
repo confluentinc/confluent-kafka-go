@@ -132,7 +132,8 @@ type Producer struct {
 	events         chan Event
 	produceChannel chan *Message
 	handle         handle
-
+	keySerializer	Serializer
+	valueSerializer	Serializer
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
 }
@@ -176,6 +177,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	var keyIsNull C.int
 	var valLen int
 	var keyLen int
+	var err error
 
 	if msg.Value == nil {
 		valIsNull = 1
@@ -184,7 +186,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	} else {
 		valLen = len(msg.Value)
 		if valLen > 0 {
-			valp = msg.Value
+			if valp, err = p.keySerializer.Serialize(msg.TopicPartition.Topic, msg.Value); err != nil {
+				return err
+			}
 		} else {
 			valp = oneByte
 		}
@@ -197,7 +201,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	} else {
 		keyLen = len(msg.Key)
 		if keyLen > 0 {
-			keyp = msg.Key
+			if keyp, err = p.keySerializer.Serialize(msg.TopicPartition.Topic, msg.Value); err != nil {
+				return err
+			}
 		} else {
 			keyp = oneByte
 		}
