@@ -203,6 +203,11 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 	return v, nil
 }
 
+// Extract performs an extract()
+func (m ConfigMap) Extract(key string, defval ConfigValue) (ConfigValue, error){
+	return m.extract(key, defval)
+}
+
 // extract performs a get() and if found deletes the key.
 func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) {
 
@@ -214,6 +219,11 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 	delete(m, key)
 
 	return v, nil
+}
+
+// Clone performs a clone()
+func (m ConfigMap) Clone() ConfigMap {
+	return m.clone()
 }
 
 func (m ConfigMap) clone() ConfigMap {
