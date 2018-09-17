@@ -132,7 +132,8 @@ type Producer struct {
 	events         chan Event
 	produceChannel chan *Message
 	handle         handle
-
+	keySerializer 	Serializer
+	valueSerializer Serializer
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
 }
@@ -176,6 +177,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	var keyIsNull C.int
 	var valLen int
 	var keyLen int
+	var err error
 
 	if msg.Value == nil {
 		valIsNull = 1
@@ -184,7 +186,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	} else {
 		valLen = len(msg.Value)
 		if valLen > 0 {
-			valp = msg.Value
+			if valp, err = p.valueSerializer.Serialize(msg.TopicPartition.Topic, msg.Value); err != nil {
+				return err
+			}
 		} else {
 			valp = oneByte
 		}
@@ -197,7 +201,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	} else {
 		keyLen = len(msg.Key)
 		if keyLen > 0 {
-			keyp = msg.Key
+			if keyp, err = p.keySerializer.Serialize(msg.TopicPartition.Topic, msg.Value); err != nil {
+				return err
+			}
 		} else {
 			keyp = oneByte
 		}
@@ -386,6 +392,10 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 	p := &Producer{}
 
+	// Use the ByteArraySerializer by default leaving the payload untouched
+	p.keySerializer = &ByteArraySerializer{}
+	p.valueSerializer = &ByteArraySerializer{}
+
 	// before we do anything with the configuration, create a copy such that
 	// the original is not mutated.
 	confCopy := conf.clone()
@@ -452,6 +462,34 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	} else {
 		go channelProducer(p)
 	}
+
+	return p, nil
+}
+
+// NewSerializingProducer returns a new Producer instance using NewProducer() overwriting the default key/value serializers.
+func NewSerializingProducer(conf ConfigMap, keySerializerer, valueSerializer Serializer) (*Producer, error) {
+	var confDelta, confDelta2 ConfigMap
+	var err error
+
+	// Extract the keys relevant to the serializer returning the delta
+	if confDelta, err = keySerializerer.Configure(conf, true); err != nil {
+		return nil, err
+	}
+
+	if confDelta2, err = valueSerializer.Configure(conf, true); err != nil {
+		return nil, err
+	}
+
+	// The composite of the two delta configs represents a complete producer configuration
+	confDelta.Merge(confDelta2)
+
+	var p *Producer
+	if p, err = NewProducer(&confDelta); err != nil {
+		return nil, err
+	}
+
+	p.keySerializer=keySerializerer
+	p.valueSerializer=valueSerializer
 
 	return p, nil
 }

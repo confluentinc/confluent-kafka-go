@@ -226,12 +226,25 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 	return v, nil
 }
 
+// Clone returns a new copy of m
+func (m ConfigMap) Clone() ConfigMap {
+	return m.clone()
+}
+
 func (m ConfigMap) clone() ConfigMap {
 	m2 := make(ConfigMap)
 	for k, v := range m {
 		m2[k] = v
 	}
 	return m2
+}
+
+// Merge copies the contents of conf into m.
+// Any existing keys in m will be overwritten with the value from conf
+func (m ConfigMap) Merge(conf ConfigMap) {
+	for k, v := range m {
+		m[k] = v
+	}
 }
 
 // Get finds the given key in the ConfigMap and returns its value.
