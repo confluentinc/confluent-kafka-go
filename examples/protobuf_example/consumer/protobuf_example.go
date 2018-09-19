@@ -29,7 +29,7 @@ import (
 	"syscall"
 )
 
-// Protobuf serializer used to decode protobuf messages stored in Kafka.
+// ProtoSerializer implements kafka.Serializer for decoding Protobuf Messages
 type ProtoSerializer struct {
 	kafka.AbstractSerializer
 	lookup func(id string) proto.Message
@@ -52,16 +52,16 @@ func (d *ProtoSerializer) Deserialize(msg *kafka.Message) *kafka.Error {
 }
 
 // NewDeserializerRegistry provides a local registry to be queried on deserialization.
-func (s *ProtoSerializer) NewDeserializerRegistry(new func(id string) proto.Message) {
-	s.lookup = new
+func (d *ProtoSerializer) NewDeserializerRegistry(new func(id string) proto.Message) {
+	d.lookup = new
 }
 
 // GetProtoType searches message headers for the key proto.
 // The value identified by these headers is used to retrieve objects from the local registry.
-func (s *ProtoSerializer) GetProtoType(headers []kafka.Header) proto.Message {
+func (d *ProtoSerializer) GetProtoType(headers []kafka.Header) proto.Message {
 	for _, header := range headers {
 		if header.Key == "proto" {
-			obj := s.lookup(string(header.Value))
+			obj := d.lookup(string(header.Value))
 			return obj
 		}
 	}

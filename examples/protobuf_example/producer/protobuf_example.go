@@ -26,7 +26,7 @@ import (
 	"os"
 )
 
-var values []proto.Message = []proto.Message{
+var values  = []proto.Message{
 	&pb_example.Author{
 		Name:  "Franz Kafka",
 		Id:    19830703,
@@ -37,6 +37,7 @@ var values []proto.Message = []proto.Message{
 	},
 }
 
+// ProtoSerializer implements kafka.Serializer for encoding Protobuf Messages
 type ProtoSerializer struct {
 	kafka.AbstractSerializer
 	lookup func(id string) proto.Message

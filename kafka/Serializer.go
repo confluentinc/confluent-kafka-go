@@ -73,7 +73,7 @@ func (*AbstractSerializer) Deserialize(msg *Message) *Error {
 	return nil
 }
 
-// Closer performs any required cleanup upon calling [Consumer|Producer].Close().
+// Close performs any required cleanup upon calling [Consumer|Producer].Close().
 func (*AbstractSerializer) Close() {
 	return
 }
