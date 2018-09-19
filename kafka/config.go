@@ -240,7 +240,7 @@ func (m ConfigMap) clone() ConfigMap {
 }
 
 // Merge copies the contents of conf into m.
-// Any existing keys in m will be overwritten with the value from conf
+// Any existing keys in m will be overwritten with the value from conf.
 func (m ConfigMap) Merge(conf ConfigMap) {
 	for k, v := range m {
 		m[k] = v

@@ -148,7 +148,7 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-// Serialize encodes the msg content using the configure serializers.
+// Serialize encodes the msg content using the configured serializers.
 func (p *Producer) serialize(msg *Message) *Error {
 	if err := p.keySerializer.Serialize(msg); err != nil {
 		return err
