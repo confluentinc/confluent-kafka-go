@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"reflect"
@@ -29,6 +30,7 @@ type producerCtrl struct {
 	silent        bool
 	withDr        bool // use delivery channel
 	batchProducer bool // enable batch producer
+	withSerde     bool // enable use of test serde
 }
 
 // define commitMode with constants
@@ -45,6 +47,7 @@ type consumerCtrl struct {
 	autoCommit bool // set enable.auto.commit property
 	useChannel bool
 	commitMode commitMode // which commit api to use
+	withSerde  bool       // enable use of test serde
 }
 
 type testmsgType struct {
@@ -58,6 +61,45 @@ type msgtracker struct {
 	msgcnt int64
 	errcnt int64 // count of failed messages
 	msgs   []*Message
+}
+
+// Base64 Serializer for testing (De)Serializing [Producer|Consumer] instances
+type testSerializer struct {
+	AbstractSerializer
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// Serialize returns msg as it was received.
+func (s *testSerializer) Serialize(msg *Message) *Error {
+	buffer := make([]byte, base64.StdEncoding.EncodedLen(max(len(msg.Key), len(msg.Value))))
+	if s.IsKey {
+		base64.StdEncoding.Encode(buffer, msg.Key)
+		msg.Key = buffer
+		return nil
+	}
+
+	base64.StdEncoding.Encode(buffer, msg.Value)
+	msg.Value = buffer
+	return nil
+}
+
+func (d *testSerializer) Deserialize(msg *Message) *Error {
+	buffer := make([]byte, base64.StdEncoding.EncodedLen(max(len(msg.Key), len(msg.Value))))
+	if d.IsKey {
+		base64.StdEncoding.Decode(buffer, msg.Key)
+		msg.Key = buffer
+		return nil
+	}
+
+	base64.StdEncoding.Decode(buffer, msg.Value)
+	msg.Value = buffer
+	return nil
 }
 
 // msgtrackerStart sets up a new message tracker
@@ -222,6 +264,8 @@ func deliveryTestHandler(t *testing.T, expCnt int64, deliveryChan chan Event, mt
 
 // producerTest produces messages in <testmsgs> to topic. Verifies delivered messages
 func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc producerCtrl, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
+	var p *Producer
+	var err error
 
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -248,7 +292,12 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 
 	conf.updateFromTestconf()
 
-	p, err := NewProducer(&conf)
+	if pc.withSerde {
+		p, err = NewSerializingProducer(conf, &testSerializer{}, &testSerializer{})
+	} else {
+		p, err = NewProducer(&conf)
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -323,6 +372,8 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 
 // consumerTest consumes messages from a pre-primed (produced to) topic
 func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+	var c *Consumer
+	var err error
 
 	if msgcnt == 0 {
 		createTestMessages()
@@ -344,7 +395,11 @@ func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, co
 
 	conf.updateFromTestconf()
 
-	c, err := NewConsumer(&conf)
+	if cc.withSerde {
+		c, err = NewDeserializingConsumer(conf, &testSerializer{}, &testSerializer{})
+	} else {
+		c, err = NewConsumer(&conf)
+	}
 
 	if err != nil {
 		panic(err)
@@ -626,6 +681,30 @@ func TestProducerFuncDR(t *testing.T) {
 		})
 }
 
+// test producer function-based API with SERDEs but without delivery report
+func TestSerializingProducerFunc(t *testing.T) {
+	producerTest(t, "Function producer (with Serde, without DR)",
+		nil, producerCtrl{withSerde: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			err := p.Produce(m, drChan)
+			if err != nil {
+				t.Errorf("Produce() failed: %v", err)
+			}
+		})
+}
+
+// test producer function-based API with delivery report and SERDEs
+func TestSerializingProducerFuncDR(t *testing.T) {
+	producerTest(t, "Function producer (with Serde, with DR)",
+		nil, producerCtrl{withDr: true, withSerde: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			err := p.Produce(m, drChan)
+			if err != nil {
+				t.Errorf("Produce() failed: %v", err)
+			}
+		})
+}
+
 // test producer with bad messages
 func TestProducerWithBadMessages(t *testing.T) {
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
@@ -758,6 +837,18 @@ func consumerTestWithCommits(t *testing.T, testname string, msgcnt int, useChann
 
 	consumerTest(t, testname+" using Commit() API",
 		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitAPI}, consumeFunc, rebalanceCb)
+
+	consumerTest(t, testname+" auto commit with SERDEs",
+		msgcnt, consumerCtrl{useChannel: useChannel, autoCommit: true, withSerde: true}, consumeFunc, rebalanceCb)
+
+	consumerTest(t, testname+" using CommitMessage() API with SERDEs",
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitMessageAPI, withSerde: true}, consumeFunc, rebalanceCb)
+
+	consumerTest(t, testname+" using CommitOffsets() API with SERDEs",
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitOffsetsAPI, withSerde: true}, consumeFunc, rebalanceCb)
+
+	consumerTest(t, testname+" using Commit() API with SERDEs",
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitAPI, withSerde: true}, consumeFunc, rebalanceCb)
 
 }
 

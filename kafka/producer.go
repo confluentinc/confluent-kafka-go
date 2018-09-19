@@ -129,10 +129,10 @@ import "C"
 
 // Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
-	events         chan Event
-	produceChannel chan *Message
-	handle         handle
-	keySerializer 	Serializer
+	events          chan Event
+	produceChannel  chan *Message
+	handle          handle
+	keySerializer   Serializer
 	valueSerializer Serializer
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
@@ -146,6 +146,19 @@ func (p *Producer) String() string {
 // get_handle implements the Handle interface
 func (p *Producer) gethandle() *handle {
 	return &p.handle
+}
+
+// Serialize encodes the msg content using the configure serializers.
+func (p *Producer) serialize(msg *Message) *Error {
+	if err := p.keySerializer.Serialize(msg); err != nil {
+		return err
+	}
+
+	if err := p.valueSerializer.Serialize(msg); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
@@ -177,7 +190,10 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	var keyIsNull C.int
 	var valLen int
 	var keyLen int
-	var err error
+
+	if err := p.serialize(msg); err != nil {
+		return err
+	}
 
 	if msg.Value == nil {
 		valIsNull = 1
@@ -186,9 +202,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	} else {
 		valLen = len(msg.Value)
 		if valLen > 0 {
-			if valp, err = p.valueSerializer.Serialize(msg.TopicPartition.Topic, msg.Value); err != nil {
-				return err
-			}
+			valp = msg.Value
 		} else {
 			valp = oneByte
 		}
@@ -201,9 +215,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	} else {
 		keyLen = len(msg.Key)
 		if keyLen > 0 {
-			if keyp, err = p.keySerializer.Serialize(msg.TopicPartition.Topic, msg.Value); err != nil {
-				return err
-			}
+			keyp = msg.Key
 		} else {
 			keyp = oneByte
 		}
@@ -361,6 +373,8 @@ func (p *Producer) Close() {
 
 	close(p.events)
 
+	p.keySerializer.Close()
+	p.valueSerializer.Close()
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
@@ -392,9 +406,8 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 	p := &Producer{}
 
-	// Use the ByteArraySerializer by default leaving the payload untouched
-	p.keySerializer = &ByteArraySerializer{}
-	p.valueSerializer = &ByteArraySerializer{}
+	p.keySerializer = &AbstractSerializer{}
+	p.valueSerializer = &AbstractSerializer{}
 
 	// before we do anything with the configuration, create a copy such that
 	// the original is not mutated.
@@ -467,29 +480,30 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 }
 
 // NewSerializingProducer returns a new Producer instance using NewProducer() overwriting the default key/value serializers.
-func NewSerializingProducer(conf ConfigMap, keySerializerer, valueSerializer Serializer) (*Producer, error) {
-	var confDelta, confDelta2 ConfigMap
-	var err error
+func NewSerializingProducer(conf ConfigMap, keySerializer, valueSerializer Serializer) (*Producer, error) {
+	var delta, delta2 ConfigMap
+	var kafkaErr *Error
 
-	// Extract the keys relevant to the serializer returning the delta
-	if confDelta, err = keySerializerer.Configure(conf, true); err != nil {
+	if delta, kafkaErr = keySerializer.Configure(conf, true); kafkaErr != nil {
+		fmt.Printf("here %v\n", kafkaErr != nil)
+		return nil, kafkaErr
+	}
+
+	if delta2, kafkaErr = valueSerializer.Configure(conf, false); kafkaErr != nil {
+		return nil, kafkaErr
+	}
+
+	// The composite of the two delta configs should represent a complete producer configuration
+	// Any lingering configurations which don't belong will be reported by the Producer
+	delta.Merge(delta2)
+
+	p, err := NewProducer(&delta)
+	if err != nil {
 		return nil, err
 	}
 
-	if confDelta2, err = valueSerializer.Configure(conf, true); err != nil {
-		return nil, err
-	}
-
-	// The composite of the two delta configs represents a complete producer configuration
-	confDelta.Merge(confDelta2)
-
-	var p *Producer
-	if p, err = NewProducer(&confDelta); err != nil {
-		return nil, err
-	}
-
-	p.keySerializer=keySerializerer
-	p.valueSerializer=valueSerializer
+	p.keySerializer = keySerializer
+	p.valueSerializer = valueSerializer
 
 	return p, nil
 }

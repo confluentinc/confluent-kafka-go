@@ -77,6 +77,8 @@ type Message struct {
 	Timestamp      time.Time
 	TimestampType  TimestampType
 	Opaque         interface{}
+	KeyObject      interface{}
+	ValueObject    interface{}
 	Headers        []Header
 }
 
