@@ -26,7 +26,7 @@ import (
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 
-	expDuration, err := time.ParseDuration("1.5s")
+	expDuration, err := time.ParseDuration("0.1s")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -150,9 +150,80 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 					"a":                  "unit test",
 				},
 			},
-		})
+		},
+		SetAdminValidateOnly(false))
 	if res != nil || err == nil {
 		t.Fatalf("Expected CreateTopics to fail, but got result: %v, err: %v", res, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	//
+	// Remaining APIs
+	// Timeout code is identical for all APIs, no need to test
+	// them for each API.
+	//
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	res, err = a.CreatePartitions(
+		ctx,
+		[]PartitionsSpecification{
+			{
+				Topic:      "topic",
+				IncreaseTo: 19,
+				ReplicaAssignment: [][]int32{
+					[]int32{3234522},
+					[]int32{99999},
+				},
+			},
+			{
+				Topic:      "topic2",
+				IncreaseTo: 2,
+				ReplicaAssignment: [][]int32{
+					[]int32{99999},
+				},
+			},
+		})
+	if res != nil || err == nil {
+		t.Fatalf("Expected CreatePartitions to fail, but got result: %v, err: %v", res, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	res, err = a.DeleteTopics(
+		ctx,
+		[]string{"topic1", "topic2"})
+	if res != nil || err == nil {
+		t.Fatalf("Expected DeleteTopics to fail, but got result: %v, err: %v", res, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v for error %v", ctx.Err(), err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	cres, err := a.AlterConfigs(
+		ctx,
+		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
+	if cres != nil || err == nil {
+		t.Fatalf("Expected AlterConfigs to fail, but got result: %v, err: %v", cres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	cres, err = a.DescribeConfigs(
+		ctx,
+		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
+	if cres != nil || err == nil {
+		t.Fatalf("Expected DescribeConfigs to fail, but got result: %v, err: %v", cres, err)
 	}
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())

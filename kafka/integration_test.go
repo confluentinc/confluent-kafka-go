@@ -1243,23 +1243,23 @@ func TestAdminTopics(t *testing.T) {
 
 	// Add partitions to some of the topics
 	t.Logf("Create new partitions for a subset of topics\n")
-	newParts := make([]NewPartitions, topicCnt/2)
+	newParts := make([]PartitionsSpecification, topicCnt/2)
 	expError = map[string]Error{}
 	for i := 0; i < topicCnt/2; i++ {
 		topic := newTopics[i].Topic
-		newParts[i] = NewPartitions{
-			Topic:         topic,
-			NewTotalCount: newTopics[i].NumPartitions + 3,
+		newParts[i] = PartitionsSpecification{
+			Topic:      topic,
+			IncreaseTo: newTopics[i].NumPartitions + 3,
 		}
 		if i == 1 {
 			// Invalid partition count (less than current)
-			newParts[i].NewTotalCount = newTopics[i].NumPartitions - 1
+			newParts[i].IncreaseTo = newTopics[i].NumPartitions - 1
 			expError[topic] = Error{code: ErrInvalidPartitions}
 		} else {
 			expError[topic] = Error{}
 		}
 		t.Logf("Creating new partitions for %s: %d -> %d: expecting %v\n",
-			topic, newTopics[i].NumPartitions, newParts[i].NewTotalCount, expError[topic])
+			topic, newTopics[i].NumPartitions, newParts[i].IncreaseTo, expError[topic])
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)

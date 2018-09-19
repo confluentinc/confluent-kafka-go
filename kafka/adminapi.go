@@ -81,7 +81,7 @@ func (t TopicResult) String() string {
 }
 
 // TopicSpecification holds parameters for creating a new topic.
-// TopicSpecification is analogue to NewTopic in the Java Topic Admin API.
+// TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 type TopicSpecification struct {
 	// Topic name to create.
 	Topic string
@@ -99,12 +99,13 @@ type TopicSpecification struct {
 	Config map[string]string
 }
 
-// NewPartitions holds parameters for creating additional partitions for a topic.
-type NewPartitions struct {
+// PartitionsSpecification holds parameters for creating additional partitions for a topic.
+// PartitionsSpecification is analogous to NewPartitions in the Java Topic Admin API.
+type PartitionsSpecification struct {
 	// Topic to create more partitions for.
 	Topic string
 	// New partition count for topic, must be higher than current partition count.
-	NewTotalCount int
+	IncreaseTo int
 	// (Optional) Explicit replica assignment. The outer array is
 	// indexed by the new partition index (i.e., 0 for the first added
 	// partition), while the inner per-partition array
@@ -416,7 +417,7 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 // Topic creation is non-atomic and may succeed for some topics but fail for others,
 // make sure to check the result for topic-specific errors.
 //
-// Note: TopicSpecification is analogue to NewTopic in the Java Topic Admin API.
+// Note: TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecification, options ...CreateTopicsAdminOption) (result []TopicResult, err error) {
 	cTopics := make([]*C.rd_kafka_NewTopic_t, len(topics))
 
@@ -593,16 +594,16 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options
 }
 
 // CreatePartitions creates additional partitions for topics.
-func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []NewPartitions, options ...CreatePartitionsAdminOption) (result []TopicResult, err error) {
+func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []PartitionsSpecification, options ...CreatePartitionsAdminOption) (result []TopicResult, err error) {
 	cParts := make([]*C.rd_kafka_NewPartitions_t, len(partitions))
 
 	cErrstrSize := C.size_t(512)
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
 	defer C.free(unsafe.Pointer(cErrstr))
 
-	// Convert Go NewPartitions to C NewPartitions
+	// Convert Go PartitionsSpecification to C NewPartitions
 	for i, part := range partitions {
-		cParts[i] = C.rd_kafka_NewPartitions_new(C.CString(part.Topic), C.size_t(part.NewTotalCount), cErrstr, cErrstrSize)
+		cParts[i] = C.rd_kafka_NewPartitions_new(C.CString(part.Topic), C.size_t(part.IncreaseTo), cErrstr, cErrstrSize)
 		if cParts[i] == nil {
 			return nil, newErrorFromString(ErrInvalidArg,
 				fmt.Sprintf("Topic %s: %s", part.Topic, C.GoString(cErrstr)))
