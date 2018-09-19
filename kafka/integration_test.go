@@ -89,9 +89,9 @@ func (s *testSerializer) Serialize(msg *Message) *Error {
 	return nil
 }
 
-func (d *testSerializer) Deserialize(msg *Message) *Error {
+func (s *testSerializer) Deserialize(msg *Message) *Error {
 	buffer := make([]byte, base64.StdEncoding.EncodedLen(max(len(msg.Key), len(msg.Value))))
-	if d.IsKey {
+	if s.IsKey {
 		base64.StdEncoding.Decode(buffer, msg.Key)
 		msg.Key = buffer
 		return nil

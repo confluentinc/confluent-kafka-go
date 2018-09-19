@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+// Serializer is the interface implemented by types that can Serialize kafka.Message.
 type Serializer interface {
 	// Configure extracts the configuration values needed by the serializer returning the delta.
 	Configure(configs ConfigMap, isKey bool) (ConfigMap, *Error)
@@ -14,6 +15,7 @@ type Serializer interface {
 	Close()
 }
 
+// Deserializer is the interface implemented by types that can deserialize kafka.Message.
 type Deserializer interface {
 	// Configure extracts the configuration value needed by the serializer and returns the delta.
 	Configure(configs ConfigMap, isKey bool) (ConfigMap, *Error)
@@ -55,19 +57,23 @@ type AbstractSerializer struct {
 	IsKey bool
 }
 
+// Configure provides all of the configurations needed for the serializer from the global configuration object
 func (as *AbstractSerializer) Configure(configs ConfigMap, isKey bool) (ConfigMap, *Error) {
 	as.IsKey = isKey
 	return configs, nil
 }
 
+// Serialize encodes Message [Key|Value] contents.
 func (*AbstractSerializer) Serialize(msg *Message) *Error {
 	return nil
 }
 
+// Deserialize decodes Message [Key|Value] contents.
 func (*AbstractSerializer) Deserialize(msg *Message) *Error {
 	return nil
 }
 
+// Closer performs any required cleanup upon calling [Consumer|Producer].Close().
 func (*AbstractSerializer) Close() {
 	return
 }
