@@ -1,0 +1,74 @@
+{
+   "type":"record",
+   "name":"TestRecord",
+   "fields":[
+      {
+         "name":"value",
+         "type":"int"
+      },
+      {
+         "name":"defval1",
+         "type":"int",
+         "default":1234
+      },
+      {
+         "name":"defval2",
+         "type":"boolean",
+         "default":true
+      },
+      {
+         "name":"defval3",
+         "type":"double",
+         "default":567.89
+      },
+      {
+         "name":"defval4",
+         "type":"long",
+         "default":2345
+      },
+      {
+         "name":"union",
+         "type":[ {
+		    "name":"union1",
+			"type":"string"
+         },
+         {
+            "name":"union2",
+            "type":"boolean"
+         },
+         {
+            "name":"union3",
+            "type":"int"
+         }],
+         "default":"null"
+	  },
+      {
+         "name":"rec",
+         "type":{
+            "type":"array",
+            "items":{
+               "type":"record",
+               "name":"TestRecord2",
+               "fields":[
+                  {
+                     "name":"stringValue",
+                     "type":"string"
+                  },
+                  {
+                     "name":"intValue",
+                     "type":"int"
+                  },
+                  {
+                     "name" : "fruits",
+                     "type" : {
+                        "type" : "enum",
+                        "name" : "FruitNames",
+                        "symbols" : [ "apple", "banana", "pear", "plum" ]
+                     }
+                  }
+               ]
+            }
+         }
+      }
+   ]
+}
