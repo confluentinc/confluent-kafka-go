@@ -23,12 +23,22 @@ package kafka
 /*
 #include <librdkafka/rdkafka.h>
 */
+
 import "C"
+import "fmt"
 
 // Error provides a Kafka-specific error container
 type Error struct {
 	code ErrorCode
 	str  string
+}
+
+// NewError creates a new pointer to an Error instance with an optional message
+func NewError(code ErrorCode, str error) *Error {
+	return &Error{
+		code: code,
+		str: fmt.Sprintf("%s: %s", code, str),
+	}
 }
 
 func newError(code C.rd_kafka_resp_err_t) (err Error) {
