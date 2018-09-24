@@ -24,6 +24,10 @@ package kafka
 #include <librdkafka/rdkafka.h>
 */
 import "C"
+<<<<<<< Updated upstream
+=======
+import "fmt"
+>>>>>>> Stashed changes
 
 // Error provides a Kafka-specific error container
 type Error struct {
@@ -31,6 +35,17 @@ type Error struct {
 	str  string
 }
 
+<<<<<<< Updated upstream
+=======
+// NewError creates a new pointer to an Error instance with an optional message
+func NewError(code ErrorCode, str error) *Error {
+	return &Error{
+		code: code,
+		str: fmt.Sprintf("%s: %s", code, str),
+	}
+}
+
+>>>>>>> Stashed changes
 func newError(code C.rd_kafka_resp_err_t) (err Error) {
 	return Error{ErrorCode(code), ""}
 }

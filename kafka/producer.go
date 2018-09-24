@@ -129,10 +129,11 @@ import "C"
 
 // Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
-	events         chan Event
-	produceChannel chan *Message
-	handle         handle
-
+	events          chan Event
+	produceChannel  chan *Message
+	handle          handle
+	keySerializer   Serializer
+	valueSerializer Serializer
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
 }
@@ -145,6 +146,19 @@ func (p *Producer) String() string {
 // get_handle implements the Handle interface
 func (p *Producer) gethandle() *handle {
 	return &p.handle
+}
+
+// Serialize encodes the msg content using the configured serializers.
+func (p *Producer) serialize(msg *Message) error {
+	if err := p.keySerializer.Serialize(msg); err != nil {
+		return err
+	}
+
+	if err := p.valueSerializer.Serialize(msg); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
@@ -176,6 +190,10 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	var keyIsNull C.int
 	var valLen int
 	var keyLen int
+
+	if err := p.serialize(msg); err != nil {
+		return err
+	}
 
 	if msg.Value == nil {
 		valIsNull = 1
@@ -355,6 +373,8 @@ func (p *Producer) Close() {
 
 	close(p.events)
 
+	p.keySerializer.Close()
+	p.valueSerializer.Close()
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
@@ -385,6 +405,9 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 
 	p := &Producer{}
+
+	p.keySerializer = &AbstractSerializer{}
+	p.valueSerializer = &AbstractSerializer{}
 
 	// before we do anything with the configuration, create a copy such that
 	// the original is not mutated.
@@ -452,6 +475,34 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	} else {
 		go channelProducer(p)
 	}
+
+	return p, nil
+}
+
+// NewSerializingProducer returns a new Producer instance using NewProducer() overwriting the default key/value serializers.
+func NewSerializingProducer(conf ConfigMap, keySerializer, valueSerializer Serializer) (*Producer, error) {
+	var delta, delta2 ConfigMap
+	var err error
+
+	if delta, err = keySerializer.Configure(conf, true); err != nil {
+		return nil, err
+	}
+
+
+	if delta2, err = valueSerializer.Configure(conf, false); err != nil {
+		return nil, err
+	}
+
+	// The composite of the two delta configs should represent a complete producer configuration
+	// Any lingering configurations which don't belong will be reported by the Producer
+	delta2.Merge(delta)
+	p, err := NewProducer(&delta2)
+	if err != nil {
+		return nil, err
+	}
+
+	p.keySerializer = keySerializer
+	p.valueSerializer = valueSerializer
 
 	return p, nil
 }

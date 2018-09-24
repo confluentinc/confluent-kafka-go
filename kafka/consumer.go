@@ -42,6 +42,8 @@ type RebalanceCb func(*Consumer, Event) error
 type Consumer struct {
 	events             chan Event
 	handle             handle
+	keyDeserializer    Deserializer
+	valueDeserializer  Deserializer
 	eventsChanEnable   bool
 	readerTermChan     chan bool
 	rebalanceCb        RebalanceCb
@@ -245,6 +247,17 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 	return nil
 }
 
+// deserialize decodes Message [Key|Value].
+func (c *Consumer) deserialize(msg *Message) error {
+	if err := c.keyDeserializer.Deserialize(msg); err != nil {
+		return err
+	}
+	if err := c.valueDeserializer.Deserialize(msg); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Poll the consumer for messages or events.
 //
 // Will block for at most timeoutMs milliseconds
@@ -255,7 +268,15 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil)
-	return ev
+	switch ev.(type) {
+	case *Message:
+		if err := c.deserialize(ev.(*Message)); err != nil {
+			return err.(*Error)
+		}
+		return ev.(*Message)
+	default:
+		return ev
+	}
 }
 
 // Events returns the Events channel (if enabled)
@@ -340,11 +361,43 @@ func (c *Consumer) Close() (err error) {
 		return newError(e)
 	}
 
+	c.keyDeserializer.Close()
+	c.valueDeserializer.Close()
 	c.handle.cleanup()
 
 	C.rd_kafka_destroy(c.handle.rk)
 
 	return nil
+}
+
+// NewDeserializingConsumer returns a NewConsumer overwriting the default [Key|Value]Deserializer.
+// The provided [key|value]Deserializer should be configured here as opposed to in the application.
+func NewDeserializingConsumer(conf ConfigMap, keyDeserializer, valueDeserializer Deserializer) (*Consumer, error) {
+	var delta, delta2 ConfigMap
+	var err error
+
+	if delta, err = keyDeserializer.Configure(conf, true); err != nil {
+		fmt.Printf("here %v\n", err != nil)
+		return nil, err
+	}
+
+	if delta2, err = valueDeserializer.Configure(delta, false); err != nil {
+		return nil, err
+	}
+
+	// The composite of the two delta configs should represent a complete producer configuration
+	// Any lingering configurations which don't belong will be reported by the Producer
+	delta2.Merge(delta)
+
+	c, err := NewConsumer(&delta2)
+	if err != nil {
+		return nil, err
+	}
+
+	c.keyDeserializer = keyDeserializer
+	c.valueDeserializer = valueDeserializer
+
+	return c, nil
 }
 
 // NewConsumer creates a new high-level Consumer instance.
@@ -383,6 +436,9 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	c := &Consumer{}
+
+	c.keyDeserializer = &AbstractSerializer{}
+	c.valueDeserializer = &AbstractSerializer{}
 
 	v, err := confCopy.extract("go.application.rebalance.enable", false)
 	if err != nil {

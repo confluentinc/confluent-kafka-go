@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 	"unsafe"
+	"log"
 )
 
 /*
@@ -213,6 +214,28 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 	return v, nil
 }
 
+<<<<<<< Updated upstream
+=======
+// ExtractPrefix performs an Extract() for each key starting with prefix.
+// Prefixes are stripped from the ConfigKey in the returned ConfigMap.
+func (m ConfigMap) ExtractPrefix(prefix string) (ConfigMap) {
+	m2 := make(ConfigMap)
+	for k, v := range m {
+		if strings.HasPrefix(k, prefix) {
+			m2[strings.TrimPrefix(k, prefix)] = v
+			delete(m, k)
+		}
+	}
+	log.Printf("Extracting %s\n", m2)
+	return m2
+}
+
+// Extract performs a get() and if found deletes the key.
+func (m ConfigMap) Extract(key string, defval ConfigValue) (ConfigValue, error) {
+	return m.extract(key, defval)
+}
+
+>>>>>>> Stashed changes
 // extract performs a get() and if found deletes the key.
 func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) {
 
@@ -226,12 +249,25 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 	return v, nil
 }
 
+// Clone returns a new copy of m
+func (m ConfigMap) Clone() ConfigMap {
+	return m.clone()
+}
+
 func (m ConfigMap) clone() ConfigMap {
 	m2 := make(ConfigMap)
 	for k, v := range m {
 		m2[k] = v
 	}
 	return m2
+}
+
+// Merge copies the contents of conf into m.
+// Any existing keys in m will be overwritten with the value from conf.
+func (m ConfigMap) Merge(conf ConfigMap) {
+	for k, v := range m {
+		m[k] = v
+	}
 }
 
 // Get finds the given key in the ConfigMap and returns its value.
