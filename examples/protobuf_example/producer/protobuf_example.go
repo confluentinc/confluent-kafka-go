@@ -26,7 +26,11 @@ import (
 	"os"
 )
 
+<<<<<<< Updated upstream
 var values  = []proto.Message{
+=======
+var values = []proto.Message{
+>>>>>>> Stashed changes
 	&pb_example.Author{
 		Name:  "Franz Kafka",
 		Id:    19830703,
@@ -48,11 +52,10 @@ func (s *ProtoSerializer) Serialize(msg *kafka.Message) *kafka.Error {
 	var err error
 	if s.IsKey {
 		msg.Key, err = proto.Marshal(msg.KeyObject.(proto.Message))
-		return kafka.NewSerializationError(err, kafka.ErrKeySerialization)
+	} else {
+		msg.Value, err = proto.Marshal(msg.ValueObject.(proto.Message))
 	}
-
-	msg.Value, err = proto.Marshal(msg.ValueObject.(proto.Message))
-	return kafka.NewSerializationError(err, kafka.ErrValueSerialization)
+	return kafka.NewSerializationError(s.IsKey, err)
 }
 
 func main() {

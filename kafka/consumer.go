@@ -248,7 +248,7 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 }
 
 // deserialize decodes Message [Key|Value].
-func (c *Consumer) deserialize(msg *Message) *Error {
+func (c *Consumer) deserialize(msg *Message) error {
 	if err := c.keyDeserializer.Deserialize(msg); err != nil {
 		return err
 	}
@@ -271,7 +271,7 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	switch ev.(type) {
 	case *Message:
 		if err := c.deserialize(ev.(*Message)); err != nil {
-			return err
+			return err.(*Error)
 		}
 		return ev.(*Message)
 	default:
@@ -374,20 +374,22 @@ func (c *Consumer) Close() (err error) {
 // The provided [key|value]Deserializer should be configured here as opposed to in the application.
 func NewDeserializingConsumer(conf ConfigMap, keyDeserializer, valueDeserializer Deserializer) (*Consumer, error) {
 	var delta, delta2 ConfigMap
-	var kafkaErr *Error
+	var err error
 
-	if delta, kafkaErr = keyDeserializer.Configure(conf, true); kafkaErr != nil {
-		fmt.Printf("here %v\n", kafkaErr != nil)
-		return nil, kafkaErr
+	if delta, err = keyDeserializer.Configure(conf, true); err != nil {
+		fmt.Printf("here %v\n", err != nil)
+		return nil, err
 	}
 
-	if delta2, kafkaErr = valueDeserializer.Configure(conf, false); kafkaErr != nil {
-		return nil, kafkaErr
+	if delta2, err = valueDeserializer.Configure(delta, false); err != nil {
+		return nil, err
 	}
 
-	delta.Merge(delta2)
+	// The composite of the two delta configs should represent a complete producer configuration
+	// Any lingering configurations which don't belong will be reported by the Producer
+	delta2.Merge(delta)
 
-	c, err := NewConsumer(&delta)
+	c, err := NewConsumer(&delta2)
 	if err != nil {
 		return nil, err
 	}

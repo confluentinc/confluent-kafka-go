@@ -36,13 +36,13 @@ type ProtoSerializer struct {
 }
 
 // Deserialize decodes the message contents into a protobuf object retrieved from the local registry.
-func (d *ProtoSerializer) Deserialize(msg *kafka.Message) *kafka.Error {
+func (s *ProtoSerializer) Deserialize(msg *kafka.Message) *kafka.Error {
 	var protoObj proto.Message
-	if protoObj = d.GetProtoType(msg.Headers); protoObj == nil {
+	if protoObj = s.GetProtoType(msg.Headers); protoObj == nil {
 		return kafka.NewDeserializationError(errors.New("message object type unknown"), kafka.ErrInvalidArg)
 	}
 
-	if d.IsKey {
+	if s.IsKey {
 		msg.KeyObject = protoObj
 		return kafka.NewDeserializationError(proto.Unmarshal(msg.Key, msg.KeyObject.(proto.Message)), kafka.ErrKeyDeserialization)
 	}

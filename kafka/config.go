@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 	"unsafe"
+	"log"
 )
 
 /*
@@ -213,6 +214,28 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 	return v, nil
 }
 
+<<<<<<< Updated upstream
+=======
+// ExtractPrefix performs an Extract() for each key starting with prefix.
+// Prefixes are stripped from the ConfigKey in the returned ConfigMap.
+func (m ConfigMap) ExtractPrefix(prefix string) (ConfigMap) {
+	m2 := make(ConfigMap)
+	for k, v := range m {
+		if strings.HasPrefix(k, prefix) {
+			m2[strings.TrimPrefix(k, prefix)] = v
+			delete(m, k)
+		}
+	}
+	log.Printf("Extracting %s\n", m2)
+	return m2
+}
+
+// Extract performs a get() and if found deletes the key.
+func (m ConfigMap) Extract(key string, defval ConfigValue) (ConfigValue, error) {
+	return m.extract(key, defval)
+}
+
+>>>>>>> Stashed changes
 // extract performs a get() and if found deletes the key.
 func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) {
 

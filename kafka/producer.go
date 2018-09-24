@@ -149,7 +149,7 @@ func (p *Producer) gethandle() *handle {
 }
 
 // Serialize encodes the msg content using the configured serializers.
-func (p *Producer) serialize(msg *Message) *Error {
+func (p *Producer) serialize(msg *Message) error {
 	if err := p.keySerializer.Serialize(msg); err != nil {
 		return err
 	}
@@ -482,22 +482,21 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 // NewSerializingProducer returns a new Producer instance using NewProducer() overwriting the default key/value serializers.
 func NewSerializingProducer(conf ConfigMap, keySerializer, valueSerializer Serializer) (*Producer, error) {
 	var delta, delta2 ConfigMap
-	var kafkaErr *Error
+	var err error
 
-	if delta, kafkaErr = keySerializer.Configure(conf, true); kafkaErr != nil {
-		fmt.Printf("here %v\n", kafkaErr != nil)
-		return nil, kafkaErr
+	if delta, err = keySerializer.Configure(conf, true); err != nil {
+		return nil, err
 	}
 
-	if delta2, kafkaErr = valueSerializer.Configure(conf, false); kafkaErr != nil {
-		return nil, kafkaErr
+
+	if delta2, err = valueSerializer.Configure(conf, false); err != nil {
+		return nil, err
 	}
 
 	// The composite of the two delta configs should represent a complete producer configuration
 	// Any lingering configurations which don't belong will be reported by the Producer
-	delta.Merge(delta2)
-
-	p, err := NewProducer(&delta)
+	delta2.Merge(delta)
+	p, err := NewProducer(&delta2)
 	if err != nil {
 		return nil, err
 	}
