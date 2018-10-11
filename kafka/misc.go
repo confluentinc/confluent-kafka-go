@@ -25,3 +25,11 @@ func bool2cint(b bool) C.int {
 	}
 	return 0
 }
+
+// cint2bool converts a C.int to a bool
+func cint2bool(v C.int) bool {
+	if v == 0 {
+		return false
+	}
+	return true
+}

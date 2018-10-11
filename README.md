@@ -62,8 +62,8 @@ func main() {
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
 		} else {
+			// The client will automatically try to recover from all errors.
 			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
-			break
 		}
 	}
 
@@ -111,12 +111,12 @@ func main() {
 		}, nil)
 	}
 
-	// Wait for message deliveries
+	// Wait for message deliveries before shutting down
 	p.Flush(15 * 1000)
 }
 ```
 
-More elaborate examples are available in the [examples](examples) directory, 
+More elaborate examples are available in the [examples](examples) directory,
 including [how to configure](examples/confluent_cloud_example) the Go client
 for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 
@@ -127,8 +127,8 @@ Getting Started
 Installing librdkafka
 ---------------------
 
-This client for Go depends on librdkafka v0.11.4 or later, so you either need to install librdkafka through your OS/distributions package manager,
-or download and build it from source.
+This client for Go depends on librdkafka v0.11.5 or later, so you either need to install librdkafka
+through your OS/distributions package manager, or download and build it from source.
 
 - For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
 repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
