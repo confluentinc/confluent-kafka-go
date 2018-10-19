@@ -32,6 +32,10 @@ import "C"
 // both Producer and Consumer.
 type Handle interface {
 	gethandle() *handle
+	Close() error
+	Events() chan Event
+	GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error)
+	QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error)
 }
 
 // Common instance handle for both Producer and Consumer
