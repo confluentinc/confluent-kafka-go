@@ -35,6 +35,10 @@ func newError(code C.rd_kafka_resp_err_t) (err Error) {
 	return Error{ErrorCode(code), ""}
 }
 
+func newGoError(code ErrorCode) (err Error) {
+	return Error{code, ""}
+}
+
 func newErrorFromString(code ErrorCode, str string) (err Error) {
 	return Error{code, str}
 }
@@ -47,6 +51,10 @@ func newErrorFromCString(code C.rd_kafka_resp_err_t, cstr *C.char) (err Error) {
 		str = ""
 	}
 	return Error{ErrorCode(code), str}
+}
+
+func newCErrorFromString(code C.rd_kafka_resp_err_t, str string) (err Error) {
+	return newErrorFromString(ErrorCode(code), str)
 }
 
 // Error returns a human readable representation of an Error

@@ -551,6 +551,7 @@ out:
 // If topic is non-nil only information about that topic is returned, else if
 // allTopics is false only information about locally used topics is returned,
 // else information about all topics is returned.
+// GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (p *Producer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
 	return getMetadata(p, topic, allTopics, timeoutMs)
 }
