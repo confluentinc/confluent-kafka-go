@@ -182,7 +182,7 @@ func (c *Consumer) Commit() ([]TopicPartition, error) {
 // Returns the committed offsets on success.
 func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 	if m.TopicPartition.Error != nil {
-		return nil, Error{ErrInvalidArg, "Can't commit errored message"}
+		return nil, newErrorFromString(ErrInvalidArg, "Can't commit errored message")
 	}
 	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset++
