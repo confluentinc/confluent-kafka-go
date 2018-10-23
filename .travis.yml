@@ -25,7 +25,8 @@ before_install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install confluent-librdkafka-plugins -y ; fi
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-  - go get -u github.com/golang/lint/golint
+  # golint requires Go >= 1.9
+  - if [[ ! $TRAVIS_GO_VERSION =~ ^1\.[78] ]] ; then go get -u golang.org/x/lint/golint && touch .do_lint ; fi
   - if [[ $TRAVIS_OS_NAME == osx && $TRAVIS_GO_VERSION =~ ^1\.[78] ]] ; then touch .no_exec ; fi
 
 install:
@@ -33,6 +34,6 @@ install:
   - go install -tags static ./...
 
 script:
-  - golint -set_exit_status ./...
+  - if [[ -f .do_lint ]]; then golint -set_exit_status ./... ; fi
   - if [[ ! -f .no_exec ]]; then go test -timeout 60s -v -tags static ./... ; fi
   - if [[ ! -f .no_exec ]]; then go-kafkacat --help ; fi
