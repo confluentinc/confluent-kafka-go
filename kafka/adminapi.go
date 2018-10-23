@@ -331,8 +331,10 @@ func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t
 				}
 
 			default:
-				// Wait for result event for at most 100ms
-				rkev := C.rd_kafka_queue_poll(cQueue, 100)
+				// Wait for result event for at most 50ms
+				// to avoid blocking for too long if
+				// context is cancelled.
+				rkev := C.rd_kafka_queue_poll(cQueue, 50)
 				if rkev != nil {
 					resultChan <- rkev
 					close(resultChan)
@@ -341,8 +343,6 @@ func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t
 			}
 		}
 	}()
-
-	defer close(closeChan)
 
 	select {
 	case rkev = <-resultChan:
@@ -361,8 +361,18 @@ func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t
 			C.rd_kafka_event_destroy(rkev)
 			return nil, err
 		}
+		close(closeChan)
 		return rkev, nil
 	case <-ctx.Done():
+		// signal close to go-routine
+		close(closeChan)
+		// wait for close from go-routine to make sure it is done
+		// using cQueue before we return.
+		rkev, ok := <-resultChan
+		if ok {
+			// throw away result since context was cancelled
+			C.rd_kafka_event_destroy(rkev)
+		}
 		return nil, ctx.Err()
 	}
 }
