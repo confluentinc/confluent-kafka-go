@@ -139,7 +139,7 @@ func createTestMessages() {
 
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
-	testmsgs[i] = &testmsgType{expectedError: Error{ErrUnknownPartition, ""},
+	testmsgs[i] = &testmsgType{expectedError: Error{ErrUnknownPartition, "", false},
 		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
