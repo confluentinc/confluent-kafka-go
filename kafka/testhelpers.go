@@ -97,8 +97,11 @@ func (cm *ConfigMap) updateFromTestconf() error {
 func getMessageCountInTopic(topic string) (int, error) {
 
 	// Create consumer
-	c, err := NewConsumer(&ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id": testconf.GroupID})
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"group.id": testconf.GroupID}
+	config.updateFromTestconf()
+
+	c, err := NewConsumer(config)
 	if err != nil {
 		return 0, err
 	}
