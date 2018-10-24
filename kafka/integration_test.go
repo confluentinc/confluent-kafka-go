@@ -507,6 +507,7 @@ func TestConsumerGetMetadata(t *testing.T) {
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"group.id": testconf.GroupID}
+	config.updateFromTestconf()
 
 	// Create consumer
 	c, err := NewConsumer(config)
@@ -538,6 +539,7 @@ func TestProducerQueryWatermarkOffsets(t *testing.T) {
 	}
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config.updateFromTestconf()
 
 	// Create producer
 	p, err := NewProducer(config)
@@ -581,6 +583,7 @@ func TestProducerGetMetadata(t *testing.T) {
 	}
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config.updateFromTestconf()
 
 	// Create producer
 	p, err := NewProducer(config)
@@ -633,6 +636,8 @@ func TestProducerFuncDR(t *testing.T) {
 // test producer with bad messages
 func TestProducerWithBadMessages(t *testing.T) {
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	conf.updateFromTestconf()
+
 	p, err := NewProducer(&conf)
 	if err != nil {
 		panic(err)
@@ -837,19 +842,18 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"api.version.request":      true,
+	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
 		"group.id":                 testconf.Topic,
 	}
 
-	conf.updateFromTestconf()
+	consumerConf.updateFromTestconf()
 
 	/* Create consumer and find recognizable message, verify timestamp.
 	 * The consumer is started before the producer to make sure
 	 * the message isn't missed. */
 	t.Logf("Creating consumer")
-	c, err := NewConsumer(&conf)
+	c, err := NewConsumer(&consumerConf)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}
@@ -873,9 +877,11 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 	/*
 	 * Create producer and produce one recognizable message with timestamp
 	 */
+	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	producerConf.updateFromTestconf()
+
 	t.Logf("Creating producer")
-	conf.SetKey("{topic}.produce.offset.report", true)
-	p, err := NewProducer(&conf)
+	p, err := NewProducer(&producerConf)
 	if err != nil {
 		t.Fatalf("NewProducer: %v", err)
 	}
@@ -1470,6 +1476,7 @@ func TestAdminGetMetadata(t *testing.T) {
 	}
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config.updateFromTestconf()
 
 	// Create Admin client
 	a, err := NewAdminClient(config)
