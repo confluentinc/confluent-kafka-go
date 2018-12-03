@@ -241,14 +241,14 @@ func main() {
 
 	switch mode {
 	case "produce":
-		confargs.conf["default.topic.config"] = kafka.ConfigMap{"produce.offset.report": true}
+		confargs.conf["produce.offset.report"] = true
 		runProducer((*kafka.ConfigMap)(&confargs.conf), *topic, int32(*partition))
 
 	case "consume":
 		confargs.conf["group.id"] = *group
 		confargs.conf["go.events.channel.enable"] = true
 		confargs.conf["go.application.rebalance.enable"] = true
-		confargs.conf["default.topic.config"] = kafka.ConfigMap{"auto.offset.reset": *initialOffset}
+		confargs.conf["auto.offset.reset"] = *initialOffset
 		// Enable generation of PartitionEOF events to track
 		// when end of partition is reached.
 		confargs.conf["enable.partition.eof"] = exitEOF

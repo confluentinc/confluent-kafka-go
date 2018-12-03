@@ -49,7 +49,7 @@ func main() {
 		// Enable generation of PartitionEOF when the
 		// end of a partition is reached.
 		"enable.partition.eof": true,
-		"default.topic.config": kafka.ConfigMap{"auto.offset.reset": "earliest"}})
+		"auto.offset.reset":    "earliest"})
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)

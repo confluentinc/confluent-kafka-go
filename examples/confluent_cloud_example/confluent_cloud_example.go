@@ -1,9 +1,9 @@
-// This is a simple example demonstrating how to produce a message to 
+// This is a simple example demonstrating how to produce a message to
 // Confluent Cloud then read it back again.
-//     
+//
 // https://www.confluent.io/confluent-cloud/
-// 
-// Auto-creation of topics is disabled in Confluent Cloud. You will need to 
+//
+// Auto-creation of topics is disabled in Confluent Cloud. You will need to
 // use the ccloud cli to create the go-test-topic topic before running this
 // example.
 //
@@ -12,7 +12,7 @@
 // The <ccloud bootstrap servers>, <ccloud key> and <ccloud secret> parameters
 // are available via the Confluent Cloud web interface. For more information,
 // refer to the quick-start:
-//     
+//
 // https://docs.confluent.io/current/cloud-quickstart.html
 package main
 
@@ -33,21 +33,21 @@ package main
  */
 
 import (
-	"time"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"time"
 )
 
 func main() {
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": "<ccloud bootstrap servers>",
+		"bootstrap.servers":       "<ccloud bootstrap servers>",
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
-		"sasl.mechanisms": "PLAIN",
-		"security.protocol": "SASL_SSL",
-		"sasl.username": "<ccloud key>",
-		"sasl.password": "<ccloud secret>",})
+		"sasl.mechanisms":         "PLAIN",
+		"security.protocol":       "SASL_SSL",
+		"sasl.username":           "<ccloud key>",
+		"sasl.password":           "<ccloud secret>"})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create producer: %s", err))
@@ -73,24 +73,23 @@ func main() {
 
 	p.Close()
 
-
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": "<ccloud bootstrap servers>",
+		"bootstrap.servers":       "<ccloud bootstrap servers>",
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
-		"sasl.mechanisms": "PLAIN",
-		"security.protocol": "SASL_SSL",
-		"sasl.username": "<ccloud key>",
-		"sasl.password": "<ccloud secret>",
-		"session.timeout.ms": 6000,
-		"group.id": "my-group",
-		"default.topic.config": kafka.ConfigMap{"auto.offset.reset": "earliest"},})
+		"sasl.mechanisms":         "PLAIN",
+		"security.protocol":       "SASL_SSL",
+		"sasl.username":           "<ccloud key>",
+		"sasl.password":           "<ccloud secret>",
+		"session.timeout.ms":      6000,
+		"group.id":                "my-group",
+		"auto.offset.reset":       "earliest"})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create consumer: %s", err))
 	}
 
-	topics := []string { topic }
+	topics := []string{topic}
 	c.SubscribeTopics(topics, nil)
 
 	for {
