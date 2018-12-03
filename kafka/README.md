@@ -65,5 +65,5 @@ top-level directory. This script requires the beautifulsoup4 Python package.
 $ source .../your/virtualenv/bin/activate
 $ pip install beautifulsoup4
 ...
-$ mk/doc-gen.py > kafka.html
+$ make -f mk/Makefile docs
 ```
