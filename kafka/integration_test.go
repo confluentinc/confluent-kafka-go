@@ -845,6 +845,7 @@ func TestProducerConsumerTimestamps(t *testing.T) {
 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
 		"group.id":                 testconf.Topic,
+		"enable.partition.eof":     true,
 	}
 
 	consumerConf.updateFromTestconf()
