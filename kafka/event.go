@@ -117,6 +117,8 @@ func (e RevokedPartitions) String() string {
 }
 
 // PartitionEOF consumer reached end of partition
+// Needs to be explicitly enabled by setting the `enable.partition.eof`
+// configuration property to true.
 type PartitionEOF TopicPartition
 
 func (p PartitionEOF) String() string {

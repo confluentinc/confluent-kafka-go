@@ -77,8 +77,6 @@ func main() {
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
-			case kafka.PartitionEOF:
-				fmt.Printf("%% Reached %v\n", e)
 			case kafka.Error:
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 				run = false
