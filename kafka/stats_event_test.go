@@ -58,7 +58,7 @@ func testProducerFunc(t *testing.T, withProducerChannel bool) {
 	p, err := NewProducer(&ConfigMap{
 		"statistics.interval.ms": 50,
 		"socket.timeout.ms":      10,
-		"default.topic.config":   ConfigMap{"message.timeout.ms": 10}})
+		"message.timeout.ms":     10})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

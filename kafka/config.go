@@ -36,13 +36,19 @@ type ConfigValue interface{}
 // ConfigMap is a map contaning standard librdkafka configuration properties as documented in:
 // https://github.com/edenhill/librdkafka/tree/master/CONFIGURATION.md
 //
-// The special property "default.topic.config" (optional) is a ConfigMap containing default topic
-// configuration properties.
+// The special property "default.topic.config" (optional) is a ConfigMap
+// containing default topic configuration properties.
+//
+// Deprecated: The use of "default.topic.config" is deprecated,
+// topic configuration properties shall be specified in the standard ConfigMap.
+// For backwards compatibility, "default.topic.config" (if supplied)
+// takes precedence.
 type ConfigMap map[string]ConfigValue
 
 // SetKey sets configuration property key to value.
-// For user convenience a key prefixed with {topic}. will be
-// set on the "default.topic.config" sub-map.
+//
+// Deprecated: For user convenience a key prefixed with {topic}. will be
+// set on the "default.topic.config" sub-map, this use is deprecated.
 func (m ConfigMap) SetKey(key string, value ConfigValue) error {
 	if strings.HasPrefix(key, "{topic}.") {
 		_, found := m["default.topic.config"]

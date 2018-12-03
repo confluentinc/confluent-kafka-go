@@ -176,9 +176,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Default config
-	conf := kafka.ConfigMap{"default.topic.config": kafka.ConfigMap{
-		"auto.offset.reset":     "earliest",
-		"produce.offset.report": true}}
+	conf := kafka.ConfigMap{}
 
 	/* Required options */
 	topic := kingpin.Flag("topic", "Topic").Required().String()
@@ -196,7 +194,7 @@ func main() {
 	kingpin.Parse()
 
 	conf["bootstrap.servers"] = *brokers
-	conf["default.topic.config"].(kafka.ConfigMap).SetKey("acks", *acks)
+	conf["acks"] = *acks
 
 	if len(*debug) > 0 {
 		conf["debug"] = *debug

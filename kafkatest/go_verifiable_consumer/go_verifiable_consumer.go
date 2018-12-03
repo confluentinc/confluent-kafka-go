@@ -378,7 +378,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Default config
-	conf := kafka.ConfigMap{"default.topic.config": kafka.ConfigMap{"auto.offset.reset": "earliest"}}
+	conf := kafka.ConfigMap{"auto.offset.reset": "earliest"}
 
 	/* Required options */
 	group := kingpin.Flag("group-id", "Consumer group").Required().String()

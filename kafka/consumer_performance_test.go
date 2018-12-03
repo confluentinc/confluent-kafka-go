@@ -44,7 +44,7 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 		"api.version.request":      "true",
 		"enable.auto.commit":       false,
 		"debug":                    ",",
-		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
+		"auto.offset.reset":        "earliest"}
 
 	conf.updateFromTestconf()
 

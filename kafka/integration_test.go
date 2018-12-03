@@ -248,7 +248,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"queue.buffering.max.messages": len(testmsgs),
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
-		"default.topic.config":         ConfigMap{"acks": 1}}
+		"acks": 1}
 
 	conf.updateFromTestconf()
 
@@ -344,7 +344,7 @@ func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, co
 		"api.version.request":      "true",
 		"enable.auto.commit":       cc.autoCommit,
 		"debug":                    ",",
-		"default.topic.config":     ConfigMap{"auto.offset.reset": "earliest"}}
+		"auto.offset.reset":        "earliest"}
 
 	conf.updateFromTestconf()
 

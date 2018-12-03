@@ -43,10 +43,10 @@ func main() {
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":    broker,
-		"group.id":             group,
-		"session.timeout.ms":   6000,
-		"default.topic.config": kafka.ConfigMap{"auto.offset.reset": "earliest"}})
+		"bootstrap.servers":  broker,
+		"group.id":           group,
+		"session.timeout.ms": 6000,
+		"auto.offset.reset":  "earliest"})
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
