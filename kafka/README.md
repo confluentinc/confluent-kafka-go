@@ -1,10 +1,11 @@
 # Information for confluent-kafka-go developers
 
-Whenever librdkafka error codes are updated make sure to run generate before building:
+Whenever librdkafka error codes are updated make sure to run generate
+before building:
 
 ```
-  $ (cd go_rdkafka_generr && go install) && go generate
-  $ go build
+  $ make -f mk/Makefile generr
+  $ go build ./...
 ```
 
 
