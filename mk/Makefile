@@ -15,5 +15,8 @@ DIRS?=$(shell find . -xdev -type f -name '*.go' -exec dirname {} \; | sort | uni
 docs:
 	mk/doc-gen.py > kafka/api.html
 
+generr:
+	cd kafka/go_rdkafka_generr && go generate
+
 %:
 	@(for d in $(DIRS) ; do (cd "$$d" && $@) ; done)
