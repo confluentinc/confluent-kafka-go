@@ -231,18 +231,6 @@ out:
 				setupTopicPartitionFromCrktpar((*TopicPartition)(&peof), crktpar)
 
 				retval = peof
-			case C.RD_KAFKA_RESP_ERR__FATAL:
-				// A fatal error has been raised.
-				// Extract the actual error from the client
-				// instance and return a new Error with
-				// fatal set to true.
-				cFatalErrstrSize := C.size_t(512)
-				cFatalErrstr := (*C.char)(C.malloc(cFatalErrstrSize))
-				defer C.free(unsafe.Pointer(cFatalErrstr))
-				cFatalErr := C.rd_kafka_fatal_error(h.rk, cFatalErrstr, cFatalErrstrSize)
-				fatalErr := newErrorFromCString(cFatalErr, cFatalErrstr)
-				fatalErr.fatal = true
-				retval = fatalErr
 			default:
 				retval = newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
 			}

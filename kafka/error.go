@@ -29,19 +29,18 @@ import "C"
 type Error struct {
 	code ErrorCode
 	str  string
-	fatal bool
 }
 
 func newError(code C.rd_kafka_resp_err_t) (err Error) {
-	return Error{ErrorCode(code), "", false}
+	return Error{ErrorCode(code), ""}
 }
 
 func newGoError(code ErrorCode) (err Error) {
-	return Error{code, "", false}
+	return Error{code, ""}
 }
 
 func newErrorFromString(code ErrorCode, str string) (err Error) {
-	return Error{code, str, false}
+	return Error{code, str}
 }
 
 func newErrorFromCString(code C.rd_kafka_resp_err_t, cstr *C.char) (err Error) {
@@ -51,7 +50,7 @@ func newErrorFromCString(code C.rd_kafka_resp_err_t, cstr *C.char) (err Error) {
 	} else {
 		str = ""
 	}
-	return Error{ErrorCode(code), str, false}
+	return Error{ErrorCode(code), str}
 }
 
 func newCErrorFromString(code C.rd_kafka_resp_err_t, str string) (err Error) {
@@ -75,12 +74,4 @@ func (e Error) String() string {
 // Code returns the ErrorCode of an Error
 func (e Error) Code() ErrorCode {
 	return e.code
-}
-
-// IsFatal returns true if the error was a fatal error.
-// A fatal error indicates the client instance is no longer operable and
-// should be terminated. Typical causes include non-recoverable
-// idempotent producer errors.
-func (e Error) IsFatal() bool {
-	return e.fatal
 }
