@@ -78,8 +78,8 @@ func main() {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
 			case kafka.Error:
+				// Errors should generally be considered as informational, the client will try to automatically recover
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
-				run = false
 			default:
 				fmt.Printf("Ignored %v\n", e)
 			}
