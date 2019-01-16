@@ -6,3 +6,4 @@ go-kafkacat/go-kafkacat
 admin_describe_config/admin_describe_config
 admin_delete_topics/admin_delete_topics
 admin_create_topic/admin_create_topic
+stats_example/stats_example
