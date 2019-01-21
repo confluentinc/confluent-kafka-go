@@ -2379,7 +2379,7 @@ Same as Error.String()
     </p>
     <h2 id="ErrorCode">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=328:346#L1">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=350:368#L1">
       ErrorCode
      </a>
      <a class="permalink" href="#ErrorCode">
@@ -2483,6 +2483,20 @@ Same as Error.String()
     <span id="ErrUnderflow">ErrUnderflow</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__UNDERFLOW">RD_KAFKA_RESP_ERR__UNDERFLOW</a>)
     <span class="comment">// ErrInvalidType Local: Invalid type</span>
     <span id="ErrInvalidType">ErrInvalidType</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__INVALID_TYPE">RD_KAFKA_RESP_ERR__INVALID_TYPE</a>)
+    <span class="comment">// ErrRetry Local: Retry operation</span>
+    <span id="ErrRetry">ErrRetry</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__RETRY">RD_KAFKA_RESP_ERR__RETRY</a>)
+    <span class="comment">// ErrPurgeQueue Local: Purged in queue</span>
+    <span id="ErrPurgeQueue">ErrPurgeQueue</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__PURGE_QUEUE">RD_KAFKA_RESP_ERR__PURGE_QUEUE</a>)
+    <span class="comment">// ErrPurgeInflight Local: Purged in flight</span>
+    <span id="ErrPurgeInflight">ErrPurgeInflight</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__PURGE_INFLIGHT">RD_KAFKA_RESP_ERR__PURGE_INFLIGHT</a>)
+    <span class="comment">// ErrFatal Local: Fatal error</span>
+    <span id="ErrFatal">ErrFatal</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__FATAL">RD_KAFKA_RESP_ERR__FATAL</a>)
+    <span class="comment">// ErrInconsistent Local: Inconsistent state</span>
+    <span id="ErrInconsistent">ErrInconsistent</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__INCONSISTENT">RD_KAFKA_RESP_ERR__INCONSISTENT</a>)
+    <span class="comment">// ErrGaplessGuarantee Local: Gap-less ordering would not be guaranteed if proceeding</span>
+    <span id="ErrGaplessGuarantee">ErrGaplessGuarantee</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__GAPLESS_GUARANTEE">RD_KAFKA_RESP_ERR__GAPLESS_GUARANTEE</a>)
+    <span class="comment">// ErrMaxPollExceeded Local: Maximum application poll interval (max.poll.interval.ms) exceeded</span>
+    <span id="ErrMaxPollExceeded">ErrMaxPollExceeded</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__MAX_POLL_EXCEEDED">RD_KAFKA_RESP_ERR__MAX_POLL_EXCEEDED</a>)
     <span class="comment">// ErrUnknown Unknown broker error</span>
     <span id="ErrUnknown">ErrUnknown</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNKNOWN">RD_KAFKA_RESP_ERR_UNKNOWN</a>)
     <span class="comment">// ErrNoError Success</span>
@@ -2597,10 +2611,48 @@ Same as Error.String()
     <span id="ErrSecurityDisabled">ErrSecurityDisabled</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_SECURITY_DISABLED">RD_KAFKA_RESP_ERR_SECURITY_DISABLED</a>)
     <span class="comment">// ErrOperationNotAttempted Broker: Operation not attempted</span>
     <span id="ErrOperationNotAttempted">ErrOperationNotAttempted</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_OPERATION_NOT_ATTEMPTED">RD_KAFKA_RESP_ERR_OPERATION_NOT_ATTEMPTED</a>)
+    <span class="comment">// ErrKafkaStorageError Disk error when trying to access log file on the disk</span>
+    <span id="ErrKafkaStorageError">ErrKafkaStorageError</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_KAFKA_STORAGE_ERROR">RD_KAFKA_RESP_ERR_KAFKA_STORAGE_ERROR</a>)
+    <span class="comment">// ErrLogDirNotFound The user-specified log directory is not found in the broker config</span>
+    <span id="ErrLogDirNotFound">ErrLogDirNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_LOG_DIR_NOT_FOUND">RD_KAFKA_RESP_ERR_LOG_DIR_NOT_FOUND</a>)
+    <span class="comment">// ErrSaslAuthenticationFailed SASL Authentication failed</span>
+    <span id="ErrSaslAuthenticationFailed">ErrSaslAuthenticationFailed</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED">RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED</a>)
+    <span class="comment">// ErrUnknownProducerID Unknown Producer Id</span>
+    <span id="ErrUnknownProducerID">ErrUnknownProducerID</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNKNOWN_PRODUCER_ID">RD_KAFKA_RESP_ERR_UNKNOWN_PRODUCER_ID</a>)
+    <span class="comment">// ErrReassignmentInProgress Partition reassignment is in progress</span>
+    <span id="ErrReassignmentInProgress">ErrReassignmentInProgress</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_REASSIGNMENT_IN_PROGRESS">RD_KAFKA_RESP_ERR_REASSIGNMENT_IN_PROGRESS</a>)
+    <span class="comment">// ErrDelegationTokenAuthDisabled Delegation Token feature is not enabled</span>
+    <span id="ErrDelegationTokenAuthDisabled">ErrDelegationTokenAuthDisabled</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_AUTH_DISABLED">RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_AUTH_DISABLED</a>)
+    <span class="comment">// ErrDelegationTokenNotFound Delegation Token is not found on server</span>
+    <span id="ErrDelegationTokenNotFound">ErrDelegationTokenNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_NOT_FOUND">RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_NOT_FOUND</a>)
+    <span class="comment">// ErrDelegationTokenOwnerMismatch Specified Principal is not valid Owner/Renewer</span>
+    <span id="ErrDelegationTokenOwnerMismatch">ErrDelegationTokenOwnerMismatch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_OWNER_MISMATCH">RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_OWNER_MISMATCH</a>)
+    <span class="comment">// ErrDelegationTokenRequestNotAllowed Delegation Token requests are not allowed on this connection</span>
+    <span id="ErrDelegationTokenRequestNotAllowed">ErrDelegationTokenRequestNotAllowed</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_REQUEST_NOT_ALLOWED">RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_REQUEST_NOT_ALLOWED</a>)
+    <span class="comment">// ErrDelegationTokenAuthorizationFailed Delegation Token authorization failed</span>
+    <span id="ErrDelegationTokenAuthorizationFailed">ErrDelegationTokenAuthorizationFailed</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_AUTHORIZATION_FAILED">RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_AUTHORIZATION_FAILED</a>)
+    <span class="comment">// ErrDelegationTokenExpired Delegation Token is expired</span>
+    <span id="ErrDelegationTokenExpired">ErrDelegationTokenExpired</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_EXPIRED">RD_KAFKA_RESP_ERR_DELEGATION_TOKEN_EXPIRED</a>)
+    <span class="comment">// ErrInvalidPrincipalType Supplied principalType is not supported</span>
+    <span id="ErrInvalidPrincipalType">ErrInvalidPrincipalType</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_INVALID_PRINCIPAL_TYPE">RD_KAFKA_RESP_ERR_INVALID_PRINCIPAL_TYPE</a>)
+    <span class="comment">// ErrNonEmptyGroup The group is not empty</span>
+    <span id="ErrNonEmptyGroup">ErrNonEmptyGroup</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_NON_EMPTY_GROUP">RD_KAFKA_RESP_ERR_NON_EMPTY_GROUP</a>)
+    <span class="comment">// ErrGroupIDNotFound The group id does not exist</span>
+    <span id="ErrGroupIDNotFound">ErrGroupIDNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_GROUP_ID_NOT_FOUND">RD_KAFKA_RESP_ERR_GROUP_ID_NOT_FOUND</a>)
+    <span class="comment">// ErrFetchSessionIDNotFound The fetch session ID was not found</span>
+    <span id="ErrFetchSessionIDNotFound">ErrFetchSessionIDNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_FETCH_SESSION_ID_NOT_FOUND">RD_KAFKA_RESP_ERR_FETCH_SESSION_ID_NOT_FOUND</a>)
+    <span class="comment">// ErrInvalidFetchSessionEpoch The fetch session epoch is invalid</span>
+    <span id="ErrInvalidFetchSessionEpoch">ErrInvalidFetchSessionEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_INVALID_FETCH_SESSION_EPOCH">RD_KAFKA_RESP_ERR_INVALID_FETCH_SESSION_EPOCH</a>)
+    <span class="comment">// ErrListenerNotFound No matching listener</span>
+    <span id="ErrListenerNotFound">ErrListenerNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_LISTENER_NOT_FOUND">RD_KAFKA_RESP_ERR_LISTENER_NOT_FOUND</a>)
+    <span class="comment">// ErrTopicDeletionDisabled Topic deletion is disabled</span>
+    <span id="ErrTopicDeletionDisabled">ErrTopicDeletionDisabled</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_TOPIC_DELETION_DISABLED">RD_KAFKA_RESP_ERR_TOPIC_DELETION_DISABLED</a>)
+    <span class="comment">// ErrUnsupportedCompressionType Unsupported compression type</span>
+    <span id="ErrUnsupportedCompressionType">ErrUnsupportedCompressionType</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNSUPPORTED_COMPRESSION_TYPE">RD_KAFKA_RESP_ERR_UNSUPPORTED_COMPRESSION_TYPE</a>)
 )</pre>
     <h3 id="ErrorCode.String">
      func (ErrorCode)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=415:449#L4">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=437:471#L4">
       String
      </a>
      <a class="permalink" href="#ErrorCode.String">
