@@ -39,7 +39,7 @@ type ConfigValue interface{}
 // The special property "default.topic.config" (optional) is a ConfigMap
 // containing default topic configuration properties.
 //
-// Deprecated: The use of "default.topic.config" is deprecated,
+// The use of "default.topic.config" is deprecated,
 // topic configuration properties shall be specified in the standard ConfigMap.
 // For backwards compatibility, "default.topic.config" (if supplied)
 // takes precedence.
@@ -47,7 +47,7 @@ type ConfigMap map[string]ConfigValue
 
 // SetKey sets configuration property key to value.
 //
-// Deprecated: For user convenience a key prefixed with {topic}. will be
+// For user convenience a key prefixed with {topic}. will be
 // set on the "default.topic.config" sub-map, this use is deprecated.
 func (m ConfigMap) SetKey(key string, value ConfigValue) error {
 	if strings.HasPrefix(key, "{topic}.") {

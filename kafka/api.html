@@ -1629,7 +1629,7 @@ DescribeConfigs request.
     </p>
     <h2 id="ConfigMap">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1404:1441#L36">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1397:1434#L36">
       ConfigMap
      </a>
      <a class="permalink" href="#ConfigMap">
@@ -1647,15 +1647,15 @@ DescribeConfigs request.
 containing default topic configuration properties.
     </p>
     <p>
-     Deprecated: The use of "default.topic.config" is deprecated,
-topic configuration properties shall be applied on the outer ConfigMap.
+     The use of "default.topic.config" is deprecated,
+topic configuration properties shall be specified in the standard ConfigMap.
 For backwards compatibility, "default.topic.config" (if supplied)
 takes precedence.
     </p>
     <pre>type ConfigMap map[<a href="//golang.org/pkg/builtin/#string">string</a>]<a href="#ConfigValue">ConfigValue</a></pre>
     <h3 id="ConfigMap.Get">
      func (ConfigMap)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=6760:6835#L236">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=6744:6819#L237">
       Get
      </a>
      <a class="permalink" href="#ConfigMap.Get">
@@ -1671,7 +1671,7 @@ an ErrInvalidArg error is returned.
     </p>
     <h3 id="ConfigMap.Set">
      func (ConfigMap)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=2081:2120#L57">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=2065:2104#L58">
       Set
      </a>
      <a class="permalink" href="#ConfigMap.Set">
@@ -1685,7 +1685,7 @@ for `-X key=value` config.
     </p>
     <h3 id="ConfigMap.SetKey">
      func (ConfigMap)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1638:1700#L41">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1622:1684#L42">
       SetKey
      </a>
      <a class="permalink" href="#ConfigMap.SetKey">
@@ -1695,7 +1695,9 @@ for `-X key=value` config.
     <pre>func (m <a href="#ConfigMap">ConfigMap</a>) SetKey(key <a href="//golang.org/pkg/builtin/#string">string</a>, value <a href="#ConfigValue">ConfigValue</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
     <p>
      SetKey sets configuration property key to value.
-Deprecated: For user convenience a key prefixed with {topic}. will be
+    </p>
+    <p>
+     For user convenience a key prefixed with {topic}. will be
 set on the "default.topic.config" sub-map, this use is deprecated.
     </p>
     <h2 id="ConfigResource">
