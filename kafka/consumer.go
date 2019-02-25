@@ -41,12 +41,15 @@ type RebalanceCb func(*Consumer, Event) error
 // Consumer implements a High-level Apache Kafka Consumer instance
 type Consumer struct {
 	events             chan Event
+	logsChanEnable     bool
+	logs               chan Event
 	handle             handle
 	eventsChanEnable   bool
 	readerTermChan     chan bool
 	rebalanceCb        RebalanceCb
 	appReassigned      bool
 	appRebalanceEnable bool // config setting
+	goroutineCount     int
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -263,6 +266,11 @@ func (c *Consumer) Events() chan Event {
 	return c.events
 }
 
+// Log returns the Log channel (if enabled), else nil
+func (c *Consumer) Logs() chan Event {
+	return c.logs
+}
+
 // ReadMessage polls the consumer for a message.
 //
 // This is a convenience API that wraps Poll() and only returns
@@ -325,12 +333,17 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
 
+	// Wait for consumerReader() or logPoll to terminate (by closing readerTermChan)
+	close(c.readerTermChan)
+	c.handle.waitTerminated(c.goroutineCount)
 	if c.eventsChanEnable {
-		// Wait for consumerReader() to terminate (by closing readerTermChan)
-		close(c.readerTermChan)
-		c.handle.waitTerminated(1)
 		close(c.events)
 	}
+
+	if c.logsChanEnable {
+		close(c.logs)
+	}
+
 
 	C.rd_kafka_queue_destroy(c.handle.rkq)
 	c.handle.rkq = nil
@@ -356,6 +369,7 @@ func (c *Consumer) Close() (err error) {
 //                                        respectively.
 //   go.events.channel.enable (bool, false) - Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled. (Experimental)
 //   go.events.channel.size (int, 1000) - Events() channel size
+//   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
 //
 // WARNING: Due to the buffering nature of channels (and queues in general) the
 // use of the events channel risks receiving outdated events and
@@ -402,6 +416,16 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 	eventsChanSize := v.(int)
 
+	v, err = confCopy.extract("go.logs.channel.enable", false)
+	if err != nil {
+		return nil, err
+	}
+	c.logsChanEnable = v.(bool)
+
+	if c.logsChanEnable {
+		confCopy.Set("log.queue=true")
+	}
+
 	cConf, err := confCopy.convert()
 	if err != nil {
 		return nil, err
@@ -420,18 +444,26 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	c.handle.c = c
 	c.handle.setup()
+	c.readerTermChan = make(chan bool)
 	c.handle.rkq = C.rd_kafka_queue_get_consumer(c.handle.rk)
 	if c.handle.rkq == nil {
 		// no cgrp (no group.id configured), revert to main queue.
 		c.handle.rkq = C.rd_kafka_queue_get_main(c.handle.rk)
 	}
 
+	if c.logsChanEnable {
+		c.logs = make(chan Event, eventsChanSize)
+		c.handle.setupLogQueue()
+		/* Start a polling goroutine to consume the queue */
+		go c.handle.logPoll(c.logs, 100, c.readerTermChan, c.handle.terminatedChan, c.String())
+		c.goroutineCount++
+	}
+
 	if c.eventsChanEnable {
 		c.events = make(chan Event, eventsChanSize)
-		c.readerTermChan = make(chan bool)
-
 		/* Start rdkafka consumer queue reader -> events writer goroutine */
 		go consumerReader(c, c.readerTermChan)
+		c.goroutineCount++
 	}
 
 	return c, nil

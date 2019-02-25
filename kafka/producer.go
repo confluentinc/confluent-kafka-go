@@ -130,11 +130,14 @@ import "C"
 // Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
 	events         chan Event
+	logsChanEnable bool
+	logs           chan Event
 	produceChannel chan *Message
 	handle         handle
 
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
+	goroutineCount int
 }
 
 // String returns a human readable name for a Producer instance
@@ -310,6 +313,11 @@ func (p *Producer) Events() chan Event {
 	return p.events
 }
 
+// Logs returns the Log channel (if enabled), else nil
+func (p *Producer) Logs() chan Event {
+	return p.logs
+}
+
 // ProduceChannel returns the produce *Message channel (write)
 func (p *Producer) ProduceChannel() chan *Message {
 	return p.produceChannel
@@ -351,9 +359,12 @@ func (p *Producer) Close() {
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)
 	close(p.produceChannel)
-	p.handle.waitTerminated(2)
+	p.handle.waitTerminated(p.goroutineCount)
 
 	close(p.events)
+	if p.logsChanEnable {
+		close(p.logs)
+	}
 
 	p.handle.cleanup()
 
@@ -423,6 +434,7 @@ func (p *Producer) Purge(flags int) error {
 //                                      Events() channel.
 //   go.events.channel.size (int, 1000000) - Events() channel size
 //   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
+//   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
 //
 func NewProducer(conf *ConfigMap) (*Producer, error) {
 
@@ -469,6 +481,16 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	produceChannelSize := v.(int)
 
+	v, err = confCopy.extract("go.logs.channel.enable", false)
+	if err != nil {
+		return nil, err
+	}
+	p.logsChanEnable = v.(bool)
+
+	if p.logsChanEnable {
+		confCopy.Set("log.queue=true")
+	}
+
 	if int(C.rd_kafka_version()) < 0x01000000 {
 		// produce.offset.report is no longer used in librdkafka >= v1.0.0
 		v, _ = confCopy.extract("{topic}.produce.offset.report", nil)
@@ -502,6 +524,14 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
 
+	if p.logsChanEnable {
+		p.logs = make(chan Event, eventsChanSize)
+		p.handle.setupLogQueue()
+		/* Start a polling goroutine to consume the queue */
+		go p.handle.logPoll(p.logs, 100, p.pollerTermChan, p.handle.terminatedChan, p.String())
+		p.goroutineCount++
+	}
+
 	go poller(p, p.pollerTermChan)
 
 	// non-batch or batch producer, only one must be used
@@ -510,6 +540,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	} else {
 		go channelProducer(p)
 	}
+	p.goroutineCount += 2
 
 	return p, nil
 }

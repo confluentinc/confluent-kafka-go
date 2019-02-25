@@ -297,3 +297,31 @@ func TestConsumerOAuthBearerConfig(t *testing.T) {
 
 	c.Close()
 }
+
+func TestConsumerLog(t *testing.T) {
+	c, err := NewConsumer(&ConfigMap{
+		"debug":          "all",
+		"go.logs.channel.enable": true,
+		"group.id":       "gotest"})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	var count int
+	go func() {
+		for {
+			select {
+			case log, ok := <-c.Logs():
+				if !ok {
+					return
+				}
+				t.Logf("%s", log)
+				count++
+			}
+		}
+	}()
+
+	<-time.After(time.Second * 3)
+	c.Close()
+	t.Logf("Got %d logs from log channel", count)
+}

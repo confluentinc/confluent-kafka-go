@@ -83,6 +83,10 @@ type handle struct {
 	rk  *C.rd_kafka_t
 	rkq *C.rd_kafka_queue_t
 
+	// Being Forwarded queue, init via rd_kafka_queue_new and rd_kafka_set_log_queue.
+	// Extract log from event via rd_kafka_event_log
+	logq *C.rd_kafka_queue_t
+
 	// Termination of background go-routines
 	terminatedChan chan string // string is go-routine name
 
@@ -136,6 +140,12 @@ func (h *handle) cleanup() {
 	if h.rkq != nil {
 		C.rd_kafka_queue_destroy(h.rkq)
 	}
+}
+
+func (h *handle) setupLogQueue() {
+	h.logq = C.rd_kafka_queue_new(h.rk)
+	/* let librdkafka forwarding log to internal log queue instead of print to stderr */
+	C.rd_kafka_set_log_queue(h.rk, h.logq)
 }
 
 // waitTerminated waits termination of background go-routines.

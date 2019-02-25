@@ -44,3 +44,9 @@ typedef struct fetched_c_msg {
   tmphdr_t *tmphdrs;
   size_t    tmphdrsCnt;
 } fetched_c_msg_t;
+
+typedef struct fetched_log {
+  const char *fac;
+  const char *str;
+  int level;
+} fetched_log_t;
