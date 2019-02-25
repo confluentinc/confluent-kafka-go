@@ -318,3 +318,32 @@ func TestProducerOAuthBearerConfig(t *testing.T) {
 
 	p.Close()
 }
+
+func TestProducerLog(t *testing.T) {
+	p, err := NewProducer(&ConfigMap{
+		"debug":                "all",
+		"go.logs.channel.enable":       true,
+		"socket.timeout.ms":    10,
+		"default.topic.config": ConfigMap{"message.timeout.ms": 10}})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	var count int
+	go func() {
+		for {
+			select {
+			case log, ok := <-p.Logs():
+				if !ok {
+					return
+				}
+				t.Logf("%s", log)
+				count++
+			}
+		}
+	}()
+
+	<-time.After(time.Second * 3)
+	p.Close()
+	t.Logf("Got %d logs from log channel", count)
+}
