@@ -93,8 +93,8 @@ type ConsumerGroupMetadata struct {
 
 // ConsumerGroupMember contains per-consumer-group-member info and metadata
 type ConsumerGroupMember struct {
-	MemberId       string
-	ClientId       string
+	MemberID       string
+	ClientID       string
 	ClientHost     string
 	MemberMetadata *ConsumerGroupMemberMetadata
 }
@@ -226,8 +226,8 @@ func getConsumerGroupsMetadata(H Handle, consumerGroup *string, timeoutMs int) (
 			}
 
 			member := ConsumerGroupMember{
-				MemberId:       C.GoString(cMember.member_id),
-				ClientId:       C.GoString(cMember.client_id),
+				MemberID:       C.GoString(cMember.member_id),
+				ClientID:       C.GoString(cMember.client_id),
 				ClientHost:     C.GoString(cMember.client_host),
 				MemberMetadata: memberMetadata,
 			}
