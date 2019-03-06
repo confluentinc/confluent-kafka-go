@@ -488,6 +488,14 @@ func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }
 
+// GetConsumerGroupMetadata queries broker for consumer groups metadata and all its members
+// like which consumer groups and which corresponding members consume which topics
+// if consumerGroup is nil, metadata for all consumer groups will be returned
+// otherwise only metadata for that specific consumer group will be returned
+func (c *Consumer) GetConsumerGroupMetadata(consumerGroup *string, timeoutMs int) ([]ConsumerGroupMetadata, error) {
+	return getConsumerGroupsMetadata(c, consumerGroup, timeoutMs)
+}
+
 // OffsetsForTimes looks up offsets by timestamp for the given partitions.
 //
 // The returned offset for each partition is the earliest offset whose
