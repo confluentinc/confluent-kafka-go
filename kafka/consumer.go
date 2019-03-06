@@ -61,9 +61,10 @@ func (c *Consumer) gethandle() *handle {
 
 // SetOAuthBearerToken sets the bearer token and any optional SASL extensions to be used
 // when authenticating to a broker via SASL/OAUTHBEARER.  It will return nil on success, otherwise an error if:
-// 1) any of the arguments are invalid (meaning an expiration time in the past or either a token value
+// 1) any of the arguments are invalid (meaning an expiration time in the past, a token value
 // or an extension key or value that does not meet the regular expression requirements as per
-// https://tools.ietf.org/html/rfc7628#section-3.1);
+// https://tools.ietf.org/html/rfc7628#section-3.1, or the existence of an extension key equal to the
+// reserved "auth" key);
 // 2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
 func (c *Consumer) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
