@@ -177,13 +177,6 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 			}
 
 			p.ProduceChannel() <- &msg
-		case ev := <-p.Events():
-			switch e := ev.(type) {
-			case kafka.OAuthBearerTokenRefresh:
-				setNewUnsecuredToken(p, e, config)
-			default:
-				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
-			}
 		}
 	}
 
