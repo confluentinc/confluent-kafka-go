@@ -61,41 +61,50 @@ func setNewUnsecuredToken(consumerOrProducer tokenReceiver, e kafka.OAuthBearerT
 	v, err := config.Get(saslOAuthBearerConfig, "")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%% Ignoring event %T due to bad %s: %s\n", e, saslOAuthBearerConfig, "foo")
-	} else {
-		oauthbearerMap := map[string]string{
-			principalClaimNameKey: "sub",
-			lifeSecondsKey:        "3600",
-		}
-		for _, kv := range oauthbearerConfigRegex.FindAllStringSubmatch(v.(string), -1) {
-			oauthbearerMap[kv[1]] = kv[2]
-		}
-		principalClaimName := oauthbearerMap[principalClaimNameKey]
-		mdPrincipal := oauthbearerMap[principalKey]
-		lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerMap[lifeSecondsKey])
-		// regexp is such that principal is the only one that can end up blank
-		if mdPrincipal == "" {
-			fmt.Fprintf(os.Stderr, "%% Ignoring event %T: no %s: %s=%s\n", e, principalKey, saslOAuthBearerConfig, v)
-		} else if lifeSecondsErr != nil || lifeSeconds == 0 {
-			fmt.Fprintf(os.Stderr, "%% Ignoring event %T: bad %s: %s=%s\n", e, lifeSecondsKey, saslOAuthBearerConfig, v)
-		} else if len(oauthbearerMap) > 3 {
-			fmt.Fprintf(os.Stderr, "%% Ignoring event %T: unrecognized keys: %s=%s\n", e, saslOAuthBearerConfig, v)
-		} else {
-			// create unsecured JWS compact serialization
-			claimsJSON := "{\"" + principalClaimName + "\":\"" + mdPrincipal + "\""
-			claimsJSON += ",\"iat\":"
-			now := time.Now().Unix()
-			claimsJSON += strconv.FormatInt(now, 10)
-			claimsJSON += ",\"exp\":"
-			mdLifetimeSeconds := now + int64(lifeSeconds)
-			claimsJSON += strconv.FormatInt(mdLifetimeSeconds, 10)
-			claimsJSON += "}"
-			encodedClaims := base64.RawURLEncoding.EncodeToString([]byte(claimsJSON))
-			jwsCompactSerialization := joseHeaderEncoded + "." + encodedClaims + "."
-			err := consumerOrProducer.SetOAuthBearerToken(jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, map[string]string{})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%% Error handling event %T: %v\n", e, err)
-			}
-		}
+		return
+	}
+	// set up initial map with default values
+	oauthbearerMap := map[string]string{
+		principalClaimNameKey: "sub",
+		lifeSecondsKey:        "3600",
+	}
+	// parse the provided config and store name=value pairs in the map
+	for _, kv := range oauthbearerConfigRegex.FindAllStringSubmatch(v.(string), -1) {
+		oauthbearerMap[kv[1]] = kv[2]
+	}
+	principalClaimName := oauthbearerMap[principalClaimNameKey]
+	mdPrincipal := oauthbearerMap[principalKey]
+	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerMap[lifeSecondsKey])
+	// regexp is such that principalClaimName and lifeSeconds cannot end up blank,
+	// so check for a blank principal (which will happen if it isn't specified)
+	if mdPrincipal == "" {
+		fmt.Fprintf(os.Stderr, "%% Ignoring event %T: no %s: %s=%s\n", e, principalKey, saslOAuthBearerConfig, v)
+		return
+	}
+	// sanity-check the provided lifeSeconds value, which must be a positive integer
+	if lifeSecondsErr != nil || lifeSeconds == 0 {
+		fmt.Fprintf(os.Stderr, "%% Ignoring event %T: bad %s: %s=%s\n", e, lifeSecondsKey, saslOAuthBearerConfig, v)
+		return
+	}
+	// do not proceed if there are any unknown name=value pairs
+	if len(oauthbearerMap) > 3 {
+		fmt.Fprintf(os.Stderr, "%% Ignoring event %T: unrecognized keys: %s=%s\n", e, saslOAuthBearerConfig, v)
+		return
+	}
+	// create unsecured JWS compact serialization and set it on the producer/consumer
+	claimsJSON := "{\"" + principalClaimName + "\":\"" + mdPrincipal + "\""
+	claimsJSON += ",\"iat\":"
+	now := time.Now().Unix()
+	claimsJSON += strconv.FormatInt(now, 10)
+	claimsJSON += ",\"exp\":"
+	mdLifetimeSeconds := now + int64(lifeSeconds)
+	claimsJSON += strconv.FormatInt(mdLifetimeSeconds, 10)
+	claimsJSON += "}"
+	encodedClaims := base64.RawURLEncoding.EncodeToString([]byte(claimsJSON))
+	jwsCompactSerialization := joseHeaderEncoded + "." + encodedClaims + "."
+	err = consumerOrProducer.SetOAuthBearerToken(jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, map[string]string{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%% Error handling event %T: %v\n", e, err)
 	}
 }
 

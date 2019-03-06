@@ -206,8 +206,13 @@ func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
 	return cg, found
 }
 
-// SetOAuthBearerToken sets the bearer token (and optional SASL extensions)
-// to be used when connecting to a broker
+// SetOAuthBearerToken sets the bearer token and any optional SASL extensions to be used
+// when authenticating to a broker via SASL/OAUTHBEARER.  It will return nil on success, otherwise an error if:
+// 1) any of the arguments are invalid (meaning an expiration time in the past or either a token value
+// or an extension key or value that does not meet the regular expression requirements as per
+// https://tools.ietf.org/html/rfc7628#section-3.1);
+// 2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+// 3) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
 func (h *handle) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string, extensions map[string]string) error {
 	ctokenValue := C.CString(tokenValue)
 	defer C.free(unsafe.Pointer(ctokenValue))
@@ -240,8 +245,11 @@ func (h *handle) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64,
 	return newErrorFromCString(cErr, cErrstr)
 }
 
-// SetOAuthBearerTokenFailure sets the bearer token (and optional SASL extensions)
-// to be used when connecting to a broker
+// SetOAuthBearerTokenFailure sets the error message describing why token retrieval failed; it also
+// schedules a new token refresh event for 10 seconds later so the attempt may be retried.
+// It will return nil on success, otherwise an error if:
+// 1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+// 2) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
 func (h *handle) SetOAuthBearerTokenFailure(errstr string) error {
 	cerrstr := C.CString(errstr)
 	defer C.free(unsafe.Pointer(cerrstr))

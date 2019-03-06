@@ -869,15 +869,23 @@ func (a *AdminClient) gethandle() *handle {
 	return a.handle
 }
 
-// SetOAuthBearerToken sets the bearer token (and optional SASL extensions)
-// to be used when connecting to a broker
+// SetOAuthBearerToken sets the bearer token and any optional SASL extensions to be used
+// when authenticating to a broker via SASL/OAUTHBEARER.  It will return nil on success, otherwise an error if:
+// 1) any of the arguments are invalid (meaning an expiration time in the past or either a token value
+// or an extension key or value that does not meet the regular expression requirements as per
+// https://tools.ietf.org/html/rfc7628#section-3.1);
+// 2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+// 3) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
 func (a *AdminClient) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
 	extensions map[string]string) error {
 	return a.handle.SetOAuthBearerToken(tokenValue, mdLifetimeSeconds, mdPrincipal, extensions)
 }
 
-// SetOAuthBearerTokenFailure identifies the reason for token retrieval failure
-// and schedules a new event for 10 seconds later so the retrieval will be attempted again
+// SetOAuthBearerTokenFailure sets the error message describing why token retrieval failed; it also
+// schedules a new token refresh event for 10 seconds later so the attempt may be retried.
+// It will return nil on success, otherwise an error if:
+// 1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+// 2) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
 func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 	return a.handle.SetOAuthBearerTokenFailure(errstr)
 }
