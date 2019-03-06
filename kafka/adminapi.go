@@ -866,6 +866,7 @@ func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) 
 func (a *AdminClient) GetConsumerGroupMetadata(consumerGroup *string, timeoutMs int) ([]ConsumerGroupMetadata, error) {
 	return getConsumerGroupsMetadata(a, consumerGroup, timeoutMs)
 }
+
 // String returns a human readable name for an AdminClient instance
 func (a *AdminClient) String() string {
 	return fmt.Sprintf("admin-%s", a.handle.String())

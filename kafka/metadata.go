@@ -77,25 +77,25 @@ type TopicMetadata struct {
 
 // Metadata contains broker and topic metadata for all (matching) topics
 type Metadata struct {
-	Brokers []BrokerMetadata
-	Topics  map[string]TopicMetadata
+	Brokers           []BrokerMetadata
+	Topics            map[string]TopicMetadata
 	OriginatingBroker BrokerMetadata
 }
 
 // ConsumerGroupMetadata contains metadata per-consumer-group and all of its members
 type ConsumerGroupMetadata struct {
-	Group string
-	State string
-	Protocol string
+	Group        string
+	State        string
+	Protocol     string
 	ProtocolType string
-	Members []ConsumerGroupMember
+	Members      []ConsumerGroupMember
 }
 
 // ConsumerGroupMember contains per-consumer-group-member info and metadata
 type ConsumerGroupMember struct {
-	MemberId string
-	ClientId string
-	ClientHost string
+	MemberId       string
+	ClientId       string
+	ClientHost     string
 	MemberMetadata *ConsumerGroupMemberMetadata
 }
 
@@ -189,7 +189,6 @@ func queryWatermarkOffsets(H Handle, topic string, partition int32, timeoutMs in
 	return low, high, nil
 }
 
-
 // getConsumerGroupsMetadata queries broker for consumer groups metadata and all its members
 // like which consumer groups and which corresponding members consume which topics
 // if consumerGroup is nil, metadata for all consumer groups will be returned
@@ -204,7 +203,7 @@ func getConsumerGroupsMetadata(H Handle, consumerGroup *string, timeoutMs int) (
 	} else {
 		cErr = C.rd_kafka_list_groups(h.rk, C.CString(*consumerGroup), &cGroupList, C.int(timeoutMs))
 	}
-	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR  {
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return nil, newError(cErr)
 	}
 
@@ -217,7 +216,7 @@ func getConsumerGroupsMetadata(H Handle, consumerGroup *string, timeoutMs int) (
 		memberCnt := int(cGroup.member_cnt)
 		members := make([]ConsumerGroupMember, memberCnt)
 
-		for j:= 0; j < memberCnt; j++ {
+		for j := 0; j < memberCnt; j++ {
 			cMember := C._getMember_element(cGroup, C.int(j))
 
 			memberMetadataBytes := C.GoBytes(cMember.member_metadata, cMember.member_metadata_size)
@@ -227,9 +226,9 @@ func getConsumerGroupsMetadata(H Handle, consumerGroup *string, timeoutMs int) (
 			}
 
 			member := ConsumerGroupMember{
-				MemberId: C.GoString(cMember.member_id),
-				ClientId: C.GoString(cMember.client_id),
-				ClientHost: C.GoString(cMember.client_host),
+				MemberId:       C.GoString(cMember.member_id),
+				ClientId:       C.GoString(cMember.client_id),
+				ClientHost:     C.GoString(cMember.client_host),
 				MemberMetadata: memberMetadata,
 			}
 
@@ -237,11 +236,11 @@ func getConsumerGroupsMetadata(H Handle, consumerGroup *string, timeoutMs int) (
 		}
 
 		consumerGroupsMetadata[i] = ConsumerGroupMetadata{
-			Group: C.GoString(cGroup.group),
-			State: C.GoString(cGroup.state),
-			Protocol: C.GoString(cGroup.protocol),
+			Group:        C.GoString(cGroup.group),
+			State:        C.GoString(cGroup.state),
+			Protocol:     C.GoString(cGroup.protocol),
 			ProtocolType: C.GoString(cGroup.protocol_type),
-			Members: members,
+			Members:      members,
 		}
 	}
 
@@ -275,15 +274,15 @@ func newConsumerGroupMemberMetadataFromBytes(b []byte) (*ConsumerGroupMemberMeta
 		if len(b[offset:]) < stringLength {
 			return nil, newError(C.RD_KAFKA_RESP_ERR__UNDERFLOW)
 		}
-		topic := string(b[offset : offset + stringLength])
+		topic := string(b[offset : offset+stringLength])
 		offset += stringLength
 
 		topics[i] = topic
 	}
 
 	metadata := ConsumerGroupMemberMetadata{
-		Version: version,
-		Topics: topics,
+		Version:  version,
+		Topics:   topics,
 		UserData: b[offset:],
 	}
 
