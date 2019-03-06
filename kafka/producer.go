@@ -147,6 +147,19 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
+// SetOAuthBearerToken sets the bearer token (and optional SASL extensions)
+// to be used when connecting to a broker
+func (p *Producer) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
+	extensions map[string]string) error {
+	return p.handle.SetOAuthBearerToken(tokenValue, mdLifetimeSeconds, mdPrincipal, extensions)
+}
+
+// SetOAuthBearerTokenFailure identifies the reason for token retrieval failure
+// and schedules a new event for 10 seconds later so the retrieval will be attempted again
+func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
+	return p.handle.SetOAuthBearerTokenFailure(errstr)
+}
+
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")

@@ -869,6 +869,19 @@ func (a *AdminClient) gethandle() *handle {
 	return a.handle
 }
 
+// SetOAuthBearerToken sets the bearer token (and optional SASL extensions)
+// to be used when connecting to a broker
+func (a *AdminClient) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
+	extensions map[string]string) error {
+	return a.handle.SetOAuthBearerToken(tokenValue, mdLifetimeSeconds, mdPrincipal, extensions)
+}
+
+// SetOAuthBearerTokenFailure identifies the reason for token retrieval failure
+// and schedules a new event for 10 seconds later so the retrieval will be attempted again
+func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
+	return a.handle.SetOAuthBearerTokenFailure(errstr)
+}
+
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
 	if a.isDerived {

@@ -205,3 +205,49 @@ func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
 
 	return cg, found
 }
+
+// SetOAuthBearerToken sets the bearer token (and optional SASL extensions)
+// to be used when connecting to a broker
+func (h *handle) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string, extensions map[string]string) error {
+	ctokenValue := C.CString(tokenValue)
+	defer C.free(unsafe.Pointer(ctokenValue))
+	cmdPrincipal := C.CString(mdPrincipal)
+	defer C.free(unsafe.Pointer(cmdPrincipal))
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+	cextensions := make([]*C.char, 2*len(extensions))
+	extensionSize := 0
+	for key, value := range extensions {
+		cextensions[extensionSize] = C.CString(key)
+		defer C.free(unsafe.Pointer(cextensions[extensionSize]))
+		extensionSize++
+		cextensions[extensionSize] = C.CString(value)
+		defer C.free(unsafe.Pointer(cextensions[extensionSize]))
+		extensionSize++
+	}
+	var cextensionsToUse **C.char
+	if extensionSize == 0 {
+		cextensionsToUse = nil
+	} else {
+		cextensionsToUse = (**C.char)(unsafe.Pointer(&cextensions[0]))
+	}
+	cErr := C.rd_kafka_oauthbearer_set_token(h.rk, ctokenValue,
+		C.int64_t(mdLifetimeSeconds*1000), cmdPrincipal, cextensionsToUse, C.size_t(extensionSize), cErrstr, cErrstrSize)
+	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil
+	}
+	return newErrorFromCString(cErr, cErrstr)
+}
+
+// SetOAuthBearerTokenFailure sets the bearer token (and optional SASL extensions)
+// to be used when connecting to a broker
+func (h *handle) SetOAuthBearerTokenFailure(errstr string) error {
+	cerrstr := C.CString(errstr)
+	defer C.free(unsafe.Pointer(cerrstr))
+	cErr := C.rd_kafka_oauthbearer_set_token_failure(h.rk, cerrstr)
+	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil
+	}
+	return newError(cErr)
+}

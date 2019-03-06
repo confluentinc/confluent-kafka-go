@@ -135,6 +135,13 @@ func (o OffsetsCommitted) String() string {
 	return fmt.Sprintf("OffsetsCommitted (%v, %v)", o.Error, o.Offsets)
 }
 
+// OAuthBearerTokenRefresh indicates token refresh is required
+type OAuthBearerTokenRefresh struct{}
+
+func (o OAuthBearerTokenRefresh) String() string {
+	return "OAuthBearerTokenRefresh"
+}
+
 // eventPoll polls an event from the handler's C rd_kafka_queue_t,
 // translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
 // term_chan is an optional channel to monitor along with producing to channel
@@ -309,6 +316,10 @@ out:
 			} else {
 				retval = OffsetsCommitted{nil, offsets}
 			}
+
+		case C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH:
+			var ev OAuthBearerTokenRefresh
+			retval = ev
 
 		case C.RD_KAFKA_EVENT_NONE:
 			// poll timed out: no events available

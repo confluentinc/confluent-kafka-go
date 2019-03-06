@@ -59,6 +59,19 @@ func (c *Consumer) gethandle() *handle {
 	return &c.handle
 }
 
+// SetOAuthBearerToken sets the bearer token (and optional SASL extensions)
+// to be used when connecting to a broker
+func (c *Consumer) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
+	extensions map[string]string) error {
+	return c.handle.SetOAuthBearerToken(tokenValue, mdLifetimeSeconds, mdPrincipal, extensions)
+}
+
+// SetOAuthBearerTokenFailure identifies the reason for token retrieval failure
+// and schedules a new event for 10 seconds later so the retrieval will be attempted again
+func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
+	return c.handle.SetOAuthBearerTokenFailure(errstr)
+}
+
 // Subscribe to a single topic
 // This replaces the current subscription
 func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
