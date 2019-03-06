@@ -128,8 +128,9 @@
 // * `OAuthBearerTokenRefresh` - time to retrieve a new SASL/OAUTHBEARER token.
 // This event only occurs with sasl.mechanism=OAUTHBEARER.
 // Be sure to invoke SetOAuthBearerToken() on the Producer/Consumer/AdminClient
-// instance, and if an error is returned be sure to then invoke
-// SetOAuthBearerTokenFailure().
+// instance when a successful token retrieval is completed, otherwise be sure to
+// invoke SetOAuthBearerTokenFailure() to indicate that retrieval failed and schedule
+// a new event for 10 seconds later when another retrieval can be attempted.
 //
 //
 // Hint: If your application registers a signal notification
