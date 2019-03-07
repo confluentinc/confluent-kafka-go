@@ -7,7 +7,7 @@ Examples:
   producer_channel_example - Channel based producer
   producer_example - Function based producer
 
-  go-kafkacat - Channel based kafkacat Go clone
+  go-kafkacat - Channel based kafkacat Go clone, also provides unsecured SASL/OAUTHBEARER example
 
 
 Usage example:
