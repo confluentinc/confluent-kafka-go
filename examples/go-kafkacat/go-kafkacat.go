@@ -45,20 +45,20 @@ var oauthbearerConfigRegex = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\
 var oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
 
 const (
-	saslOAuthBearerConfig = "sasl.oauthbearer.config"
-	principalClaimNameKey = "principalClaimName"
-	principalKey          = "principal"
-	lifeSecondsKey        = "lifeSeconds"
-	joseHeaderEncoded     = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
+	saslDotOAuthBearerDotConfig = "sasl.oauthbearer.config"
+	principalClaimNameKey       = "principalClaimName"
+	principalKey                = "principal"
+	lifeSecondsKey              = "lifeSeconds"
+	joseHeaderEncoded           = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
 )
 
 func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) (string, int64, string, map[string]string, error) {
-	v, err := config.Get(saslOAuthBearerConfig, "")
+	v, err := config.Get(saslDotOAuthBearerDotConfig, "")
 	if err != nil {
-		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to incorrect type for %s: %v", e, saslOAuthBearerConfig, err)
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to incorrect type for %s: %v", e, saslDotOAuthBearerDotConfig, err)
 	}
 	if !oauthbearerConfigRegex.MatchString(v.(string)) {
-		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to malformed %s: %v", e, saslOAuthBearerConfig, v)
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to malformed %s: %v", e, saslDotOAuthBearerDotConfig, v)
 	}
 	// set up initial map with default values
 	oauthbearerMap := map[string]string{
@@ -75,15 +75,15 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.Confi
 	// regexp is such that principalClaimName and lifeSeconds cannot end up blank,
 	// so check for a blank principal (which will happen if it isn't specified)
 	if mdPrincipal == "" {
-		return "", 0, "", nil, fmt.Errorf("ignoring event %T: no %s: %s=%s", e, principalKey, saslOAuthBearerConfig, v)
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T: no %s: %s=%s", e, principalKey, saslDotOAuthBearerDotConfig, v)
 	}
 	// sanity-check the provided lifeSeconds value, which must be a positive integer
 	if lifeSecondsErr != nil || lifeSeconds == 0 {
-		return "", 0, "", nil, fmt.Errorf("ignoring event %T: bad %s: %s=%s", e, lifeSecondsKey, saslOAuthBearerConfig, v)
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T: bad %s: %s=%s", e, lifeSecondsKey, saslDotOAuthBearerDotConfig, v)
 	}
 	// do not proceed if there are any unknown name=value pairs
 	if len(oauthbearerMap) > 3 {
-		return "", 0, "", nil, fmt.Errorf("ignoring event %T: unrecognized key(s): %s=%s", e, saslOAuthBearerConfig, v)
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T: unrecognized key(s): %s=%s", e, saslDotOAuthBearerDotConfig, v)
 	}
 	// create unsecured JWS compact serialization and set it on the producer/consumer
 	claimsJSON := "{\"" + principalClaimName + "\":\"" + mdPrincipal + "\""
