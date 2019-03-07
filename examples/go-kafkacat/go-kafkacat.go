@@ -41,7 +41,8 @@ var (
 	sigs         chan os.Signal
 )
 
-var oauthbearerConfigRegex = regexp.MustCompile("(\\w+)=(\\w+)")
+var oauthbearerConfigRegex = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
+var oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
 
 const (
 	saslOAuthBearerConfig = "sasl.oauthbearer.config"
@@ -51,17 +52,13 @@ const (
 	joseHeaderEncoded     = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
 )
 
-type tokenReceiver interface {
-	SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
-		extensions map[string]string) error
-	SetOAuthBearerTokenFailure(errstr string) error
-}
-
-func setNewUnsecuredToken(consumerOrProducer tokenReceiver, e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) {
+func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) (string, int64, string, map[string]string, error) {
 	v, err := config.Get(saslOAuthBearerConfig, "")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%% Ignoring event %T due to bad %s: %s\n", e, saslOAuthBearerConfig, "foo")
-		return
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to incorrect type for %s: %v", e, saslOAuthBearerConfig, err)
+	}
+	if !oauthbearerConfigRegex.MatchString(v.(string)) {
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to malformed %s: %v", e, saslOAuthBearerConfig, v)
 	}
 	// set up initial map with default values
 	oauthbearerMap := map[string]string{
@@ -69,7 +66,7 @@ func setNewUnsecuredToken(consumerOrProducer tokenReceiver, e kafka.OAuthBearerT
 		lifeSecondsKey:        "3600",
 	}
 	// parse the provided config and store name=value pairs in the map
-	for _, kv := range oauthbearerConfigRegex.FindAllStringSubmatch(v.(string), -1) {
+	for _, kv := range oauthbearerNameEqualsValueRegex.FindAllStringSubmatch(v.(string), -1) {
 		oauthbearerMap[kv[1]] = kv[2]
 	}
 	principalClaimName := oauthbearerMap[principalClaimNameKey]
@@ -78,18 +75,15 @@ func setNewUnsecuredToken(consumerOrProducer tokenReceiver, e kafka.OAuthBearerT
 	// regexp is such that principalClaimName and lifeSeconds cannot end up blank,
 	// so check for a blank principal (which will happen if it isn't specified)
 	if mdPrincipal == "" {
-		fmt.Fprintf(os.Stderr, "%% Ignoring event %T: no %s: %s=%s\n", e, principalKey, saslOAuthBearerConfig, v)
-		return
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T: no %s: %s=%s", e, principalKey, saslOAuthBearerConfig, v)
 	}
 	// sanity-check the provided lifeSeconds value, which must be a positive integer
 	if lifeSecondsErr != nil || lifeSeconds == 0 {
-		fmt.Fprintf(os.Stderr, "%% Ignoring event %T: bad %s: %s=%s\n", e, lifeSecondsKey, saslOAuthBearerConfig, v)
-		return
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T: bad %s: %s=%s", e, lifeSecondsKey, saslOAuthBearerConfig, v)
 	}
 	// do not proceed if there are any unknown name=value pairs
 	if len(oauthbearerMap) > 3 {
-		fmt.Fprintf(os.Stderr, "%% Ignoring event %T: unrecognized keys: %s=%s\n", e, saslOAuthBearerConfig, v)
-		return
+		return "", 0, "", nil, fmt.Errorf("ignoring event %T: unrecognized key(s): %s=%s", e, saslOAuthBearerConfig, v)
 	}
 	// create unsecured JWS compact serialization and set it on the producer/consumer
 	claimsJSON := "{\"" + principalClaimName + "\":\"" + mdPrincipal + "\""
@@ -102,10 +96,7 @@ func setNewUnsecuredToken(consumerOrProducer tokenReceiver, e kafka.OAuthBearerT
 	claimsJSON += "}"
 	encodedClaims := base64.RawURLEncoding.EncodeToString([]byte(claimsJSON))
 	jwsCompactSerialization := joseHeaderEncoded + "." + encodedClaims + "."
-	err = consumerOrProducer.SetOAuthBearerToken(jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, map[string]string{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%% Error handling event %T: %v\n", e, err)
-	}
+	return jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, map[string]string{}, nil
 }
 
 func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
@@ -125,7 +116,18 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 			if !ok {
 				switch e := ev.(type) {
 				case kafka.OAuthBearerTokenRefresh:
-					setNewUnsecuredToken(p, e, config)
+					jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, extensions, retrieveErr :=
+						retrieveUnsecuredToken(e, config)
+					if retrieveErr != nil {
+						fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
+						p.SetOAuthBearerTokenFailure(retrieveErr.Error())
+					} else {
+						setTokenError := p.SetOAuthBearerToken(jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, extensions)
+						if setTokenError != nil {
+							fmt.Fprintf(os.Stderr, "%% Error setting token and extensions: %v\n", setTokenError)
+							p.SetOAuthBearerTokenFailure(setTokenError.Error())
+						}
+					}
 				}
 				continue
 			}
@@ -253,7 +255,18 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 					fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				}
 			case kafka.OAuthBearerTokenRefresh:
-				setNewUnsecuredToken(c, e, config)
+				jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, extensions, retrieveErr :=
+					retrieveUnsecuredToken(e, config)
+				if retrieveErr != nil {
+					fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
+					c.SetOAuthBearerTokenFailure(retrieveErr.Error())
+				} else {
+					setTokenError := c.SetOAuthBearerToken(jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, extensions)
+					if setTokenError != nil {
+						fmt.Fprintf(os.Stderr, "%% Error setting token and extensions: %v\n", setTokenError)
+						c.SetOAuthBearerTokenFailure(setTokenError.Error())
+					}
+				}
 			default:
 				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}
