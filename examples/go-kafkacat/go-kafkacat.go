@@ -20,6 +20,7 @@ package main
 import (
 	"bufio"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -61,17 +62,17 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.Confi
 		return "", 0, "", nil, fmt.Errorf("ignoring event %T due to malformed %s: %v", e, saslDotOAuthBearerDotConfig, v)
 	}
 	// set up initial map with default values
-	oauthbearerMap := map[string]string{
+	oauthbearerConfigMap := map[string]string{
 		principalClaimNameKey: "sub",
 		lifeSecondsKey:        "3600",
 	}
 	// parse the provided config and store name=value pairs in the map
 	for _, kv := range oauthbearerNameEqualsValueRegex.FindAllStringSubmatch(v.(string), -1) {
-		oauthbearerMap[kv[1]] = kv[2]
+		oauthbearerConfigMap[kv[1]] = kv[2]
 	}
-	principalClaimName := oauthbearerMap[principalClaimNameKey]
-	mdPrincipal := oauthbearerMap[principalKey]
-	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerMap[lifeSecondsKey])
+	principalClaimName := oauthbearerConfigMap[principalClaimNameKey]
+	mdPrincipal := oauthbearerConfigMap[principalKey]
+	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerConfigMap[lifeSecondsKey])
 	// regexp is such that principalClaimName and lifeSeconds cannot end up blank,
 	// so check for a blank principal (which will happen if it isn't specified)
 	if mdPrincipal == "" {
@@ -82,19 +83,18 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.Confi
 		return "", 0, "", nil, fmt.Errorf("ignoring event %T: bad %s: %s=%s", e, lifeSecondsKey, saslDotOAuthBearerDotConfig, v)
 	}
 	// do not proceed if there are any unknown name=value pairs
-	if len(oauthbearerMap) > 3 {
+	if len(oauthbearerConfigMap) > 3 {
 		return "", 0, "", nil, fmt.Errorf("ignoring event %T: unrecognized key(s): %s=%s", e, saslDotOAuthBearerDotConfig, v)
 	}
-	// create unsecured JWS compact serialization and set it on the producer/consumer
-	claimsJSON := "{\"" + principalClaimName + "\":\"" + mdPrincipal + "\""
-	claimsJSON += ",\"iat\":"
 	now := time.Now().Unix()
-	claimsJSON += strconv.FormatInt(now, 10)
-	claimsJSON += ",\"exp\":"
 	mdLifetimeSeconds := now + int64(lifeSeconds)
-	claimsJSON += strconv.FormatInt(mdLifetimeSeconds, 10)
-	claimsJSON += "}"
-	encodedClaims := base64.RawURLEncoding.EncodeToString([]byte(claimsJSON))
+	oauthbearerMapForJSON := map[string]interface{}{
+		principalClaimName: mdPrincipal,
+		"iat":              now,
+		"exp":              mdLifetimeSeconds,
+	}
+	claimsJSON, _ := json.Marshal(oauthbearerMapForJSON)
+	encodedClaims := base64.RawURLEncoding.EncodeToString(claimsJSON)
 	jwsCompactSerialization := joseHeaderEncoded + "." + encodedClaims + "."
 	return jwsCompactSerialization, mdLifetimeSeconds, mdPrincipal, map[string]string{}, nil
 }
