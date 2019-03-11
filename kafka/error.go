@@ -40,8 +40,9 @@ func newError(code C.rd_kafka_resp_err_t) (err Error) {
 	return Error{ErrorCode(code), "", false}
 }
 
-func newGoError(code ErrorCode) (err Error) {
-	return Error{code, "", false}
+// NewError creates a new Error.
+func NewError(code ErrorCode, str string, fatal bool) (err Error) {
+	return Error{code, str, fatal}
 }
 
 func newErrorFromString(code ErrorCode, str string) (err Error) {
