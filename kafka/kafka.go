@@ -130,8 +130,8 @@
 // Be sure to invoke SetOAuthBearerToken() on the Producer/Consumer/AdminClient
 // instance when a successful token retrieval is completed, otherwise be sure to
 // invoke SetOAuthBearerTokenFailure() to indicate that retrieval failed (or
-// if setting the token failed, which could happen if an extensions doesn't meet
-// the required regular expression); invokimng SetOAuthBearerTokenFailure() will
+// if setting the token failed, which could happen if an extension doesn't meet
+// the required regular expression); invoking SetOAuthBearerTokenFailure() will
 // schedule a new event for 10 seconds later so another retrieval can be attempted.
 //
 //
