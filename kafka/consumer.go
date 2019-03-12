@@ -59,26 +59,29 @@ func (c *Consumer) gethandle() *handle {
 	return &c.handle
 }
 
-// SetOAuthBearerToken sets the bearer token and any optional SASL extensions to be used
-// when authenticating to a broker via SASL/OAUTHBEARER.  It will return nil on success, otherwise an error if:
-// 1) any of the arguments are invalid (meaning an expiration time in the past, a token value
-// or an extension key or value that does not meet the regular expression requirements as per
-// https://tools.ietf.org/html/rfc7628#section-3.1, or the existence of an extension key equal to the
-// reserved "auth" key);
+// SetOAuthBearerToken sets the the data to be transmitted
+// to a broker during SASL/OAUTHBEARER authentication. It will return nil
+// on success, otherwise an error if:
+// 1) the token data is invalid (meaning an expiration time in the past
+// or either a token value or an extension key or value that does not meet
+// the regular expression requirements as per
+// https://tools.ietf.org/html/rfc7628#section-3.1);
 // 2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
-// 3) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
-func (c *Consumer) SetOAuthBearerToken(tokenValue string, mdLifetimeSeconds int64, mdPrincipal string,
-	extensions map[string]string) error {
-	return c.handle.SetOAuthBearerToken(tokenValue, mdLifetimeSeconds, mdPrincipal, extensions)
+// 3) SASL/OAUTHBEARER is supported but is not configured as the client's
+// authentication mechanism.
+func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
+	return c.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
-// SetOAuthBearerTokenFailure sets the error message describing why token retrieval failed; it also
-// schedules a new token refresh event for 10 seconds later so the attempt may be retried.
-// It will return nil on success, otherwise an error if:
+// SetOAuthBearerTokenFailure sets the error message describing why token
+// retrieval/setting failed; it also schedules a new token refresh event for 10
+// seconds later so the attempt may be retried. It will return nil on
+// success, otherwise an error if:
 // 1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
-// 2) SASL/OAUTHBEARER is supported but is not configured as the client's authentication mechanism.
+// 2) SASL/OAUTHBEARER is supported but is not configured as the client's
+// authentication mechanism.
 func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
-	return c.handle.SetOAuthBearerTokenFailure(errstr)
+	return c.handle.setOAuthBearerTokenFailure(errstr)
 }
 
 // Subscribe to a single topic
