@@ -42,8 +42,10 @@ var (
 	sigs         chan os.Signal
 )
 
-var oauthbearerConfigRegex = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
-var oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
+var (
+	oauthbearerConfigRegex          = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
+	oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
+)
 
 const (
 	saslDotOAuthBearerDotConfig = "sasl.oauthbearer.config"
@@ -72,13 +74,14 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.Confi
 	}
 	principalClaimName := oauthbearerConfigMap[principalClaimNameKey]
 	mdPrincipal := oauthbearerConfigMap[principalKey]
-	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerConfigMap[lifeSecondsKey])
-	// regexp is such that principalClaimName and lifeSeconds cannot end up blank,
-	// so check for a blank principal (which will happen if it isn't specified)
+	// regexp is such that principalClaimName (and lifeSeconds, below) cannot end up
+	// blank, so check for a blank principal (which will happen if it isn't specified)
 	if mdPrincipal == "" {
 		return "", 0, "", nil, fmt.Errorf("ignoring event %T: no %s: %s=%s", e, principalKey, saslDotOAuthBearerDotConfig, v)
 	}
-	// sanity-check the provided lifeSeconds value, which must be a positive integer
+	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerConfigMap[lifeSecondsKey])
+	// sanity-check the provided lifeSeconds value, which must parse as a positive
+	// integer (it cannot parse negative since the regex doesn't allow the minus sign)
 	if lifeSecondsErr != nil || lifeSeconds == 0 {
 		return "", 0, "", nil, fmt.Errorf("ignoring event %T: bad %s: %s=%s", e, lifeSecondsKey, saslDotOAuthBearerDotConfig, v)
 	}
