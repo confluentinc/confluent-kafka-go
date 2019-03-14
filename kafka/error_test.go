@@ -17,10 +17,11 @@
 package kafka
 
 import (
+	"strings"
 	"testing"
 )
 
-//TimeFatalError tests fatal errors
+//TestFatalError tests fatal errors
 func TestFatalError(t *testing.T) {
 	fatalErr := newErrorFromString(ErrOutOfOrderSequenceNumber, "Testing a fatal error")
 	fatalErr.fatal = true
@@ -34,4 +35,37 @@ func TestFatalError(t *testing.T) {
 		t.Errorf("Expected IsFatal() to return false for %v", normalErr)
 	}
 	t.Logf("%v", normalErr)
+}
+
+//TestFatalErrorClient tests fatal errors using a client instance
+func TestFatalErrorClient(t *testing.T) {
+	p, err := NewProducer(&ConfigMap{})
+	if err != nil {
+		t.Fatalf("Failed to create producer: %s", err)
+	}
+
+	err = p.GetFatalError()
+	if err != nil {
+		t.Fatalf("Expected no fatal error, got %s", err)
+	}
+
+	errstr := "A_FATAL_ERROR_TEST"
+	p.TestFatalError(ErrInvalidTimestamp, errstr)
+
+	err = p.GetFatalError()
+	if err == nil {
+		t.Fatalf("Expected a fatal error, got nil")
+	}
+
+	if err.(Error).Code() != ErrInvalidTimestamp ||
+		!strings.HasSuffix(err.(Error).String(), errstr) {
+		t.Fatalf("Expected ErrInvalidTimestamp and %s suffix, got %v: %s",
+			errstr, err.(Error).Code(), err.(Error).String())
+	}
+
+	if !err.(Error).IsFatal() {
+		t.Fatalf("Expected error to be fatal")
+	}
+
+	p.Close()
 }

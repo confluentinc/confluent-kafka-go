@@ -219,8 +219,7 @@ out:
 		case C.RD_KAFKA_EVENT_ERROR:
 			// Error event
 			cErr := C.rd_kafka_event_error(rkev)
-			switch cErr {
-			case C.RD_KAFKA_RESP_ERR__PARTITION_EOF:
+			if cErr == C.RD_KAFKA_RESP_ERR__PARTITION_EOF {
 				crktpar := C.rd_kafka_event_topic_partition(rkev)
 				if crktpar == nil {
 					break
@@ -231,7 +230,8 @@ out:
 				setupTopicPartitionFromCrktpar((*TopicPartition)(&peof), crktpar)
 
 				retval = peof
-			case C.RD_KAFKA_RESP_ERR__FATAL:
+
+			} else if int(C.rd_kafka_event_error_is_fatal(rkev)) != 0 {
 				// A fatal error has been raised.
 				// Extract the actual error from the client
 				// instance and return a new Error with
@@ -243,7 +243,8 @@ out:
 				fatalErr := newErrorFromCString(cFatalErr, cFatalErrstr)
 				fatalErr.fatal = true
 				retval = fatalErr
-			default:
+
+			} else {
 				retval = newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
 			}
 
