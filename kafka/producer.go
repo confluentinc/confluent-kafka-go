@@ -581,3 +581,14 @@ func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 func (p *Producer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
 	return offsetsForTimes(p, times, timeoutMs)
 }
+
+// GetFatalError returns an Error object if the client instance has raised a fatal error, else nil.
+func (p *Producer) GetFatalError() error {
+	return getFatalError(p)
+}
+
+// TestFatalError triggers a fatal error in the underlying client.
+// This is to be used strictly for testing purposes.
+func (p *Producer) TestFatalError(code ErrorCode, str string) ErrorCode {
+	return testFatalError(p, code, str)
+}

@@ -21,12 +21,14 @@ package kafka
 //go:generate $GOPATH/bin/go_rdkafka_generr generated_errors.go
 
 /*
+#include <stdlib.h>
 #include <librdkafka/rdkafka.h>
 */
 import "C"
 
 import (
 	"fmt"
+	"unsafe"
 )
 
 // Error provides a Kafka-specific error container
@@ -96,4 +98,26 @@ func (e Error) Code() ErrorCode {
 // idempotent producer errors.
 func (e Error) IsFatal() bool {
 	return e.fatal
+}
+
+// getFatalError returns an Error object if the client instance has raised a fatal error, else nil.
+func getFatalError(H Handle) error {
+	cErrstr := (*C.char)(C.malloc(C.size_t(512)))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cErr := C.rd_kafka_fatal_error(H.gethandle().rk, cErrstr, 512)
+	if int(cErr) == 0 {
+		return nil
+	}
+
+	err := newErrorFromCString(cErr, cErrstr)
+	err.fatal = true
+
+	return err
+}
+
+// testFatalError triggers a fatal error in the underlying client.
+// This is to be used strictly for testing purposes.
+func testFatalError(H Handle, code ErrorCode, str string) ErrorCode {
+	return ErrorCode(C.rd_kafka_test_fatal_error(H.gethandle().rk, C.rd_kafka_resp_err_t(code), C.CString(str)))
 }
