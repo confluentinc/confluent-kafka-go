@@ -390,7 +390,15 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	// the original is not mutated.
 	confCopy := conf.clone()
 
-	v, err := confCopy.extract("go.batch.producer", false)
+	v, err := confCopy.extract("delivery.report.only.error", false)
+	if v == true {
+		// FIXME: The filtering of successful DRs must be done in
+		//        the Go client to avoid cgoDr memory leaks.
+		return nil, newErrorFromString(ErrUnsupportedFeature,
+			"delivery.report.only.error=true is not currently supported by the Go client")
+	}
+
+	v, err = confCopy.extract("go.batch.producer", false)
 	if err != nil {
 		return nil, err
 	}
