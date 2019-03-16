@@ -49,6 +49,7 @@ func main() {
 		"bootstrap.servers": "localhost",
 		"group.id":          "myGroup",
 		"auto.offset.reset": "earliest",
+		"security.protocol": "SASL_SSL",
 	})
 
 	if err != nil {
