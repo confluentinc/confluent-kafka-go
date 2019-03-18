@@ -55,6 +55,20 @@ const (
 	joseHeaderEncoded           = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
 )
 
+func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) {
+	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, config)
+	if retrieveErr != nil {
+		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
+		client.SetOAuthBearerTokenFailure(retrieveErr.Error())
+	} else {
+		setTokenError := client.SetOAuthBearerToken(oauthBearerToken)
+		if setTokenError != nil {
+			fmt.Fprintf(os.Stderr, "%% Error setting token and extensions: %v\n", setTokenError)
+			client.SetOAuthBearerTokenFailure(setTokenError.Error())
+		}
+	}
+}
+
 func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) (kafka.OAuthBearerToken, error) {
 	v, err := config.Get(saslDotOAuthBearerDotConfig, "")
 	if err != nil {
@@ -128,17 +142,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 			if !ok {
 				switch e := ev.(type) {
 				case kafka.OAuthBearerTokenRefresh:
-					oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, config)
-					if retrieveErr != nil {
-						fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
-						p.SetOAuthBearerTokenFailure(retrieveErr.Error())
-					} else {
-						setTokenError := p.SetOAuthBearerToken(oauthBearerToken)
-						if setTokenError != nil {
-							fmt.Fprintf(os.Stderr, "%% Error setting token and extensions: %v\n", setTokenError)
-							p.SetOAuthBearerTokenFailure(setTokenError.Error())
-						}
-					}
+					handleOAuthBearerTokenRefreshEvent(p, e, config)
 				}
 				continue
 			}
@@ -266,17 +270,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 					fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				}
 			case kafka.OAuthBearerTokenRefresh:
-				oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, config)
-				if retrieveErr != nil {
-					fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
-					c.SetOAuthBearerTokenFailure(retrieveErr.Error())
-				} else {
-					setTokenError := c.SetOAuthBearerToken(oauthBearerToken)
-					if setTokenError != nil {
-						fmt.Fprintf(os.Stderr, "%% Error setting token and extensions: %v\n", setTokenError)
-						c.SetOAuthBearerTokenFailure(setTokenError.Error())
-					}
-				}
+				handleOAuthBearerTokenRefreshEvent(c, e, config)
 			default:
 				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}
