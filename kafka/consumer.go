@@ -482,16 +482,15 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
-// QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic
-// and partition.
+// QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }
 
 // GetWatermarkOffsets returns the cached low and high offsets for the given topic
 // and partition.  The high offset is populated on every fetch response or via calling QueryWatermarkOffsets.
-// The low offset is populated only when calling QueryWatermarkOffsets.  0 will be returned if
-// there is no cached offset for either value.
+// The low offset is populated every statistics.interval.ms if that value is set.
+// OffsetInvalid will be returned if there is no cached offset for either value.
 func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error) {
 	return getWatermarkOffsets(c, topic, partition)
 }
