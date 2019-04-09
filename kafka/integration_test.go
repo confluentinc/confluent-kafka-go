@@ -445,9 +445,7 @@ func TestConsumerGetWatermarkOffsets(t *testing.T) {
 		"bootstrap.servers":        testconf.Brokers,
 		"group.id":                 testconf.GroupID,
 		"session.timeout.ms":       6000,
-		"api.version.request":      "true",
 		"enable.auto.commit":       false,
-		"debug":                    ",",
 		"auto.offset.reset":        "earliest",
 	}
 	_ = config.updateFromTestconf()
@@ -475,18 +473,15 @@ func TestConsumerGetWatermarkOffsets(t *testing.T) {
 		}
 	}
 
-	queryLow, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
 	if err != nil {
 		t.Fatalf("Error querying watermark offsets: %s", err)
 	}
 
-	getLow, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
+	// We are not currently testing the low watermark offset as it only gets set every 10s by the stats timer
+	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
 	if err != nil {
 		t.Fatalf("Error getting watermark offsets: %s", err)
-	}
-
-	if queryLow != getLow {
-		t.Errorf("QueryWatermarkOffsets low[%d] does not equal GetWatermarkOffsets low[%d]", queryLow, getLow)
 	}
 
 	if queryHigh != getHigh {
