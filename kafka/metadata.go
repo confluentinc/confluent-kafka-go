@@ -173,12 +173,8 @@ func getWatermarkOffsets(H Handle, topic string, partition int32) (low, high int
 		return 0, 0, newError(e)
 	}
 
-	if cLow != C.RD_KAFKA_OFFSET_INVALID {
-		low = int64(cLow)
-	}
+	low = int64(cLow)
+	high = int64(cHigh)
 
-	if cHigh != C.RD_KAFKA_OFFSET_INVALID {
-		high = int64(cHigh)
-	}
 	return low, high, nil
 }
