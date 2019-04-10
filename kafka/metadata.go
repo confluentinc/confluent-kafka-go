@@ -156,3 +156,25 @@ func queryWatermarkOffsets(H Handle, topic string, partition int32, timeoutMs in
 	high = int64(cHigh)
 	return low, high, nil
 }
+
+// getWatermarkOffsets returns the clients cached low and high offsets for the given topic
+// and partition.
+func getWatermarkOffsets(H Handle, topic string, partition int32) (low, high int64, err error) {
+	h := H.gethandle()
+
+	ctopic := C.CString(topic)
+	defer C.free(unsafe.Pointer(ctopic))
+
+	var cLow, cHigh C.int64_t
+
+	e := C.rd_kafka_get_watermark_offsets(h.rk, ctopic, C.int32_t(partition),
+		&cLow, &cHigh)
+	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return 0, 0, newError(e)
+	}
+
+	low = int64(cLow)
+	high = int64(cHigh)
+
+	return low, high, nil
+}
