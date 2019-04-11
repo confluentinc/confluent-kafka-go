@@ -26,7 +26,7 @@ mkdir -p "$PREFIXDIR/librdkafka"
 pushd "$PREFIXDIR/librdkafka"
 
 test -f configure ||
-curl -sL "https://github.com/rondagostino/librdkafka/archive/rtd_kip-255-oauthbearer.tar.gz" | \
+curl -sL "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
     tar -xz --strip-components=1 -f -
 
 ./configure --prefix="$PREFIXDIR"
