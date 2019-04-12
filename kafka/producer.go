@@ -124,6 +124,13 @@ rd_kafka_resp_err_t err;
       return RD_KAFKA_RESP_ERR_NO_ERROR;
 #endif
 }
+typedef int32_t (*partitioner_cb) (
+						const rd_kafka_topic_t *rkt,
+						const void *keydata,
+						size_t keylen,
+						int32_t partition_cnt,
+						void *rkt_opaque,
+						void *msg_opaque);
 */
 import "C"
 
@@ -414,6 +421,12 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	produceChannelSize := v.(int)
 
+	v, err = confCopy.extract("go.produce.partitioner", "")
+	if err != nil {
+		return nil, err
+	}
+	partitionerName := v.(string)
+
 	if int(C.rd_kafka_version()) < 0x01000000 {
 		// produce.offset.report is no longer used in librdkafka >= v1.0.0
 		v, _ = confCopy.extract("{topic}.produce.offset.report", nil)
@@ -433,6 +446,29 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_DR|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR)
+
+	if partitionerName != "" {
+
+		var partitioner C.partitioner_cb
+		switch partitionerName {
+		case "random":
+			partitioner = C.partitioner_cb(C.rd_kafka_msg_partitioner_random)
+		case "consistent":
+			partitioner = C.partitioner_cb(C.rd_kafka_msg_partitioner_consistent)
+		case "consistent_random":
+			partitioner = C.partitioner_cb(C.rd_kafka_msg_partitioner_consistent_random)
+		case "murmur2":
+			partitioner = C.partitioner_cb(C.rd_kafka_msg_partitioner_murmur2)
+		case "murmur2_random":
+			partitioner = C.partitioner_cb(C.rd_kafka_msg_partitioner_murmur2_random)
+		default:
+			return nil, newErrorFromString(ErrUnsupportedFeature,
+				fmt.Sprintf("go.produce.partitioner=%s is not currently supported by the Go client", partitionerName))
+		}
+		tConf := C.rd_kafka_topic_conf_new()
+		C.rd_kafka_conf_set_default_topic_conf(cConf, tConf)
+		C.rd_kafka_topic_conf_set_partitioner_cb(tConf, partitioner)
+	}
 
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
