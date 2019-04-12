@@ -422,6 +422,12 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	produceChannelSize := v.(int)
 
+	v, err = confCopy.extract("go.produce.partitioner", "")
+	if err != nil {
+		return nil, err
+	}
+	partitionerStr := v.(string)
+
 	if int(C.rd_kafka_version()) < 0x01000000 {
 		// produce.offset.report is no longer used in librdkafka >= v1.0.0
 		v, _ = confCopy.extract("{topic}.produce.offset.report", nil)
@@ -441,6 +447,14 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_DR|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR)
+
+	cConf.partitioner_str = C.CString(partitionerStr)
+	func() {
+		// we can eagerly free this string as it is only used during topic creation
+		s := cConf.partitioner_str
+		cConf.partitioner_str = nil
+		C.free(s)
+	}()
 
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
