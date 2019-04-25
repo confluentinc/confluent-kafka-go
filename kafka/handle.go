@@ -250,11 +250,14 @@ func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
 func (h *handle) setOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
 	cTokenValue := C.CString(oauthBearerToken.TokenValue)
 	defer C.free(unsafe.Pointer(cTokenValue))
+
 	cPrincipal := C.CString(oauthBearerToken.Principal)
 	defer C.free(unsafe.Pointer(cPrincipal))
+
 	cErrstrSize := C.size_t(512)
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
 	defer C.free(unsafe.Pointer(cErrstr))
+
 	cExtensions := make([]*C.char, 2*len(oauthBearerToken.Extensions))
 	extensionSize := 0
 	for key, value := range oauthBearerToken.Extensions {
@@ -265,10 +268,12 @@ func (h *handle) setOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
 		defer C.free(unsafe.Pointer(cExtensions[extensionSize]))
 		extensionSize++
 	}
+
 	var cExtensionsToUse **C.char
 	if extensionSize > 0 {
 		cExtensionsToUse = (**C.char)(unsafe.Pointer(&cExtensions[0]))
 	}
+
 	cErr := C.rd_kafka_oauthbearer_set_token(h.rk, cTokenValue,
 		C.int64_t(oauthBearerToken.LifetimeMilliseconds), cPrincipal, cExtensionsToUse, C.size_t(extensionSize), cErrstr, cErrstrSize)
 	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {

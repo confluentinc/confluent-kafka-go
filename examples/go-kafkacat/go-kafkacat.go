@@ -43,7 +43,10 @@ var (
 )
 
 var (
-	oauthbearerConfigRegex          = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
+	// Regex for sasl.oauthbearer.config, which constrains it to be
+	// 1 or more name=value pairs with optional ignored whitespace
+	oauthbearerConfigRegex = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
+	// Regex used to extract name=value pairs from sasl.oauthbearer.config
 	oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
 )
 
@@ -55,6 +58,11 @@ const (
 	joseHeaderEncoded           = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
 )
 
+// handleOAuthBearerTokenRefreshEvent generates an unsecured JWT based on the configuration defined
+// in sasl.oauthbearer.config and sets the token on the client for use in any future authentication attempt.
+// It must be invoked whenever kafka.OAuthBearerTokenRefresh appears on the client's event channel,
+// which will occur whenever the client requires a token (i.e. when it first starts and when the
+// previously-received token is 80% of the way to its expiration time).
 func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) {
 	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, config)
 	if retrieveErr != nil {
