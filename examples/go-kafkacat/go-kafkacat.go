@@ -113,22 +113,27 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.Confi
 	if len(oauthbearerConfigMap) > 3 {
 		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: unrecognized key(s): %s=%s", e, saslDotOAuthBearerDotConfig, v)
 	}
-	now := time.Now().Unix()
-	lifetimeSeconds := now + int64(lifeSeconds)
+
+	now := time.Now()
+	nowSecondsSinceEpoch := now.Unix()
+
+	expiration := now.Add(time.Second * time.Duration(lifeSeconds))
+	expirationSecondsSinceEpoch := expiration.Unix()
+
 	oauthbearerMapForJSON := map[string]interface{}{
 		principalClaimName: principal,
-		"iat":              now,
-		"exp":              lifetimeSeconds,
+		"iat":              nowSecondsSinceEpoch,
+		"exp":              expirationSecondsSinceEpoch,
 	}
 	claimsJSON, _ := json.Marshal(oauthbearerMapForJSON)
 	encodedClaims := base64.RawURLEncoding.EncodeToString(claimsJSON)
 	jwsCompactSerialization := joseHeaderEncoded + "." + encodedClaims + "."
 	extensions := map[string]string{}
 	oauthBearerToken := kafka.OAuthBearerToken{
-		TokenValue:           jwsCompactSerialization,
-		LifetimeMilliseconds: lifetimeSeconds * 1000,
-		Principal:            principal,
-		Extensions:           extensions,
+		TokenValue: jwsCompactSerialization,
+		Expiration: expiration,
+		Principal:  principal,
+		Extensions: extensions,
 	}
 	return oauthBearerToken, nil
 }

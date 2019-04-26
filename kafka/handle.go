@@ -19,6 +19,7 @@ package kafka
 import (
 	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -36,10 +37,9 @@ type OAuthBearerToken struct {
 	// the regular expression for a SASL/OAUTHBEARER value defined at
 	// https://tools.ietf.org/html/rfc7628#section-3.1
 	TokenValue string
-	// Metadata about the token indicating when it expires
-	// in terms of the number of milliseconds since the epoch; it must
-	// represent a time in the future
-	LifetimeMilliseconds int64
+	// Metadata about the token indicating when it expires (local time);
+	// it must represent a time in the future
+	Expiration time.Time
 	// Metadata about the token indicating the Kafka principal name
 	// to which it applies (for example, "admin")
 	Principal string
@@ -275,7 +275,8 @@ func (h *handle) setOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
 	}
 
 	cErr := C.rd_kafka_oauthbearer_set_token(h.rk, cTokenValue,
-		C.int64_t(oauthBearerToken.LifetimeMilliseconds), cPrincipal, cExtensionsToUse, C.size_t(extensionSize), cErrstr, cErrstrSize)
+		C.int64_t(oauthBearerToken.Expiration.UnixNano()/(1000*1000)), cPrincipal,
+		cExtensionsToUse, C.size_t(extensionSize), cErrstr, cErrstrSize)
 	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return nil
 	}
