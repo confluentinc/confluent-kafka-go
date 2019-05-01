@@ -172,6 +172,12 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 	return p.handle.setOAuthBearerTokenFailure(errstr)
 }
 
+// GetConfigValue retrieves the configuration value associated with
+// the given configuration property.
+func (p *Producer) GetConfigValue(key string) (string, error) {
+	return p.handle.getConfigValue(key)
+}
+
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")

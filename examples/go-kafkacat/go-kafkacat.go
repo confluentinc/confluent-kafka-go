@@ -17,6 +17,12 @@ package main
  * limitations under the License.
  */
 
+/*
+#include <stdlib.h>
+#include <librdkafka/rdkafka.h>
+*/
+import "C"
+
 import (
 	"bufio"
 	"encoding/base64"
@@ -63,8 +69,15 @@ const (
 // It must be invoked whenever kafka.OAuthBearerTokenRefresh appears on the client's event channel,
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
 // previously-received token is 80% of the way to its expiration time).
-func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) {
-	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, config)
+func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh) {
+	val, err := client.GetConfigValue(saslDotOAuthBearerDotConfig)
+	if err != nil {
+		// illegal config value or unknown config name; should generally not happen
+		fmt.Fprintf(os.Stderr, "Unknown/llegal type for %s\n", saslDotOAuthBearerDotConfig)
+		os.Exit(1)
+	}
+
+	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, val)
 	if retrieveErr != nil {
 		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
 		client.SetOAuthBearerTokenFailure(retrieveErr.Error())
@@ -77,13 +90,9 @@ func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearer
 	}
 }
 
-func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.ConfigMap) (kafka.OAuthBearerToken, error) {
-	v, err := config.Get(saslDotOAuthBearerDotConfig, "")
-	if err != nil {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T due to incorrect type for %s: %v", e, saslDotOAuthBearerDotConfig, err)
-	}
-	if !oauthbearerConfigRegex.MatchString(v.(string)) {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T due to malformed %s: %v", e, saslDotOAuthBearerDotConfig, v)
+func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, v string) (kafka.OAuthBearerToken, error) {
+	if !oauthbearerConfigRegex.MatchString(v) {
+		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T due to malformed %s: %s", e, saslDotOAuthBearerDotConfig, v)
 	}
 	// set up initial map with default values
 	oauthbearerConfigMap := map[string]string{
@@ -91,7 +100,7 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config *kafka.Confi
 		lifeSecondsKey:        "3600",
 	}
 	// parse the provided config and store name=value pairs in the map
-	for _, kv := range oauthbearerNameEqualsValueRegex.FindAllStringSubmatch(v.(string), -1) {
+	for _, kv := range oauthbearerNameEqualsValueRegex.FindAllStringSubmatch(v, -1) {
 		oauthbearerConfigMap[kv[1]] = kv[2]
 	}
 	principalClaimName := oauthbearerConfigMap[principalClaimNameKey]
@@ -155,7 +164,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 			if !ok {
 				switch e := ev.(type) {
 				case kafka.OAuthBearerTokenRefresh:
-					handleOAuthBearerTokenRefreshEvent(p, e, config)
+					handleOAuthBearerTokenRefreshEvent(p, e)
 				}
 				continue
 			}
@@ -283,7 +292,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 					fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				}
 			case kafka.OAuthBearerTokenRefresh:
-				handleOAuthBearerTokenRefreshEvent(c, e, config)
+				handleOAuthBearerTokenRefreshEvent(c, e)
 			default:
 				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}

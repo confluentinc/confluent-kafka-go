@@ -72,6 +72,10 @@ type Handle interface {
 	// 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 	// authentication mechanism.
 	SetOAuthBearerTokenFailure(errstr string) error
+
+	// GetConfigValue retrieves the configuration value associated with
+	// the given configuration property.
+	GetConfigValue(key string) (string, error)
 	gethandle() *handle
 }
 
@@ -291,4 +295,20 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 		return nil
 	}
 	return newError(cErr)
+}
+
+func (h *handle) getConfigValue(key string) (string, error) {
+	cConfigSize := C.size_t(0)
+	cErr := C.rd_kafka_conf_get(C.rd_kafka_conf(h.rk), C.CString(key),
+		nil, &cConfigSize)
+	if cErr != C.RD_KAFKA_CONF_OK {
+		return "", newError(C.RD_KAFKA_RESP_ERR__INVALID_ARG)
+	}
+	// allocate the required memory and get the value
+	cConfigValue := (*C.char)(C.malloc(cConfigSize))
+	defer C.free(unsafe.Pointer(cConfigValue))
+	// no need to check for error since it succeeded above
+	C.rd_kafka_conf_get(C.rd_kafka_conf(h.rk), C.CString(key),
+		cConfigValue, &cConfigSize)
+	return C.GoString(cConfigValue), nil
 }

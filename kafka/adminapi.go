@@ -894,6 +894,13 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 	return a.handle.setOAuthBearerTokenFailure(errstr)
 }
 
+// GetConfigValue retrieves the configuration value associated with
+// the given configuration property.
+func (a *AdminClient) GetConfigValue(key string) (string, error) {
+	val, err := a.handle.getConfigValue(key)
+	return val, err
+}
+
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
 	if a.isDerived {

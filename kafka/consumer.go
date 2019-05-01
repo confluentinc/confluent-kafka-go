@@ -84,6 +84,12 @@ func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
 	return c.handle.setOAuthBearerTokenFailure(errstr)
 }
 
+// GetConfigValue retrieves the configuration value associated with
+// the given configuration property.
+func (c *Consumer) GetConfigValue(key string) (string, error) {
+	return c.handle.getConfigValue(key)
+}
+
 // Subscribe to a single topic
 // This replaces the current subscription
 func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
