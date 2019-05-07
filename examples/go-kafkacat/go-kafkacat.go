@@ -17,26 +17,15 @@ package main
  * limitations under the License.
  */
 
-/*
-#include <stdlib.h>
-#include <librdkafka/rdkafka.h>
-*/
-import "C"
-
 import (
 	"bufio"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"os"
 	"os/signal"
-	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 var (
@@ -47,105 +36,6 @@ var (
 	keyDelim     = ""
 	sigs         chan os.Signal
 )
-
-var (
-	// Regex for sasl.oauthbearer.config, which constrains it to be
-	// 1 or more name=value pairs with optional ignored whitespace
-	oauthbearerConfigRegex = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
-	// Regex used to extract name=value pairs from sasl.oauthbearer.config
-	oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
-)
-
-const (
-	saslDotOAuthBearerDotConfig = "sasl.oauthbearer.config"
-	principalClaimNameKey       = "principalClaimName"
-	principalKey                = "principal"
-	lifeSecondsKey              = "lifeSeconds"
-	joseHeaderEncoded           = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
-)
-
-// handleOAuthBearerTokenRefreshEvent generates an unsecured JWT based on the configuration defined
-// in sasl.oauthbearer.config and sets the token on the client for use in any future authentication attempt.
-// It must be invoked whenever kafka.OAuthBearerTokenRefresh appears on the client's event channel,
-// which will occur whenever the client requires a token (i.e. when it first starts and when the
-// previously-received token is 80% of the way to its expiration time).
-func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh) {
-	val, err := client.GetConfigValue(saslDotOAuthBearerDotConfig)
-	if err != nil {
-		// illegal config value or unknown config name; should generally not happen
-		fmt.Fprintf(os.Stderr, "Unknown/llegal type for %s\n", saslDotOAuthBearerDotConfig)
-		os.Exit(1)
-	}
-
-	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, val)
-	if retrieveErr != nil {
-		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
-		client.SetOAuthBearerTokenFailure(retrieveErr.Error())
-	} else {
-		setTokenError := client.SetOAuthBearerToken(oauthBearerToken)
-		if setTokenError != nil {
-			fmt.Fprintf(os.Stderr, "%% Error setting token and extensions: %v\n", setTokenError)
-			client.SetOAuthBearerTokenFailure(setTokenError.Error())
-		}
-	}
-}
-
-func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, v string) (kafka.OAuthBearerToken, error) {
-	if !oauthbearerConfigRegex.MatchString(v) {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T due to malformed %s: %s", e, saslDotOAuthBearerDotConfig, v)
-	}
-	// set up initial map with default values
-	oauthbearerConfigMap := map[string]string{
-		principalClaimNameKey: "sub",
-		lifeSecondsKey:        "3600",
-	}
-	// parse the provided config and store name=value pairs in the map
-	for _, kv := range oauthbearerNameEqualsValueRegex.FindAllStringSubmatch(v, -1) {
-		oauthbearerConfigMap[kv[1]] = kv[2]
-	}
-	principalClaimName := oauthbearerConfigMap[principalClaimNameKey]
-	principal := oauthbearerConfigMap[principalKey]
-	// regexp is such that principalClaimName (and lifeSeconds, below) cannot
-	// end up blank, so check for a blank principal (which will happen if it
-	// isn't specified)
-	if principal == "" {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: no %s: %s=%s", e, principalKey, saslDotOAuthBearerDotConfig, v)
-	}
-	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerConfigMap[lifeSecondsKey])
-	// sanity-check the provided lifeSeconds value, which must parse as a
-	// positive integer (it cannot parse negative since the regex doesn't allow
-	// the minus sign)
-	if lifeSecondsErr != nil || lifeSeconds == 0 {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: bad %s: %s=%s", e, lifeSecondsKey, saslDotOAuthBearerDotConfig, v)
-	}
-	// do not proceed if there are any unknown name=value pairs
-	if len(oauthbearerConfigMap) > 3 {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: unrecognized key(s): %s=%s", e, saslDotOAuthBearerDotConfig, v)
-	}
-
-	now := time.Now()
-	nowSecondsSinceEpoch := now.Unix()
-
-	expiration := now.Add(time.Second * time.Duration(lifeSeconds))
-	expirationSecondsSinceEpoch := expiration.Unix()
-
-	oauthbearerMapForJSON := map[string]interface{}{
-		principalClaimName: principal,
-		"iat":              nowSecondsSinceEpoch,
-		"exp":              expirationSecondsSinceEpoch,
-	}
-	claimsJSON, _ := json.Marshal(oauthbearerMapForJSON)
-	encodedClaims := base64.RawURLEncoding.EncodeToString(claimsJSON)
-	jwsCompactSerialization := joseHeaderEncoded + "." + encodedClaims + "."
-	extensions := map[string]string{}
-	oauthBearerToken := kafka.OAuthBearerToken{
-		TokenValue: jwsCompactSerialization,
-		Expiration: expiration,
-		Principal:  principal,
-		Extensions: extensions,
-	}
-	return oauthBearerToken, nil
-}
 
 func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 	p, err := kafka.NewProducer(config)
@@ -162,10 +52,6 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 		for ev := range drs {
 			m, ok := ev.(*kafka.Message)
 			if !ok {
-				switch e := ev.(type) {
-				case kafka.OAuthBearerTokenRefresh:
-					handleOAuthBearerTokenRefreshEvent(p, e)
-				}
 				continue
 			}
 			if m.TopicPartition.Error != nil {
@@ -291,8 +177,6 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 				if verbosity >= 2 {
 					fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				}
-			case kafka.OAuthBearerTokenRefresh:
-				handleOAuthBearerTokenRefreshEvent(c, e)
 			default:
 				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}

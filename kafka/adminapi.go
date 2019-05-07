@@ -894,13 +894,6 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 	return a.handle.setOAuthBearerTokenFailure(errstr)
 }
 
-// GetConfigValue retrieves the configuration value associated with
-// the given configuration property.
-func (a *AdminClient) GetConfigValue(key string) (string, error) {
-	val, err := a.handle.getConfigValue(key)
-	return val, err
-}
-
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
 	if a.isDerived {
@@ -933,6 +926,8 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 
 	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
 	defer C.free(unsafe.Pointer(cErrstr))
+
+	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
 
 	// Create librdkafka producer instance. The Producer is somewhat cheaper than
 	// the consumer, but any instance type can be used for Admin APIs.

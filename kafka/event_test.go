@@ -41,6 +41,6 @@ func TestEventAPIs(t *testing.T) {
 	stats := Stats{"{\"name\": \"Producer-1\"}"}
 	t.Logf("Stats: %s\n", stats.String())
 
-	oauthBearerTokenRefresh := OAuthBearerTokenRefresh{}
+	oauthBearerTokenRefresh := OAuthBearerTokenRefresh{"some=config"}
 	t.Logf("%s\n", oauthBearerTokenRefresh.String())
 }

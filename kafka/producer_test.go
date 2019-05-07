@@ -227,3 +227,53 @@ func TestProducerInvalidConfig(t *testing.T) {
 		t.Fatalf("Expected NewProducer() to fail with delivery.report.only.error set")
 	}
 }
+
+func TestProducerOAuthBearerConfig(t *testing.T) {
+	myOAuthConfig := "scope=myscope principal=gotest"
+
+	p, err := NewProducer(&ConfigMap{
+		"security.protocol":       "SASL_PLAINTEXT",
+		"sasl.mechanisms":         "OAUTHBEARER",
+		"sasl.oauthbearer.config": myOAuthConfig,
+	})
+	if err != nil {
+		t.Fatalf("NewProducer failed: %s", err)
+	}
+
+	// Wait for initial OAuthBearerTokenRefresh and check
+	// that its Config string is identical to myOAuthConfig
+	for {
+		ev := <-p.Events()
+		oatr, ok := ev.(OAuthBearerTokenRefresh)
+		if !ok {
+			continue
+		}
+
+		t.Logf("Got %s with Config \"%s\"", oatr, oatr.Config)
+
+		if oatr.Config != myOAuthConfig {
+			t.Fatalf("%s: Expected .Config to be %s, not %s",
+				oatr, myOAuthConfig, oatr.Config)
+		}
+
+		// Verify that we can set a token
+		err = p.SetOAuthBearerToken(OAuthBearerToken{
+			TokenValue: "aaaa",
+			Expiration: time.Now().Add(time.Second * time.Duration(60)),
+			Principal:  "gotest",
+		})
+		if err != nil {
+			t.Fatalf("Failed to set token: %s", err)
+		}
+
+		// Verify that we can set a token refresh failure
+		err = p.SetOAuthBearerTokenFailure("A token failure test")
+		if err != nil {
+			t.Fatalf("Failed to set token failure: %s", err)
+		}
+
+		break
+	}
+
+	p.Close()
+}

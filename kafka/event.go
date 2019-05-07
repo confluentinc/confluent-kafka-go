@@ -136,7 +136,10 @@ func (o OffsetsCommitted) String() string {
 }
 
 // OAuthBearerTokenRefresh indicates token refresh is required
-type OAuthBearerTokenRefresh struct{}
+type OAuthBearerTokenRefresh struct {
+	// Config is the value of the sasl.oauthbearer.config property
+	Config string
+}
 
 func (o OAuthBearerTokenRefresh) String() string {
 	return "OAuthBearerTokenRefresh"
@@ -318,7 +321,7 @@ out:
 			}
 
 		case C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH:
-			var ev OAuthBearerTokenRefresh
+			ev := OAuthBearerTokenRefresh{C.GoString(C.rd_kafka_event_config_string(rkev))}
 			retval = ev
 
 		case C.RD_KAFKA_EVENT_NONE:
