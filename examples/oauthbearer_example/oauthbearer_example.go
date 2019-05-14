@@ -24,7 +24,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"regexp"
-	"strconv"
 	"time"
 )
 
@@ -39,7 +38,6 @@ var (
 const (
 	principalClaimNameKey = "principalClaimName"
 	principalKey          = "principal"
-	lifeSecondsKey        = "lifeSeconds"
 	joseHeaderEncoded     = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
 )
 
@@ -49,7 +47,7 @@ const (
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
 // previously-received token is 80% of the way to its expiration time).
 func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh) {
-	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e, e.Config)
+	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e)
 	if retrieveErr != nil {
 		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
 		client.SetOAuthBearerTokenFailure(retrieveErr.Error())
@@ -62,14 +60,14 @@ func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearer
 	}
 }
 
-func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config string) (kafka.OAuthBearerToken, error) {
+func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh) (kafka.OAuthBearerToken, error) {
+	config := e.Config
 	if !oauthbearerConfigRegex.MatchString(config) {
 		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T due to malformed config: %s", e, config)
 	}
 	// set up initial map with default values
 	oauthbearerConfigMap := map[string]string{
 		principalClaimNameKey: "sub",
-		lifeSecondsKey:        "3600",
 	}
 	// parse the provided config and store name=value pairs in the map
 	for _, kv := range oauthbearerNameEqualsValueRegex.FindAllStringSubmatch(config, -1) {
@@ -77,28 +75,24 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config string) (kaf
 	}
 	principalClaimName := oauthbearerConfigMap[principalClaimNameKey]
 	principal := oauthbearerConfigMap[principalKey]
-	// regexp is such that principalClaimName (and lifeSeconds, below) cannot
-	// end up blank, so check for a blank principal (which will happen if it
-	// isn't specified)
+	// regexp is such that principalClaimName cannot end up blank,
+	// so check for a blank principal (which will happen if it isn't specified)
 	if principal == "" {
 		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: no %s: %s", e, principalKey, config)
 	}
-	lifeSeconds, lifeSecondsErr := strconv.Atoi(oauthbearerConfigMap[lifeSecondsKey])
-	// sanity-check the provided lifeSeconds value, which must parse as a
-	// positive integer (it cannot parse negative since the regex doesn't allow
-	// the minus sign)
-	if lifeSecondsErr != nil || lifeSeconds == 0 {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: bad %s: %s", e, lifeSecondsKey, config)
-	}
 	// do not proceed if there are any unknown name=value pairs
-	if len(oauthbearerConfigMap) > 3 {
+	if len(oauthbearerConfigMap) > 2 {
 		return kafka.OAuthBearerToken{}, fmt.Errorf("ignoring event %T: unrecognized key(s): %s", e, config)
 	}
 
 	now := time.Now()
 	nowSecondsSinceEpoch := now.Unix()
 
-	expiration := now.Add(time.Second * time.Duration(lifeSeconds))
+	// The token lifetime needs to be long enough to allow connection and a broker metadata query.
+	// We then exit immediately after that, so no additional token refreshes will occur.
+	// Therefore set the lifetime to be an hour (though anything on the order of a minute or more
+	// would be fine).
+	expiration := now.Add(time.Second * time.Duration(3600))
 	expirationSecondsSinceEpoch := expiration.Unix()
 
 	oauthbearerMapForJSON := map[string]interface{}{
@@ -122,7 +116,7 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh, config string) (kaf
 func main() {
 
 	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker> \"scope=.. oauthbearer config..\"", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <broker> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
 		os.Exit(1)
 	}
 
