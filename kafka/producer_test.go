@@ -216,3 +216,14 @@ func TestProducerBufferSafety(t *testing.T) {
 
 	p.Close()
 }
+
+// TestProducerInvalidConfig verifies that invalid configuration is handled correctly.
+func TestProducerInvalidConfig(t *testing.T) {
+
+	_, err := NewProducer(&ConfigMap{
+		"delivery.report.only.error": true,
+	})
+	if err == nil {
+		t.Fatalf("Expected NewProducer() to fail with delivery.report.only.error set")
+	}
+}

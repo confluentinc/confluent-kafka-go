@@ -182,7 +182,7 @@ func (c *Consumer) Commit() ([]TopicPartition, error) {
 // Returns the committed offsets on success.
 func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 	if m.TopicPartition.Error != nil {
-		return nil, Error{ErrInvalidArg, "Can't commit errored message"}
+		return nil, newErrorFromString(ErrInvalidArg, "Can't commit errored message")
 	}
 	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset++
@@ -482,11 +482,11 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
-// QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
-// and partition.
+// QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }
+
 
 // GetConsumerGroupMetadata queries broker for consumer groups metadata and all its members
 // like which consumer groups and which corresponding members consume which topics
@@ -494,6 +494,13 @@ func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 // otherwise only metadata for that specific consumer group will be returned
 func (c *Consumer) GetConsumerGroupMetadata(consumerGroup *string, timeoutMs int) ([]ConsumerGroupMetadata, error) {
 	return getConsumerGroupsMetadata(c, consumerGroup, timeoutMs)
+
+// GetWatermarkOffsets returns the cached low and high offsets for the given topic
+// and partition.  The high offset is populated on every fetch response or via calling QueryWatermarkOffsets.
+// The low offset is populated every statistics.interval.ms if that value is set.
+// OffsetInvalid will be returned if there is no cached offset for either value.
+func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error) {
+	return getWatermarkOffsets(c, topic, partition)
 }
 
 // OffsetsForTimes looks up offsets by timestamp for the given partitions.

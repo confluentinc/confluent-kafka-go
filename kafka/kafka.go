@@ -104,7 +104,7 @@
 // Requires `go.application.rebalance.enable`
 //
 // * `RevokedPartitions` - The counter part to `AssignedPartitions` following a rebalance.
-// `AssignedPartitions` and `RevokedPartitions` are symetrical.
+// `AssignedPartitions` and `RevokedPartitions` are symmetrical.
 // Requires `go.application.rebalance.enable`
 //
 // * `PartitionEOF` - Consumer has reached the end of a partition.

@@ -139,7 +139,7 @@ func createTestMessages() {
 
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
-	testmsgs[i] = &testmsgType{expectedError: Error{ErrUnknownPartition, ""},
+	testmsgs[i] = &testmsgType{expectedError: Error{ErrUnknownPartition, "", false},
 		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
@@ -248,7 +248,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"queue.buffering.max.messages": len(testmsgs),
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
-		"acks": 1}
+		"acks":                         1}
 
 	conf.updateFromTestconf()
 
@@ -429,6 +429,63 @@ func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 
 	if newmsgcnt-msgcnt != len(p0TestMsgs) {
 		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newmsgcnt-msgcnt)
+	}
+
+}
+
+//Test consumer GetWatermarkOffsets API
+func TestConsumerGetWatermarkOffsets(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	// Create consumer
+	config := &ConfigMap{
+		"go.events.channel.enable": true,
+		"bootstrap.servers":        testconf.Brokers,
+		"group.id":                 testconf.GroupID,
+		"session.timeout.ms":       6000,
+		"enable.auto.commit":       false,
+		"auto.offset.reset":        "earliest",
+	}
+	_ = config.updateFromTestconf()
+
+	c, err := NewConsumer(config)
+	if err != nil {
+		t.Fatalf("Unable to create consumer: %s", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	err = c.Subscribe(testconf.Topic, nil)
+
+	// Prime topic with test messages
+	createTestMessages()
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+
+	// Wait for messages to be received so that we know the watermark offsets have been delivered
+	// with the fetch response
+	for ev := range c.Events() {
+		if _, ok := ev.(*Message); ok {
+			break
+		}
+	}
+
+	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	if err != nil {
+		t.Fatalf("Error querying watermark offsets: %s", err)
+	}
+
+	// We are not currently testing the low watermark offset as it only gets set every 10s by the stats timer
+	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
+	if err != nil {
+		t.Fatalf("Error getting watermark offsets: %s", err)
+	}
+
+	if queryHigh != getHigh {
+		t.Errorf("QueryWatermarkOffsets high[%d] does not equal GetWatermarkOffsets high[%d]", queryHigh, getHigh)
 	}
 
 }

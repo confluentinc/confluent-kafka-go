@@ -390,7 +390,15 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	// the original is not mutated.
 	confCopy := conf.clone()
 
-	v, err := confCopy.extract("go.batch.producer", false)
+	v, err := confCopy.extract("delivery.report.only.error", false)
+	if v == true {
+		// FIXME: The filtering of successful DRs must be done in
+		//        the Go client to avoid cgoDr memory leaks.
+		return nil, newErrorFromString(ErrUnsupportedFeature,
+			"delivery.report.only.error=true is not currently supported by the Go client")
+	}
+
+	v, err = confCopy.extract("go.batch.producer", false)
 	if err != nil {
 		return nil, err
 	}
@@ -588,4 +596,15 @@ func (p *Producer) GetConsumerGroupMetadata(consumerGroup *string, timeoutMs int
 // Per-partition errors may be returned in the `.Error` field.
 func (p *Producer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
 	return offsetsForTimes(p, times, timeoutMs)
+}
+
+// GetFatalError returns an Error object if the client instance has raised a fatal error, else nil.
+func (p *Producer) GetFatalError() error {
+	return getFatalError(p)
+}
+
+// TestFatalError triggers a fatal error in the underlying client.
+// This is to be used strictly for testing purposes.
+func (p *Producer) TestFatalError(code ErrorCode, str string) ErrorCode {
+	return testFatalError(p, code, str)
 }

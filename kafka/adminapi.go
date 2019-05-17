@@ -148,7 +148,7 @@ func ResourceTypeFromString(typeString string) (ResourceType, error) {
 	case "BROKER":
 		return ResourceBroker, nil
 	default:
-		return ResourceUnknown, newGoError(ErrInvalidArg)
+		return ResourceUnknown, NewError(ErrInvalidArg, "Unknown resource type", false)
 	}
 }
 

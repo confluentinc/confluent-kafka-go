@@ -68,7 +68,7 @@ func (m ConfigMap) SetKey(key string, value ConfigValue) error {
 func (m ConfigMap) Set(kv string) error {
 	i := strings.Index(kv, "=")
 	if i == -1 {
-		return Error{ErrInvalidArg, "Expected key=value"}
+		return newErrorFromString(ErrInvalidArg, "Expected key=value")
 	}
 
 	k := kv[:i]
@@ -108,7 +108,7 @@ type rdkAnyconf interface {
 func anyconfSet(anyconf rdkAnyconf, key string, val ConfigValue) (err error) {
 	value, errstr := value2string(val)
 	if errstr != "" {
-		return Error{ErrInvalidArg, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, key)}
+		return newErrorFromString(ErrInvalidArg, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, key))
 	}
 	cKey := C.CString(key)
 	cVal := C.CString(value)
@@ -156,7 +156,7 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 			/* Special sub-ConfigMap, only used for default.topic.config */
 
 			if k != "default.topic.config" {
-				return Error{ErrInvalidArg, fmt.Sprintf("Invalid type for key %s", k)}
+				return newErrorFromString(ErrInvalidArg, fmt.Sprintf("Invalid type for key %s", k))
 			}
 
 			var cTopicConf = C.rd_kafka_topic_conf_new()
@@ -213,7 +213,7 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 	}
 
 	if defval != nil && reflect.TypeOf(defval) != reflect.TypeOf(v) {
-		return nil, Error{ErrInvalidArg, fmt.Sprintf("%s expects type %T, not %T", key, defval, v)}
+		return nil, newErrorFromString(ErrInvalidArg, fmt.Sprintf("%s expects type %T, not %T", key, defval, v))
 	}
 
 	return v, nil
