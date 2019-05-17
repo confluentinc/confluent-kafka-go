@@ -287,6 +287,7 @@ func newConsumerGroupMemberMetadataFromBytes(b []byte) (*ConsumerGroupMemberMeta
 	}
 
 	return &metadata, nil
+}
 
 // getWatermarkOffsets returns the clients cached low and high offsets for the given topic
 // and partition.
