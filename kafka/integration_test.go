@@ -248,7 +248,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"queue.buffering.max.messages": len(testmsgs),
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
-		"acks":                         1}
+		"acks": 1}
 
 	conf.updateFromTestconf()
 
@@ -1613,7 +1613,7 @@ func TestConsumerGetConsumerGroupMetadata(t *testing.T) {
 	// Test if we can get more consumergroups
 	cgMetadata, err = c.GetConsumerGroupMetadata(nil, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get consumer group metadata. Error %s\n", cgMetadata)
+		t.Errorf("Failed to get consumer group metadata. Error %s\n", err)
 	}
 	t.Logf("Consumer group meta data was: %v\n", cgMetadata)
 }
@@ -1683,7 +1683,7 @@ func TestProducerGetConsumerGroupMetadata(t *testing.T) {
 	// Test if we can get more consumergroups
 	cgMetadata, err = p.GetConsumerGroupMetadata(nil, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get consumer group metadata. Error %s\n", cgMetadata)
+		t.Errorf("Failed to get consumer group metadata. Error %s\n", err)
 	}
 	t.Logf("Consumer group meta data was: %v\n", cgMetadata)
 }
@@ -1750,7 +1750,7 @@ func TestAdminClientGetConsumerGroupMetadata(t *testing.T) {
 	// Test if we can get more consumergroups
 	cgMetadata, err = a.GetConsumerGroupMetadata(nil, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get consumer group metadata. Error %s\n", cgMetadata)
+		t.Errorf("Failed to get consumer group metadata. Error %s\n", err)
 	}
 	t.Logf("Consumer group meta data was: %v\n", cgMetadata)
 }
