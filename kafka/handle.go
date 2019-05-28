@@ -19,6 +19,7 @@ package kafka
 import (
 	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -28,9 +29,52 @@ import (
 */
 import "C"
 
+// OAuthBearerToken represents the data to be transmitted
+// to a broker during SASL/OAUTHBEARER authentication.
+type OAuthBearerToken struct {
+	// Token value, often (but not necessarily) a JWS compact serialization
+	// as per https://tools.ietf.org/html/rfc7515#section-3.1; it must meet
+	// the regular expression for a SASL/OAUTHBEARER value defined at
+	// https://tools.ietf.org/html/rfc7628#section-3.1
+	TokenValue string
+	// Metadata about the token indicating when it expires (local time);
+	// it must represent a time in the future
+	Expiration time.Time
+	// Metadata about the token indicating the Kafka principal name
+	// to which it applies (for example, "admin")
+	Principal string
+	// SASL extensions, if any, to be communicated to the broker during
+	// authentication (all keys and values of which must meet the regular
+	// expressions defined at https://tools.ietf.org/html/rfc7628#section-3.1,
+	// and it must not contain the reserved "auth" key)
+	Extensions map[string]string
+}
+
 // Handle represents a generic client handle containing common parts for
 // both Producer and Consumer.
 type Handle interface {
+	// SetOAuthBearerToken sets the the data to be transmitted
+	// to a broker during SASL/OAUTHBEARER authentication. It will return nil
+	// on success, otherwise an error if:
+	// 1) the token data is invalid (meaning an expiration time in the past
+	// or either a token value or an extension key or value that does not meet
+	// the regular expression requirements as per
+	// https://tools.ietf.org/html/rfc7628#section-3.1);
+	// 2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+	// 3) SASL/OAUTHBEARER is supported but is not configured as the client's
+	// authentication mechanism.
+	SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error
+
+	// SetOAuthBearerTokenFailure sets the error message describing why token
+	// retrieval/setting failed; it also schedules a new token refresh event for 10
+	// seconds later so the attempt may be retried. It will return nil on
+	// success, otherwise an error if:
+	// 1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+	// 2) SASL/OAUTHBEARER is supported but is not configured as the client's
+	// authentication mechanism.
+	SetOAuthBearerTokenFailure(errstr string) error
+
+	// gethandle() returns the internal handle struct pointer
 	gethandle() *handle
 }
 
@@ -204,4 +248,52 @@ func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
 	}
 
 	return cg, found
+}
+
+// setOauthBearerToken - see rd_kafka_oauthbearer_set_token()
+func (h *handle) setOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
+	cTokenValue := C.CString(oauthBearerToken.TokenValue)
+	defer C.free(unsafe.Pointer(cTokenValue))
+
+	cPrincipal := C.CString(oauthBearerToken.Principal)
+	defer C.free(unsafe.Pointer(cPrincipal))
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cExtensions := make([]*C.char, 2*len(oauthBearerToken.Extensions))
+	extensionSize := 0
+	for key, value := range oauthBearerToken.Extensions {
+		cExtensions[extensionSize] = C.CString(key)
+		defer C.free(unsafe.Pointer(cExtensions[extensionSize]))
+		extensionSize++
+		cExtensions[extensionSize] = C.CString(value)
+		defer C.free(unsafe.Pointer(cExtensions[extensionSize]))
+		extensionSize++
+	}
+
+	var cExtensionsToUse **C.char
+	if extensionSize > 0 {
+		cExtensionsToUse = (**C.char)(unsafe.Pointer(&cExtensions[0]))
+	}
+
+	cErr := C.rd_kafka_oauthbearer_set_token(h.rk, cTokenValue,
+		C.int64_t(oauthBearerToken.Expiration.UnixNano()/(1000*1000)), cPrincipal,
+		cExtensionsToUse, C.size_t(extensionSize), cErrstr, cErrstrSize)
+	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil
+	}
+	return newErrorFromCString(cErr, cErrstr)
+}
+
+// setOauthBearerTokenFailure - see rd_kafka_oauthbearer_set_token_failure()
+func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
+	cerrstr := C.CString(errstr)
+	defer C.free(unsafe.Pointer(cerrstr))
+	cErr := C.rd_kafka_oauthbearer_set_token_failure(h.rk, cerrstr)
+	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil
+	}
+	return newError(cErr)
 }

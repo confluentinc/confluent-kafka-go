@@ -9,6 +9,8 @@ Examples:
 
   go-kafkacat - Channel based kafkacat Go clone
 
+  oauthbearer_example - Provides unsecured SASL/OAUTHBEARER example
+
 
 Usage example:
 

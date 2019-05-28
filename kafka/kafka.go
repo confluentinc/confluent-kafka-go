@@ -125,6 +125,15 @@
 // These errors are normally just informational since the
 // client will try its best to automatically recover (eventually).
 //
+// * `OAuthBearerTokenRefresh` - retrieval of a new SASL/OAUTHBEARER token is required.
+// This event only occurs with sasl.mechanism=OAUTHBEARER.
+// Be sure to invoke SetOAuthBearerToken() on the Producer/Consumer/AdminClient
+// instance when a successful token retrieval is completed, otherwise be sure to
+// invoke SetOAuthBearerTokenFailure() to indicate that retrieval failed (or
+// if setting the token failed, which could happen if an extension doesn't meet
+// the required regular expression); invoking SetOAuthBearerTokenFailure() will
+// schedule a new event for 10 seconds later so another retrieval can be attempted.
+//
 //
 // Hint: If your application registers a signal notification
 // (signal.Notify) makes sure the signals channel is buffered to avoid
