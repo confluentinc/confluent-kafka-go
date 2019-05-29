@@ -40,7 +40,7 @@ High-level balanced consumer
 ```golang
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 func main() {
@@ -76,7 +76,7 @@ Producer
 ```golang
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 func main() {
@@ -134,6 +134,7 @@ through your OS/distributions package manager, or download and build it from sou
 repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
 - For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
 - For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install pkg-config if you don't already have it. `brew install librdkafka pkg-config`.
+- For Alpine: `apk add librdkafka-dev pkgconf`
 - confluent-kafka-go is not supported on Windows.
 
 Build from source:
@@ -148,15 +149,24 @@ Build from source:
 Install the client
 -------------------
 
+We recommend that you version pin the confluent-kafka-go import to v1:
+
+Manual install:
+```bash
+go get -u gopkg.in/confluentinc/confluent-kafka-go.v1/kafka
 ```
-go get -u github.com/confluentinc/confluent-kafka-go/kafka
+
+Golang import:
+```golang
+import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 ```
+
+**Note:** that the development of librdkafka and the Go client are kept in synch.
+If you use the master branch of the Go client, then you need to use the master branch of
+librdkafka.
 
 See the [examples](examples) for usage details.
 
-Note that the development of librdkafka and the Go client are kept in synch. So
-if you use HEAD on master of the Go client, then you need to use HEAD on master of
-librdkafka. See this [issue](https://github.com/confluentinc/confluent-kafka-go/issues/61#issuecomment-303746159) for more details.
 
 API Strands
 ===========
