@@ -124,28 +124,6 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Installing librdkafka
----------------------
-
-This client for Go depends on librdkafka v1.4.0 or later, so you either need to install librdkafka
-through your OS/distributions package manager, or download and build it from source.
-
-- For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
-repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
-- For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
-- For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install pkg-config if you don't already have it. `brew install librdkafka pkg-config`.
-- For Alpine: `apk add librdkafka-dev pkgconf`
-- confluent-kafka-go is not supported on Windows.
-
-Build from source:
-
-    git clone https://github.com/edenhill/librdkafka.git
-    cd librdkafka
-    ./configure --prefix /usr
-    make
-    sudo make install
-
-
 Install the client
 -------------------
 
@@ -161,11 +139,18 @@ Golang import:
 import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 ```
 
-**Note:** that the development of librdkafka and the Go client are kept in sync.
-If you use the master branch of the Go client, then you need to use the master branch of
-librdkafka.
+Prebuilt librdkafka binaries are included with the Go client and librdkafka
+does not need to be installed separately on the build or target system.
+The following platforms are supported by the prebuilt librdkafka binaries:
 
-See the [examples](examples) for usage details.
+ * Mac OSX x64
+ * glibc-based Linux x64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
+ - musl-based Linux 64 (Alpine) - without GSSAPI/Kerberos support
+
+If GSSAPI/Kerberos authentication support is required you will need
+to install librdkafka separately, see the **Installing librdkafka** chapter
+below, and then build your Go application with `-tags dynamic`.
+
 
 Using Go 1.13+ Modules
 ----------------------
@@ -187,6 +172,41 @@ go build ./...
 
 A dependency to the latest stable version of confluent-kafka-go should be automatically added to
 your `go.mod` file.
+
+
+Installing librdkafka
+---------------------
+
+If the bundled librdkafka build is not supported on your platform, or you
+need a librdkafka with GSSAPI/Kerberos support, you must install librdkafka
+manually on the build and target system using one of the following alternatives:
+
+- For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
+repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
+- For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
+- For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install pkg-config if you don't already have it: `brew install librdkafka pkg-config`.
+- For Alpine: `apk add librdkafka-dev pkgconf`
+- confluent-kafka-go is not supported on Windows.
+- For source builds, see instructions below.
+
+Build from source:
+
+    git clone https://github.com/edenhill/librdkafka.git
+    cd librdkafka
+    ./configure
+    make
+    sudo make install
+
+
+After installing librdkafka you will need to build your Go application
+with `-tags dynamic`.
+
+**Note:** If you use the master branch of the Go client, then you need to use
+          the master branch of librdkafka.
+
+**confluent-kafka-go requires librdkafka v1.4.0 or later.**
+
+
 
 API Strands
 ===========
@@ -275,32 +295,6 @@ Cons:
  * Somewhat slower than the channel producer.
 
 See [examples/producer_example](examples/producer_example)
-
-
-Static Builds
-=============
-
-**NOTE**: Requires pkg-config
-
-To link your application statically with librdkafka append `-tags static` to
-your application's `go build` command, e.g.:
-
-    $ cd kafkatest/go_verifiable_consumer
-    $ go build -tags static
-
-This will create a binary with librdkafka statically linked, do note however
-that any librdkafka dependencies (such as ssl, sasl2, lz4, etc, depending
-on librdkafka build configuration) will be linked dynamically and thus required
-on the target system.
-
-To create a completely static binary append `-tags static_all` instead.
-This requires all dependencies to be available as static libraries
-(e.g., libsasl2.a). Static libraries are typically not installed
-by default but are available in the corresponding `..-dev` or `..-devel`
-packages (e.g., libsasl2-dev).
-
-After a succesful static build verify the dependencies by running
-`ldd ./your_program` (or `otool -L ./your_program` on OSX), librdkafka should not be listed.
 
 
 Tests
