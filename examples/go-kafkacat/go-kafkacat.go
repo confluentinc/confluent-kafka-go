@@ -219,6 +219,7 @@ func main() {
 	kingpin.Flag("config", "Configuration property (prop=val)").Short('X').PlaceHolder("PROP=VAL").SetValue(&confargs)
 	keyDelimArg := kingpin.Flag("key-delim", "Key and value delimiter (empty string=dont print/parse key)").Default("").String()
 	verbosityArg := kingpin.Flag("verbosity", "Output verbosity level").Short('v').Default("1").Int()
+	printLinkInfo := kingpin.Flag("link-info", "Print librdkafka link info").Bool()
 
 	/* Producer mode options */
 	modeP := kingpin.Command("produce", "Produce messages")
@@ -233,6 +234,11 @@ func main() {
 	exitEOFArg := modeC.Flag("eof", "Exit when EOF is reached for all partitions").Bool()
 
 	mode := kingpin.Parse()
+
+	if *printLinkInfo {
+		// This is useful for debugging build types
+		fmt.Printf("librdkafka link information: %s\n", kafka.LibrdkafkaLinkInfo)
+	}
 
 	verbosity = *verbosityArg
 	keyDelim = *keyDelimArg
