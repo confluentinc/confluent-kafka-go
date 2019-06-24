@@ -176,6 +176,52 @@ func TestProducerAPIs(t *testing.T) {
 	if offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
+
+	// Purge messages that are not delivered to kafka
+	unreachableProducer, err := NewProducer(&ConfigMap{
+		"bootstrap.servers": "unreachable:9092",
+		"message.timeout.ms": 50,
+	})
+	purgeDrChan := make(chan Event)
+	err = unreachableProducer.Produce(&Message{
+		TopicPartition: TopicPartition{
+			Topic:     &topic1,
+			Partition: 0,
+		},
+		Value: []byte("somevalue"),
+	}, purgeDrChan)
+	if err != nil {
+		t.Errorf("Produce failed: %s", err)
+	}
+	unreachableProducer.Purge(false)
+
+	if err != nil {
+		t.Errorf("Failed to purge message")
+	}
+
+	timeout := make(chan bool, 1)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		timeout <- true
+	}()
+
+	select {
+	case e := <-purgeDrChan:
+		purgedMessage := e.(*Message)
+		err = purgedMessage.TopicPartition.Error
+		if err != nil {
+			if err.Error() != "Local: Purged in queue" {
+				t.Errorf("Unexpected error after purge api is called: %s", e)
+			}
+		} else {
+			t.Errorf("Purge should have triggered error report")
+		}
+	case <-timeout:
+		t.Errorf("No delivery report after purge api is called")
+	}
+
+
+	close(purgeDrChan)
 }
 
 // TestProducerBufferSafety verifies issue #24, passing any type of memory backed buffer
