@@ -161,7 +161,7 @@ Golang import:
 import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 ```
 
-**Note:** that the development of librdkafka and the Go client are kept in synch.
+**Note:** that the development of librdkafka and the Go client are kept in sync.
 If you use the master branch of the Go client, then you need to use the master branch of
 librdkafka.
 
