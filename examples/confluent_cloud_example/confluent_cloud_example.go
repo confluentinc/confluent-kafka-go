@@ -1,19 +1,10 @@
 // This is a simple example demonstrating how to produce a message to
-// Confluent Cloud then read it back again.
+// a topic, and then reading it back again using a consumer. The topic
+// belongs to a Apache Kafka cluster from Confluent Cloud. For more
+// information about Confluent Cloud, please visit:
 //
 // https://www.confluent.io/confluent-cloud/
-//
-// Auto-creation of topics is disabled in Confluent Cloud. You will need to
-// use the ccloud cli to create the go-test-topic topic before running this
-// example.
-//
-// $ ccloud topic create go-test-topic
-//
-// The <ccloud bootstrap servers>, <ccloud key> and <ccloud secret> parameters
-// are available via the Confluent Cloud web interface. For more information,
-// refer to the quick-start:
-//
-// https://docs.confluent.io/current/cloud-quickstart.html
+
 package main
 
 /**
@@ -33,28 +24,66 @@ package main
  */
 
 import (
+	"context"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"os"
 	"time"
+
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
+
+// In order to set the constants below, you're going to need
+// to log in into your Confluent Cloud account. If you choose
+// to do this via the Confluent Cloud CLI, follow these steps.
+
+// 1) Log into Confluent Cloud:
+//    $ ccloud login
+//
+// 2) List the environments from your account:
+//    $ ccloud environment list
+//
+// 3) From the list displayed, select one environment:
+//    $ ccloud environment use <ENVIRONMENT_ID>
+//
+// To retrieve the information about the bootstrap servers,
+// you need to execute the following commands:
+//
+// 1) List the Apache Kafka clusters from the environment:
+//    $ ccloud kafka cluster list
+//
+// 2) From the list displayed, describe your cluster:
+//    $ ccloud kafka cluster describe <CLUSTER_ID>
+//
+// Finally, to create a new API key to be used in this program,
+// you need to execute the following command:
+//
+// 1) Create a new API key in Confluent Cloud:
+//    $ ccloud api-key create
+
+const bootstrapServers = "<BOOTSTRAP_SERVERS>"
+const ccloudAPIKey = "<CCLOUD_API_KEY>"
+const ccloudAPISecret = "<CCLOUD_API_SECRET>"
 
 func main() {
 
+	topic := "go-test-topic"
+	createTopic(topic)
+
+	// Produce a new record to the topic...
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":       "<ccloud bootstrap servers>",
+		"bootstrap.servers":       bootstrapServers,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
 		"sasl.mechanisms":         "PLAIN",
 		"security.protocol":       "SASL_SSL",
-		"sasl.username":           "<ccloud key>",
-		"sasl.password":           "<ccloud secret>"})
+		"sasl.username":           ccloudAPIKey,
+		"sasl.password":           ccloudAPISecret})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create producer: %s", err))
 	}
 
 	value := "golang test value"
-	topic := "go-test-topic"
 	p.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          []byte(value),
@@ -73,14 +102,15 @@ func main() {
 
 	p.Close()
 
+	// Now consumes the record and print its value...
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":       "<ccloud bootstrap servers>",
+		"bootstrap.servers":       bootstrapServers,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
 		"sasl.mechanisms":         "PLAIN",
 		"security.protocol":       "SASL_SSL",
-		"sasl.username":           "<ccloud key>",
-		"sasl.password":           "<ccloud secret>",
+		"sasl.username":           ccloudAPIKey,
+		"sasl.password":           ccloudAPISecret,
 		"session.timeout.ms":      6000,
 		"group.id":                "my-group",
 		"auto.offset.reset":       "earliest"})
@@ -100,4 +130,47 @@ func main() {
 	}
 
 	c.Close()
+
+}
+
+func createTopic(topic string) {
+
+	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
+		"bootstrap.servers":       bootstrapServers,
+		"broker.version.fallback": "0.10.0.0",
+		"api.version.fallback.ms": 0,
+		"sasl.mechanisms":         "PLAIN",
+		"security.protocol":       "SASL_SSL",
+		"sasl.username":           ccloudAPIKey,
+		"sasl.password":           ccloudAPISecret})
+
+	if err != nil {
+		fmt.Printf("Failed to create Admin client: %s\n", err)
+		os.Exit(1)
+	}
+	// Contexts are used to abort or limit the amount of time
+	// the Admin call blocks waiting for a result.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create topics on cluster.
+	// Set Admin options to wait for the operation to finish (or at most 60s)
+	maxDur, err := time.ParseDuration("60s")
+	if err != nil {
+		panic("ParseDuration(60s)")
+	}
+	results, err := a.CreateTopics(ctx,
+		[]kafka.TopicSpecification{{
+			Topic:             topic,
+			NumPartitions:     1,
+			ReplicationFactor: 3}},
+		kafka.SetAdminOperationTimeout(maxDur))
+	if err != nil {
+		fmt.Printf("Failed to create topic: %v\n", err)
+		os.Exit(1)
+	}
+
+	_ = results
+	a.Close()
+
 }
