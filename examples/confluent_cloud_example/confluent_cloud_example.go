@@ -182,9 +182,10 @@ func createTopic(topic string) {
 
 	// Check for specific topic errors
 	for _, result := range results {
-		if result.Error.Code() != kafka.ErrNoError {
+		if result.Error.Code() != kafka.ErrTopicAlreadyExists {
 			fmt.Printf("Topic creation failed for %s: %v",
 				result.Topic, result.Error.String())
+			os.Exit(1)
 		}
 	}
 
