@@ -70,7 +70,7 @@ func main() {
 	createTopic(topic)
 
 	// Produce a new record to the topic...
-	p, err := kafka.NewProducer(&kafka.ConfigMap{
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
@@ -84,26 +84,29 @@ func main() {
 	}
 
 	value := "golang test value"
-	p.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          []byte(value),
-	}, nil)
+	producer.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic,
+			Partition: kafka.PartitionAny},
+		Value: []byte(value)}, nil)
 
 	// Wait for delivery report
-	e := <-p.Events()
+	e := <-producer.Events()
 
-	m := e.(*kafka.Message)
-	if m.TopicPartition.Error != nil {
-		fmt.Printf("failed to deliver message: %v\n", m.TopicPartition)
+	message := e.(*kafka.Message)
+	if message.TopicPartition.Error != nil {
+		fmt.Printf("failed to deliver message: %v\n",
+			message.TopicPartition)
 	} else {
 		fmt.Printf("delivered to topic %s [%d] at offset %v\n",
-			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+			*message.TopicPartition.Topic,
+			message.TopicPartition.Partition,
+			message.TopicPartition.Offset)
 	}
 
-	p.Close()
+	producer.Close()
 
 	// Now consumes the record and print its value...
-	c, err := kafka.NewConsumer(&kafka.ConfigMap{
+	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
@@ -120,22 +123,24 @@ func main() {
 	}
 
 	topics := []string{topic}
-	c.SubscribeTopics(topics, nil)
+	consumer.SubscribeTopics(topics, nil)
 
 	for {
-		msg, err := c.ReadMessage(100 * time.Millisecond)
+		message, err := consumer.ReadMessage(100 * time.Millisecond)
 		if err == nil {
-			fmt.Printf("consumed: %s: %s\n", msg.TopicPartition, string(msg.Value))
+			fmt.Printf("consumed from topic %s [%d] at offset %v: "+
+				string(message.Value), *message.TopicPartition.Topic,
+				message.TopicPartition.Partition, message.TopicPartition.Offset)
 		}
 	}
 
-	c.Close()
+	consumer.Close()
 
 }
 
 func createTopic(topic string) {
 
-	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
+	adminClient, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
 		"broker.version.fallback": "0.10.0.0",
 		"api.version.fallback.ms": 0,
@@ -155,22 +160,22 @@ func createTopic(topic string) {
 
 	// Create topics on cluster.
 	// Set Admin options to wait for the operation to finish (or at most 60s)
-	maxDur, err := time.ParseDuration("60s")
+	maxDuration, err := time.ParseDuration("60s")
 	if err != nil {
 		panic("ParseDuration(60s)")
 	}
-	results, err := a.CreateTopics(ctx,
+	results, err := adminClient.CreateTopics(ctx,
 		[]kafka.TopicSpecification{{
 			Topic:             topic,
 			NumPartitions:     1,
 			ReplicationFactor: 3}},
-		kafka.SetAdminOperationTimeout(maxDur))
+		kafka.SetAdminOperationTimeout(maxDuration))
 	if err != nil {
 		fmt.Printf("Failed to create topic: %v\n", err)
 		os.Exit(1)
 	}
 
 	_ = results
-	a.Close()
+	adminClient.Close()
 
 }
