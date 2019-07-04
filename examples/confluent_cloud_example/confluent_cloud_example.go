@@ -32,7 +32,7 @@ import (
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
-// In order to set the constants below, you're going to need
+// In order to set the constants below, you are going to need
 // to log in into your Confluent Cloud account. If you choose
 // to do this via the Confluent Cloud CLI, follow these steps.
 
