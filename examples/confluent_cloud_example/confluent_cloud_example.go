@@ -60,9 +60,11 @@ import (
 // 1) Create a new API key in Confluent Cloud:
 //    $ ccloud api-key create
 
-const bootstrapServers = "<BOOTSTRAP_SERVERS>"
-const ccloudAPIKey = "<CCLOUD_API_KEY>"
-const ccloudAPISecret = "<CCLOUD_API_SECRET>"
+const (
+	bootstrapServers = "<BOOTSTRAP_SERVERS>"
+	ccloudAPIKey     = "<CCLOUD_API_KEY>"
+	ccloudAPISecret  = "<CCLOUD_API_SECRET>"
+)
 
 func main() {
 
@@ -163,20 +165,29 @@ func createTopic(topic string) {
 	// Set Admin options to wait for the operation to finish (or at most 60s)
 	maxDuration, err := time.ParseDuration("60s")
 	if err != nil {
-		panic("ParseDuration(60s)")
+		panic("time.ParseDuration(60s)")
 	}
+
 	results, err := adminClient.CreateTopics(ctx,
 		[]kafka.TopicSpecification{{
 			Topic:             topic,
 			NumPartitions:     1,
 			ReplicationFactor: 3}},
 		kafka.SetAdminOperationTimeout(maxDuration))
+
 	if err != nil {
-		fmt.Printf("Failed to create topic: %v\n", err)
+		fmt.Printf("Problem during the topic creation: %v\n", err)
 		os.Exit(1)
 	}
 
-	_ = results
+	// Check for specific topic errors
+	for _, result := range results {
+		if result.Error.Code() != kafka.ErrNoError {
+			fmt.Printf("Topic creation failed for %s: %v",
+				result.Topic, result.Error.String())
+		}
+	}
+
 	adminClient.Close()
 
 }
