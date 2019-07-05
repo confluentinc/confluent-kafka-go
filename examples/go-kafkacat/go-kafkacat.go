@@ -20,12 +20,13 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"gopkg.in/alecthomas/kingpin.v2"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 var (
