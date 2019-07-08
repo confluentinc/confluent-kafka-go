@@ -1,8 +1,8 @@
-// Example function-based high-level Apache Kafka consumer
+// Example Apache Kafka consumer that commit offset with metadata
 package main
 
 /**
- * Copyright 2016 Confluent Inc.
+ * Copyright 2019 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@ package main
  * limitations under the License.
  */
 
-// consumer_offset_metadata implements a consumer that commit offset with metadata that represents the state of the partition consumer at that point in time. The
-// metadata string can be used by another consumer to restore that state, so it can resume consumption.
+// consumer_offset_metadata implements a consumer that commit offset with metadata that represents the state
+// of the partition consumer at that point in time. The metadata string can be used by another consumer
+// to restore that state, so it can resume consumption.
 
 import (
 	"fmt"
@@ -54,16 +55,8 @@ func main() {
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": broker,
-		// Avoid connecting to IPv6 brokers:
-		// This is needed for the ErrAllBrokersDown show-case below
-		// when using localhost brokers on OSX, since the OSX resolver
-		// will return the IPv6 addresses first.
-		// You typically don't need to specify this configuration property.
-		"broker.address.family": "v4",
-		"group.id":              group,
-		"session.timeout.ms":    6000,
-		"enable.auto.commit":    "false",
-		"auto.offset.reset":     "earliest"})
+		"group.id":          group,
+	})
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
@@ -74,7 +67,7 @@ func main() {
 
 	_, err = c.CommitOffsets([]kafka.TopicPartition{{
 		Topic:     &topic,
-		Partition: 0,
+		Partition: int32(partition),
 		Metadata:  &metadata,
 		Offset:    kafka.Offset(offset),
 	}})
@@ -83,7 +76,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	committedOffsets, err := c.Committed([]kafka.TopicPartition{{Topic: &topic, Partition: int32(partition)}}, 100)
+	committedOffsets, err := c.Committed([]kafka.TopicPartition{{
+		Topic:     &topic,
+		Partition: int32(partition),
+	}}, 100)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to fetch offset: %s\n", err)
 		os.Exit(1)
