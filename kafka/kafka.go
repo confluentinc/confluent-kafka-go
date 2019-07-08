@@ -216,21 +216,13 @@ func newCPartsFromTopicPartitions(partitions []TopicPartition) (cparts *C.rd_kaf
 		rktpar.offset = C.int64_t(part.Offset)
 
 		if part.Metadata != nil {
-			cmetadata := convertToCStringNoNull(*part.Metadata)
-			rktpar.metadata = cmetadata
+			cmetadata := C.CString(*part.Metadata)
+			rktpar.metadata = unsafe.Pointer(cmetadata)
 			rktpar.metadata_size = C.size_t(len(*part.Metadata))
 		}
 	}
 
 	return cparts
-}
-
-// Go string to C string without null character.
-func convertToCStringNoNull(s string) unsafe.Pointer {
-	p := C.malloc(C.size_t(uintptr(len(s))))
-	pp := (*[1 << 30]byte)(p)
-	copy(pp[:], s)
-	return p
 }
 
 func setupTopicPartitionFromCrktpar(partition *TopicPartition, crktpar *C.rd_kafka_topic_partition_t) {

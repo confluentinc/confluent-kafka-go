@@ -31,9 +31,11 @@ import (
 
 func main() {
 
-	if len(os.Args) < 6 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <group> <topic> <partition> <offset> \"<metadata>\"\n",
-			os.Args[0])
+	if len(os.Args) != 7 && len(os.Args) != 5 {
+		fmt.Fprintf(os.Stderr, `Usage:
+- commit offset with metadata: %s <broker> <group> <topic> <partition> <offset> "<metadata>"
+- show partition offset: %s <broker> <group> <topic> <partition>`,
+			os.Args[0], os.Args[0])
 		os.Exit(1)
 	}
 
@@ -45,13 +47,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Invalid partition: %s\n", err)
 		os.Exit(1)
 	}
-	offset, err := strconv.Atoi(os.Args[5])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid offset: %s\n", err)
-		os.Exit(1)
-	}
-
-	metadata := os.Args[6]
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": broker,
@@ -65,7 +60,25 @@ func main() {
 
 	fmt.Printf("Created Consumer %v\n", c)
 
-	_, err = c.CommitOffsets([]kafka.TopicPartition{{
+	if len(os.Args) == 7 {
+		offset, err := strconv.Atoi(os.Args[5])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid offset: %s\n", err)
+			os.Exit(1)
+		}
+
+		metadata := os.Args[6]
+
+		commitOffset(c, topic, partition, offset, metadata)
+	} else {
+		showPartitionOffset(c, topic, partition)
+	}
+
+	c.Close()
+}
+
+func commitOffset(c *kafka.Consumer, topic string, partition int, offset int, metadata string) {
+	res, err := c.CommitOffsets([]kafka.TopicPartition{{
 		Topic:     &topic,
 		Partition: int32(partition),
 		Metadata:  &metadata,
@@ -76,10 +89,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Printf("Partition %d offset committed successfully", res[0].Partition)
+}
+
+func showPartitionOffset(c *kafka.Consumer, topic string, partition int) {
 	committedOffsets, err := c.Committed([]kafka.TopicPartition{{
 		Topic:     &topic,
 		Partition: int32(partition),
-	}}, 100)
+	}}, 5000)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to fetch offset: %s\n", err)
 		os.Exit(1)
@@ -94,6 +111,4 @@ func main() {
 	} else {
 		fmt.Println("\n Looks like we fetch empty metadata. Ensure that librdkafka version > v1.1.0")
 	}
-
-	c.Close()
 }
