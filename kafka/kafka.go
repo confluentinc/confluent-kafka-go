@@ -167,6 +167,7 @@ type TopicPartition struct {
 	Topic     *string
 	Partition int32
 	Offset    Offset
+	Metadata  *string
 	Error     error
 }
 
@@ -213,6 +214,12 @@ func newCPartsFromTopicPartitions(partitions []TopicPartition) (cparts *C.rd_kaf
 		defer C.free(unsafe.Pointer(ctopic))
 		rktpar := C.rd_kafka_topic_partition_list_add(cparts, ctopic, C.int32_t(part.Partition))
 		rktpar.offset = C.int64_t(part.Offset)
+
+		if part.Metadata != nil {
+			cmetadata := C.CString(*part.Metadata)
+			rktpar.metadata = unsafe.Pointer(cmetadata)
+			rktpar.metadata_size = C.size_t(len(*part.Metadata))
+		}
 	}
 
 	return cparts
@@ -224,6 +231,12 @@ func setupTopicPartitionFromCrktpar(partition *TopicPartition, crktpar *C.rd_kaf
 	partition.Topic = &topic
 	partition.Partition = int32(crktpar.partition)
 	partition.Offset = Offset(crktpar.offset)
+	if crktpar.metadata_size > 0 {
+		size := C.int(crktpar.metadata_size)
+		cstr := (*C.char)(unsafe.Pointer(crktpar.metadata))
+		metadata := C.GoStringN(cstr, size)
+		partition.Metadata = &metadata
+	}
 	if crktpar.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		partition.Error = newError(crktpar.err)
 	}
