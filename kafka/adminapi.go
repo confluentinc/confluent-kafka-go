@@ -859,6 +859,14 @@ func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) 
 	return getMetadata(a, topic, allTopics, timeoutMs)
 }
 
+// GetConsumerGroupMetadata queries broker for consumer groups metadata and all its members
+// like which consumer groups and which corresponding members consume which topics
+// if consumerGroup is nil, metadata for all consumer groups will be returned
+// otherwise only metadata for that specific consumer group will be returned
+func (a *AdminClient) GetConsumerGroupMetadata(consumerGroup *string, timeoutMs int) ([]ConsumerGroupMetadata, error) {
+	return getConsumerGroupsMetadata(a, consumerGroup, timeoutMs)
+}
+
 // String returns a human readable name for an AdminClient instance
 func (a *AdminClient) String() string {
 	return fmt.Sprintf("admin-%s", a.handle.String())

@@ -44,6 +44,17 @@ func TestMetadataAPIs(t *testing.T) {
 		t.Errorf("Expected GetMetadata to fail")
 	}
 
+	consumerGroupMetadata, err := p.GetConsumerGroupMetadata(nil, 10)
+	if err == nil {
+		t.Errorf("Expected GetConsumerGroupMetadata to fail")
+	}
+
+	consumerGroup := "unavailableConsumerGroup"
+	consumerGroupMetadata, err = p.GetConsumerGroupMetadata(&consumerGroup, 10)
+	if err == nil {
+		t.Errorf("Expected GetConsumerGroupMetadata to fail")
+	}
+
 	p.Close()
 
 	c, err := NewConsumer(&ConfigMap{"group.id": "gotest"})
@@ -59,6 +70,13 @@ func TestMetadataAPIs(t *testing.T) {
 		t.Errorf("Return value should be nil")
 	}
 
-	c.Close()
+	consumerGroupMetadata, err = c.GetConsumerGroupMetadata(nil, 10)
+	if err == nil {
+		t.Errorf("Expected GetConsumerGroupMetadata to fail")
+	}
+	if consumerGroupMetadata != nil {
+		t.Errorf("GetConsumerGroupMetadata should be nil")
+	}
 
+	c.Close()
 }
