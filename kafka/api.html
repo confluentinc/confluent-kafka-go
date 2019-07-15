@@ -221,6 +221,16 @@ These errors are normally just informational since the
 client will try its best to automatically recover (eventually).
       </p>
       <p>
+       * `OAuthBearerTokenRefresh` - retrieval of a new SASL/OAUTHBEARER token is required.
+This event only occurs with sasl.mechanism=OAUTHBEARER.
+Be sure to invoke SetOAuthBearerToken() on the Producer/Consumer/AdminClient
+instance when a successful token retrieval is completed, otherwise be sure to
+invoke SetOAuthBearerTokenFailure() to indicate that retrieval failed (or
+if setting the token failed, which could happen if an extension doesn't meet
+the required regular expression); invoking SetOAuthBearerTokenFailure() will
+schedule a new event for 10 seconds later so another retrieval can be attempted.
+      </p>
+      <p>
        Hint: If your application registers a signal notification
 (signal.Notify) makes sure the signals channel is buffered to avoid
 possible complications with blocking Poll() calls.
@@ -306,6 +316,16 @@ possible complications with blocking Poll() calls.
         <dd>
          <a href="#AdminClient.GetMetadata">
           func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#AdminClient.SetOAuthBearerToken">
+          func (a *AdminClient) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#AdminClient.SetOAuthBearerTokenFailure">
+          func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error
          </a>
         </dd>
         <dd>
@@ -514,6 +534,11 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#Consumer.GetWatermarkOffsets">
+          func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error)
+         </a>
+        </dd>
+        <dd>
          <a href="#Consumer.OffsetsForTimes">
           func (c *Consumer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error)
          </a>
@@ -546,6 +571,16 @@ possible complications with blocking Poll() calls.
         <dd>
          <a href="#Consumer.Seek">
           func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#Consumer.SetOAuthBearerToken">
+          func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#Consumer.SetOAuthBearerTokenFailure">
+          func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error
          </a>
         </dd>
         <dd>
@@ -679,6 +714,21 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#OAuthBearerToken">
+          type OAuthBearerToken
+         </a>
+        </dd>
+        <dd>
+         <a href="#OAuthBearerTokenRefresh">
+          type OAuthBearerTokenRefresh
+         </a>
+        </dd>
+        <dd>
+         <a href="#OAuthBearerTokenRefresh.String">
+          func (o OAuthBearerTokenRefresh) String() string
+         </a>
+        </dd>
+        <dd>
          <a href="#Offset">
           type Offset
          </a>
@@ -791,6 +841,16 @@ possible complications with blocking Poll() calls.
         <dd>
          <a href="#Producer.QueryWatermarkOffsets">
           func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#Producer.SetOAuthBearerToken">
+          func (p *Producer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#Producer.SetOAuthBearerTokenFailure">
+          func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error
          </a>
         </dd>
         <dd>
@@ -1081,7 +1141,7 @@ or unspecified value (for all other cases)
     <pre>const <span id="PartitionAny">PartitionAny</span> = <a href="//golang.org/pkg/builtin/#int32">int32</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_PARTITION_UA">RD_KAFKA_PARTITION_UA</a>)</pre>
     <h2 id="LibraryVersion">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=8666:8701#L228">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=9694:9729#L250">
       LibraryVersion
      </a>
      <a class="permalink" href="#LibraryVersion">
@@ -1111,7 +1171,7 @@ or unspecified value (for all other cases)
 </pre>
     <h3 id="NewAdminClient">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=29609:29667#L876">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30913:30971#L901">
       NewAdminClient
      </a>
      <a class="permalink" href="#NewAdminClient">
@@ -1124,7 +1184,7 @@ or unspecified value (for all other cases)
     </p>
     <h3 id="NewAdminClientFromConsumer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=31006:31078#L923">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32436:32508#L950">
       NewAdminClientFromConsumer
      </a>
      <a class="permalink" href="#NewAdminClientFromConsumer">
@@ -1138,7 +1198,7 @@ The AdminClient will use the same configuration and connections as the parent in
     </p>
     <h3 id="NewAdminClientFromProducer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30542:30614#L910">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=31972:32044#L937">
       NewAdminClientFromProducer
      </a>
      <a class="permalink" href="#NewAdminClientFromProducer">
@@ -1185,7 +1245,7 @@ resource requests must be sent to the broker specified in the resource.
     </p>
     <h3 id="AdminClient.Close">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=29333:29362#L863">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30637:30666#L888">
       Close
      </a>
      <a class="permalink" href="#AdminClient.Close">
@@ -1311,6 +1371,50 @@ If topic is non-nil only information about that topic is returned, else if
 allTopics is false only information about locally used topics is returned,
 else information about all topics is returned.
 GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
+    </p>
+    <h3 id="AdminClient.SetOAuthBearerToken">
+     func (*AdminClient)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=29895:29977#L872">
+      SetOAuthBearerToken
+     </a>
+     <a class="permalink" href="#AdminClient.SetOAuthBearerToken">
+      ¶
+     </a>
+    </h3>
+    <pre>func (a *<a href="#AdminClient">AdminClient</a>) SetOAuthBearerToken(oauthBearerToken <a href="#OAuthBearerToken">OAuthBearerToken</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <p>
+     SetOAuthBearerToken sets the the data to be transmitted
+to a broker during SASL/OAUTHBEARER authentication. It will return nil
+on success, otherwise an error if:
+1) the token data is invalid (meaning an expiration time in the past
+or either a token value or an extension key or value that does not meet
+the regular expression requirements as per
+     <a href="https://tools.ietf.org/html/rfc7628#section-3.1">
+      https://tools.ietf.org/html/rfc7628#section-3.1
+     </a>
+     );
+2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+3) SASL/OAUTHBEARER is supported but is not configured as the client's
+authentication mechanism.
+    </p>
+    <h3 id="AdminClient.SetOAuthBearerTokenFailure">
+     func (*AdminClient)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30476:30545#L883">
+      SetOAuthBearerTokenFailure
+     </a>
+     <a class="permalink" href="#AdminClient.SetOAuthBearerTokenFailure">
+      ¶
+     </a>
+    </h3>
+    <pre>func (a *<a href="#AdminClient">AdminClient</a>) SetOAuthBearerTokenFailure(errstr <a href="//golang.org/pkg/builtin/#string">string</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <p>
+     SetOAuthBearerTokenFailure sets the error message describing why token
+retrieval/setting failed; it also schedules a new token refresh event for 10
+seconds later so the attempt may be retried. It will return nil on
+success, otherwise an error if:
+1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+2) SASL/OAUTHBEARER is supported but is not configured as the client's
+authentication mechanism.
     </p>
     <h3 id="AdminClient.String">
      func (*AdminClient)
@@ -1917,7 +2021,7 @@ This replaces the current assignment.
     </p>
     <h3 id="Consumer.Assignment">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=16389:16461#L521">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=16944:17016#L528">
       Assignment
      </a>
      <a class="permalink" href="#Consumer.Assignment">
@@ -1989,7 +2093,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.Committed">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=16848:16958#L536">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=17403:17513#L543">
       Committed
      </a>
      <a class="permalink" href="#Consumer.Committed">
@@ -2015,7 +2119,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.GetMetadata">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=14515:14610#L471">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=14558:14653#L471">
       GetMetadata
      </a>
      <a class="permalink" href="#Consumer.GetMetadata">
@@ -2030,9 +2134,25 @@ allTopics is false only information about locally used topics is returned,
 else information about all topics is returned.
 GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
     </p>
+    <h3 id="Consumer.GetWatermarkOffsets">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15358:15456#L484">
+      GetWatermarkOffsets
+     </a>
+     <a class="permalink" href="#Consumer.GetWatermarkOffsets">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) GetWatermarkOffsets(topic <a href="//golang.org/pkg/builtin/#string">string</a>, partition <a href="//golang.org/pkg/builtin/#int32">int32</a>) (low, high <a href="//golang.org/pkg/builtin/#int64">int64</a>, err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     GetWatermarkOffsets returns the cached low and high offsets for the given topic
+and partition.  The high offset is populated on every fetch response or via calling QueryWatermarkOffsets.
+The low offset is populated every statistics.interval.ms if that value is set.
+OffsetInvalid will be returned if there is no cached offset for either value.
+    </p>
     <h3 id="Consumer.OffsetsForTimes">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15558:15669#L495">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=16113:16224#L502">
       OffsetsForTimes
      </a>
      <a class="permalink" href="#Consumer.OffsetsForTimes">
@@ -2062,7 +2182,7 @@ Per-partition errors may be returned in the `.Error` field.
     </p>
     <h3 id="Consumer.Pause">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=17523:17588#L552">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18078:18143#L559">
       Pause
      </a>
      <a class="permalink" href="#Consumer.Pause">
@@ -2104,7 +2224,7 @@ this call, set `go.events.channel.size` accordingly.
     </p>
     <h3 id="Consumer.QueryWatermarkOffsets">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=14773:14888#L477">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=14819:14934#L476">
       QueryWatermarkOffsets
      </a>
      <a class="permalink" href="#Consumer.QueryWatermarkOffsets">
@@ -2113,8 +2233,7 @@ this call, set `go.events.channel.size` accordingly.
     </h3>
     <pre>func (c *<a href="#Consumer">Consumer</a>) QueryWatermarkOffsets(topic <a href="//golang.org/pkg/builtin/#string">string</a>, partition <a href="//golang.org/pkg/builtin/#int32">int32</a>, timeoutMs <a href="//golang.org/pkg/builtin/#int">int</a>) (low, high <a href="//golang.org/pkg/builtin/#int64">int64</a>, err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
     <p>
-     QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
-and partition.
+     QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
     </p>
     <h3 id="Consumer.ReadMessage">
      func (*Consumer)
@@ -2152,7 +2271,7 @@ msg.TopicPartition provides partition-specific information (such as topic, parti
     </p>
     <h3 id="Consumer.Resume">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=17899:17965#L563">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18454:18520#L570">
       Resume
      </a>
      <a class="permalink" href="#Consumer.Resume">
@@ -2191,6 +2310,50 @@ a starting offset for each partition.
     </p>
     <p>
      Returns an error on failure or nil otherwise.
+    </p>
+    <h3 id="Consumer.SetOAuthBearerToken">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=19370:19449#L590">
+      SetOAuthBearerToken
+     </a>
+     <a class="permalink" href="#Consumer.SetOAuthBearerToken">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) SetOAuthBearerToken(oauthBearerToken <a href="#OAuthBearerToken">OAuthBearerToken</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <p>
+     SetOAuthBearerToken sets the the data to be transmitted
+to a broker during SASL/OAUTHBEARER authentication. It will return nil
+on success, otherwise an error if:
+1) the token data is invalid (meaning an expiration time in the past
+or either a token value or an extension key or value that does not meet
+the regular expression requirements as per
+     <a href="https://tools.ietf.org/html/rfc7628#section-3.1">
+      https://tools.ietf.org/html/rfc7628#section-3.1
+     </a>
+     );
+2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+3) SASL/OAUTHBEARER is supported but is not configured as the client's
+authentication mechanism.
+    </p>
+    <h3 id="Consumer.SetOAuthBearerTokenFailure">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=19948:20014#L601">
+      SetOAuthBearerTokenFailure
+     </a>
+     <a class="permalink" href="#Consumer.SetOAuthBearerTokenFailure">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) SetOAuthBearerTokenFailure(errstr <a href="//golang.org/pkg/builtin/#string">string</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <p>
+     SetOAuthBearerTokenFailure sets the error message describing why token
+retrieval/setting failed; it also schedules a new token refresh event for 10
+seconds later so the attempt may be retried. It will return nil on
+success, otherwise an error if:
+1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+2) SASL/OAUTHBEARER is supported but is not configured as the client's
+authentication mechanism.
     </p>
     <h3 id="Consumer.StoreOffsets">
      func (*Consumer)
@@ -2255,7 +2418,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Subscription">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15791:15853#L500">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=16346:16408#L507">
       Subscription
      </a>
      <a class="permalink" href="#Consumer.Subscription">
@@ -2451,7 +2614,7 @@ idempotent producer errors.
     </p>
     <h2 id="ErrorCode">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=325:343#L1">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=324:342#L1">
       ErrorCode
      </a>
      <a class="permalink" href="#ErrorCode">
@@ -2719,12 +2882,26 @@ idempotent producer errors.
     <span id="ErrListenerNotFound">ErrListenerNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_LISTENER_NOT_FOUND">RD_KAFKA_RESP_ERR_LISTENER_NOT_FOUND</a>)
     <span class="comment">// ErrTopicDeletionDisabled Topic deletion is disabled</span>
     <span id="ErrTopicDeletionDisabled">ErrTopicDeletionDisabled</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_TOPIC_DELETION_DISABLED">RD_KAFKA_RESP_ERR_TOPIC_DELETION_DISABLED</a>)
+    <span class="comment">// ErrFencedLeaderEpoch Leader epoch is older than broker epoch</span>
+    <span id="ErrFencedLeaderEpoch">ErrFencedLeaderEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_FENCED_LEADER_EPOCH">RD_KAFKA_RESP_ERR_FENCED_LEADER_EPOCH</a>)
+    <span class="comment">// ErrUnknownLeaderEpoch Leader epoch is newer than broker epoch</span>
+    <span id="ErrUnknownLeaderEpoch">ErrUnknownLeaderEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNKNOWN_LEADER_EPOCH">RD_KAFKA_RESP_ERR_UNKNOWN_LEADER_EPOCH</a>)
     <span class="comment">// ErrUnsupportedCompressionType Unsupported compression type</span>
     <span id="ErrUnsupportedCompressionType">ErrUnsupportedCompressionType</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNSUPPORTED_COMPRESSION_TYPE">RD_KAFKA_RESP_ERR_UNSUPPORTED_COMPRESSION_TYPE</a>)
+    <span class="comment">// ErrStaleBrokerEpoch Broker epoch has changed</span>
+    <span id="ErrStaleBrokerEpoch">ErrStaleBrokerEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_STALE_BROKER_EPOCH">RD_KAFKA_RESP_ERR_STALE_BROKER_EPOCH</a>)
+    <span class="comment">// ErrOffsetNotAvailable Leader high watermark is not caught up</span>
+    <span id="ErrOffsetNotAvailable">ErrOffsetNotAvailable</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_OFFSET_NOT_AVAILABLE">RD_KAFKA_RESP_ERR_OFFSET_NOT_AVAILABLE</a>)
+    <span class="comment">// ErrMemberIDRequired Group member needs a valid member ID</span>
+    <span id="ErrMemberIDRequired">ErrMemberIDRequired</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_MEMBER_ID_REQUIRED">RD_KAFKA_RESP_ERR_MEMBER_ID_REQUIRED</a>)
+    <span class="comment">// ErrPreferredLeaderNotAvailable Preferred leader was not available</span>
+    <span id="ErrPreferredLeaderNotAvailable">ErrPreferredLeaderNotAvailable</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_PREFERRED_LEADER_NOT_AVAILABLE">RD_KAFKA_RESP_ERR_PREFERRED_LEADER_NOT_AVAILABLE</a>)
+    <span class="comment">// ErrGroupMaxSizeReached Consumer group has reached maximum size</span>
+    <span id="ErrGroupMaxSizeReached">ErrGroupMaxSizeReached</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_GROUP_MAX_SIZE_REACHED">RD_KAFKA_RESP_ERR_GROUP_MAX_SIZE_REACHED</a>)
 )</pre>
     <h3 id="ErrorCode.String">
      func (ErrorCode)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=412:446#L4">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=411:445#L4">
       String
      </a>
      <a class="permalink" href="#ErrorCode.String">
@@ -2753,7 +2930,7 @@ idempotent producer errors.
 }</pre>
     <h2 id="Handle">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=822:868#L23">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=1825:3094#L45">
       Handle
      </a>
      <a class="permalink" href="#Handle">
@@ -2765,6 +2942,26 @@ idempotent producer errors.
 both Producer and Consumer.
     </p>
     <pre>type Handle interface {
+    <span class="comment">// SetOAuthBearerToken sets the the data to be transmitted</span>
+    <span class="comment">// to a broker during SASL/OAUTHBEARER authentication. It will return nil</span>
+    <span class="comment">// on success, otherwise an error if:</span>
+    <span class="comment">// 1) the token data is invalid (meaning an expiration time in the past</span>
+    <span class="comment">// or either a token value or an extension key or value that does not meet</span>
+    <span class="comment">// the regular expression requirements as per</span>
+    <span class="comment">// https://tools.ietf.org/html/rfc7628#section-3.1);</span>
+    <span class="comment">// 2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;</span>
+    <span class="comment">// 3) SASL/OAUTHBEARER is supported but is not configured as the client's</span>
+    <span class="comment">// authentication mechanism.</span>
+    SetOAuthBearerToken(oauthBearerToken <a href="#OAuthBearerToken">OAuthBearerToken</a>) <a href="//golang.org/pkg/builtin/#error">error</a>
+
+    <span class="comment">// SetOAuthBearerTokenFailure sets the error message describing why token</span>
+    <span class="comment">// retrieval/setting failed; it also schedules a new token refresh event for 10</span>
+    <span class="comment">// seconds later so the attempt may be retried. It will return nil on</span>
+    <span class="comment">// success, otherwise an error if:</span>
+    <span class="comment">// 1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;</span>
+    <span class="comment">// 2) SASL/OAUTHBEARER is supported but is not configured as the client's</span>
+    <span class="comment">// authentication mechanism.</span>
+    SetOAuthBearerTokenFailure(errstr <a href="//golang.org/pkg/builtin/#string">string</a>) <a href="//golang.org/pkg/builtin/#error">error</a>
     <span class="comment">// contains filtered or unexported methods</span>
 }</pre>
     <h2 id="Header">
@@ -2866,6 +3063,65 @@ Key and payload are not represented.
 <span id="Metadata.OriginatingBroker"></span>    OriginatingBroker <a href="#BrokerMetadata">BrokerMetadata</a>
 }
 </pre>
+    <h2 id="OAuthBearerToken">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=839:1719#L24">
+      OAuthBearerToken
+     </a>
+     <a class="permalink" href="#OAuthBearerToken">
+      ¶
+     </a>
+    </h2>
+    <p>
+     OAuthBearerToken represents the data to be transmitted
+to a broker during SASL/OAUTHBEARER authentication.
+    </p>
+    <pre>type OAuthBearerToken struct {
+    <span class="comment">// Token value, often (but not necessarily) a JWS compact serialization</span>
+    <span class="comment">// as per https://tools.ietf.org/html/rfc7515#section-3.1; it must meet</span>
+    <span class="comment">// the regular expression for a SASL/OAUTHBEARER value defined at</span>
+    <span class="comment">// https://tools.ietf.org/html/rfc7628#section-3.1</span>
+<span id="OAuthBearerToken.TokenValue"></span>    TokenValue <a href="//golang.org/pkg/builtin/#string">string</a>
+    <span class="comment">// Metadata about the token indicating when it expires (local time);</span>
+    <span class="comment">// it must represent a time in the future</span>
+<span id="OAuthBearerToken.Expiration"></span>    Expiration <a href="//golang.org/pkg/time/">time</a>.<a href="//golang.org/pkg/time/#Time">Time</a>
+    <span class="comment">// Metadata about the token indicating the Kafka principal name</span>
+    <span class="comment">// to which it applies (for example, "admin")</span>
+<span id="OAuthBearerToken.Principal"></span>    Principal <a href="//golang.org/pkg/builtin/#string">string</a>
+    <span class="comment">// SASL extensions, if any, to be communicated to the broker during</span>
+    <span class="comment">// authentication (all keys and values of which must meet the regular</span>
+    <span class="comment">// expressions defined at https://tools.ietf.org/html/rfc7628#section-3.1,</span>
+    <span class="comment">// and it must not contain the reserved "auth" key)</span>
+<span id="OAuthBearerToken.Extensions"></span>    Extensions map[<a href="//golang.org/pkg/builtin/#string">string</a>]<a href="//golang.org/pkg/builtin/#string">string</a>
+}
+</pre>
+    <h2 id="OAuthBearerTokenRefresh">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3646:3764#L129">
+      OAuthBearerTokenRefresh
+     </a>
+     <a class="permalink" href="#OAuthBearerTokenRefresh">
+      ¶
+     </a>
+    </h2>
+    <p>
+     OAuthBearerTokenRefresh indicates token refresh is required
+    </p>
+    <pre>type OAuthBearerTokenRefresh struct {
+<span id="OAuthBearerTokenRefresh.Config"></span>    <span class="comment">// Config is the value of the sasl.oauthbearer.config property</span>
+    Config <a href="//golang.org/pkg/builtin/#string">string</a>
+}
+</pre>
+    <h3 id="OAuthBearerTokenRefresh.String">
+     func (OAuthBearerTokenRefresh)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3766:3814#L134">
+      String
+     </a>
+     <a class="permalink" href="#OAuthBearerTokenRefresh.String">
+      ¶
+     </a>
+    </h3>
+    <pre>func (o <a href="#OAuthBearerTokenRefresh">OAuthBearerTokenRefresh</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="Offset">
      type
      <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=860:877#L25">
@@ -3116,7 +3372,7 @@ Returns the number of outstanding events still un-flushed.
     </p>
     <h3 id="Producer.GetFatalError">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=17506:17546#L584">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=17549:17589#L584">
       GetFatalError
      </a>
      <a class="permalink" href="#Producer.GetFatalError">
@@ -3129,7 +3385,7 @@ Returns the number of outstanding events still un-flushed.
     </p>
     <h3 id="Producer.GetMetadata">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=16201:16296#L555">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=16244:16339#L555">
       GetMetadata
      </a>
      <a class="permalink" href="#Producer.GetMetadata">
@@ -3161,7 +3417,7 @@ Includes messages on ProduceChannel.
     </p>
     <h3 id="Producer.OffsetsForTimes">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=17244:17355#L579">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=17287:17398#L579">
       OffsetsForTimes
      </a>
      <a class="permalink" href="#Producer.OffsetsForTimes">
@@ -3226,7 +3482,7 @@ Returns an error if message could not be enqueued.
     </p>
     <h3 id="Producer.QueryWatermarkOffsets">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=16459:16574#L561">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=16502:16617#L561">
       QueryWatermarkOffsets
      </a>
      <a class="permalink" href="#Producer.QueryWatermarkOffsets">
@@ -3237,6 +3493,50 @@ Returns an error if message could not be enqueued.
     <p>
      QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
 and partition.
+    </p>
+    <h3 id="Producer.SetOAuthBearerToken">
+     func (*Producer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=18450:18529#L604">
+      SetOAuthBearerToken
+     </a>
+     <a class="permalink" href="#Producer.SetOAuthBearerToken">
+      ¶
+     </a>
+    </h3>
+    <pre>func (p *<a href="#Producer">Producer</a>) SetOAuthBearerToken(oauthBearerToken <a href="#OAuthBearerToken">OAuthBearerToken</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <p>
+     SetOAuthBearerToken sets the the data to be transmitted
+to a broker during SASL/OAUTHBEARER authentication. It will return nil
+on success, otherwise an error if:
+1) the token data is invalid (meaning an expiration time in the past
+or either a token value or an extension key or value that does not meet
+the regular expression requirements as per
+     <a href="https://tools.ietf.org/html/rfc7628#section-3.1">
+      https://tools.ietf.org/html/rfc7628#section-3.1
+     </a>
+     );
+2) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+3) SASL/OAUTHBEARER is supported but is not configured as the client's
+authentication mechanism.
+    </p>
+    <h3 id="Producer.SetOAuthBearerTokenFailure">
+     func (*Producer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=19028:19094#L615">
+      SetOAuthBearerTokenFailure
+     </a>
+     <a class="permalink" href="#Producer.SetOAuthBearerTokenFailure">
+      ¶
+     </a>
+    </h3>
+    <pre>func (p *<a href="#Producer">Producer</a>) SetOAuthBearerTokenFailure(errstr <a href="//golang.org/pkg/builtin/#string">string</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <p>
+     SetOAuthBearerTokenFailure sets the error message describing why token
+retrieval/setting failed; it also schedules a new token refresh event for 10
+seconds later so the attempt may be retried. It will return nil on
+success, otherwise an error if:
+1) SASL/OAUTHBEARER is not supported by the underlying librdkafka build;
+2) SASL/OAUTHBEARER is supported but is not configured as the client's
+authentication mechanism.
     </p>
     <h3 id="Producer.String">
      func (*Producer)
@@ -3253,7 +3553,7 @@ and partition.
     </p>
     <h3 id="Producer.TestFatalError">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=17697:17768#L590">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=17740:17811#L590">
       TestFatalError
      </a>
      <a class="permalink" href="#Producer.TestFatalError">
@@ -3414,7 +3714,7 @@ a ResourceType value.
 </pre>
     <h2 id="TopicPartition">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=6415:6516#L147">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7047:7167#L156">
       TopicPartition
      </a>
      <a class="permalink" href="#TopicPartition">
@@ -3428,12 +3728,13 @@ a ResourceType value.
 <span id="TopicPartition.Topic"></span>    Topic     *<a href="//golang.org/pkg/builtin/#string">string</a>
 <span id="TopicPartition.Partition"></span>    Partition <a href="//golang.org/pkg/builtin/#int32">int32</a>
 <span id="TopicPartition.Offset"></span>    Offset    <a href="#Offset">Offset</a>
+<span id="TopicPartition.Metadata"></span>    Metadata  *<a href="//golang.org/pkg/builtin/#string">string</a>
 <span id="TopicPartition.Error"></span>    Error     <a href="//golang.org/pkg/builtin/#error">error</a>
 }
 </pre>
     <h3 id="TopicPartition.String">
      func (TopicPartition)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=6518:6557#L154">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7169:7208#L164">
       String
      </a>
      <a class="permalink" href="#TopicPartition.String">
@@ -3443,7 +3744,7 @@ a ResourceType value.
     <pre>func (p <a href="#TopicPartition">TopicPartition</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="TopicPartitions">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=6886:6923#L169">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7537:7574#L179">
       TopicPartitions
      </a>
      <a class="permalink" href="#TopicPartitions">
@@ -3457,7 +3758,7 @@ the sort interface
     <pre>type TopicPartitions []<a href="#TopicPartition">TopicPartition</a></pre>
     <h3 id="TopicPartitions.Len">
      func (TopicPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=6925:6961#L171">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7576:7612#L181">
       Len
      </a>
      <a class="permalink" href="#TopicPartitions.Len">
@@ -3467,7 +3768,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Len() <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="TopicPartitions.Less">
      func (TopicPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=6984:7030#L175">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7635:7681#L185">
       Less
      </a>
      <a class="permalink" href="#TopicPartitions.Less">
@@ -3477,7 +3778,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Less(i, j <a href="//golang.org/pkg/builtin/#int">int</a>) <a href="//golang.org/pkg/builtin/#bool">bool</a></pre>
     <h3 id="TopicPartitions.Swap">
      func (TopicPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7191:7232#L184">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=7842:7883#L194">
       Swap
      </a>
      <a class="permalink" href="#TopicPartitions.Swap">
