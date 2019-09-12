@@ -105,6 +105,7 @@ func getMessageCountInTopic(topic string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer c.Close()
 
 	// get metadata for the topic to find out number of partitions
 
