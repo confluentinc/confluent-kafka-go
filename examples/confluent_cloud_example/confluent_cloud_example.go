@@ -74,8 +74,6 @@ func main() {
 	// Produce a new record to the topic...
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
-		"broker.version.fallback": "0.10.0.0",
-		"api.version.fallback.ms": 0,
 		"sasl.mechanisms":         "PLAIN",
 		"security.protocol":       "SASL_SSL",
 		"sasl.username":           ccloudAPIKey,
@@ -110,8 +108,6 @@ func main() {
 	// Now consumes the record and print its value...
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
-		"broker.version.fallback": "0.10.0.0",
-		"api.version.fallback.ms": 0,
 		"sasl.mechanisms":         "PLAIN",
 		"security.protocol":       "SASL_SSL",
 		"sasl.username":           ccloudAPIKey,
