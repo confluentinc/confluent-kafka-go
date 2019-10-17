@@ -48,7 +48,9 @@
 // which defaults to the `latest` message) and then call `.Assign(partitions)`
 // to start consuming. If you don't need to modify the initial offsets you will
 // not need to call `.Assign()`, the client will do so automatically for you if
-// you dont.
+// you dont, unless you are using the channel-based consumer in which case
+// you MUST call `.Assign()` when receiving the `AssignedPartitions` and
+// `RevokedPartitions` events.
 //
 // * As messages are fetched they will be made available on either the
 // `.Events` channel or by calling `.Poll()`, look for event type `*kafka.Message`.
