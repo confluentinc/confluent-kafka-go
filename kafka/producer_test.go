@@ -176,15 +176,18 @@ func TestProducerAPIs(t *testing.T) {
 	if offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
+}
 
-	// Purge messages that are not delivered to kafka
-	unreachableProducer, err := NewProducer(&ConfigMap{
+// TestPurgeAPI test if messages are purged successfully
+func TestPurgeAPI(t *testing.T) {
+	topic := "sometopic"
+	unreachableProducer, _ := NewProducer(&ConfigMap{
 		"bootstrap.servers": "127.0.0.1:65533",
 	})
 	purgeDrChan := make(chan Event)
-	err = unreachableProducer.Produce(&Message{
+	err := unreachableProducer.Produce(&Message{
 		TopicPartition: TopicPartition{
-			Topic:     &topic1,
+			Topic:     &topic,
 			Partition: 0,
 		},
 		Value: []byte("somevalue"),
@@ -192,17 +195,11 @@ func TestProducerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
-	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
 
+	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
 	if err != nil {
 		t.Errorf("Failed to purge message: %s", err)
 	}
-
-	timeout := make(chan bool, 1)
-	go func() {
-		time.Sleep(1 * time.Second)
-		timeout <- true
-	}()
 
 	select {
 	case e := <-purgeDrChan:
@@ -215,10 +212,9 @@ func TestProducerAPIs(t *testing.T) {
 		} else {
 			t.Errorf("Purge should have triggered error report")
 		}
-	case <-timeout:
+	case <-time.After(1 * time.Second):
 		t.Errorf("No delivery report after purge api is called")
 	}
-
 
 	close(purgeDrChan)
 }
