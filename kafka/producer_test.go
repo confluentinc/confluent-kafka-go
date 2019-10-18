@@ -209,7 +209,7 @@ func TestProducerAPIs(t *testing.T) {
 		purgedMessage := e.(*Message)
 		err = purgedMessage.TopicPartition.Error
 		if err != nil {
-			if err.Error() != "Local: Purged in queue" {
+			if err.(Error).Code() != ErrPurgeQueue {
 				t.Errorf("Unexpected error after purge api is called: %s", e)
 			}
 		} else {
