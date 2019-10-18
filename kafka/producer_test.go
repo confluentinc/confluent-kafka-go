@@ -192,7 +192,7 @@ func TestProducerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
-	err = unreachableProducer.Purge(PurgeInflight | PurgeQueue)
+	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
 
 	if err != nil {
 		t.Errorf("Failed to purge message: %s", err)

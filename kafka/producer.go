@@ -366,9 +366,12 @@ const (
 	// broker, making it impossible for the application to know if these
 	// messages were successfully delivered or not.
 	// Retrying these messages may lead to duplicates.
+	PurgeInFlight = int(C.RD_KAFKA_PURGE_F_INFLIGHT)
 
+	// Purge messages in internal queues.
 	PurgeQueue = int(C.RD_KAFKA_PURGE_F_QUEUE)
-	PurgeInflight = int(C.RD_KAFKA_PURGE_F_INFLIGHT)
+
+	// Don't wait for background thread queue purging to finish.
 	PurgeNonBlocking = int(C.RD_KAFKA_PURGE_F_NON_BLOCKING)
 )
 
