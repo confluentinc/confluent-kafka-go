@@ -361,16 +361,42 @@ func (p *Producer) Close() {
 }
 
 const (
-	// RdKafkaPurgeFQueue - Purge from queue
-	RdKafkaPurgeFQueue = C.RD_KAFKA_PURGE_F_QUEUE
-	// RdKafkaPurgeFInflight - Purge from inflight
-	RdKafkaPurgeFInflight = C.RD_KAFKA_PURGE_F_INFLIGHT
+	// PurgeInFlight purges messages in-flight to or from the broker.
+	// Purging these messages will void any future acknowledgements from the
+	// broker, making it impossible for the application to know if these
+	// messages were successfully delivered or not.
+	// Retrying these messages may lead to duplicates.
+
+	PurgeQueue = int(C.RD_KAFKA_PURGE_F_QUEUE)
+	PurgeInflight = int(C.RD_KAFKA_PURGE_F_INFLIGHT)
+	PurgeNonBlocking = int(C.RD_KAFKA_PURGE_F_NON_BLOCKING)
 )
 
-// Purge messages from queue.
-func (p *Producer) Purge(flag C.int) error {
-	var cErr C.rd_kafka_resp_err_t
-	cErr = C.rd_kafka_purge(p.handle.rk, flag)
+// Purge messages currently handled by this producer instance.
+//
+// flags is a combination of PurgeQueue, PurgeInFlight and PurgeNonBlocking.
+//
+// The application will need to call Poll(), Flush() or read the Events() channel
+// after this call to serve delivery reports for the purged messages.
+//
+// Messages purged from internal queues fail with the delivery report
+// error code set to ErrPurgeQueue, while purged messages that
+// are in-flight to or from the broker will fail with the error code set to
+// ErrPurgeInflight.
+//
+// Warning: Purging messages that are in-flight to or from the broker
+//          will ignore any sub-sequent acknowledgement for these messages
+//          received from the broker, effectively making it impossible
+//          for the application to know if the messages were successfully
+//          produced or not. This may result in duplicate messages if the
+//          application retries these messages at a later time.
+//
+// Note: This call may block for a short time while background thread
+//       queues are purged.
+//
+// Returns nil on success, ErrInvalidArg if the purge flags are invalid or unknown.
+func (p *Producer) Purge(flags int) error {
+	cErr := C.rd_kafka_purge(p.handle.rk, C.int(flags))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cErr)
 	}

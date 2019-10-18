@@ -192,15 +192,15 @@ func TestProducerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
-	unreachableProducer.Purge(RdKafkaPurgeFInflight | RdKafkaPurgeFQueue)
+	err = unreachableProducer.Purge(PurgeInflight | PurgeQueue)
 
 	if err != nil {
-		t.Errorf("Failed to purge message")
+		t.Errorf("Failed to purge message: %s", err)
 	}
 
 	timeout := make(chan bool, 1)
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 		timeout <- true
 	}()
 
