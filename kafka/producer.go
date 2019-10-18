@@ -368,10 +368,10 @@ const (
 	// Retrying these messages may lead to duplicates.
 	PurgeInFlight = int(C.RD_KAFKA_PURGE_F_INFLIGHT)
 
-	// Purge messages in internal queues.
+	// PurgeQueue Purge messages in internal queues.
 	PurgeQueue = int(C.RD_KAFKA_PURGE_F_QUEUE)
 
-	// Don't wait for background thread queue purging to finish.
+	// PurgeNonBlocking Don't wait for background thread queue purging to finish.
 	PurgeNonBlocking = int(C.RD_KAFKA_PURGE_F_NON_BLOCKING)
 )
 
