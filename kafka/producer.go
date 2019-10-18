@@ -360,14 +360,17 @@ func (p *Producer) Close() {
 	C.rd_kafka_destroy(p.handle.rk)
 }
 
-// Purge messages from queue. If purgeInFlight is true, then the inflight message will be purged as well.
-func (p *Producer) Purge(purgeInFlight bool) error {
+const (
+	// RdKafkaPurgeFQueue - Purge from queue
+	RdKafkaPurgeFQueue = C.RD_KAFKA_PURGE_F_QUEUE
+	// RdKafkaPurgeFInflight - Purge from inflight
+	RdKafkaPurgeFInflight = C.RD_KAFKA_PURGE_F_INFLIGHT
+)
+
+// Purge messages from queue.
+func (p *Producer) Purge(flag C.int) error {
 	var cErr C.rd_kafka_resp_err_t
-	if purgeInFlight {
-		cErr = C.rd_kafka_purge(p.handle.rk, C.RD_KAFKA_PURGE_F_QUEUE | C.RD_KAFKA_PURGE_F_INFLIGHT)
-	} else {
-		cErr = C.rd_kafka_purge(p.handle.rk, C.RD_KAFKA_PURGE_F_QUEUE)
-	}
+	cErr = C.rd_kafka_purge(p.handle.rk, flag)
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cErr)
 	}

@@ -179,8 +179,7 @@ func TestProducerAPIs(t *testing.T) {
 
 	// Purge messages that are not delivered to kafka
 	unreachableProducer, err := NewProducer(&ConfigMap{
-		"bootstrap.servers": "unreachable:9092",
-		"message.timeout.ms": 50,
+		"bootstrap.servers": "127.0.0.1:65533",
 	})
 	purgeDrChan := make(chan Event)
 	err = unreachableProducer.Produce(&Message{
@@ -193,7 +192,7 @@ func TestProducerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Produce failed: %s", err)
 	}
-	unreachableProducer.Purge(false)
+	unreachableProducer.Purge(RdKafkaPurgeFInflight | RdKafkaPurgeFQueue)
 
 	if err != nil {
 		t.Errorf("Failed to purge message")
