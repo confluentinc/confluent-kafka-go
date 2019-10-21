@@ -29,7 +29,7 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 // In order to set the constants below, you are going to need

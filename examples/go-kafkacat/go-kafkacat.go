@@ -20,8 +20,8 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/alecthomas/kingpin"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"gopkg.in/alecthomas/kingpin.v2"
 	"os"
 	"os/signal"
 	"strings"
