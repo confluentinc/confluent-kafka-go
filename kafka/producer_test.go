@@ -178,6 +178,47 @@ func TestProducerAPIs(t *testing.T) {
 	}
 }
 
+// TestPurgeAPI test if messages are purged successfully
+func TestPurgeAPI(t *testing.T) {
+	topic := "sometopic"
+	unreachableProducer, _ := NewProducer(&ConfigMap{
+		"bootstrap.servers": "127.0.0.1:65533",
+	})
+	purgeDrChan := make(chan Event)
+	err := unreachableProducer.Produce(&Message{
+		TopicPartition: TopicPartition{
+			Topic:     &topic,
+			Partition: 0,
+		},
+		Value: []byte("somevalue"),
+	}, purgeDrChan)
+	if err != nil {
+		t.Errorf("Produce failed: %s", err)
+	}
+
+	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
+	if err != nil {
+		t.Errorf("Failed to purge message: %s", err)
+	}
+
+	select {
+	case e := <-purgeDrChan:
+		purgedMessage := e.(*Message)
+		err = purgedMessage.TopicPartition.Error
+		if err != nil {
+			if err.(Error).Code() != ErrPurgeQueue {
+				t.Errorf("Unexpected error after purge api is called: %s", e)
+			}
+		} else {
+			t.Errorf("Purge should have triggered error report")
+		}
+	case <-time.After(1 * time.Second):
+		t.Errorf("No delivery report after purge api is called")
+	}
+
+	close(purgeDrChan)
+}
+
 // TestProducerBufferSafety verifies issue #24, passing any type of memory backed buffer
 // (JSON in this case) to Produce()
 func TestProducerBufferSafety(t *testing.T) {

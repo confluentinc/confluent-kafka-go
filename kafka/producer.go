@@ -360,6 +360,53 @@ func (p *Producer) Close() {
 	C.rd_kafka_destroy(p.handle.rk)
 }
 
+const (
+	// PurgeInFlight purges messages in-flight to or from the broker.
+	// Purging these messages will void any future acknowledgements from the
+	// broker, making it impossible for the application to know if these
+	// messages were successfully delivered or not.
+	// Retrying these messages may lead to duplicates.
+	PurgeInFlight = int(C.RD_KAFKA_PURGE_F_INFLIGHT)
+
+	// PurgeQueue Purge messages in internal queues.
+	PurgeQueue = int(C.RD_KAFKA_PURGE_F_QUEUE)
+
+	// PurgeNonBlocking Don't wait for background thread queue purging to finish.
+	PurgeNonBlocking = int(C.RD_KAFKA_PURGE_F_NON_BLOCKING)
+)
+
+// Purge messages currently handled by this producer instance.
+//
+// flags is a combination of PurgeQueue, PurgeInFlight and PurgeNonBlocking.
+//
+// The application will need to call Poll(), Flush() or read the Events() channel
+// after this call to serve delivery reports for the purged messages.
+//
+// Messages purged from internal queues fail with the delivery report
+// error code set to ErrPurgeQueue, while purged messages that
+// are in-flight to or from the broker will fail with the error code set to
+// ErrPurgeInflight.
+//
+// Warning: Purging messages that are in-flight to or from the broker
+//          will ignore any sub-sequent acknowledgement for these messages
+//          received from the broker, effectively making it impossible
+//          for the application to know if the messages were successfully
+//          produced or not. This may result in duplicate messages if the
+//          application retries these messages at a later time.
+//
+// Note: This call may block for a short time while background thread
+//       queues are purged.
+//
+// Returns nil on success, ErrInvalidArg if the purge flags are invalid or unknown.
+func (p *Producer) Purge(flags int) error {
+	cErr := C.rd_kafka_purge(p.handle.rk, C.int(flags))
+	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cErr)
+	}
+
+	return nil
+}
+
 // NewProducer creates a new high-level Producer instance.
 //
 // conf is a *ConfigMap with standard librdkafka configuration properties, see here:
