@@ -26,10 +26,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"time"
-
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 // In order to set the constants below, you are going to need

@@ -23,10 +23,9 @@ package main
 
 import (
 	"fmt"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"strconv"
-
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
