@@ -1559,3 +1559,57 @@ func TestAdminGetMetadata(t *testing.T) {
 	t.Logf("Meta data for admin client: %v\n", metaData)
 
 }
+
+func TestAdminClient_ClusterID(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Errorf("Failed to update test configuration: %s\n", err)
+		return
+	}
+
+	admin, err := NewAdminClient(config)
+	if err != nil {
+		t.Errorf("Failed to create Admin client: %s\n", err)
+		return
+	}
+	defer admin.Close()
+
+	clusterID, err := admin.ClusterID(time.Second)
+	if err != nil {
+		t.Errorf("Failed to get ClusterID: %s\n", err)
+		return
+	}
+
+	t.Logf("ClusterID: %s\n", clusterID)
+}
+
+func TestAdminClient_ControllerID(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Errorf("Failed to update test configuration: %s\n", err)
+		return
+	}
+
+	admin, err := NewAdminClient(config)
+	if err != nil {
+		t.Errorf("Failed to create Admin client: %s\n", err)
+		return
+	}
+	defer admin.Close()
+
+	controllerID, err := admin.ControllerID(time.Second)
+	if err != nil {
+		t.Errorf("Failed to get ControllerID: %s\n", err)
+		return
+	}
+
+	t.Logf("ControllerID: %d\n", controllerID)
+}

@@ -420,6 +420,37 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 	return result, nil
 }
 
+
+// Returns the ClusterId as reported in broker metadata.
+//
+// Requires broker version >=0.10.0 and api.version.request=true.
+func (a *AdminClient) ClusterID(timeout time.Duration) (clusterID string, err error) {
+	cClusterID := C.rd_kafka_clusterid(a.handle.rk, C.int(timeout.Milliseconds()))
+	defer C.free(unsafe.Pointer(cClusterID))
+
+	if cClusterID == nil {
+		err = newError(C.RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT)
+		return "", err
+	}
+
+	clusterID = C.GoString(cClusterID)
+	return clusterID, nil
+}
+
+// Returns the current ControllerId as reported in broker metadata.
+//
+// Requires broker version >=0.10.0 and api.version.request=true.
+func (a *AdminClient) ControllerID(timeout time.Duration) (controllerID int32, err error) {
+	controllerID = int32(C.rd_kafka_controllerid(a.handle.rk, C.int(timeout.Milliseconds())))
+
+	if controllerID < 0 {
+		err = newError(C.RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT)
+		return controllerID, err
+	}
+
+	return controllerID, nil
+}
+
 // CreateTopics creates topics in cluster.
 //
 // The list of TopicSpecification objects define the per-topic partition count, replicas, etc.
