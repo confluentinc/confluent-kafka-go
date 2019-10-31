@@ -425,7 +425,7 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 //
 // Requires broker version >=0.10.0 and api.version.request=true.
 func (a *AdminClient) ClusterID(timeout time.Duration) (clusterID string, err error) {
-	cClusterID := C.rd_kafka_clusterid(a.handle.rk, C.int(timeout.Milliseconds()))
+	cClusterID := C.rd_kafka_clusterid(a.handle.rk, C.int(timeout/time.Millisecond))
 	defer C.free(unsafe.Pointer(cClusterID))
 
 	if cClusterID == nil {
@@ -441,7 +441,7 @@ func (a *AdminClient) ClusterID(timeout time.Duration) (clusterID string, err er
 //
 // Requires broker version >=0.10.0 and api.version.request=true.
 func (a *AdminClient) ControllerID(timeout time.Duration) (controllerID int32, err error) {
-	controllerID = int32(C.rd_kafka_controllerid(a.handle.rk, C.int(timeout.Milliseconds())))
+	controllerID = int32(C.rd_kafka_controllerid(a.handle.rk, C.int(timeout/time.Millisecond)))
 
 	if controllerID < 0 {
 		err = newError(C.RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT)
