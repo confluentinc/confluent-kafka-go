@@ -421,7 +421,7 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 }
 
 
-// Returns the ClusterId as reported in broker metadata.
+// ClusterId returns the cluster ID as reported in broker metadata.
 //
 // Requires broker version >=0.10.0 and api.version.request=true.
 func (a *AdminClient) ClusterID(timeout time.Duration) (clusterID string, err error) {
@@ -437,7 +437,7 @@ func (a *AdminClient) ClusterID(timeout time.Duration) (clusterID string, err er
 	return clusterID, nil
 }
 
-// Returns the current ControllerId as reported in broker metadata.
+// ControllerID returns the current broker ID of the controller as reported in broker metadata.
 //
 // Requires broker version >=0.10.0 and api.version.request=true.
 func (a *AdminClient) ControllerID(timeout time.Duration) (controllerID int32, err error) {
