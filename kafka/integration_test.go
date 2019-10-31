@@ -1560,6 +1560,7 @@ func TestAdminGetMetadata(t *testing.T) {
 
 }
 
+// Test AdminClient ClusterID.
 func TestAdminClient_ClusterID(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -1567,26 +1568,31 @@ func TestAdminClient_ClusterID(t *testing.T) {
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := config.updateFromTestconf(); err != nil {
-		t.Errorf("Failed to update test configuration: %s\n", err)
+		t.Fatalf("Failed to update test configuration: %s\n", err)
 		return
 	}
 
 	admin, err := NewAdminClient(config)
 	if err != nil {
-		t.Errorf("Failed to create Admin client: %s\n", err)
+		t.Fatalf("Failed to create Admin client: %s\n", err)
 		return
 	}
 	defer admin.Close()
 
-	clusterID, err := admin.ClusterID(time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	clusterID, err := admin.ClusterID(ctx)
 	if err != nil {
 		t.Errorf("Failed to get ClusterID: %s\n", err)
 		return
+	}
+	if clusterID == "" {
+		t.Error("ClusterID is empty.")
 	}
 
 	t.Logf("ClusterID: %s\n", clusterID)
 }
 
+// Test AdminClient ControllerID.
 func TestAdminClient_ControllerID(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -1594,20 +1600,25 @@ func TestAdminClient_ControllerID(t *testing.T) {
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := config.updateFromTestconf(); err != nil {
-		t.Errorf("Failed to update test configuration: %s\n", err)
+		t.Fatalf("Failed to update test configuration: %s\n", err)
 		return
 	}
 
 	admin, err := NewAdminClient(config)
 	if err != nil {
-		t.Errorf("Failed to create Admin client: %s\n", err)
+		t.Fatalf("Failed to create Admin client: %s\n", err)
 		return
 	}
 	defer admin.Close()
 
-	controllerID, err := admin.ControllerID(time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	controllerID, err := admin.ControllerID(ctx)
 	if err != nil {
 		t.Errorf("Failed to get ControllerID: %s\n", err)
+		return
+	}
+	if controllerID < 0 {
+		t.Errorf("ControllerID is negative: %d\n", controllerID)
 		return
 	}
 
