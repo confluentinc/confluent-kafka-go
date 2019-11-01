@@ -424,36 +424,63 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 
 // ClusterID returns the cluster ID as reported in broker metadata.
 //
-// Returns an error C.RD_KAFKA_RESP_ERR__TIMED_OUT if the operation times out.
+// If the operation times out, it returns ErrTimedOut.
 //
-// Requires broker version >=0.10.0 and api.version.request=true.
+// Note on cancellation: The underlying C function call currently cannot be cancelled. That means
+// cancelling the context will block until the C function call returns, before returning the
+// cancellation error.
+//
+// Requires broker version >=0.10.0.
 func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err error) {
-	cClusterID := C.rd_kafka_clusterid(a.handle.rk, C.int(Timeout(ctx)/time.Millisecond))
+	responseChan := make(chan *C.char, 1)
 
-	if cClusterID == nil {
-		err = newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
-		return "", err
+	go func() {
+		responseChan <- C.rd_kafka_clusterid(a.handle.rk, cTimeoutFromContext(ctx))
+	}()
+
+	select {
+	case <-ctx.Done():
+		if cClusterID := <-responseChan; cClusterID != nil {
+			C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
+		}
+		return "", ctx.Err()
+
+	case cClusterID := <-responseChan:
+		if cClusterID == nil {
+			return "", newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+		}
+		defer C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
+		return C.GoString(cClusterID), nil
 	}
-
-	defer C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
-	clusterID = C.GoString(cClusterID)
-	return clusterID, nil
 }
 
 // ControllerID returns the current broker ID of the controller as reported in broker metadata.
 //
-// Returns an error C.RD_KAFKA_RESP_ERR__TIMED_OUT if the operation times out.
+// If the operation times out, it returns ErrTimedOut.
+//
+// Note on cancellation: The underlying C function call currently cannot be cancelled. That means
+// cancelling the context will block until the C function call returns, before returning the
+// cancellation error.
 //
 // Requires broker version >=0.10.0.
 func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err error) {
-	controllerID = int32(C.rd_kafka_controllerid(a.handle.rk, C.int(Timeout(ctx)/time.Millisecond)))
+	responseChan := make(chan int32, 1)
 
-	if controllerID < 0 {
-		err = newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
-		return controllerID, err
+	go func() {
+		responseChan <- int32(C.rd_kafka_controllerid(a.handle.rk, cTimeoutFromContext(ctx)))
+	}()
+
+	select {
+	case <-ctx.Done():
+		<-responseChan
+		return 0, ctx.Err()
+
+	case controllerID := <-responseChan:
+		if controllerID < 0 {
+			return controllerID, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+		}
+		return controllerID, nil
 	}
-
-	return controllerID, nil
 }
 
 // CreateTopics creates topics in cluster.
