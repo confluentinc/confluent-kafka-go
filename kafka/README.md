@@ -123,7 +123,7 @@ Manually verify that the examples/ applications work.
 
 Also make sure the examples in README.md work.
 
-Convert any example using `github.com/confluentinc/confluent-kafka-go/kafka` to use
+Convert any examples using `github.com/confluentinc/confluent-kafka-go/kafka` to use
 `gopkg.in/confluentinc/confluent-kafka-go.v1/kafka` import path.
 
 ### Commit any changes
