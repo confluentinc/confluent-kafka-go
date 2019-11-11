@@ -265,7 +265,7 @@ func (c *Consumer) Events() chan Event {
 
 // ReadMessage polls the consumer for a message.
 //
-// This is a conveniance API that wraps Poll() and only returns
+// This is a convenience API that wraps Poll() and only returns
 // messages or errors. All other event types are discarded.
 //
 // The call will block for at most `timeout` waiting for
