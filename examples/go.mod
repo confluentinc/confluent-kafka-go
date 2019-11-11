@@ -1,4 +1,4 @@
-module github.com/confluentinc/confluent-kafka-go
+module github.com/confluentinc/confluent-kafka-go/examples
 
 go 1.11
 
