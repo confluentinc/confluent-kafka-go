@@ -420,17 +420,13 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 	return result, nil
 }
 
-
-
 // ClusterID returns the cluster ID as reported in broker metadata.
 //
-// If the operation times out, it returns ErrTimedOut.
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
 //
-// Note on cancellation: The underlying C function call currently cannot be cancelled. That means
-// cancelling the context will block until the C function call returns, before returning the
-// cancellation error.
-//
-// Requires broker version >=0.10.0.
+// Requires broker version >= 0.10.0.
 func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err error) {
 	responseChan := make(chan *C.char, 1)
 
@@ -446,23 +442,23 @@ func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err erro
 		return "", ctx.Err()
 
 	case cClusterID := <-responseChan:
-		if cClusterID == nil {
-			return "", newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+		if cClusterID == nil { // C timeout
+			<-ctx.Done()
+			return "", ctx.Err()
 		}
 		defer C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
 		return C.GoString(cClusterID), nil
 	}
 }
 
-// ControllerID returns the current broker ID of the controller as reported in broker metadata.
+// ControllerID returns the broker ID of the current controller as reported in
+// broker metadata.
 //
-// If the operation times out, it returns ErrTimedOut.
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
 //
-// Note on cancellation: The underlying C function call currently cannot be cancelled. That means
-// cancelling the context will block until the C function call returns, before returning the
-// cancellation error.
-//
-// Requires broker version >=0.10.0.
+// Requires broker version >= 0.10.0.
 func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err error) {
 	responseChan := make(chan int32, 1)
 
@@ -476,8 +472,9 @@ func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err
 		return 0, ctx.Err()
 
 	case controllerID := <-responseChan:
-		if controllerID < 0 {
-			return controllerID, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+		if controllerID < 0 { // C timeout
+			<-ctx.Done()
+			return 0, ctx.Err()
 		}
 		return controllerID, nil
 	}

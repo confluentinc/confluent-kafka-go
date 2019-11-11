@@ -35,7 +35,7 @@ const (
 // cTimeoutInfinite;
 // If there is no time left in this context, it returns cTimeoutNoWait.
 func cTimeoutFromContext(ctx context.Context) C.int {
-	timeout, hasTimeout := Timeout(ctx)
+	timeout, hasTimeout := timeout(ctx)
 	if !hasTimeout {
 		return cTimeoutInfinite
 	}

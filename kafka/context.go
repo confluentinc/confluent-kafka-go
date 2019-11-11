@@ -23,7 +23,7 @@ import (
 
 // Timeout returns the remaining time after which work done on behalf of this context should be
 // canceled, or ok==false if no deadline/timeout is set.
-func Timeout(ctx context.Context) (timeout time.Duration, ok bool) {
+func timeout(ctx context.Context) (timeout time.Duration, ok bool) {
 	if deadline, ok := ctx.Deadline(); ok {
 		return deadline.Sub(time.Now()), true
 	}
