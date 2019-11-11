@@ -228,6 +228,26 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	clusterID, err := a.ClusterID(ctx)
+	if err == nil {
+		t.Fatalf("Expected ClusterID to fail, but got result: %v", clusterID)
+	}
+	if ctx.Err() != context.DeadlineExceeded || err != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	controllerID, err := a.ControllerID(ctx)
+	if err == nil {
+		t.Fatalf("Expected ControllerID to fail, but got result: %v", controllerID)
+	}
+	if ctx.Err() != context.DeadlineExceeded || err != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.

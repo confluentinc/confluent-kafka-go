@@ -420,6 +420,66 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 	return result, nil
 }
 
+// ClusterID returns the cluster ID as reported in broker metadata.
+//
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
+//
+// Requires broker version >= 0.10.0.
+func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err error) {
+	responseChan := make(chan *C.char, 1)
+
+	go func() {
+		responseChan <- C.rd_kafka_clusterid(a.handle.rk, cTimeoutFromContext(ctx))
+	}()
+
+	select {
+	case <-ctx.Done():
+		if cClusterID := <-responseChan; cClusterID != nil {
+			C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
+		}
+		return "", ctx.Err()
+
+	case cClusterID := <-responseChan:
+		if cClusterID == nil { // C timeout
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		defer C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
+		return C.GoString(cClusterID), nil
+	}
+}
+
+// ControllerID returns the broker ID of the current controller as reported in
+// broker metadata.
+//
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
+//
+// Requires broker version >= 0.10.0.
+func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err error) {
+	responseChan := make(chan int32, 1)
+
+	go func() {
+		responseChan <- int32(C.rd_kafka_controllerid(a.handle.rk, cTimeoutFromContext(ctx)))
+	}()
+
+	select {
+	case <-ctx.Done():
+		<-responseChan
+		return 0, ctx.Err()
+
+	case controllerID := <-responseChan:
+		if controllerID < 0 { // C timeout
+			<-ctx.Done()
+			return 0, ctx.Err()
+		}
+		return controllerID, nil
+	}
+}
+
 // CreateTopics creates topics in cluster.
 //
 // The list of TopicSpecification objects define the per-topic partition count, replicas, etc.

@@ -1559,3 +1559,65 @@ func TestAdminGetMetadata(t *testing.T) {
 	t.Logf("Meta data for admin client: %v\n", metaData)
 
 }
+
+// Test AdminClient ClusterID.
+func TestAdminClient_ClusterID(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %s\n", err)
+	}
+
+	admin, err := NewAdminClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create Admin client: %s\n", err)
+	}
+	defer admin.Close()
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	clusterID, err := admin.ClusterID(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get ClusterID: %s\n", err)
+	}
+	if clusterID == "" {
+		t.Fatal("ClusterID is empty.")
+	}
+
+	t.Logf("ClusterID: %s\n", clusterID)
+}
+
+// Test AdminClient ControllerID.
+func TestAdminClient_ControllerID(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %s\n", err)
+	}
+
+	producer, err := NewProducer(config)
+	if err != nil {
+		t.Fatalf("Failed to create Producer client: %s\n", err)
+	}
+	admin, err := NewAdminClientFromProducer(producer)
+	if err != nil {
+		t.Fatalf("Failed to create Admin client: %s\n", err)
+	}
+	defer admin.Close()
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	controllerID, err := admin.ControllerID(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get ControllerID: %s\n", err)
+	}
+	if controllerID < 0 {
+		t.Fatalf("ControllerID is negative: %d\n", controllerID)
+	}
+
+	t.Logf("ControllerID: %d\n", controllerID)
+}
