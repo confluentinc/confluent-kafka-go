@@ -167,6 +167,26 @@ librdkafka.
 
 See the [examples](examples) for usage details.
 
+Using Go 1.13+ Modules
+----------------------
+
+Starting with Go 1.13, you can use [Go Modules](https://blog.golang.org/using-go-modules) to install
+confluent-kafka-go.
+
+Import the `kafka` package from GitHub in your code:
+
+```golang
+import "github.com/confluentinc/confluent-kafka-go/kafka"
+```
+
+Build your project:
+
+```bash
+go build ./...
+```
+
+A dependency to the latest stable version of confluent-kafka-go should be automatically added to
+your `go.mod` file.
 
 API Strands
 ===========
