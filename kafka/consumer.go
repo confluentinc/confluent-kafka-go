@@ -611,3 +611,26 @@ func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
 	return c.handle.setOAuthBearerTokenFailure(errstr)
 }
+
+func (c *Consumer) ConsumeBatch(numMessages int, timeout time.Duration) ([]Message, error) {
+	var cMsgs **C.rd_kafka_message_t
+	cMsgs = (**C.rd_kafka_message_t)(C.calloc(C.size_t(numMessages), C.size_t(unsafe.Sizeof(*cMsgs))))
+	defer C.free(unsafe.Pointer(cMsgs))
+
+	n := int(C.rd_kafka_consume_batch_queue(c.handle.rkq, C.int(int(timeout.Milliseconds())), cMsgs, C.size_t(numMessages)))
+	if n == -1 {
+		// TODO: get actual error
+		return nil, fmt.Errorf("%d", n)
+	}
+
+	messages := make([]Message, n)
+
+	p := cMsgs
+	for i := 0; i < n; i++ {
+		c.handle.setupMessageFromC(&messages[i], *p)
+		C.rd_kafka_message_destroy(*p)
+		p = (**C.rd_kafka_message_t)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + unsafe.Sizeof(*p)))
+	}
+
+	return messages, nil
+}
