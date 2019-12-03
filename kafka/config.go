@@ -111,13 +111,13 @@ func anyconfSet(anyconf rdkAnyconf, key string, val ConfigValue) (err error) {
 		return newErrorFromString(ErrInvalidArg, fmt.Sprintf("%s for key %s (expected string,bool,int,ConfigMap)", errstr, key))
 	}
 	cKey := C.CString(key)
+	defer C.free(unsafe.Pointer(cKey))
 	cVal := C.CString(value)
+	defer C.free(unsafe.Pointer(cVal))
 	cErrstr := (*C.char)(C.malloc(C.size_t(128)))
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	if anyconf.set(cKey, cVal, cErrstr, 128) != C.RD_KAFKA_CONF_OK {
-		C.free(unsafe.Pointer(cKey))
-		C.free(unsafe.Pointer(cVal))
 		return newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
