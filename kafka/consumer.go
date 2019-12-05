@@ -34,6 +34,8 @@ static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafk
 */
 import "C"
 
+const batchLimit = 1000000
+
 // RebalanceCb provides a per-Subscribe*() rebalance event callback.
 // The passed Event will be either AssignedPartitions or RevokedPartitions
 type RebalanceCb func(*Consumer, Event) error
@@ -610,4 +612,31 @@ func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 // authentication mechanism.
 func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
 	return c.handle.setOAuthBearerTokenFailure(errstr)
+}
+
+func (c *Consumer) ConsumeBatch(numMessages int, timeout time.Duration) ([]Message, error) {
+	var cMsgs **C.rd_kafka_message_t
+
+	if numMessages < 0 || numMessages > batchLimit {
+		return nil, fmt.Errorf("numMessages must be between 0 and %d", batchLimit)
+	}
+
+	cMsgs = (**C.rd_kafka_message_t)(C.calloc(C.size_t(numMessages), C.size_t(unsafe.Sizeof(*cMsgs))))
+	defer C.free(unsafe.Pointer(cMsgs))
+
+	n := int(C.rd_kafka_consume_batch_queue(c.handle.rkq, C.int(int(timeout.Milliseconds())), cMsgs, C.size_t(numMessages)))
+	if n == -1 {
+		return nil, NewError(ErrorCode(n), "", false)
+	}
+
+	messages := make([]Message, n)
+
+	p := cMsgs
+	for i := 0; i < n; i++ {
+		c.handle.setupMessageFromC(&messages[i], *p)
+		C.rd_kafka_message_destroy(*p)
+		p = (**C.rd_kafka_message_t)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + unsafe.Sizeof(*p)))
+	}
+
+	return messages, nil
 }
