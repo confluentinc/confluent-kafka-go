@@ -79,7 +79,7 @@ For each release candidate and final release, perform the following steps:
 Make sure the librdkafka version installed is the version this release
 is aimed to be used with.
 
-E.g., confluent-kafka-go v1.0.0 will require librdkafka v1.0.0.
+E.g., confluent-kafka-go v1.3.0 will require librdkafka v1.3.0.
 
 
 ### Update librdkafka version requirement
@@ -135,8 +135,8 @@ Make sure to push to github before creating the tag to have CI tests pass.
 
 ### Create and push tag
 
-    $ git tag v1.0.0-RC3
-    $ git push --dry-run origin v1.0.0-RC3
+    $ git tag v1.3.0
+    $ git push --dry-run origin v1.3.0
     # Remove --dry-run and re-execute if it looks ok.
 
 
