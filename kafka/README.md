@@ -126,7 +126,7 @@ Also make sure the examples in README.md work.
 Convert any examples using `github.com/confluentinc/confluent-kafka-go/kafka` to use
 `gopkg.in/confluentinc/confluent-kafka-go.v1/kafka` import path.
 
-    $ find examples/ -type f -name "*\.go" -exec sed -i -e "s/github\.com\/confluentinc\/confluent-kafka-go\/kafka/gopkg\.in\/confluentinc\/confluent-kafka-go\.v1\/kafka/" {} +
+    $ find examples/ -type f -name *\.go -exec sed -i -e 's|github\.com/confluentinc/confluent-kafka-go/kafka|gopkg\.in/confluentinc/confluent-kafka-go\.v1/kafka|g' {} +
 
 ### Commit any changes
 
