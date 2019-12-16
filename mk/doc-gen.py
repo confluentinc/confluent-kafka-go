@@ -7,23 +7,26 @@
 
 import subprocess, re
 from bs4 import BeautifulSoup
+from pathlib import Path
 
 
 if __name__ == '__main__':
     
     # Use godoc client to extract our package docs
-    html_in = subprocess.check_output(["godoc", "-url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka"])
+    html_in = subprocess.check_output(
+        ['godoc', '-url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka'],
+        cwd=str(Path.home()))
 
     # Parse HTML
     soup = BeautifulSoup(html_in, 'html.parser')
 
     # Remove topbar (Blog, Search, etc)
-    topbar = soup.find(id="topbar").decompose()
+    topbar = soup.find(id='topbar').decompose()
 
     # Remove "Subdirectories"
-    soup.find(id="pkg-subdirectories").decompose()
-    soup.find(attrs={"class":"pkg-dir"}).decompose()
-    for t in soup.find_all(href="#pkg-subdirectories"):
+    soup.find(id='pkg-subdirectories').decompose()
+    soup.find(attrs={'class':'pkg-dir'}).decompose()
+    for t in soup.find_all(href='#pkg-subdirectories'):
         t.decompose()
 
     # Use golang.org for external resources (such as CSS and JS)
@@ -34,4 +37,5 @@ if __name__ == '__main__':
         t['src'] = '//golang.org' + t['src']
 
     # Write updated HTML to stdout
-    print(soup.prettify().encode('utf-8'))
+    print(soup.prettify())
+
