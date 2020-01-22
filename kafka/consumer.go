@@ -19,6 +19,7 @@ package kafka
 import (
 	"fmt"
 	"math"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -42,14 +43,14 @@ type RebalanceCb func(*Consumer, Event) error
 type Consumer struct {
 	events             chan Event
 	logsChanEnable     bool
-	logs               chan Event
+	logs               chan LogEvent
 	handle             handle
 	eventsChanEnable   bool
 	readerTermChan     chan bool
 	rebalanceCb        RebalanceCb
 	appReassigned      bool
 	appRebalanceEnable bool // config setting
-	goroutineCount     int
+	waitGroup          sync.WaitGroup
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -266,8 +267,8 @@ func (c *Consumer) Events() chan Event {
 	return c.events
 }
 
-// Log returns the Log channel (if enabled), else nil
-func (c *Consumer) Logs() chan Event {
+// Logs returns the log channel if enabled, or nil otherwise.
+func (c *Consumer) Logs() chan LogEvent {
 	return c.logs
 }
 
@@ -333,9 +334,9 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
 
-	// Wait for consumerReader() or logPoll to terminate (by closing readerTermChan)
+	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
 	close(c.readerTermChan)
-	c.handle.waitTerminated(c.goroutineCount)
+	c.waitGroup.Wait()
 	if c.eventsChanEnable {
 		close(c.events)
 	}
@@ -343,7 +344,6 @@ func (c *Consumer) Close() (err error) {
 	if c.logsChanEnable {
 		close(c.logs)
 	}
-
 
 	C.rd_kafka_queue_destroy(c.handle.rkq)
 	c.handle.rkq = nil
@@ -452,18 +452,24 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	if c.logsChanEnable {
-		c.logs = make(chan Event, eventsChanSize)
+		c.logs = make(chan LogEvent, eventsChanSize)
 		c.handle.setupLogQueue()
 		/* Start a polling goroutine to consume the queue */
-		go c.handle.logPoll(c.logs, 100, c.readerTermChan, c.handle.terminatedChan, c.String())
-		c.goroutineCount++
+		c.waitGroup.Add(1)
+		go func() {
+			c.handle.pollLogEvents(c.logs, 100, c.readerTermChan)
+			c.waitGroup.Done()
+		}()
 	}
 
 	if c.eventsChanEnable {
 		c.events = make(chan Event, eventsChanSize)
 		/* Start rdkafka consumer queue reader -> events writer goroutine */
-		go consumerReader(c, c.readerTermChan)
-		c.goroutineCount++
+		c.waitGroup.Add(1)
+		go func() {
+			consumerReader(c, c.readerTermChan)
+			c.waitGroup.Done()
+		}()
 	}
 
 	return c, nil
@@ -485,24 +491,18 @@ func (c *Consumer) rebalance(ev Event) bool {
 // and posts them on the consumer channel.
 // Runs until termChan closes
 func consumerReader(c *Consumer, termChan chan bool) {
-
-out:
-	for true {
+	for {
 		select {
 		case _ = <-termChan:
-			break out
+			return
 		default:
 			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan)
 			if term {
-				break out
+				return
 			}
 
 		}
 	}
-
-	c.handle.terminatedChan <- "consumerReader"
-	return
-
 }
 
 // GetMetadata queries broker for cluster and topic metadata.

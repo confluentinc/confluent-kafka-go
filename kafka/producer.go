@@ -19,6 +19,7 @@ package kafka
 import (
 	"fmt"
 	"math"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -131,13 +132,13 @@ import "C"
 type Producer struct {
 	events         chan Event
 	logsChanEnable bool
-	logs           chan Event
+	logs           chan LogEvent
 	produceChannel chan *Message
 	handle         handle
 
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
-	goroutineCount int
+	waitGroup      sync.WaitGroup
 }
 
 // String returns a human readable name for a Producer instance
@@ -314,7 +315,7 @@ func (p *Producer) Events() chan Event {
 }
 
 // Logs returns the Log channel (if enabled), else nil
-func (p *Producer) Logs() chan Event {
+func (p *Producer) Logs() chan LogEvent {
 	return p.logs
 }
 
@@ -359,7 +360,7 @@ func (p *Producer) Close() {
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)
 	close(p.produceChannel)
-	p.handle.waitTerminated(p.goroutineCount)
+	p.waitGroup.Wait()
 
 	close(p.events)
 	if p.logsChanEnable {
@@ -525,29 +526,41 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.pollerTermChan = make(chan bool)
 
 	if p.logsChanEnable {
-		p.logs = make(chan Event, eventsChanSize)
+		p.logs = make(chan LogEvent, eventsChanSize)
 		p.handle.setupLogQueue()
 		/* Start a polling goroutine to consume the queue */
-		go p.handle.logPoll(p.logs, 100, p.pollerTermChan, p.handle.terminatedChan, p.String())
-		p.goroutineCount++
+		p.waitGroup.Add(1)
+		go func() {
+			p.handle.pollLogEvents(p.logs, 100, p.pollerTermChan)
+			p.waitGroup.Done()
+		}()
 	}
 
-	go poller(p, p.pollerTermChan)
+	p.waitGroup.Add(1)
+	go func() {
+		poller(p, p.pollerTermChan)
+		p.waitGroup.Done()
+	}()
 
 	// non-batch or batch producer, only one must be used
+	var producer func(*Producer)
 	if batchProducer {
-		go channelBatchProducer(p)
+		producer = channelBatchProducer
 	} else {
-		go channelProducer(p)
+		producer = channelProducer
 	}
-	p.goroutineCount += 2
+
+	p.waitGroup.Add(1)
+	go func() {
+		producer(p)
+		p.waitGroup.Done()
+	}()
 
 	return p, nil
 }
 
 // channel_producer serves the ProduceChannel channel
 func channelProducer(p *Producer) {
-
 	for m := range p.produceChannel {
 		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
 		if err != nil {
@@ -555,8 +568,6 @@ func channelProducer(p *Producer) {
 			p.events <- m
 		}
 	}
-
-	p.handle.terminatedChan <- "channelProducer"
 }
 
 // channelBatchProducer serves the ProduceChannel channel and attempts to
@@ -611,28 +622,23 @@ func channelBatchProducer(p *Producer) {
 		buffered = make(map[string][]*Message)
 		bufferedCnt = 0
 	}
-	p.handle.terminatedChan <- "channelBatchProducer"
 }
 
 // poller polls the rd_kafka_t handle for events until signalled for termination
 func poller(p *Producer, termChan chan bool) {
-out:
-	for true {
+	for {
 		select {
 		case _ = <-termChan:
-			break out
+			return
 
 		default:
 			_, term := p.handle.eventPoll(p.events, 100, 1000, termChan)
 			if term {
-				break out
+				return
 			}
 			break
 		}
 	}
-
-	p.handle.terminatedChan <- "poller"
-
 }
 
 // GetMetadata queries broker for cluster and topic metadata.

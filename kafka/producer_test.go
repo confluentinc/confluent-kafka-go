@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -321,15 +322,21 @@ func TestProducerOAuthBearerConfig(t *testing.T) {
 
 func TestProducerLog(t *testing.T) {
 	p, err := NewProducer(&ConfigMap{
-		"debug":                "all",
-		"go.logs.channel.enable":       true,
-		"socket.timeout.ms":    10,
-		"default.topic.config": ConfigMap{"message.timeout.ms": 10}})
+		"debug":                  "all",
+		"go.logs.channel.enable": true,
+		"socket.timeout.ms":      10,
+		"default.topic.config":   ConfigMap{"message.timeout.ms": 10}})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
 
-	var count int
+	expectedLogs := map[struct {
+		tag     string
+		message string
+	}]bool{
+		{"INIT", "librdkafka"}: false,
+	}
+
 	go func() {
 		for {
 			select {
@@ -337,13 +344,34 @@ func TestProducerLog(t *testing.T) {
 				if !ok {
 					return
 				}
-				t.Logf("%s", log)
-				count++
+
+				t.Log(log.String())
+
+				for expectedLog, found := range expectedLogs {
+					if found {
+						continue
+					}
+					if log.Tag != expectedLog.tag {
+						continue
+					}
+					if strings.Contains(log.Message, expectedLog.message) {
+						expectedLogs[expectedLog] = true
+					}
+				}
 			}
 		}
 	}()
 
-	<-time.After(time.Second * 3)
+	<-time.After(time.Second * 5)
 	p.Close()
-	t.Logf("Got %d logs from log channel", count)
+
+	for expectedLog, found := range expectedLogs {
+		if !found {
+			t.Errorf(
+				"Expected to find log with tag `%s' and message containing `%s',"+
+					" but didn't find any.",
+				expectedLog.tag,
+				expectedLog.message)
+		}
+	}
 }

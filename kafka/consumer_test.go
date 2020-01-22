@@ -21,6 +21,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -300,14 +301,22 @@ func TestConsumerOAuthBearerConfig(t *testing.T) {
 
 func TestConsumerLog(t *testing.T) {
 	c, err := NewConsumer(&ConfigMap{
-		"debug":          "all",
+		"debug":                  "all",
 		"go.logs.channel.enable": true,
-		"group.id":       "gotest"})
+		"group.id":               "gotest"})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
 
-	var count int
+	expectedLogs := map[struct {
+		tag     string
+		message string
+	}]bool{
+		{"MEMBERID", "gotest"}:  false,
+		{"CGRPSTATE", "gotest"}: false,
+		{"CGRPQUERY", "gotest"}: false,
+	}
+
 	go func() {
 		for {
 			select {
@@ -315,13 +324,35 @@ func TestConsumerLog(t *testing.T) {
 				if !ok {
 					return
 				}
-				t.Logf("%s", log)
-				count++
+
+				for expectedLog, found := range expectedLogs {
+					if found {
+						continue
+					}
+					if log.Tag != expectedLog.tag {
+						continue
+					}
+					if strings.Contains(log.Message, expectedLog.message) {
+						expectedLogs[expectedLog] = true
+					}
+				}
 			}
 		}
 	}()
 
 	<-time.After(time.Second * 3)
-	c.Close()
-	t.Logf("Got %d logs from log channel", count)
+
+	if err := c.Close(); err != nil {
+		t.Fatal("Failed to close consumer.")
+	}
+
+	for expectedLog, found := range expectedLogs {
+		if !found {
+			t.Errorf(
+				"Expected to find log with tag `%s' and message containing `%s',"+
+					" but didn't find any.",
+				expectedLog.tag,
+				expectedLog.message)
+		}
+	}
 }

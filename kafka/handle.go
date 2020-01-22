@@ -87,9 +87,6 @@ type handle struct {
 	// Extract log from event via rd_kafka_event_log
 	logq *C.rd_kafka_queue_t
 
-	// Termination of background go-routines
-	terminatedChan chan string // string is go-routine name
-
 	// Topic <-> rkt caches
 	rktCacheLock sync.Mutex
 	// topic name -> rkt cache
@@ -129,7 +126,6 @@ func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
 	h.cgomap = make(map[int]cgoif)
-	h.terminatedChan = make(chan string, 10)
 }
 
 func (h *handle) cleanup() {
@@ -146,16 +142,6 @@ func (h *handle) setupLogQueue() {
 	h.logq = C.rd_kafka_queue_new(h.rk)
 	/* let librdkafka forwarding log to internal log queue instead of print to stderr */
 	C.rd_kafka_set_log_queue(h.rk, h.logq)
-}
-
-// waitTerminated waits termination of background go-routines.
-// termCnt is the number of goroutines expected to signal termination completion
-// on h.terminatedChan
-func (h *handle) waitTerminated(termCnt int) {
-	// Wait for termCnt termination-done events from goroutines
-	for ; termCnt > 0; termCnt-- {
-		_ = <-h.terminatedChan
-	}
 }
 
 // getRkt0 finds or creates and returns a C topic_t object from the local cache.

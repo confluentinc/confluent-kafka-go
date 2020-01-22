@@ -19,7 +19,6 @@ package kafka
 import (
 	"fmt"
 	"os"
-	"time"
 	"unsafe"
 )
 
@@ -144,48 +143,6 @@ type OAuthBearerTokenRefresh struct {
 
 func (o OAuthBearerTokenRefresh) String() string {
 	return "OAuthBearerTokenRefresh"
-}
-
-func (h *handle) logPoll(channel chan Event, timeoutMs int, termChan chan bool, termBack chan string, name string) {
-	defer func() {
-		termBack <- "logPoll"
-	}()
-	for {
-		var evtype C.rd_kafka_event_type_t
-		var rkev *C.rd_kafka_event_t
-		var retval Event
-		retval = nil
-		rkev = C.rd_kafka_queue_poll(h.logq, C.int(timeoutMs))
-		if rkev != nil {
-			evtype = C.rd_kafka_event_type(rkev)
-			if evtype == C.RD_KAFKA_EVENT_LOG {
-				var facLog C.fetched_log_t
-				if C.rd_kafka_event_log(rkev, &(facLog.fac), &(facLog.str), &(facLog.level)) == 0 {
-					retval = LogEvent{
-						Name:      name,
-						Fac:       C.GoString(facLog.fac),
-						Str:       C.GoString(facLog.str),
-						Level:     int(facLog.level),
-						Timestamp: time.Now(),
-					}
-				}
-			}
-			C.rd_kafka_event_destroy(rkev)
-		}
-
-		if channel != nil && retval != nil {
-			select {
-			case channel <- retval:
-			case <-termChan:
-				return
-			}
-		} else {
-			select {
-			case <-termChan:
-				return
-			}
-		}
-	}
 }
 
 // eventPoll polls an event from the handler's C rd_kafka_queue_t,
