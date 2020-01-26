@@ -66,6 +66,7 @@ func (h *handle) pollLogEvents(toChannel chan LogEvent, timeoutMs int, doneChan 
 			}
 
 			if C.rd_kafka_event_type(cEvent) != C.RD_KAFKA_EVENT_LOG {
+				C.rd_kafka_event_destroy(cEvent)
 				continue
 			}
 
