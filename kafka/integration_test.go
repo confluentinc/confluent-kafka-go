@@ -246,9 +246,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"go.batch.producer":            pc.batchProducer,
 		"go.delivery.reports":          pc.withDr,
 		"queue.buffering.max.messages": len(testmsgs),
-		"api.version.request":          "true",
-		"broker.version.fallback":      "0.9.0.1",
-		"acks":                         1}
+		"acks": "all"}
 
 	conf.updateFromTestconf()
 
