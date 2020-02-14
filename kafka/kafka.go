@@ -92,6 +92,112 @@
 // * Finally call `.Close()` to decommission the producer.
 //
 //
+// Transactional producer API
+//
+// The transactional producer operates on top of the idempotent producer,
+// and provides full exactly-once semantics (EOS) for Apache Kafka when used
+// with the transaction aware consumer (`isolation.level=read_committed`).
+//
+// A producer instance is configured for transactions by setting the
+// `transactional.id` to an identifier unique for the application. This
+// id will be used to fence stale transactions from previous instances of
+// the application, typically following an outage or crash.
+//
+// After creating the transactional producer instance using `NewProducer()`
+// the transactional state must be initialized by calling
+// `InitTransactions()`. This is a blocking call that will
+// acquire a runtime producer id from the transaction coordinator broker
+// as well as abort any stale transactions and fence any still running producer
+// instances with the same `transactional.id`.
+//
+// Once transactions are initialized the application may begin a new
+// transaction by calling `BeginTransaction()`.
+// A producer instance may only have one single on-going transaction.
+//
+// Any messages produced after the transaction has been started will
+// belong to the ongoing transaction and will be committed or aborted
+// atomically.
+// It is not permitted to produce messages outside a transaction
+// boundary, e.g., before `BeginTransaction()` or after `CommitTransaction()`,
+// `AbortTransaction()` or if the current transaction has failed.
+//
+// If consumed messages are used as input to the transaction, the consumer
+// instance must be configured with `enable.auto.commit` set to `false`.
+// To commit the consumed offsets along with the transaction pass the
+// list of consumed partitions and the last offset processed + 1 to
+// `SendOffsetsToTransaction()` prior to committing the transaction.
+// This allows an aborted transaction to be restarted using the previously
+// committed offsets.
+//
+// To commit the produced messages, and any consumed offsets, to the
+// current transaction, call `CommitTransaction()`.
+// This call will block until the transaction has been fully committed or
+// failed (typically due to fencing by a newer producer instance).
+//
+// Alternatively, if processing fails, or an abortable transaction error is
+// raised, the transaction needs to be aborted by calling
+// `AbortTransaction()` which marks any produced messages and
+// offset commits as aborted.
+//
+// After the current transaction has been committed or aborted a new
+// transaction may be started by calling `BeginTransaction()` again.
+//
+// Retriable errors:
+// Some error cases allow the attempted operation to be retried, this is
+// indicated by the error object having the retriable flag set which can
+// be detected by calling `err.(kafka.Error).IsRetriable()`.
+// When this flag is set the application may retry the operation immediately
+// or preferably after a shorter grace period (to avoid busy-looping).
+// Retriable errors include timeouts, broker transport failures, etc.
+//
+// Abortable errors:
+// An ongoing transaction may fail permanently due to various errors,
+// such as transaction coordinator becoming unavailable, write failures to the
+// Apache Kafka log, under-replicated partitions, etc.
+// At this point the producer application must abort the current transaction
+// using `AbortTransaction()` and optionally start a new transaction
+// by calling `BeginTransaction()`.
+// Whether an error is abortable or not is detected by calling
+// `err.(kafka.Error).IsTxnAbortable()` on the returned error object.
+//
+// Fatal errors:
+// While the underlying idempotent producer will typically only raise
+// fatal errors for unrecoverable cluster errors where the idempotency
+// guarantees can't be maintained, most of these are treated as abortable by
+// the transactional producer since transactions may be aborted and retried
+// in their entirety;
+// The transactional producer on the other hand introduces a set of additional
+// fatal errors which the application needs to handle by shutting down the
+// producer and terminate. There is no way for a producer instance to recover
+// from fatal errors.
+// Whether an error is fatal or not is detected by calling
+// `err.(kafka.Error).IsFatal()` on the returned error object or by checking
+// the global `GetFatalError()`.
+//
+// Handling of other errors:
+// For errors that have neither retriable, abortable or the fatal flag set
+// it is not always obvious how to handle them. While some of these errors
+// may be indicative of bugs in the application code, such as when
+// an invalid parameter is passed to a method, other errors might originate
+// from the broker and be passed thru as-is to the application.
+// The general recommendation is to treat these errors, that have
+// neither the retriable or abortable flags set, as fatal.
+//
+// Error handling example:
+//     retry:
+//
+//        err := producer.CommitTransaction(...)
+//        if err == nil {
+//            return nil
+//        } else if err.(kafka.Error).IsTxnAbortable() {
+//            do_abort_transaction_and_reset_inputs()
+//        } else if err.(kafka.Error).IsRetriable() {
+//            goto retry
+//        } else { // treat all other errors as fatal errors
+//            panic(err)
+//        }
+//
+//
 // Events
 //
 // Apart from emitting messages and delivery reports the client also communicates

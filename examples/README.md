@@ -8,6 +8,8 @@ Examples:
   producer_channel_example - Channel based producer
   producer_example - Function based producer
 
+  transactions_example - Showcasing a transactional consume-process-produce application
+
   go-kafkacat - Channel based kafkacat Go clone
 
   oauthbearer_example - Provides unsecured SASL/OAUTHBEARER example

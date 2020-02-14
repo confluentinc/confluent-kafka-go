@@ -17,9 +17,12 @@ package kafka
  */
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
+	"testing"
 	"time"
 )
 
@@ -177,4 +180,69 @@ func waitTopicInMetadata(H Handle, topic string, timeoutMs int) error {
 		time.Sleep(500 * 1000) // 500ms
 	}
 
+}
+
+func createAdminClient(t *testing.T) (a *AdminClient) {
+	numver, strver := LibraryVersion()
+	if numver < 0x000b0500 {
+		t.Skipf("Requires librdkafka >=0.11.5 (currently on %s, 0x%x)", strver, numver)
+	}
+
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	conf.updateFromTestconf()
+
+	/*
+	 * Create producer and produce a couple of messages with and without
+	 * headers.
+	 */
+	a, err := NewAdminClient(&conf)
+	if err != nil {
+		t.Fatalf("NewAdminClient: %v", err)
+	}
+
+	return a
+}
+
+func createTestTopic(t *testing.T, suffix string, numPartitions int, replicationFactor int) string {
+	rand.Seed(time.Now().Unix())
+
+	topic := fmt.Sprintf("%s-%s-%d", testconf.Topic, suffix, rand.Intn(100000))
+
+	a := createAdminClient(t)
+	defer a.Close()
+
+	newTopics := []TopicSpecification{
+		{
+			Topic:             topic,
+			NumPartitions:     numPartitions,
+			ReplicationFactor: replicationFactor,
+		},
+	}
+
+	maxDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	result, err := a.CreateTopics(ctx, newTopics, nil)
+	if err != nil {
+		t.Fatalf("CreateTopics() failed: %s", err)
+	}
+
+	for _, res := range result {
+		if res.Error.Code() != ErrNoError {
+			t.Errorf("Failed to create topic %s: %s\n",
+				res.Topic, res.Error)
+			continue
+		}
+
+	}
+
+	return topic
 }

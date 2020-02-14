@@ -139,7 +139,7 @@ func createTestMessages() {
 
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
-	testmsgs[i] = &testmsgType{expectedError: Error{ErrUnknownPartition, "", false},
+	testmsgs[i] = &testmsgType{expectedError: Error{code: ErrUnknownPartition},
 		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
@@ -1149,31 +1149,6 @@ func TestProducerConsumerHeaders(t *testing.T) {
 	}
 
 	c.Close()
-}
-
-func createAdminClient(t *testing.T) (a *AdminClient) {
-	numver, strver := LibraryVersion()
-	if numver < 0x000b0500 {
-		t.Skipf("Requires librdkafka >=0.11.5 (currently on %s, 0x%x)", strver, numver)
-	}
-
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	conf.updateFromTestconf()
-
-	/*
-	 * Create producer and produce a couple of messages with and without
-	 * headers.
-	 */
-	a, err := NewAdminClient(&conf)
-	if err != nil {
-		t.Fatalf("NewAdminClient: %v", err)
-	}
-
-	return a
 }
 
 func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
