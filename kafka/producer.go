@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -393,14 +394,14 @@ const (
 // ErrPurgeInflight.
 //
 // Warning: Purging messages that are in-flight to or from the broker
-//          will ignore any sub-sequent acknowledgement for these messages
-//          received from the broker, effectively making it impossible
-//          for the application to know if the messages were successfully
-//          produced or not. This may result in duplicate messages if the
-//          application retries these messages at a later time.
+// will ignore any sub-sequent acknowledgement for these messages
+// received from the broker, effectively making it impossible
+// for the application to know if the messages were successfully
+// produced or not. This may result in duplicate messages if the
+// application retries these messages at a later time.
 //
 // Note: This call may block for a short time while background thread
-//       queues are purged.
+// queues are purged.
 //
 // Returns nil on success, ErrInvalidArg if the purge flags are invalid or unknown.
 func (p *Producer) Purge(flags int) error {
@@ -686,4 +687,218 @@ func (p *Producer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 // authentication mechanism.
 func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 	return p.handle.setOAuthBearerTokenFailure(errstr)
+}
+
+// Transactional API
+
+// InitTransactions Initializes transactions for the producer instance.
+//
+// This function ensures any transactions initiated by previous instances
+// of the producer with the same `transactional.id` are completed.
+// If the previous instance failed with a transaction in progress the
+// previous transaction will be aborted.
+// This function needs to be called before any other transactional or
+// produce functions are called when the `transactional.id` is configured.
+//
+// If the last transaction had begun completion (following transaction commit)
+// but not yet finished, this function will await the previous transaction's
+// completion.
+//
+// When any previous transactions have been fenced this function
+// will acquire the internal producer id and epoch, used in all future
+// transactional messages issued by this producer instance.
+//
+// Upon successful return from this function the application has to perform at
+// least one of the following operations within \c `transactional.timeout.ms` to
+// avoid timing out the transaction on the broker:
+//  * `Produce()` (et.al)
+//  * `SendOffsetsToTransaction()`
+//  * `CommitTransaction()`
+//  * `AbortTransaction()`
+//
+// Parameters:
+//  * `ctx` - The maximum time to block, or nil for indefinite.
+//            On timeout the operation may continue in the background,
+//            depending on state, and it is okay to call `InitTransactions()`
+//            again.
+//
+// Returns nil on success or an error on failure.
+// Check whether the returned error object permits retrying
+// by calling `err.(kafka.Error).IsRetriable()`, or whether a fatal
+// error has been raised by calling `err.(kafka.Error).IsFatal()`.
+func (p *Producer) InitTransactions(ctx context.Context) error {
+	cError := C.rd_kafka_init_transactions(p.handle.rk,
+		cTimeoutFromContext(ctx))
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// BeginTransaction starts a new transaction.
+//
+// `InitTransactions()` must have been called successfully (once)
+// before this function is called.
+//
+// Any messages produced, offsets sent (`SendOffsetsToTransaction()`),
+// etc, after the successful return of this function will be part of
+// the transaction and committed or aborted atomatically.
+//
+// Finish the transaction by calling `CommitTransaction()` or
+// abort the transaction by calling `AbortTransaction()`.
+//
+// Returns nil on success or an error object on failure.
+// Check whether a fatal error has been raised by
+// calling `err.(kafka.Error).IsFatal()`.
+//
+// Note: With the transactional producer, `Produce()`, et.al, are only
+// allowed during an on-going transaction, as started with this function.
+// Any produce call outside an on-going transaction, or for a failed
+// transaction, will fail.
+func (p *Producer) BeginTransaction() error {
+	cError := C.rd_kafka_begin_transaction(p.handle.rk)
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// SendOffsetsToTransaction sends a list of topic partition offsets to the
+// consumer group coordinator for `consumerMetadata`, and marks the offsets
+// as part part of the current transaction.
+// These offsets will be considered committed only if the transaction is
+// committed successfully.
+//
+// The offsets should be the next message your application will consume,
+// i.e., the last processed message's offset + 1 for each partition.
+// Either track the offsets manually during processing or use
+// `consumer.Position()` (on the consumer) to get the current offsets for
+// the partitions assigned to the consumer.
+//
+// Use this method at the end of a consume-transform-produce loop prior
+// to committing the transaction with `CommitTransaction()`.
+//
+// Parameters:
+//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//  * `offsets` - List of offsets to commit to the consumer group upon
+//                successful commit of the transaction. Offsets should be
+//                the next message to consume, e.g., last processed message + 1.
+//  * `consumerMetadata` - The current consumer group metadata as returned by
+//                `consumer.GetConsumerGroupMetadata()` on the consumer
+//                instance the provided offsets were consumed from.
+//
+// Note: The consumer must disable auto commits (set `enable.auto.commit` to false on the consumer).
+//
+// Note: Logical and invalid offsets (e.g., OffsetInvalid) in
+// `offsets` will be ignored. If there are no valid offsets in
+// `offsets` the function will return nil and no action will be taken.
+//
+// Returns nil on success or an error object on failure.
+// Check whether the returned error object permits retrying
+// by calling `err.(kafka.Error).IsRetriable()`, or whether an abortable
+// or fatal error has been raised by calling
+// `err.(kafka.Error).IsTxnAbortable()` or `err.(kafka.Error).IsFatal()`
+// respectively.
+func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []TopicPartition, consumerMetadata *ConsumerGroupMetadata) error {
+	var cOffsets *C.rd_kafka_topic_partition_list_t
+	if offsets != nil {
+		cOffsets = newCPartsFromTopicPartitions(offsets)
+		defer C.rd_kafka_topic_partition_list_destroy(cOffsets)
+	}
+
+	cgmd, err := deserializeConsumerGroupMetadata(consumerMetadata.serialized)
+	if err != nil {
+		return err
+	}
+	defer C.rd_kafka_consumer_group_metadata_destroy(cgmd)
+
+	cError := C.rd_kafka_send_offsets_to_transaction(
+		p.handle.rk,
+		cOffsets,
+		cgmd,
+		cTimeoutFromContext(ctx))
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// CommitTransaction commits the current transaction.
+//
+// Any outstanding messages will be flushed (delivered) before actually
+// committing the transaction.
+//
+// If any of the outstanding messages fail permanently the current
+// transaction will enter the abortable error state and this
+// function will return an abortable error, in this case the application
+// must call `AbortTransaction()` before attempting a new
+// transaction with `BeginTransaction()`.
+//
+// Parameters:
+//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//
+// Note: This function will block until all outstanding messages are
+// delivered and the transaction commit request has been successfully
+// handled by the transaction coordinator, or until the `ctx` expires,
+// which ever comes first. On timeout the application may
+// call the function again.
+//
+// Note: Will automatically call `Flush()` to ensure all queued
+// messages are delivered before attempting to commit the transaction.
+// The application MUST serve the `producer.Events()` channel for delivery
+// reports in a separate go-routine during this time.
+//
+// Returns nil on success or an error object on failure.
+// Check whether the returned error object permits retrying
+// by calling `err.(kafka.Error).IsRetriable()`, or whether an abortable
+// or fatal error has been raised by calling
+// `err.(kafka.Error).IsTxnAbortable()` or `err.(kafka.Error).IsFatal()`
+// respectively.
+func (p *Producer) CommitTransaction(ctx context.Context) error {
+	cError := C.rd_kafka_commit_transaction(p.handle.rk,
+		cTimeoutFromContext(ctx))
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// AbortTransaction aborts the ongoing transaction.
+//
+// This function should also be used to recover from non-fatal abortable
+// transaction errors.
+//
+// Any outstanding messages will be purged and fail with
+// `ErrPurgeInflight` or `ErrPurgeQueue`.
+//
+// Parameters:
+//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//
+// Note: This function will block until all outstanding messages are purged
+// and the transaction commit request has been successfully
+// handled by the transaction coordinator, or until the `ctx` expires,
+// which ever comes first. On timeout the application may
+// call the function again.
+//
+// Note: Will automatically call `Flush()` to ensure all queued
+// messages are delivered before attempting to commit the transaction.
+// The application MUST serve the `producer.Events()` channel for delivery
+// reports in a separate go-routine during this time.
+//
+// Returns nil on success or an error object on failure.
+// Check whether the returned error object permits retrying
+// by calling `err.(kafka.Error).IsRetriable()`, or whether a fatal error
+// has been raised by calling `err.(kafka.Error).IsFatal()`.
+func (p *Producer) AbortTransaction(ctx context.Context) error {
+	cError := C.rd_kafka_abort_transaction(p.handle.rk,
+		cTimeoutFromContext(ctx))
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
 }

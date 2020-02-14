@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"reflect"
@@ -374,4 +375,191 @@ func TestProducerLog(t *testing.T) {
 				expectedLog.message)
 		}
 	}
+}
+
+// TestTransactionalAPI test the transactional producer API
+func TestTransactionalAPI(t *testing.T) {
+	p, err := NewProducer(&ConfigMap{
+		"bootstrap.servers":      "127.0.0.1:65533",
+		"transactional.id":       "test",
+		"transaction.timeout.ms": "4000",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create transactional producer: %v", err)
+	}
+
+	//
+	// Call InitTransactions() with explicit timeout and check that
+	// it times out accordingly.
+	//
+	maxDuration, err := time.ParseDuration("2s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	start := time.Now()
+	err = p.InitTransactions(ctx)
+	duration := time.Now().Sub(start).Seconds()
+
+	t.Logf("InitTransactions(%v) returned '%v' in %.2fs",
+		maxDuration, err, duration)
+	if err.(Error).Code() != ErrTimedOut {
+		t.Errorf("Expected ErrTimedOut, not %v", err)
+	} else if duration < maxDuration.Seconds()*0.8 ||
+		duration > maxDuration.Seconds()*1.2 {
+		t.Errorf("InitTransactions() should have finished within "+
+			"%.2f +-20%%, not %.2f",
+			maxDuration.Seconds(), duration)
+	}
+
+	//
+	// Call InitTransactions() without timeout, which makes it
+	// default to the transaction.timeout.ms.
+	// NOTE: cancelling the context currently does not work.
+	//
+	maxDuration, err = time.ParseDuration("4s") // transaction.tiemout.ms
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	ctx = context.TODO()
+
+	start = time.Now()
+	err = p.InitTransactions(ctx)
+	duration = time.Now().Sub(start).Seconds()
+
+	t.Logf("InitTransactions() returned '%v' in %.2fs", err, duration)
+	if err.(Error).Code() != ErrTimedOut {
+		t.Errorf("Expected ErrTimedOut, not %v", err)
+	} else if duration < maxDuration.Seconds()*0.8 ||
+		duration > maxDuration.Seconds()*1.2 {
+		t.Errorf("InitTransactions() should have finished within "+
+			"%.2f +-20%%, not %.2f",
+			maxDuration.Seconds(), duration)
+	}
+
+	// And again with a nil context
+	start = time.Now()
+	err = p.InitTransactions(nil)
+	duration = time.Now().Sub(start).Seconds()
+
+	t.Logf("InitTransactions() returned '%v' in %.2fs", err, duration)
+	if err.(Error).Code() != ErrTimedOut {
+		t.Errorf("Expected ErrTimedOut, not %v", err)
+	} else if duration < maxDuration.Seconds()*0.8 ||
+		duration > maxDuration.Seconds()*1.2 {
+		t.Errorf("InitTransactions() should have finished within "+
+			"%.2f +-20%%, not %.2f",
+			maxDuration.Seconds(), duration)
+	}
+
+	//
+	// All sub-sequent APIs should fail (unless otherwise noted)
+	// since InitTransactions() has not succeeded.
+	//
+	maxDuration, err = time.ParseDuration("1s") // Should fail quickly, not by timeout
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	ctx = context.TODO()
+
+	// Perform multiple iterations to make sure API behaviour is consistent.
+	for iter := 0; iter < 5; iter++ {
+
+		if iter == 4 {
+			// Last iteration, pass context as nil
+			ctx = nil
+		}
+
+		// BeginTransaction
+		what := "BeginTransaction"
+		start = time.Now()
+		err = p.BeginTransaction()
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err == nil || err.(Error).Code() == ErrTimedOut {
+			t.Errorf("Expected %s() to fail due to state, not %v", what, err)
+		}
+
+		// SendOffsetsToTransaction
+		what = "SendOffsetsToTransaction"
+		topic := "myTopic"
+		start = time.Now()
+		cgmd, err := NewTestConsumerGroupMetadata("myConsumerGroup")
+		if err != nil {
+			t.Fatalf("Failed to create group metadata: %v", err)
+		}
+		err = p.SendOffsetsToTransaction(ctx,
+			[]TopicPartition{
+				{Topic: &topic, Partition: 1, Offset: 123},
+				{Topic: &topic, Partition: 0, Offset: 4567890},
+			},
+			cgmd)
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err == nil || err.(Error).Code() == ErrTimedOut {
+			t.Errorf("Expected %s() to fail due to state, not %v", what, err)
+		}
+
+		what = "SendOffsetsToTransaction(nil offsets)"
+		start = time.Now()
+		err = p.SendOffsetsToTransaction(ctx, nil, cgmd)
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err == nil || err.(Error).Code() != ErrInvalidArg {
+			t.Errorf("Expected %s() to fail due to bad args, not %v", what, err)
+		}
+
+		what = "SendOffsetsToTransaction(empty offsets, empty group)"
+		cgmdEmpty, err := NewTestConsumerGroupMetadata("")
+		if err != nil {
+			t.Fatalf("Failed to create group metadata: %v", err)
+		}
+		start = time.Now()
+		err = p.SendOffsetsToTransaction(ctx, []TopicPartition{}, cgmdEmpty)
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err != nil {
+			t.Errorf("Expected %s() to succeed as a no-op, but got %v", what, err)
+		}
+
+		what = "SendOffsetsToTransaction(empty offsets)"
+		start = time.Now()
+		err = p.SendOffsetsToTransaction(ctx, []TopicPartition{}, cgmd)
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err != nil {
+			t.Errorf("Expected %s() to succeed as a no-op, but got %v", what, err)
+		}
+
+		// AbortTransaction
+		what = "AbortTransaction"
+		start = time.Now()
+		err = p.AbortTransaction(ctx)
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err == nil || err.(Error).Code() == ErrTimedOut {
+			t.Errorf("Expected %s() to fail due to state, not %v", what, err)
+		}
+
+		// CommitTransaction
+		what = "CommitTransaction"
+		start = time.Now()
+		err = p.CommitTransaction(ctx)
+		duration = time.Now().Sub(start).Seconds()
+
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err == nil || err.(Error).Code() == ErrTimedOut {
+			t.Errorf("Expected %s() to fail due to state, not %v", what, err)
+		}
+	}
+
+	p.Close()
 }
