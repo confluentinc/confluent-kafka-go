@@ -1463,7 +1463,7 @@ func TestAdminConfig(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 	t.Logf("Topic %s now in metadata, waiting another 10s for stabilization", topic)
-	time.Sleep(10 * 1000 * 1000)
+	time.Sleep(10 * time.Second)
 
 	// Read back config to validate
 	configResources := []ConfigResource{{Type: ResourceTopic, Name: topic}}
