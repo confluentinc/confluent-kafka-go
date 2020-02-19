@@ -576,6 +576,23 @@ func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offset
 	return newTopicPartitionsFromCparts(cparts), nil
 }
 
+// Position returns the current consume position for the given partitions.
+// Typical use is to call Assignment() to get the partition list
+// and then pass it to Position() to get the current consume position for
+// each of the assigned partitions.
+// The conusme position is the next message to read from the partition.
+// i.e., the offset of the last message seen by the application + 1.
+func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartition, err error) {
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
+	cerr := C.rd_kafka_position(c.handle.rk, cparts)
+	if cerr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return nil, newError(cerr)
+	}
+
+	return newTopicPartitionsFromCparts(cparts), nil
+}
+
 // Pause consumption for the provided list of partitions
 //
 // Note that messages already enqueued on the consumer's Event channel
