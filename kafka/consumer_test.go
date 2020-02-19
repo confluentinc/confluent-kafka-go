@@ -126,6 +126,19 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
+	// Position
+	offsets, err = c.Position([]TopicPartition{
+		{Topic: &topic, Partition: 10},
+		{Topic: &topic, Partition: 5},
+	})
+	t.Logf("Position() returned Offsets %s and error %v\n", offsets, err)
+	if err != nil {
+		t.Errorf("Position() should not have failed\n")
+	}
+	if offsets == nil {
+		t.Errorf("Position() should not have returned nil\n")
+	}
+
 	// Committed
 	offsets, err = c.Committed([]TopicPartition{{Topic: &topic, Partition: 5}}, 10)
 	t.Logf("Committed() returned Offsets %s and error %s\n", offsets, err)
