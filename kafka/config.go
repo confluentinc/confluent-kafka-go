@@ -237,6 +237,32 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 	return v, nil
 }
 
+// extractLogConfig extracts generic go.logs.* configuration properties.
+func (m ConfigMap) extractLogConfig() (logsChanEnable bool, logsChan chan LogEvent, err error) {
+	v, err := m.extract("go.logs.channel.enable", false)
+	if err != nil {
+		return
+	}
+
+	logsChanEnable = v.(bool)
+
+	v, err = m.extract("go.logs.channel", nil)
+	if err != nil {
+		return
+	}
+
+	if v != nil {
+		logsChan = v.(chan LogEvent)
+	}
+
+	if logsChanEnable {
+		// Tell librdkafka to forward logs to the log queue
+		m.Set("log.queue=true")
+	}
+
+	return
+}
+
 func (m ConfigMap) clone() ConfigMap {
 	m2 := make(ConfigMap)
 	for k, v := range m {
