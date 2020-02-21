@@ -187,6 +187,11 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 func (m ConfigMap) convert() (cConf *C.rd_kafka_conf_t, err error) {
 	cConf = C.rd_kafka_conf_new()
 
+	// Set the client.software.name and .version (use librdkafka version).
+	_, librdkafkaVersion := LibraryVersion()
+	anyconfSet((*rdkConf)(cConf), "client.software.name", "confluent-kafka-go")
+	anyconfSet((*rdkConf)(cConf), "client.software.version", librdkafkaVersion)
+
 	err = configConvertAnyconf(m, (*rdkConf)(cConf))
 	if err != nil {
 		C.rd_kafka_conf_destroy(cConf)
