@@ -83,9 +83,10 @@ type handle struct {
 	rk  *C.rd_kafka_t
 	rkq *C.rd_kafka_queue_t
 
-	// Being Forwarded queue, init via rd_kafka_queue_new and rd_kafka_set_log_queue.
-	// Extract log from event via rd_kafka_event_log
-	logq *C.rd_kafka_queue_t
+	// Forward logs from librdkafka log queue to logs channel.
+	logs          chan LogEvent
+	logq          *C.rd_kafka_queue_t
+	closeLogsChan bool
 
 	// Topic <-> rkt caches
 	rktCacheLock sync.Mutex
@@ -93,6 +94,9 @@ type handle struct {
 	rktCache map[string]*C.rd_kafka_topic_t
 	// rkt -> topic name cache
 	rktNameCache map[*C.rd_kafka_topic_t]string
+
+	// Cached instance name to avoid CGo call in String()
+	name string
 
 	//
 	// cgo map
@@ -116,19 +120,30 @@ type handle struct {
 
 	// Forward rebalancing ack responsibility to application (current setting)
 	currAppRebalanceEnable bool
+
+	// WaitGroup to wait for spawned go-routines to finish.
+	waitGroup sync.WaitGroup
 }
 
 func (h *handle) String() string {
-	return C.GoString(C.rd_kafka_name(h.rk))
+	return h.name
 }
 
 func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
 	h.cgomap = make(map[int]cgoif)
+	h.name = C.GoString(C.rd_kafka_name(h.rk))
 }
 
 func (h *handle) cleanup() {
+	if h.logs != nil {
+		C.rd_kafka_queue_destroy(h.logq)
+		if h.closeLogsChan {
+			close(h.logs)
+		}
+	}
+
 	for _, crkt := range h.rktCache {
 		C.rd_kafka_topic_destroy(crkt)
 	}
@@ -138,9 +153,23 @@ func (h *handle) cleanup() {
 	}
 }
 
-func (h *handle) setupLogQueue() {
+func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
+	if logsChan == nil {
+		logsChan = make(chan LogEvent, 10000)
+		h.closeLogsChan = true
+	}
+
+	h.logs = logsChan
+
+	// Start a polling goroutine to consume the log queue
+	h.waitGroup.Add(1)
+	go func() {
+		h.pollLogEvents(h.logs, 100, termChan)
+		h.waitGroup.Done()
+	}()
+
+	// let librdkafka forward logs to our log queue instead of the main queue
 	h.logq = C.rd_kafka_queue_new(h.rk)
-	/* let librdkafka forwarding log to internal log queue instead of print to stderr */
 	C.rd_kafka_set_log_queue(h.rk, h.logq)
 }
 

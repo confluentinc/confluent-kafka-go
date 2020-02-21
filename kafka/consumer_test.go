@@ -300,12 +300,19 @@ func TestConsumerOAuthBearerConfig(t *testing.T) {
 }
 
 func TestConsumerLog(t *testing.T) {
+	logsChan := make(chan LogEvent, 1000)
+
 	c, err := NewConsumer(&ConfigMap{
 		"debug":                  "all",
 		"go.logs.channel.enable": true,
+		"go.logs.channel":        logsChan,
 		"group.id":               "gotest"})
 	if err != nil {
 		t.Fatalf("%s", err)
+	}
+
+	if c.Logs() != logsChan {
+		t.Fatalf("Expected c.Logs() %v == logsChan %v", c.Logs(), logsChan)
 	}
 
 	expectedLogs := map[struct {
@@ -320,7 +327,7 @@ func TestConsumerLog(t *testing.T) {
 	go func() {
 		for {
 			select {
-			case log, ok := <-c.Logs():
+			case log, ok := <-logsChan:
 				if !ok {
 					return
 				}

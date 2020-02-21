@@ -19,7 +19,6 @@ package kafka
 import (
 	"fmt"
 	"math"
-	"sync"
 	"time"
 	"unsafe"
 )
@@ -131,14 +130,11 @@ import "C"
 // Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
 	events         chan Event
-	logsChanEnable bool
-	logs           chan LogEvent
 	produceChannel chan *Message
 	handle         handle
 
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
-	waitGroup      sync.WaitGroup
 }
 
 // String returns a human readable name for a Producer instance
@@ -316,7 +312,7 @@ func (p *Producer) Events() chan Event {
 
 // Logs returns the Log channel (if enabled), else nil
 func (p *Producer) Logs() chan LogEvent {
-	return p.logs
+	return p.handle.logs
 }
 
 // ProduceChannel returns the produce *Message channel (write)
@@ -360,12 +356,9 @@ func (p *Producer) Close() {
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)
 	close(p.produceChannel)
-	p.waitGroup.Wait()
+	p.handle.waitGroup.Wait()
 
 	close(p.events)
-	if p.logsChanEnable {
-		close(p.logs)
-	}
 
 	p.handle.cleanup()
 
@@ -421,11 +414,7 @@ func (p *Producer) Purge(flags int) error {
 
 // NewProducer creates a new high-level Producer instance.
 //
-// conf is a *ConfigMap with standard librdkafka configuration properties, see here:
-//
-//
-//
-//
+// conf is a *ConfigMap with standard librdkafka configuration properties.
 //
 // Supported special configuration properties:
 //   go.batch.producer (bool, false) - EXPERIMENTAL: Enable batch producer (for increased performance).
@@ -433,9 +422,10 @@ func (p *Producer) Purge(flags int) error {
 //                                     Note: timestamps and headers are not supported with this interface.
 //   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
 //                                      Events() channel.
-//   go.events.channel.size (int, 1000000) - Events() channel size
+//   go.events.channel.size (int, 1000000) - Events().
 //   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
+//   go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
 //
 func NewProducer(conf *ConfigMap) (*Producer, error) {
 
@@ -482,14 +472,9 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	produceChannelSize := v.(int)
 
-	v, err = confCopy.extract("go.logs.channel.enable", false)
+	logsChanEnable, logsChan, err := confCopy.extractLogConfig()
 	if err != nil {
 		return nil, err
-	}
-	p.logsChanEnable = v.(bool)
-
-	if p.logsChanEnable {
-		confCopy.Set("log.queue=true")
 	}
 
 	if int(C.rd_kafka_version()) < 0x01000000 {
@@ -525,21 +510,14 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
 
-	if p.logsChanEnable {
-		p.logs = make(chan LogEvent, eventsChanSize)
-		p.handle.setupLogQueue()
-		/* Start a polling goroutine to consume the queue */
-		p.waitGroup.Add(1)
-		go func() {
-			p.handle.pollLogEvents(p.logs, 100, p.pollerTermChan)
-			p.waitGroup.Done()
-		}()
+	if logsChanEnable {
+		p.handle.setupLogQueue(logsChan, p.pollerTermChan)
 	}
 
-	p.waitGroup.Add(1)
+	p.handle.waitGroup.Add(1)
 	go func() {
 		poller(p, p.pollerTermChan)
-		p.waitGroup.Done()
+		p.handle.waitGroup.Done()
 	}()
 
 	// non-batch or batch producer, only one must be used
@@ -550,10 +528,10 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		producer = channelProducer
 	}
 
-	p.waitGroup.Add(1)
+	p.handle.waitGroup.Add(1)
 	go func() {
 		producer(p)
-		p.waitGroup.Done()
+		p.handle.waitGroup.Done()
 	}()
 
 	return p, nil
