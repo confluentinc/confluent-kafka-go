@@ -56,9 +56,9 @@ func main() {
 	}
 
 	err = c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
-    if err != nil {
-        fmt.Printf("Error subscribing to topic: %v\n", err)
-    }
+        if err != nil {
+            fmt.Printf("Error subscribing to topic: %v\n", err)
+        }
 
 	for {
 		msg, err := c.ReadMessage(-1)
