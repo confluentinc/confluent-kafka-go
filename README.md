@@ -41,6 +41,7 @@ High-level balanced consumer
 import (
 	"fmt"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+        "os"
 )
 
 func main() {
@@ -58,6 +59,7 @@ func main() {
 	err = c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
         if err != nil {
             fmt.Printf("Error subscribing to topic: %v\n", err)
+            os.Exit(1)
         }
 
 	for {
@@ -112,9 +114,9 @@ func main() {
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Value:          []byte(word),
 		}, nil)
-        if err != nil {
-            fmt.Printf("Message could not be enqueued: %v\n", err)
-        }
+                if err != nil {
+                    fmt.Printf("Message could not be enqueued: %v\n", err)
+                }
 	}
 
 	// Wait for message deliveries before shutting down
