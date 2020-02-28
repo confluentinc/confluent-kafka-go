@@ -41,7 +41,6 @@ High-level balanced consumer
 import (
 	"fmt"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
-        "os"
 )
 
 func main() {
@@ -58,8 +57,7 @@ func main() {
 
 	err = c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
         if err != nil {
-            fmt.Printf("Error subscribing to topic: %v\n", err)
-            os.Exit(1)
+            panic(err)
         }
 
 	for {
