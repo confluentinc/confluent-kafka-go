@@ -643,3 +643,80 @@ func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
 	return c.handle.setOAuthBearerTokenFailure(errstr)
 }
+
+// ConsumerGroupMetadata reflects the current consumer group member metadata.
+type ConsumerGroupMetadata struct {
+	serialized []byte
+}
+
+// serializeConsumerGroupMetadata converts a C metadata object to its
+// binary representation so we don't have to hold on to the C object,
+// which would require an explicit .Close().
+func serializeConsumerGroupMetadata(cgmd *C.rd_kafka_consumer_group_metadata_t) ([]byte, error) {
+	var cBuffer *C.void
+	var cSize C.size_t
+	cError := C.rd_kafka_consumer_group_metadata_write(cgmd,
+		(*unsafe.Pointer)(unsafe.Pointer(&cBuffer)), &cSize)
+	if cError != nil {
+		return nil, newErrorFromCErrorDestroy(cError)
+	}
+	defer C.rd_kafka_mem_free(nil, unsafe.Pointer(cBuffer))
+
+	return C.GoBytes(unsafe.Pointer(cBuffer), C.int(cSize)), nil
+}
+
+// deserializeConsumerGroupMetadata converts a serialized metadata object
+// back to a C object.
+func deserializeConsumerGroupMetadata(serialized []byte) (*C.rd_kafka_consumer_group_metadata_t, error) {
+	var cgmd *C.rd_kafka_consumer_group_metadata_t
+
+	cSerialized := C.CBytes(serialized)
+	defer C.free(cSerialized)
+
+	cError := C.rd_kafka_consumer_group_metadata_read(
+		&cgmd, cSerialized, C.size_t(len(serialized)))
+	if cError != nil {
+		return nil, newErrorFromCErrorDestroy(cError)
+	}
+
+	return cgmd, nil
+}
+
+// GetConsumerGroupMetadata returns the consumer's current group metadata.
+// This object should be passed to the transactional producer's
+// SendOffsetsToTransaction() API.
+func (c *Consumer) GetConsumerGroupMetadata() (*ConsumerGroupMetadata, error) {
+	cgmd := C.rd_kafka_consumer_group_metadata(c.handle.rk)
+	if cgmd == nil {
+		return nil, NewError(ErrState, "Consumer group metadata not available", false)
+	}
+	defer C.rd_kafka_consumer_group_metadata_destroy(cgmd)
+
+	serialized, err := serializeConsumerGroupMetadata(cgmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConsumerGroupMetadata{serialized}, nil
+}
+
+// NewTestConsumerGroupMetadata creates a new consumer group metadata instance
+// mainly for testing use.
+// Use GetConsumerGroupMetadata() to retrieve the real metadata.
+func NewTestConsumerGroupMetadata(groupID string) (*ConsumerGroupMetadata, error) {
+	cGroupID := C.CString(groupID)
+	defer C.free(unsafe.Pointer(cGroupID))
+
+	cgmd := C.rd_kafka_consumer_group_metadata_new(cGroupID)
+	if cgmd == nil {
+		return nil, NewError(ErrInvalidArg, "Failed to create metadata object", false)
+	}
+
+	defer C.rd_kafka_consumer_group_metadata_destroy(cgmd)
+	serialized, err := serializeConsumerGroupMetadata(cgmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConsumerGroupMetadata{serialized}, nil
+}
