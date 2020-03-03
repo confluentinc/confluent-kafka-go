@@ -1,5 +1,7 @@
 # Transactional API example: traffic lights
 
+![Traffic example](traffic.png)
+
 This example showcases a state-less (no persisted state) transactional process
 that transactionally reads input from a Kafka topic, does some processing,
 produces the result to an output topic, and commits it all in a transaction.
