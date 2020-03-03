@@ -48,22 +48,14 @@ func (h *handle) newLogEvent(cEvent *C.rd_kafka_event_t) LogEvent {
 // is ongoing when doneChan is closed, the function will wait until the call
 // returns or times out, whatever happens first.
 func (h *handle) pollLogEvents(toChannel chan LogEvent, timeoutMs int, doneChan chan bool) {
-	pollChan := make(chan *C.rd_kafka_event_t, 1)
-
 	for {
-		go func() {
-			pollChan <- C.rd_kafka_queue_poll(h.logq, C.int(timeoutMs))
-		}()
-
 		select {
 		case <-doneChan:
-			if cEvent := <-pollChan; cEvent != nil {
-				C.rd_kafka_event_destroy(cEvent)
-			}
 			return
 
-		case cEvent := <-pollChan:
-			if cEvent == nil { // C timeout
+		default:
+			cEvent := C.rd_kafka_queue_poll(h.logq, C.int(timeoutMs))
+			if cEvent == nil {
 				continue
 			}
 
