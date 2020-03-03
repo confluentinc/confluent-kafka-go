@@ -161,6 +161,10 @@ func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
 
 	h.logs = logsChan
 
+	// Let librdkafka forward logs to our log queue instead of the main queue
+	h.logq = C.rd_kafka_queue_new(h.rk)
+	C.rd_kafka_set_log_queue(h.rk, h.logq)
+
 	// Start a polling goroutine to consume the log queue
 	h.waitGroup.Add(1)
 	go func() {
@@ -168,9 +172,6 @@ func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
 		h.waitGroup.Done()
 	}()
 
-	// let librdkafka forward logs to our log queue instead of the main queue
-	h.logq = C.rd_kafka_queue_new(h.rk)
-	C.rd_kafka_set_log_queue(h.rk, h.logq)
 }
 
 // getRkt0 finds or creates and returns a C topic_t object from the local cache.
