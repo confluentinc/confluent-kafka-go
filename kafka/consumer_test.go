@@ -115,6 +115,17 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Unassign failed: %s", err)
 	}
 
+	// ConsumerGroupMetadata
+	_, err = c.GetConsumerGroupMetadata()
+	if err != nil {
+		t.Errorf("Expected valid ConsumerGroupMetadata: %v", err)
+	}
+
+	_, err = NewTestConsumerGroupMetadata("mygroup")
+	if err != nil {
+		t.Errorf("Expected valid ConsumerGroupMetadata: %v", err)
+	}
+
 	topic = "mytopic"
 	// OffsetsForTimes
 	offsets, err := c.OffsetsForTimes([]TopicPartition{{Topic: &topic, Offset: 12345}}, 100)
