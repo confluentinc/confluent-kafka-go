@@ -1,8 +1,8 @@
 language: go
 go:
-  - 1.7
-  - 1.8
-  - 1.9
+  - "1.9"
+  - "1.11"
+  - "1.14"
 osx_image: xcode9.2
 os:
   - linux
@@ -15,25 +15,20 @@ env:
     - PATH="$PATH:$GOPATH/bin"
     - LIBRDKAFKA_VERSION=master
 
-# Travis OSX worker has problems running our Go binaries for 1.7 and 1.8,
-# workaround for now is to skip exec for those.
-
 before_install:
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.0/archive.key | sudo apt-key add - ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.0 stable main" -y ; fi
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y ; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get update -q ; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install confluent-librdkafka-plugins -y ; fi
   - rm -rf tmp-build
   - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-  # golint requires Go >= 1.9
-  - if [[ ! $TRAVIS_GO_VERSION =~ ^1\.[78] ]] ; then go get -u golang.org/x/lint/golint && touch .do_lint ; fi
-  - if [[ $TRAVIS_OS_NAME == osx && $TRAVIS_GO_VERSION =~ ^1\.[78] ]] ; then touch .no_exec ; fi
+  - go get -u golang.org/x/lint/golint && touch .do_lint
 
 install:
-  - go get -tags static ./...
-  - go install -tags static ./...
+  - for dir in kafka examples ; do (cd $dir && go get -tags static ./...) ; done
+  - for dir in kafka examples ; do (cd $dir && go install -tags static ./...) ; done
 
 script:
   - if [[ -f .do_lint ]]; then golint -set_exit_status ./... ; fi
-  - if [[ ! -f .no_exec ]]; then go test -timeout 60s -v -tags static ./... ; fi
-  - if [[ ! -f .no_exec ]]; then go-kafkacat --help ; fi
+  - for dir in kafka ; do (cd $dir && go test -timeout 60s -v -tags static ./...) ; done
+  - go-kafkacat --help
