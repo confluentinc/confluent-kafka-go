@@ -113,7 +113,7 @@ func main() {
 			Value:          []byte(word),
 		}, nil)
                 if err != nil {
-                    fmt.Println("Message could not be enqueued: ", err)
+                    fmt.Printf("Message could not be enqueued: %v\n", err)
                 }
 	}
 
