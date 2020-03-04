@@ -955,16 +955,17 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 }
 
 // Close an AdminClient instance.
-func (a *AdminClient) Close() {
+func (a *AdminClient) Close() error {
 	if a.isDerived {
 		// Derived AdminClient needs no cleanup.
 		a.handle = &handle{}
-		return
+		return nil
 	}
 
 	a.handle.cleanup()
 
 	C.rd_kafka_destroy(a.handle.rk)
+	return nil
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance

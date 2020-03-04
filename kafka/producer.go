@@ -351,7 +351,7 @@ func (p *Producer) Flush(timeoutMs int) int {
 
 // Close a Producer instance.
 // The Producer object or its channels are no longer usable after this call.
-func (p *Producer) Close() {
+func (p *Producer) Close() error {
 	// Wait for poller() (signaled by closing pollerTermChan)
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)
@@ -363,6 +363,7 @@ func (p *Producer) Close() {
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
+	return nil
 }
 
 const (

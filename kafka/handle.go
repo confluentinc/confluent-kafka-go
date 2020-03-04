@@ -76,6 +76,8 @@ type Handle interface {
 
 	// gethandle() returns the internal handle struct pointer
 	gethandle() *handle
+	Close() error
+	GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error)
 }
 
 // Common instance handle for both Producer and Consumer
