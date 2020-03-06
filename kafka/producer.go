@@ -709,7 +709,7 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 // transactional messages issued by this producer instance.
 //
 // Upon successful return from this function the application has to perform at
-// least one of the following operations within \c `transactional.timeout.ms` to
+// least one of the following operations within `transactional.timeout.ms` to
 // avoid timing out the transaction on the broker:
 //  * `Produce()` (et.al)
 //  * `SendOffsetsToTransaction()`
@@ -879,13 +879,13 @@ func (p *Producer) CommitTransaction(ctx context.Context) error {
 //  * `ctx` - The maximum amount of time to block, or nil for indefinite.
 //
 // Note: This function will block until all outstanding messages are purged
-// and the transaction commit request has been successfully
+// and the transaction abort request has been successfully
 // handled by the transaction coordinator, or until the `ctx` expires,
 // which ever comes first. On timeout the application may
 // call the function again.
 //
-// Note: Will automatically call `Flush()` to ensure all queued
-// messages are delivered before attempting to commit the transaction.
+// Note: Will automatically call `Purge()` and `Flush()` to ensure all queued
+// and in-flight messages are purged before attempting to abort the transaction.
 // The application MUST serve the `producer.Events()` channel for delivery
 // reports in a separate go-routine during this time.
 //
