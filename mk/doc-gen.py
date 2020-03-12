@@ -7,15 +7,13 @@
 
 import subprocess, re
 from bs4 import BeautifulSoup
-from pathlib import Path
 
 
 if __name__ == '__main__':
-    
+
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
-        ['godoc', '-url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka'],
-        cwd=str(Path.home()))
+        'godoc -url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka | grep -v "^using module mode"', shell=True)
 
     # Parse HTML
     soup = BeautifulSoup(html_in, 'html.parser')
@@ -37,5 +35,5 @@ if __name__ == '__main__':
         t['src'] = '//golang.org' + t['src']
 
     # Write updated HTML to stdout
-    print(soup.prettify())
+    print(soup.prettify().encode('utf-8'))
 
