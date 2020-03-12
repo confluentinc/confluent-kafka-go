@@ -799,7 +799,7 @@ func (p *Producer) BeginTransaction() error {
 // Check whether the returned error object permits retrying
 // by calling `err.(kafka.Error).IsRetriable()`, or whether an abortable
 // or fatal error has been raised by calling
-// `err.(kafka.Error).IsTxnAbortable()` or `err.(kafka.Error).IsFatal()`
+// `err.(kafka.Error).TxnRequiresAbort()` or `err.(kafka.Error).IsFatal()`
 // respectively.
 func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []TopicPartition, consumerMetadata *ConsumerGroupMetadata) error {
 	var cOffsets *C.rd_kafka_topic_partition_list_t
@@ -855,7 +855,7 @@ func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []Topic
 // Check whether the returned error object permits retrying
 // by calling `err.(kafka.Error).IsRetriable()`, or whether an abortable
 // or fatal error has been raised by calling
-// `err.(kafka.Error).IsTxnAbortable()` or `err.(kafka.Error).IsFatal()`
+// `err.(kafka.Error).TxnRequiresAbort()` or `err.(kafka.Error).IsFatal()`
 // respectively.
 func (p *Producer) CommitTransaction(ctx context.Context) error {
 	cError := C.rd_kafka_commit_transaction(p.handle.rk,
