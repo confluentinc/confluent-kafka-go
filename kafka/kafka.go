@@ -158,7 +158,7 @@
 // using `AbortTransaction()` and optionally start a new transaction
 // by calling `BeginTransaction()`.
 // Whether an error is abortable or not is detected by calling
-// `err.(kafka.Error).IsTxnAbortable()` on the returned error object.
+// `err.(kafka.Error).TxnRequiresAbort()` on the returned error object.
 //
 // Fatal errors:
 // While the underlying idempotent producer will typically only raise
@@ -189,7 +189,7 @@
 //        err := producer.CommitTransaction(...)
 //        if err == nil {
 //            return nil
-//        } else if err.(kafka.Error).IsTxnAbortable() {
+//        } else if err.(kafka.Error).TxnRequiresAbort() {
 //            do_abort_transaction_and_reset_inputs()
 //        } else if err.(kafka.Error).IsRetriable() {
 //            goto retry
