@@ -112,7 +112,7 @@ func main() {
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Value:          []byte(word),
 		}, nil)
-                if err != nil {
+		if err != nil {
                     fmt.Printf("Message could not be enqueued: %v\n", err)
                 }
 	}
