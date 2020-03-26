@@ -639,7 +639,8 @@ func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 //
 // The returned offset for each partition is the earliest offset whose
 // timestamp is greater than or equal to the given timestamp in the
-// corresponding partition.
+// corresponding partition. If the provided timestamp exceeds that of the
+// last message in the partition, a value of -1 will be returned.
 //
 // The timestamps to query are represented as `.Offset` in the `times`
 // argument and the looked up offsets are represented as `.Offset` in the returned
