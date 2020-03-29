@@ -387,3 +387,137 @@ func TestConsumerLog(t *testing.T) {
 		}
 	}
 }
+
+func TestReadFromPartition(t *testing.T) {
+	c, err := NewConsumer(&ConfigMap{
+		"group.id":                             "gotest",
+		"socket.timeout.ms":                    10,
+		"session.timeout.ms":                   10,
+		"enable.auto.offset.store":             false, // permit StoreOffsets()
+		"go.enable.read.from.partition.queues": true,
+	})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	t.Logf("Consumer %s", c)
+
+	err = c.Subscribe("gotest", nil)
+	if err != nil {
+		t.Errorf("Subscribe failed: %s", err)
+	}
+
+	err = c.SubscribeTopics([]string{"gotest1", "gotest2"},
+		func(my_c *Consumer, ev Event) error {
+			t.Logf("%s", ev)
+			return nil
+		})
+	if err != nil {
+		t.Errorf("SubscribeTopics failed: %s", err)
+	}
+
+	_, err = c.Commit()
+	if err != nil && err.(Error).Code() != ErrNoOffset {
+		t.Errorf("Commit() failed: %s", err)
+	}
+
+	err = c.Unsubscribe()
+	if err != nil {
+		t.Errorf("Unsubscribe failed: %s", err)
+	}
+
+	topic := "gotest"
+	stored, err := c.StoreOffsets([]TopicPartition{{Topic: &topic, Partition: 0, Offset: 1}})
+	if err != nil && err.(Error).Code() != ErrUnknownPartition {
+		t.Errorf("StoreOffsets() failed: %s", err)
+		toppar := stored[0]
+		if toppar.Error != nil && toppar.Error.(Error).Code() == ErrUnknownPartition {
+			t.Errorf("StoreOffsets() TopicPartition error: %s", toppar.Error)
+		}
+	}
+	var empty []TopicPartition
+	stored, err = c.StoreOffsets(empty)
+	if err != nil {
+		t.Errorf("StoreOffsets(empty) failed: %s", err)
+	}
+
+	topic1 := "gotest1"
+	topic2 := "gotest2"
+	err = c.Assign([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Assign failed: %s", err)
+	}
+
+	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1000)
+	if err != nil {
+		t.Errorf("Seek failed: %s", err)
+	}
+
+	// Pause & Resume
+	err = c.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Pause failed: %s", err)
+	}
+	err = c.Resume([]TopicPartition{{Topic: &topic1, Partition: 2},
+		{Topic: &topic2, Partition: 1}})
+	if err != nil {
+		t.Errorf("Resume failed: %s", err)
+	}
+
+	err = c.Unassign()
+	if err != nil {
+		t.Errorf("Unassign failed: %s", err)
+	}
+
+	// ConsumerGroupMetadata
+	_, err = c.GetConsumerGroupMetadata()
+	if err != nil {
+		t.Errorf("Expected valid ConsumerGroupMetadata: %v", err)
+	}
+
+	_, err = NewTestConsumerGroupMetadata("mygroup")
+	if err != nil {
+		t.Errorf("Expected valid ConsumerGroupMetadata: %v", err)
+	}
+
+	topic = "mytopic"
+	// OffsetsForTimes
+	offsets, err := c.OffsetsForTimes([]TopicPartition{{Topic: &topic, Offset: 12345}}, 100)
+	t.Logf("OffsetsForTimes() returned Offsets %s and error %s\n", offsets, err)
+	if err == nil {
+		t.Errorf("OffsetsForTimes() should have failed\n")
+	}
+	if offsets != nil {
+		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
+	}
+
+	// Position
+	offsets, err = c.Position([]TopicPartition{
+		{Topic: &topic, Partition: 10},
+		{Topic: &topic, Partition: 5},
+	})
+	t.Logf("Position() returned Offsets %s and error %v\n", offsets, err)
+	if err != nil {
+		t.Errorf("Position() should not have failed\n")
+	}
+	if offsets == nil {
+		t.Errorf("Position() should not have returned nil\n")
+	}
+
+	// Committed
+	offsets, err = c.Committed([]TopicPartition{{Topic: &topic, Partition: 5}}, 10)
+	t.Logf("Committed() returned Offsets %s and error %s\n", offsets, err)
+	if err == nil {
+		t.Errorf("Committed() should have failed\n")
+	}
+	if offsets != nil {
+		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
+	}
+
+	err = c.Close()
+	if err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+}
