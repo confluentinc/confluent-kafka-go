@@ -47,7 +47,7 @@ func (h *handle) newLogEvent(cEvent *C.rd_kafka_event_t) LogEvent {
 // Each call to librdkafka times out after timeoutMs. If a call to librdkafka
 // is ongoing when doneChan is closed, the function will wait until the call
 // returns or times out, whatever happens first.
-func (h *handle) pollLogEvents(toChannel chan LogEvent, timeoutMs int, doneChan chan bool) {
+func (h *handle) pollLogEvents(toChannel chan<- LogEvent, timeoutMs int, doneChan chan bool) {
 	for {
 		select {
 		case <-doneChan:

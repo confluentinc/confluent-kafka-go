@@ -151,7 +151,7 @@ func (o OAuthBearerTokenRefresh) String() string {
 // to indicate that `channel` is being terminated.
 // returns (event Event, terminate Bool) tuple, where Terminate indicates
 // if termChan received a termination event.
-func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, termChan chan bool) (Event, bool) {
+func (h *handle) eventPoll(channel chan<- Event, timeoutMs int, maxEvents int, termChan chan bool) (Event, bool) {
 
 	var prevRkev *C.rd_kafka_event_t
 	term := false
@@ -273,7 +273,7 @@ out:
 
 			for _, rkmessage := range rkmessages[:cnt] {
 				msg := h.newMessageFromC(rkmessage)
-				var ch *chan Event
+				var ch *chan<- Event
 
 				if rkmessage._private != nil {
 					// Find cgoif by id

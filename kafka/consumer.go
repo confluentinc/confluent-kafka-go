@@ -259,12 +259,12 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 }
 
 // Events returns the Events channel (if enabled)
-func (c *Consumer) Events() chan Event {
+func (c *Consumer) Events() <-chan Event {
 	return c.events
 }
 
 // Logs returns the log channel if enabled, or nil otherwise.
-func (c *Consumer) Logs() chan LogEvent {
+func (c *Consumer) Logs() <-chan LogEvent {
 	return c.handle.logs
 }
 

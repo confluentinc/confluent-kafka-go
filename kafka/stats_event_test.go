@@ -23,7 +23,7 @@ import (
 )
 
 // handleStatsEvent checks for stats event and signals on statsReceived
-func handleStatsEvent(t *testing.T, eventCh chan Event, statsReceived chan bool) {
+func handleStatsEvent(t *testing.T, eventCh <-chan Event, statsReceived chan bool) {
 	for ev := range eventCh {
 		switch e := ev.(type) {
 		case *Stats:

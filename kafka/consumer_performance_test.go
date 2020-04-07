@@ -147,7 +147,7 @@ func testconsumerInit(b *testing.B) int {
 	if currcnt < msgcnt {
 		producerPerfTest(b, "Priming producer", msgcnt, false, false,
 			true,
-			func(p *Producer, m *Message, drChan chan Event) {
+			func(p *Producer, m *Message, drChan chan<- Event) {
 				p.ProduceChannel() <- m
 			})
 	}
