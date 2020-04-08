@@ -19,8 +19,8 @@ before_install:
   - go get -u golang.org/x/lint/golint && touch .do_lint
 
 install:
-  - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-  - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
+  - for dir in kafka examples ; do (cd $dir && go get -v -x ./...) ; done
+  - for dir in kafka examples ; do (cd $dir && go install -v -x ./...) ; done
 
 script:
   - if [[ -f .do_lint ]]; then golint -set_exit_status ./... ; fi
