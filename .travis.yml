@@ -9,26 +9,20 @@ os:
   - osx
 env:
   global:
-    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
     - PATH="$PATH:$GOPATH/bin"
-    - LIBRDKAFKA_VERSION=master
 
 before_install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y ; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get update -q ; fi
   - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install confluent-librdkafka-plugins -y ; fi
-  - rm -rf tmp-build
-  - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
   - go get -u golang.org/x/lint/golint && touch .do_lint
 
 install:
-  - for dir in kafka examples ; do (cd $dir && go get -tags static ./...) ; done
-  - for dir in kafka examples ; do (cd $dir && go install -tags static ./...) ; done
+  - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
+  - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
 
 script:
   - if [[ -f .do_lint ]]; then golint -set_exit_status ./... ; fi
-  - for dir in kafka ; do (cd $dir && go test -timeout 60s -v -tags static ./...) ; done
+  - for dir in kafka ; do (cd $dir && go test -timeout 60s -v ./...) ; done
   - go-kafkacat --help
