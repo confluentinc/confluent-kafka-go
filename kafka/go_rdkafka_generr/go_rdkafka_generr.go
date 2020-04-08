@@ -18,7 +18,7 @@ package main
  */
 
 import (
-	"github.com/edenhill/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 )
 
