@@ -395,6 +395,7 @@ func TestReadFromPartition(t *testing.T) {
 		"session.timeout.ms":                   10,
 		"enable.auto.offset.store":             false, // permit StoreOffsets()
 		"go.enable.read.from.partition.queues": true,
+		"go.application.rebalance.enable":		true,
 	})
 	if err != nil {
 		t.Fatalf("%s", err)

@@ -247,7 +247,7 @@ func eventTestReadFromPartition(hasAssigned <-chan bool) func(c *Consumer, mt *m
 
 		<-hasAssigned // wait for first partition assignment
 		mt.t.Log(fmt.Sprintf("%d partitions, at %v", len(c.openTopParQueues), time.Now()))
-		for toppar, _ := range c.openTopParQueues {
+		for toppar := range c.openTopParQueues {
 			wg.Add(1)
 			go readMessages(ctx, cancel, wg, toppar, events)
 		}

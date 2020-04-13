@@ -220,7 +220,7 @@ func eventReadFromPartition(hasAssigned <-chan bool) func(c *Consumer, rd *rated
 		go tickr(ctx, cancel, tickerWg, events)
 
 		<-hasAssigned
-		for key, _ := range c.openTopParQueues {
+		for key := range c.openTopParQueues {
 			wg.Add(1)
 			go readMessages(ctx, wg, cancel, key, events)
 		}
@@ -293,14 +293,12 @@ func BenchmarkConsumerReadFromPartitionPerformance(b *testing.B) {
 				if err := c.Unassign(); err != nil {
 					b.Errorf("Failed to Unassign: %s\n", err)
 				}
-				b.Logf("RevokedPartitions at %v", time.Now())
 			}
 			if ap, ok := event.(AssignedPartitions); ok {
 				if err := c.Assign(ap.Partitions); err != nil {
 					b.Errorf("Failed to Assign: %s\n", err)
 				}
 				hasAssigned <- true
-				b.Logf("AssignedPartitions at %v", time.Now())
 			}
 			return nil
 		})

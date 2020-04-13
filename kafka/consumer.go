@@ -75,6 +75,12 @@ func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
 // SubscribeTopics subscribes to the provided list of topics.
 // This replaces the current subscription.
 func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (err error) {
+
+	if c.readFromPartitionQueues && !c.appRebalanceEnable && rebalanceCb == nil {
+		return newErrorFromString(C.RD_KAFKA_RESP_ERR_INVALID_CONFIG,
+			"Enabling read from partition queues requires either enabling application rebalance or pass a rebalance event callback when Subscribing")
+	}
+
 	ctopics := C.rd_kafka_topic_partition_list_new(C.int(len(topics)))
 	defer C.rd_kafka_topic_partition_list_destroy(ctopics)
 
