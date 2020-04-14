@@ -252,6 +252,7 @@ package kafka
 
 import (
 	"fmt"
+	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka"
 	"unsafe"
 )
 
