@@ -16,5 +16,6 @@
 
 package librdkafka
 
-// Need to export something so the file is not empty.
+// LibrdkafkaGoSubdir is a dummy variable needed to export something so the
+// file is not empty.
 var LibrdkafkaGoSubdir = true
