@@ -48,12 +48,6 @@ type Consumer struct {
 	appReassigned           bool
 	appRebalanceEnable      bool // config setting
 	readFromPartitionQueues bool
-	openTopParQueues        map[topicPartitionKey]*C.rd_kafka_queue_t
-}
-
-type topicPartitionKey struct {
-	Topic     string
-	Partition int32
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -137,41 +131,18 @@ func (c *Consumer) Unassign() (err error) {
 	}
 
 	if c.readFromPartitionQueues {
-		c.closePartitionQueues()
+		c.handle.closePartitionQueues()
 	}
 
 	return nil
 }
 
 func (c *Consumer) enableReadFromPartition(partitions []TopicPartition) {
-	if len(c.openTopParQueues) > 0 {
-		c.closePartitionQueues()
-	}
+	c.handle.closePartitionQueues()
 
 	for _, tp := range partitions {
-		tpClone := topicPartitionKey{
-			Topic:     *tp.Topic,
-			Partition: tp.Partition,
-		}
-
-		partitionQueue := c.getPartitionQueue(tp)
-		if partitionQueue == nil {
-			continue
-		}
-
-		c.disableQueueForwarding(partitionQueue)
-		c.openTopParQueues[tpClone] = partitionQueue
+		c.handle.disablePartitionQueueForwarding(*tp.Topic, tp.Partition)
 	}
-}
-
-func (c *Consumer) closePartitionQueues() {
-	for _, v := range c.openTopParQueues {
-		var parQueue *C.rd_kafka_queue_t
-		parQueue = v
-		C.rd_kafka_queue_destroy(parQueue)
-	}
-
-	c.openTopParQueues = make(map[topicPartitionKey]*C.rd_kafka_queue_t)
 }
 
 // commit offsets for specified offsets.
@@ -314,10 +285,6 @@ func (c *Consumer) getPartitionQueue(toppar TopicPartition) *C.rd_kafka_queue_t 
 	return C.rd_kafka_queue_get_partition(c.handle.rk, C.CString(*toppar.Topic), C.int32_t(toppar.Partition))
 }
 
-func (c *Consumer) disableQueueForwarding(partitionQueue *C.rd_kafka_queue_t) {
-	C.rd_kafka_queue_forward(partitionQueue, nil)
-}
-
 // Events returns the Events channel (if enabled)
 func (c *Consumer) Events() chan Event {
 	return c.events
@@ -352,12 +319,12 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 }
 
 // ReadFromPartition polls the partition queue for a message.
-// Returns err if go.enable.read.from.partition.queues is not enabled, or Assign() has not been called.
-// This API that only returns messages or errors.
 //
-// The call will block for at most `timeout` waiting for
-// a new message or error. `timeout` may be set to -1 for
-// indefinite wait.
+// Returns err if go.enable.read.from.partition.queues is not enabled, or Assign() has not been called.
+// This API only returns messages or errors.
+//
+// The call will block for at most `timeout` waiting for a new
+// message or error. `timeout` may be set to -1 for indefinite wait.
 //
 // Timeout is returned as (nil, err) where err is `kafka.(Error).Code == Kafka.ErrTimedOut`.
 // Reading from unassigned partition is returned as (nil, err) where
@@ -368,16 +335,10 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // and partition-specific errors are returned as (msg, err) where
 // msg.TopicPartition provides partition-specific information (such as topic, partition and offset).
 //
-//
 func (c *Consumer) ReadFromPartition(toppar TopicPartition, timeout time.Duration) (*Message, error) {
 
-	tpClone := topicPartitionKey{
-		Topic:     *toppar.Topic,
-		Partition: toppar.Partition,
-	}
-
-	partitionQueue, ok := c.openTopParQueues[tpClone]
-	if !ok {
+	partitionQueue := c.handle.getAssignedPartitionQueue(*toppar.Topic, toppar.Partition)
+	if partitionQueue == nil {
 		return nil, newErrorFromString(C.RD_KAFKA_RESP_ERR_INVALID_PARTITIONS, "readFromPartitionQueues not enabled or Partition not assigned")
 	}
 
@@ -441,7 +402,7 @@ func (c *Consumer) Close() (err error) {
 	}
 
 	if c.readFromPartitionQueues {
-		c.closePartitionQueues()
+		c.handle.closePartitionQueues()
 	}
 
 	C.rd_kafka_queue_destroy(c.handle.rkq)
@@ -502,9 +463,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, newErrorFromString(ErrInvalidArg, "Required property group.id not set")
 	}
 
-	c := &Consumer{
-		openTopParQueues: make(map[topicPartitionKey]*C.rd_kafka_queue_t),
-	}
+	c := &Consumer{}
 
 	v, err := confCopy.extract("go.application.rebalance.enable", false)
 	if err != nil {

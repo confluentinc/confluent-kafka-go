@@ -246,8 +246,8 @@ func eventTestReadFromPartition(hasAssigned <-chan bool) func(c *Consumer, mt *m
 		go tickr(ctx, cancel, tickerWg, events)
 
 		<-hasAssigned // wait for first partition assignment
-		mt.t.Log(fmt.Sprintf("%d partitions, at %v", len(c.openTopParQueues), time.Now()))
-		for toppar := range c.openTopParQueues {
+		mt.t.Log(fmt.Sprintf("%d partitions, at %v", len(c.handle.rkqtAssignedPartitions), time.Now()))
+		for toppar := range c.handle.rkqtAssignedPartitions {
 			wg.Add(1)
 			go readMessages(ctx, cancel, wg, toppar, events)
 		}
@@ -951,14 +951,15 @@ func consumerTestWithCommits(t *testing.T, testname string, msgcnt int, useChann
 func rebalanceFn(t *testing.T, hasAssigned chan bool) func(c *Consumer, event Event) error {
 	return func(c *Consumer, event Event) error {
 		t.Logf("Rebalanced: %s", event)
-		if _, ok := event.(RevokedPartitions); ok {
+
+		switch p := event.(type) {
+		case RevokedPartitions:
 			if err := c.Unassign(); err != nil {
 				t.Errorf("Failed to Unassign: %s\n", err)
 			}
 			t.Logf("RevokedPartitions at %v", time.Now())
-		}
-		if ap, ok := event.(AssignedPartitions); ok {
-			if err := c.Assign(ap.Partitions); err != nil {
+		case AssignedPartitions:
+			if err := c.Assign(p.Partitions); err != nil {
 				t.Errorf("Failed to Assign: %s\n", err)
 			}
 			hasAssigned <- true

@@ -220,7 +220,7 @@ func eventReadFromPartition(hasAssigned <-chan bool) func(c *Consumer, rd *rated
 		go tickr(ctx, cancel, tickerWg, events)
 
 		<-hasAssigned
-		for key := range c.openTopParQueues {
+		for key := range c.handle.rkqtAssignedPartitions {
 			wg.Add(1)
 			go readMessages(ctx, wg, cancel, key, events)
 		}
