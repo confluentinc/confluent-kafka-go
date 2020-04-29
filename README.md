@@ -124,36 +124,8 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Install the client
--------------------
-
-We recommend that you version pin the confluent-kafka-go import to v1:
-
-Manual install:
-```bash
-go get -u gopkg.in/confluentinc/confluent-kafka-go.v1/kafka
-```
-
-Golang import:
-```golang
-import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
-```
-
-Prebuilt librdkafka binaries are included with the Go client and librdkafka
-does not need to be installed separately on the build or target system.
-The following platforms are supported by the prebuilt librdkafka binaries:
-
- * Mac OSX x64
- * glibc-based Linux x64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
- - musl-based Linux 64 (Alpine) - without GSSAPI/Kerberos support
-
-If GSSAPI/Kerberos authentication support is required you will need
-to install librdkafka separately, see the **Installing librdkafka** chapter
-below, and then build your Go application with `-tags dynamic`.
-
-
-Using Go 1.13+ Modules
-----------------------
+Using Go Modules
+----------------
 
 Starting with Go 1.13, you can use [Go Modules](https://blog.golang.org/using-go-modules) to install
 confluent-kafka-go.
@@ -170,8 +142,54 @@ Build your project:
 go build ./...
 ```
 
+If you are building for Alpine Linux (musl), `-tags musl` must be specified.
+
+```bash
+go build -tags musl ./...
+```
+
 A dependency to the latest stable version of confluent-kafka-go should be automatically added to
 your `go.mod` file.
+
+
+
+Install the client
+------------------
+
+If Go modules can't be used we recommend that you version pin the
+confluent-kafka-go import to v1 using gopkg.in:
+
+Manual install:
+```bash
+go get -u gopkg.in/confluentinc/confluent-kafka-go.v1/kafka
+```
+
+Golang import:
+```golang
+import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+```
+
+librdkafka
+----------
+
+Prebuilt librdkafka binaries are included with the Go client and librdkafka
+does not need to be installed separately on the build or target system.
+The following platforms are supported by the prebuilt librdkafka binaries:
+
+ * Mac OSX x64
+ * glibc-based Linux x64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
+ - musl-based Linux 64 (Alpine) - without GSSAPI/Kerberos support
+
+When building your application for Alpine Linux (musl libc) you must pass
+`-tags musl` to `go get`, `go build`, etc.
+
+`CGO_ENABLED` must NOT be set to 0 since the Go client is based on the
+C library librdkafka.
+
+If GSSAPI/Kerberos authentication support is required you will need
+to install librdkafka separately, see the **Installing librdkafka** chapter
+below, and then build your Go application with `-tags dynamic`.
+
 
 
 Installing librdkafka
