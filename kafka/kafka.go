@@ -252,6 +252,8 @@ package kafka
 
 import (
 	"fmt"
+	// Make sure librdkafka/ sub-directory is included in vendor pulls.
+	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka"
 	"unsafe"
 )
 
