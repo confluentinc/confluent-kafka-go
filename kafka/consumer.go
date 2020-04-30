@@ -281,10 +281,6 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	return ev
 }
 
-func (c *Consumer) getPartitionQueue(toppar TopicPartition) *C.rd_kafka_queue_t {
-	return C.rd_kafka_queue_get_partition(c.handle.rk, C.CString(*toppar.Topic), C.int32_t(toppar.Partition))
-}
-
 // Events returns the Events channel (if enabled)
 func (c *Consumer) Events() chan Event {
 	return c.events
