@@ -148,7 +148,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION  0x010400ff
+#define RD_KAFKA_VERSION  0x010402ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -1332,7 +1332,7 @@ void rd_kafka_message_destroy(rd_kafka_message_t *rkmessage);
  * @remark This function MUST NOT be used with the producer.
  */
 static RD_INLINE const char *
-RD_UNUSED 
+RD_UNUSED
 rd_kafka_message_errstr(const rd_kafka_message_t *rkmessage) {
 	if (!rkmessage->err)
 		return NULL;
@@ -1439,17 +1439,19 @@ RD_EXPORT size_t rd_kafka_header_cnt (const rd_kafka_headers_t *hdrs);
  *        find out if a produced message was persisted in the topic log.
  */
 typedef enum {
-        /**< Message was never transmitted to the broker, or failed with
-         *   an error indicating it was not written to the log.
-         *   Application retry risks ordering, but not duplication. */
+        /** Message was never transmitted to the broker, or failed with
+         *  an error indicating it was not written to the log.
+         *  Application retry risks ordering, but not duplication. */
         RD_KAFKA_MSG_STATUS_NOT_PERSISTED = 0,
 
-        /**< Message was transmitted to broker, but no acknowledgement was
-         *   received.
-         *   Application retry risks ordering and duplication. */
+        /** Message was transmitted to broker, but no acknowledgement was
+         *  received.
+         *  Application retry risks ordering and duplication. */
         RD_KAFKA_MSG_STATUS_POSSIBLY_PERSISTED = 1,
 
-        /**< Message was written to the log and acknowledged by the broker. */
+        /** Message was written to the log and acknowledged by the broker.
+         *  No reason for application to retry.
+         *  Note: this value should only be trusted with \c acks=all. */
         RD_KAFKA_MSG_STATUS_PERSISTED =  2
 } rd_kafka_msg_status_t;
 
@@ -1501,7 +1503,7 @@ typedef enum {
  *                           errstr, sizeof(errstr));
  *   if (res != RD_KAFKA_CONF_OK)
  *      die("%s\n", errstr);
- *   
+ *
  *   rk = rd_kafka_new(..., myconf);
  * @endcode
  *
@@ -1740,7 +1742,7 @@ void rd_kafka_conf_set_consume_cb (rd_kafka_conf_t *conf,
  *         of the list (see `rd_kafka_topic_partition_list_copy()`).
  *         The result of `rd_kafka_position()` is typically outdated in
  *         RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS.
- * 
+ *
  * The following example shows the application's responsibilities:
  * @code
  *    static void rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
@@ -1924,15 +1926,15 @@ void rd_kafka_conf_set_stats_cb(rd_kafka_conf_t *conf,
  *                           sasl.oauthbearer.config.
  *   \p opaque - Application-provided opaque set via
  *               rd_kafka_conf_set_opaque()
- * 
+ *
  * The SASL/OAUTHBEARER token refresh callback is triggered via rd_kafka_poll()
  * whenever OAUTHBEARER is the SASL mechanism and a token needs to be retrieved,
  * typically based on the configuration defined in \c sasl.oauthbearer.config.
- * 
+ *
  * The callback should invoke rd_kafka_oauthbearer_set_token()
  * or rd_kafka_oauthbearer_set_token_failure() to indicate success
  * or failure, respectively.
- * 
+ *
  * The refresh operation is eventable and may be received via
  * rd_kafka_queue_poll() with an event type of
  * \c RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH.
@@ -2675,7 +2677,7 @@ rd_kafka_type_t rd_kafka_type(const rd_kafka_t *rk);
 
 
 /**
- * @brief Returns this client's broker-assigned group member id 
+ * @brief Returns this client's broker-assigned group member id.
  *
  * @remark This currently requires the high-level KafkaConsumer
  *
@@ -3015,7 +3017,7 @@ rd_kafka_queue_t *rd_kafka_queue_get_consumer (rd_kafka_t *rk);
  * Use rd_kafka_queue_destroy() to loose the reference.
  *
  * @remark rd_kafka_queue_destroy() MUST be called on this queue
- * 
+ *
  * @remark This function only works on consumers.
  */
 RD_EXPORT
@@ -3054,7 +3056,7 @@ rd_kafka_queue_t *rd_kafka_queue_get_background (rd_kafka_t *rk);
  * If \p dst is \c NULL the forwarding is removed.
  *
  * The internal refcounts for both queues are increased.
- * 
+ *
  * @remark Regardless of whether \p dst is NULL or not, after calling this
  *         function, \p src will not forward it's fetch queue to the consumer
  *         queue.
@@ -3864,7 +3866,7 @@ rd_kafka_consumer_group_metadata_read (
  * See `rd_kafka_conf_set_dr_msg_cb` on how to setup a callback to be called
  * once the delivery status (success or failure) is known. The delivery report
  * is trigged by the application calling `rd_kafka_poll()` (at regular
- * intervals) or `rd_kafka_flush()` (at termination). 
+ * intervals) or `rd_kafka_flush()` (at termination).
  *
  * Since producing is asynchronous, you should call `rd_kafka_flush()` before
  * you destroy the producer. Otherwise, any outstanding messages will be
@@ -3894,14 +3896,14 @@ rd_kafka_consumer_group_metadata_read (
  *                           Messages are considered in-queue from the point they
  *                           are accepted by produce() until their corresponding
  *                           delivery report callback/event returns.
- *                           It is thus a requirement to call 
+ *                           It is thus a requirement to call
  *                           rd_kafka_poll() (or equiv.) from a separate
  *                           thread when F_BLOCK is used.
  *                           See WARNING on \c RD_KAFKA_MSG_F_BLOCK above.
  *
  *    RD_KAFKA_MSG_F_FREE - rdkafka will free(3) \p payload when it is done
  *                          with it.
- *    RD_KAFKA_MSG_F_COPY - the \p payload data will be copied and the 
+ *    RD_KAFKA_MSG_F_COPY - the \p payload data will be copied and the
  *                          \p payload pointer will not be used by rdkafka
  *                          after the call returns.
  *    RD_KAFKA_MSG_F_PARTITION - produce_batch() will honour per-message
@@ -5482,7 +5484,7 @@ rd_kafka_topic_result_error_string (const rd_kafka_topic_result_t *topicres);
 /**
  * @returns the name of the topic for the given topic result.
  * @remark lifetime of the returned string is the same as the \p topicres.
- *         
+ *
  */
 RD_EXPORT const char *
 rd_kafka_topic_result_name (const rd_kafka_topic_result_t *topicres);
@@ -5493,7 +5495,6 @@ rd_kafka_topic_result_name (const rd_kafka_topic_result_t *topicres);
 
 /**
  * @name Admin API
- *
  * @{
  *
  * @brief The Admin API enables applications to perform administrative
@@ -5635,7 +5636,7 @@ rd_kafka_AdminOptions_set_request_timeout (rd_kafka_AdminOptions_t *options,
  *          RD_KAFKA_RESP_ERR__INVALID_ARG if timeout was out of range in which
  *          case an error string will be written \p errstr.
  *
- * @remark This option is valid for CreateTopics, DeleteTopics and 
+ * @remark This option is valid for CreateTopics, DeleteTopics and
  *         CreatePartitions.
  */
 RD_EXPORT rd_kafka_resp_err_t
@@ -5713,13 +5714,13 @@ rd_kafka_AdminOptions_set_opaque (rd_kafka_AdminOptions_t *options,
 
 
 
-/**
- * @section CreateTopics - create topics in cluster
- *
+/*
+ * CreateTopics - create topics in cluster.
  *
  */
 
 
+/*! Defines a new topic to be created. */
 typedef struct rd_kafka_NewTopic_s rd_kafka_NewTopic_t;
 
 /**
@@ -5844,7 +5845,7 @@ rd_kafka_CreateTopics (rd_kafka_t *rk,
  *
  * The returned \p topics life-time is the same as the \p result object.
  *
- * @param result Result to get topics from. 
+ * @param result Result to get topics from.
  * @param cntp Updated to the number of elements in the array.
  */
 RD_EXPORT const rd_kafka_topic_result_t **
@@ -5856,12 +5857,12 @@ rd_kafka_CreateTopics_result_topics (
 
 
 
-/**
- * @section DeleteTopics - delete topics from cluster
- *
+/*
+ * DeleteTopics - delete topics from cluster
  *
  */
 
+/*! Represents a topic to be deleted. */
 typedef struct rd_kafka_DeleteTopic_s rd_kafka_DeleteTopic_t;
 
 /**
@@ -5937,12 +5938,11 @@ rd_kafka_DeleteTopics_result_topics (
 
 
 /**
- * @section CreatePartitions - add partitions to topic.
- *
+ * CreatePartitions - add partitions to topic.
  *
  */
 
-/*! NewPartitions */
+/*! Defines a new partition to be created. */
 typedef struct rd_kafka_NewPartitions_s rd_kafka_NewPartitions_t;
 
 /**
@@ -6061,36 +6061,38 @@ rd_kafka_CreatePartitions_result_topics (
 
 
 /**
- * @section Cluster, broker, topic configuration entries, sources, etc.
+ * Cluster, broker, topic configuration entries, sources, etc.
  *
- * These entities relate to the cluster, not the local client.
+ */
+
+/**
+ * @enum rd_kafka_ConfigSource_t
+ *
+ * @brief Apache Kafka config sources.
+ *
+ * @remark These entities relate to the cluster, not the local client.
  *
  * @sa rd_kafka_conf_set(), et.al. for local client configuration.
- *
- */
-
-/*!
- * Apache Kafka config sources
  */
 typedef enum rd_kafka_ConfigSource_t {
-        /**< Source unknown, e.g., in the ConfigEntry used for alter requests
-         *   where source is not set */
+        /** Source unknown, e.g., in the ConfigEntry used for alter requests
+         *  where source is not set */
         RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG = 0,
-        /**< Dynamic topic config that is configured for a specific topic */
+        /** Dynamic topic config that is configured for a specific topic */
         RD_KAFKA_CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG = 1,
-        /**< Dynamic broker config that is configured for a specific broker */
+        /** Dynamic broker config that is configured for a specific broker */
         RD_KAFKA_CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG = 2,
-        /**< Dynamic broker config that is configured as default for all
-         *   brokers in the cluster */
+        /** Dynamic broker config that is configured as default for all
+         *  brokers in the cluster */
         RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG = 3,
-        /**< Static broker config provided as broker properties at startup
-         * (e.g. from server.properties file) */
+        /** Static broker config provided as broker properties at startup
+         *  (e.g. from server.properties file) */
         RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG = 4,
-        /**< Built-in default configuration for configs that have a
-         *   default value */
+        /** Built-in default configuration for configs that have a
+         *  default value */
         RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG = 5,
 
-        /**< Number of source types defined */
+        /** Number of source types defined */
         RD_KAFKA_CONFIG_SOURCE__CNT,
 } rd_kafka_ConfigSource_t;
 
@@ -6102,7 +6104,7 @@ RD_EXPORT const char *
 rd_kafka_ConfigSource_name (rd_kafka_ConfigSource_t confsource);
 
 
-/*! ConfigEntry */
+/*! Apache Kafka configuration entry. */
 typedef struct rd_kafka_ConfigEntry_s rd_kafka_ConfigEntry_t;
 
 /**
@@ -6189,7 +6191,7 @@ typedef enum rd_kafka_ResourceType_t {
 RD_EXPORT const char *
 rd_kafka_ResourceType_name (rd_kafka_ResourceType_t restype);
 
-/*! ConfigResource */
+/*! Apache Kafka configuration resource. */
 typedef struct rd_kafka_ConfigResource_s rd_kafka_ConfigResource_t;
 
 
@@ -6282,8 +6284,7 @@ rd_kafka_ConfigResource_error_string (const rd_kafka_ConfigResource_t *config);
 
 
 /**
- * @section AlterConfigs - alter cluster configuration.
- *
+ * AlterConfigs - alter cluster configuration.
  *
  */
 
@@ -6345,8 +6346,7 @@ rd_kafka_AlterConfigs_result_resources (
 
 
 /**
- * @section DescribeConfigs - retrieve cluster configuration.
- *
+ * DescribeConfigs - retrieve cluster configuration.
  *
  */
 
@@ -6357,14 +6357,14 @@ rd_kafka_AlterConfigs_result_resources (
  * The returned configuration includes default values and the
  * rd_kafka_ConfigEntry_is_default() or rd_kafka_ConfigEntry_source()
  * methods may be used to distinguish them from user supplied values.
- * 
+ *
  * The value of config entries where rd_kafka_ConfigEntry_is_sensitive()
  * is true will always be NULL to avoid disclosing sensitive
  * information, such as security settings.
- * 
+ *
  * Configuration entries where rd_kafka_ConfigEntry_is_read_only()
  * is true can't be updated (with rd_kafka_AlterConfigs()).
- * 
+ *
  * Synonym configuration entries are returned if the broker supports
  * it (broker version >= 1.1.0). See rd_kafka_ConfigEntry_synonyms().
  *
