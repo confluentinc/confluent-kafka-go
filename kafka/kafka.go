@@ -83,7 +83,7 @@
 // * When you are done producing messages you will need to make sure all messages
 // are indeed delivered to the broker (or failed), remember that this is
 // an asynchronous client so some of your messages may be lingering in internal
-// channels or tranmission queues.
+// channels or transmission queues.
 // To do this you can either keep track of the messages you've produced
 // and wait for their corresponding delivery reports, or call the convenience
 // function `.Flush()` that will block until all message deliveries are done
