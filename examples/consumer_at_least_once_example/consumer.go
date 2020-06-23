@@ -32,18 +32,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 func main() {
-	var commitIntervalMessages int
-	flag.IntVar(&commitIntervalMessages, "commit.interval.messages", 10000, "Number of messages to process before each offset commit")
-
-	var commitIntervalTimeout time.Duration
-	flag.DurationVar(&commitIntervalTimeout, "commit.interval.timeout", 1*time.Minute, "The time to wait before the consumer offsets are committed (written) to offset storage.")
-
 	if len(os.Args) < 4 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <group> <topics..>\n",
 			os.Args[0])
@@ -70,10 +63,13 @@ func main() {
 		"session.timeout.ms":    6000,
 		"auto.offset.reset":     "earliest",
 
-		// We will commit the offset manually.
-		"enable.auto.commit": false,
-		// Number of messages to be buffered.
-		"queued.min.messages": 10000,
+		// The best way to achieve at least once semantics is to
+		// disable `enable.auto.offset.store`, which marks a message as eligible
+		// for commit as soon as it's delivered to the application
+		// and use `StoreOffsets` to manually indicate this instead.
+		// Leaving `enable.auto.commit` as true to avoid blocking the poll loop.
+		"enable.auto.offset.store": false,
+		"enable.auto.commit":       true,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
@@ -89,9 +85,6 @@ func main() {
 	}
 
 	run := true
-	lastCommitAt := time.Now()
-	msgsSinceLastCommit := 0
-	var lastMessage *kafka.Message
 
 	for run == true {
 		select {
@@ -105,14 +98,6 @@ func main() {
 				continue
 			}
 
-			if now := time.Now(); now.Sub(lastCommitAt) > commitIntervalTimeout || msgsSinceLastCommit > commitIntervalMessages {
-				if _, err := c.CommitMessage(lastMessage); err != nil {
-					fmt.Fprintf(os.Stderr, "%% Error: %v\n", err)
-				}
-				lastCommitAt = now
-				msgsSinceLastCommit = 0
-			}
-
 			switch e := ev.(type) {
 			case *kafka.Message:
 				fmt.Printf("%% Message on %s:\n%s\n",
@@ -121,15 +106,20 @@ func main() {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
 
-				// We can do any async operation here, because the
-				// offset will not be commited until the next loop
-				// we can spend all the time will need in this step.
+				// We can do any long running async operation here, because the next
+				// offset will not be available for commit until we call `c.StoreOffsets(...)`
 				_ = e
-				// Then after a successful transaction we store the
-				// last message offset inside a variable to
-				// be committed in the next loop.
-				lastMessage = e
-				msgsSinceLastCommit++
+				// In this example we store the next offset that will be committed
+				// to the offset store according to `auto.commit.interval.ms` or manual
+				// offset-less Commit().
+				// In this example we choose to terminate
+				// the application if the offset can't be stored.
+				offsets := []kafka.TopicPartition{e.TopicPartition}
+				offsets[0].Offset++
+				if _, err = c.StoreOffsets(offsets); err != nil {
+					fmt.Fprintf(os.Stderr, "%% Error: %v\n", err)
+					run = false
+				}
 			case kafka.Error:
 				// Errors should generally be considered
 				// informational, the client will try to
