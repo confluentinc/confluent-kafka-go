@@ -1,0 +1,151 @@
+// Example function-based high-level Apache Kafka consumer
+package main
+
+/**
+ * Copyright 2016 Confluent Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// consumer_at_least_once_example implements a consumer using the non-channel Poll() API
+// to retrieve messages and events disabling the auto commit configuration.
+// The default Kafka’s consumer auto commit configuration can lead to potential data loss.
+// It has no idea what you do with the message, and it’s much more free about committing offsets.
+// As far as the consumer is concerned, as soon as a message is pulled in, it’s “processed.”
+// There aren’t any easy fixes here. Fundamentally, this is a problem of weak consistency guarantees.
+// This example ilustrates how to “roll your own” at-least-once strategy that would manually
+// commit offsets after the end of the processing pipeline.
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+)
+
+func main() {
+	var commitIntervalMessages int
+	flag.IntVar(&commitIntervalMessages, "commit.interval.messages", 10000, "Number of messages to process before each offset commit")
+
+	var commitIntervalTimeout time.Duration
+	flag.DurationVar(&commitIntervalTimeout, "commit.interval.timeout", 1*time.Minute, "The time to wait before the consumer offsets are committed (written) to offset storage.")
+
+	if len(os.Args) < 4 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <group> <topics..>\n",
+			os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	broker := os.Args[1]
+	group := os.Args[2]
+	topics := os.Args[3:]
+
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
+
+	c, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers": broker,
+		// Avoid connecting to IPv6 brokers:
+		// This is needed for the ErrAllBrokersDown show-case below
+		// when using localhost brokers on OSX, since the OSX resolver
+		// will return the IPv6 addresses first.
+		// You typically don't need to specify this configuration property.
+		"broker.address.family": "v4",
+		"group.id":              group,
+		"session.timeout.ms":    6000,
+		"auto.offset.reset":     "earliest",
+
+		// We will commit the offset manually.
+		"enable.auto.commit": false,
+		// Number of messages to be buffered.
+		"queued.min.messages": 10000,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Created Consumer %v\n", c)
+
+	err = c.SubscribeTopics(topics, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe topics: %s\n", err)
+		os.Exit(1)
+	}
+
+	run := true
+	lastCommitAt := time.Now()
+	msgsSinceLastCommit := 0
+	var lastMessage *kafka.Message
+
+	for run == true {
+		select {
+		case sig := <-sigchan:
+			fmt.Printf("Caught signal %v: terminating\n", sig)
+			run = false
+
+		default:
+			ev := c.Poll(100)
+			if ev == nil {
+				continue
+			}
+
+			if now := time.Now(); now.Sub(lastCommitAt) > commitIntervalTimeout || msgsSinceLastCommit > commitIntervalMessages {
+				if _, err := c.CommitMessage(lastMessage); err != nil {
+					fmt.Fprintf(os.Stderr, "%% Error: %v\n", err)
+				}
+				lastCommitAt = now
+				msgsSinceLastCommit = 0
+			}
+
+			switch e := ev.(type) {
+			case *kafka.Message:
+				fmt.Printf("%% Message on %s:\n%s\n",
+					e.TopicPartition, string(e.Value))
+				if e.Headers != nil {
+					fmt.Printf("%% Headers: %v\n", e.Headers)
+				}
+
+				// We can do any async operation here, because the
+				// offset will not be commited until the next loop
+				// we can spend all the time will need in this step.
+				_ = e
+				// Then after a successful transaction we store the
+				// last message offset inside a variable to
+				// be committed in the next loop.
+				lastMessage = e
+				msgsSinceLastCommit++
+			case kafka.Error:
+				// Errors should generally be considered
+				// informational, the client will try to
+				// automatically recover.
+				// But in this example we choose to terminate
+				// the application if all brokers are down.
+				fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+				if e.Code() == kafka.ErrAllBrokersDown {
+					run = false
+				}
+			default:
+				fmt.Printf("Ignored %v\n", e)
+			}
+		}
+	}
+
+	fmt.Printf("Closing consumer\n")
+	c.Close()
+}
