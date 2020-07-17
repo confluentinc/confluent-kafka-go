@@ -20,8 +20,9 @@
 //
 // High-level Consumer
 //
-// * Decide if you want to read messages and events from the `.Events()` channel
-// (set `"go.events.channel.enable": true`) or by calling `.Poll()`.
+// * Decide if you want to read messages and events by calling `.Poll()` or 
+// the deprecated option of using the `.Events()` channel. (If you want to use
+// `.Events()` channel then set `"go.events.channel.enable": true`).
 //
 // * Create a Consumer with `kafka.NewConsumer()` providing at
 // least the `bootstrap.servers` and `group.id` configuration properties.
