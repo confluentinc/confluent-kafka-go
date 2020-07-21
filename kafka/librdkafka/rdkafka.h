@@ -55,13 +55,16 @@ extern "C" {
 #endif
 #endif
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <basetsd.h>
 #ifndef WIN32_MEAN_AND_LEAN
 #define WIN32_MEAN_AND_LEAN
 #endif
-#include <Winsock2.h>  /* for sockaddr, .. */
+#include <winsock2.h>  /* for sockaddr, .. */
+#ifndef _SSIZE_T_DEFINED
+#define _SSIZE_T_DEFINED
 typedef SSIZE_T ssize_t;
+#endif
 #define RD_UNUSED
 #define RD_INLINE __inline
 #define RD_DEPRECATED __declspec(deprecated)
@@ -148,7 +151,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION  0x010402ff
+#define RD_KAFKA_VERSION  0x010500ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -238,7 +241,7 @@ typedef struct rd_kafka_topic_result_s rd_kafka_topic_result_t;
 typedef struct rd_kafka_consumer_group_metadata_s
 rd_kafka_consumer_group_metadata_t;
 typedef struct rd_kafka_error_s rd_kafka_error_t;
-
+typedef struct rd_kafka_headers_s rd_kafka_headers_t;
 /* @endcond */
 
 
@@ -1038,6 +1041,36 @@ typedef enum rd_kafka_vtype_t {
 
 
 /**
+ * @brief VTYPE + argument container for use with rd_kafka_produce_va()
+ *
+ * See RD_KAFKA_V_..() macros below for which union field corresponds
+ * to which RD_KAFKA_VTYPE_...
+ */
+typedef struct rd_kafka_vu_s {
+        rd_kafka_vtype_t vtype;           /**< RD_KAFKA_VTYPE_.. */
+        /** Value union, see RD_KAFKA_V_.. macros for which field to use. */
+        union {
+                const char *cstr;
+                rd_kafka_topic_t *rkt;
+                int i;
+                int32_t i32;
+                int64_t i64;
+                struct {
+                        void *ptr;
+                        size_t size;
+                } mem;
+                struct {
+                        const char *name;
+                        const void *val;
+                        ssize_t size;
+                } header;
+                rd_kafka_headers_t *headers;
+                void *ptr;
+                char _pad[64];  /**< Padding size for future-proofness */
+        } u;
+} rd_kafka_vu_t;
+
+/**
  * @brief Convenience macros for rd_kafka_vtype_t that takes the
  *        correct arguments for each vtype.
  */
@@ -1049,30 +1082,40 @@ typedef enum rd_kafka_vtype_t {
 
 /*!
  * Topic name (const char *)
+ *
+ * rd_kafka_vu_t field: u.cstr
  */
 #define RD_KAFKA_V_TOPIC(topic)                                         \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_TOPIC, const char *, topic),      \
         (const char *)topic
 /*!
  * Topic object (rd_kafka_topic_t *)
+ *
+ * rd_kafka_vu_t field: u.rkt
  */
 #define RD_KAFKA_V_RKT(rkt)                                             \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_RKT, rd_kafka_topic_t *, rkt),    \
         (rd_kafka_topic_t *)rkt
 /*!
  * Partition (int32_t)
+ *
+ * rd_kafka_vu_t field: u.i32
  */
 #define RD_KAFKA_V_PARTITION(partition)                                 \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_PARTITION, int32_t, partition),   \
         (int32_t)partition
 /*!
  * Message value/payload pointer and length (void *, size_t)
+ *
+ * rd_kafka_vu_t fields: u.mem.ptr, u.mem.size
  */
 #define RD_KAFKA_V_VALUE(VALUE,LEN)                                     \
         _LRK_TYPECHECK2(RD_KAFKA_VTYPE_VALUE, void *, VALUE, size_t, LEN), \
         (void *)VALUE, (size_t)LEN
 /*!
  * Message key pointer and length (const void *, size_t)
+ *
+ * rd_kafka_vu_t field: u.mem.ptr, rd_kafka_vu.t.u.mem.size
  */
 #define RD_KAFKA_V_KEY(KEY,LEN)                                         \
         _LRK_TYPECHECK2(RD_KAFKA_VTYPE_KEY, const void *, KEY, size_t, LEN), \
@@ -1081,6 +1124,8 @@ typedef enum rd_kafka_vtype_t {
  * Message opaque pointer (void *)
  * Same as \c msg_opaque, \c produce(.., msg_opaque),
  * and \c rkmessage->_private .
+ *
+ * rd_kafka_vu_t field: u.ptr
  */
 #define RD_KAFKA_V_OPAQUE(msg_opaque)                                   \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_OPAQUE, void *, msg_opaque),      \
@@ -1088,6 +1133,8 @@ typedef enum rd_kafka_vtype_t {
 /*!
  * Message flags (int)
  * @sa RD_KAFKA_MSG_F_COPY, et.al.
+ *
+ * rd_kafka_vu_t field: u.i
  */
 #define RD_KAFKA_V_MSGFLAGS(msgflags)                                 \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_MSGFLAGS, int, msgflags),       \
@@ -1095,6 +1142,8 @@ typedef enum rd_kafka_vtype_t {
 /*!
  * Timestamp in milliseconds since epoch UTC (int64_t).
  * A value of 0 will use the current wall-clock time.
+ *
+ * rd_kafka_vu_t field: u.i64
  */
 #define RD_KAFKA_V_TIMESTAMP(timestamp)                                 \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_TIMESTAMP, int64_t, timestamp),   \
@@ -1104,6 +1153,8 @@ typedef enum rd_kafka_vtype_t {
  * @sa rd_kafka_header_add()
  * @remark RD_KAFKA_V_HEADER() and RD_KAFKA_V_HEADERS() MUST NOT be mixed
  *         in the same call to producev().
+ *
+ * rd_kafka_vu_t fields: u.header.name, u.header.val, u.header.size
  */
 #define RD_KAFKA_V_HEADER(NAME,VALUE,LEN)                               \
         _LRK_TYPECHECK3(RD_KAFKA_VTYPE_HEADER, const char *, NAME,      \
@@ -1118,6 +1169,8 @@ typedef enum rd_kafka_vtype_t {
  * @sa rd_kafka_message_set_headers()
  * @remark RD_KAFKA_V_HEADER() and RD_KAFKA_V_HEADERS() MUST NOT be mixed
  *         in the same call to producev().
+ *
+ * rd_kafka_vu_t fields: u.headers
  */
 #define RD_KAFKA_V_HEADERS(HDRS)                                        \
         _LRK_TYPECHECK(RD_KAFKA_VTYPE_HEADERS, rd_kafka_headers_t *, HDRS), \
@@ -1146,8 +1199,6 @@ typedef enum rd_kafka_vtype_t {
  *        Header operations are O(n).
  */
 
-/*! Message Headers list */
-typedef struct rd_kafka_headers_s rd_kafka_headers_t;
 
 /**
  * @brief Create a new headers list.
@@ -1331,18 +1382,8 @@ void rd_kafka_message_destroy(rd_kafka_message_t *rkmessage);
  *
  * @remark This function MUST NOT be used with the producer.
  */
-static RD_INLINE const char *
-RD_UNUSED
-rd_kafka_message_errstr(const rd_kafka_message_t *rkmessage) {
-	if (!rkmessage->err)
-		return NULL;
-
-	if (rkmessage->payload)
-		return (const char *)rkmessage->payload;
-
-	return rd_kafka_err2str(rkmessage->err);
-}
-
+RD_EXPORT
+const char *rd_kafka_message_errstr (const rd_kafka_message_t *rkmessage);
 
 
 /**
@@ -1370,6 +1411,16 @@ int64_t rd_kafka_message_timestamp (const rd_kafka_message_t *rkmessage,
  */
 RD_EXPORT
 int64_t rd_kafka_message_latency (const rd_kafka_message_t *rkmessage);
+
+
+/**
+ * @brief Returns the broker id of the broker the message was produced to
+ *        or fetched from.
+ *
+ * @returns a broker id if known, else -1.
+ */
+RD_EXPORT
+int32_t rd_kafka_message_broker_id (const rd_kafka_message_t *rkmessage);
 
 
 /**
@@ -2022,7 +2073,7 @@ rd_kafka_conf_set_closesocket_cb (rd_kafka_conf_t *conf,
 
 
 
-#ifndef _MSC_VER
+#ifndef _WIN32
 /**
  * @brief Set open callback.
  *
@@ -3505,6 +3556,16 @@ rd_kafka_offsets_store (rd_kafka_t *rk,
  *         and then start fetching messages. This cycle may take up to
  *         \c session.timeout.ms * 2 or more to complete.
  *
+ * @remark A consumer error will be raised for each unavailable topic in the
+ *         \p topics. The error will be RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART
+ *         for non-existent topics, and
+ *         RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED for unauthorized topics.
+ *         The consumer error will be raised through rd_kafka_consumer_poll()
+ *         (et.al.) with the \c rd_kafka_message_t.err field set to one of the
+ *         error codes mentioned above.
+ *         The subscribe function itself is asynchronous and will not return
+ *         an error on unavailable topics.
+ *
  * @returns RD_KAFKA_RESP_ERR_NO_ERROR on success or
  *          RD_KAFKA_RESP_ERR__INVALID_ARG if list is empty, contains invalid
  *          topics or regexes,
@@ -3910,7 +3971,12 @@ rd_kafka_consumer_group_metadata_read (
  *                               partition, either set manually or by the
  *                               configured partitioner.
  *
- *    .._F_FREE and .._F_COPY are mutually exclusive.
+ *    .._F_FREE and .._F_COPY are mutually exclusive. If neither of these are
+ *    set, the caller must ensure that the memory backing \p payload remains
+ *    valid and is not modified or reused until the delivery callback is
+ *    invoked. Other buffers passed to `rd_kafka_produce()` don't have this
+ *    restriction on reuse, i.e. the memory backing the key or the topic name
+ *    may be reused as soon as `rd_kafka_produce()` returns.
  *
  *    If the function returns -1 and RD_KAFKA_MSG_F_FREE was specified, then
  *    the memory associated with the payload is still the caller's
@@ -3972,10 +4038,27 @@ int rd_kafka_produce(rd_kafka_topic_t *rkt, int32_t partition,
  *          \c RD_KAFKA_RESP_ERR__CONFLICT is returned if _V_HEADER and
  *          _V_HEADERS are mixed.
  *
- * @sa rd_kafka_produce, RD_KAFKA_V_END
+ * @sa rd_kafka_produce, rd_kafka_produceva, RD_KAFKA_V_END
  */
 RD_EXPORT
 rd_kafka_resp_err_t rd_kafka_producev (rd_kafka_t *rk, ...);
+
+
+/**
+ * @brief Produce and send a single message to broker.
+ *
+ * The message is defined by an array of \c rd_kafka_vu_t of
+ * count \p cnt.
+ *
+ * @returns an error object on failure or NULL on success.
+ *          See rd_kafka_producev() for specific error codes.
+ *
+ * @sa rd_kafka_produce, rd_kafka_producev, RD_KAFKA_V_END
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_produceva (rd_kafka_t *rk,
+                                      const rd_kafka_vu_t *vus,
+                                      size_t cnt);
 
 
 /**
@@ -4171,9 +4254,13 @@ typedef struct rd_kafka_metadata {
  *                   with rd_kafka_metadata_destroy().
  *  - \p timeout_ms  maximum response time before failing.
  *
- * Returns RD_KAFKA_RESP_ERR_NO_ERROR on success (in which case *metadatap)
- * will be set, else RD_KAFKA_RESP_ERR__TIMED_OUT on timeout or
- * other error code on error.
+ * @remark Consumer: If \p all_topics is non-zero the Metadata response
+ *         information may trigger a re-join if any subscribed topics
+ *         have changed partition count or existence state.
+ *
+ * @returns RD_KAFKA_RESP_ERR_NO_ERROR on success (in which case *metadatap)
+ *          will be set, else RD_KAFKA_RESP_ERR__TIMED_OUT on timeout or
+ *          other error code on error.
  */
 RD_EXPORT
 rd_kafka_resp_err_t
@@ -4676,6 +4763,22 @@ void *rd_kafka_event_opaque (rd_kafka_event_t *rkev);
 RD_EXPORT
 int rd_kafka_event_log (rd_kafka_event_t *rkev,
 			const char **fac, const char **str, int *level);
+
+
+/**
+ * @brief Extract log debug context from event.
+ *
+ * Event types:
+ *  - RD_KAFKA_EVENT_LOG
+ *
+ *  @param rkev the event to extract data from.
+ *  @param dst destination string for comma separated list.
+ *  @param dstsize size of provided dst buffer.
+ *  @returns 0 on success or -1 if unsupported event type.
+ */
+RD_EXPORT
+int rd_kafka_event_debug_contexts (rd_kafka_event_t *rkev,
+            char *dst, size_t dstsize);
 
 
 /**
@@ -6634,7 +6737,7 @@ rd_kafka_oauthbearer_set_token_failure (rd_kafka_t *rk, const char *errstr);
  * transactional messages issued by this producer instance.
  *
  * Upon successful return from this function the application has to perform at
- * least one of the following operations within \c transactional.timeout.ms to
+ * least one of the following operations within \c transaction.timeout.ms to
  * avoid timing out the transaction on the broker:
  *   * rd_kafka_produce() (et.al)
  *   * rd_kafka_send_offsets_to_transaction()
