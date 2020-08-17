@@ -4,33 +4,8 @@
 VERSION=v1.5.0
 SRC_DIR=/mingw64/src/github.com/edenhill
 
-RENAMED=0
-function rename {
-	# Hide these from cmake because we want the static libs
-	pushd /mingw64/lib
-	mv libzstd.dll.a libzstd.dll.a~
-	mv libcrypto.dll.a libcrypto.dll.a~
-	mv liblz4.dll.a liblz4.dll.a~
-	popd
-	RENAMED=1
-}
-
-function derename {
-	# Put these back
-	pushd /mingw64/lib
-	mv libzstd.dll.a~ libzstd.dll.a
-	mv libcrypto.dll.a~ libcrypto.dll.a
-	mv liblz4.dll.a~ liblz4.dll.a
-	popd
-	RENAMED=0
-}
-
 function errorcheck {
-	if [ $? -ne 0 ]; then		
-		if [ $RENAMED -eq 1 ]; then
-			derename
-		fi
-
+	if [ $? -ne 0 ]; then
 		read -p "Press Enter to exit"
 		exit 1
 	fi
@@ -56,8 +31,7 @@ cmake \
     -D WITH_ZLIB=OFF \
     -D RDKAFKA_BUILD_STATIC=ON \
 	-D RDKAFKA_BUILD_EXAMPLES=OFF \
-	-D RDKAFKA_BUILD_TESTS=OFF \
-    -D CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE .
+	-D RDKAFKA_BUILD_TESTS=OFF .
 errorcheck
 
 mingw32-make
@@ -73,8 +47,8 @@ cat >../build_windows.go <<EOF
 
 package kafka
 
-// #cgo CFLAGS: -I\${SRCDIR}
-// #cgo LDFLAGS: \${SRCDIR}/librdkafka/librdkafka_windows.a
+// #cgo CFLAGS: -I\${SRCDIR} -DLIBRDKAFKA_STATICLIB
+// #cgo LDFLAGS: \${SRCDIR}/librdkafka/librdkafka_windows.a -lws2_32 -lcrypto -lzstd -lssl -llz4 -lsasl2 -lsecur32 -lcrypt32
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
