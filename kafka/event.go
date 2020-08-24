@@ -255,7 +255,19 @@ out:
 				retval = fatalErr
 
 			} else {
-				retval = newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
+				errstr := newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
+				crktpar := C.rd_kafka_event_topic_partition(rkev)
+				if crktpar == nil {
+					retval = errstr
+				} else {
+					// Return a Message with only TopicPartition set, with the error
+					// in TopicPartition.Error
+					defer C.rd_kafka_topic_partition_destroy(crktpar)
+					msg := &Message{}
+					setupTopicPartitionFromCrktpar(&msg.TopicPartition, crktpar)
+					msg.TopicPartition.Error = errstr
+					retval = msg
+				}
 			}
 
 		case C.RD_KAFKA_EVENT_STATS:
