@@ -7,6 +7,7 @@ import (
 
 /*
 #include "rdkafka_select.h"
+#include <stdlib.h>
 */
 import "C"
 
@@ -43,22 +44,15 @@ func (h *handle) newLogEvent(cEvent *C.rd_kafka_event_t) LogEvent {
 
 // pollLogEvents polls log events from librdkafka and pushes them to toChannel,
 // until doneChan is closed.
-//
-// Each call to librdkafka times out after timeoutMs. If a call to librdkafka
-// is ongoing when doneChan is closed, the function will wait until the call
-// returns or times out, whatever happens first.
-func (h *handle) pollLogEvents(toChannel chan LogEvent, timeoutMs int, doneChan chan bool) {
+func (h *handle) pollLogEvents(toChannel chan LogEvent, doneChan chan bool) {
 	for {
-		select {
-		case <-doneChan:
-			return
-
-		default:
-			cEvent := C.rd_kafka_queue_poll(h.logq, C.int(timeoutMs))
+		// Loop until we get nil out of rd_kafka_queue_poll, which means there are no logs
+		// for now without blocking.
+		for {
+			cEvent := C.rd_kafka_queue_poll(h.logq, 0)
 			if cEvent == nil {
-				continue
+				break
 			}
-
 			if C.rd_kafka_event_type(cEvent) != C.RD_KAFKA_EVENT_LOG {
 				C.rd_kafka_event_destroy(cEvent)
 				continue
@@ -70,10 +64,17 @@ func (h *handle) pollLogEvents(toChannel chan LogEvent, timeoutMs int, doneChan 
 			select {
 			case <-doneChan:
 				return
-
 			case toChannel <- logEvent:
 				continue
 			}
+
+		}
+
+		// Then, block until we get woken up by the IO triggering
+		select {
+		case <-doneChan:
+			return
+		case <-h.logIOPollTrigger.notifyChan:
 		}
 	}
 }
