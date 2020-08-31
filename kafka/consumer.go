@@ -425,11 +425,11 @@ func (c *Consumer) Close() (err error) {
 //                                        If set to true the app must handle the AssignedPartitions and
 //                                        RevokedPartitions events and call Assign() and Unassign()
 //                                        respectively.
-//   go.enable.read.from.partition.queues (bool, false) - Enables to read messages by each partition.
+//   go.enable.read.from.partition.queues (bool, false) - Enables to read messages by each partition. (Experimental)
 //											If set to true, and Assign() is called, ReadFromPartition() must be used to receive kafka messages.
 //											Poll will only receive other kafka events.
 //											Call Unassign() to cleanup the partition queues.
-//   go.events.channel.enable (bool, false) - Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled. (Experimental)
+//   go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
 //   go.events.channel.size (int, 1000) - Events() channel size
 //   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
 //   go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
@@ -657,7 +657,7 @@ func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offset
 // Typical use is to call Assignment() to get the partition list
 // and then pass it to Position() to get the current consume position for
 // each of the assigned partitions.
-// The conusme position is the next message to read from the partition.
+// The consume position is the next message to read from the partition.
 // i.e., the offset of the last message seen by the application + 1.
 func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartition, err error) {
 	cparts := newCPartsFromTopicPartitions(partitions)

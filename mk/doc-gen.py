@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
-        'godoc -url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka | grep -v "^using module mode"', shell=True)
+        'godoc -url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka | egrep -v "^using (GOPATH|module) mode"', shell=True)
 
     # Parse HTML
     soup = BeautifulSoup(html_in, 'html.parser')

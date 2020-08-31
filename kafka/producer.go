@@ -710,7 +710,7 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 // transactional messages issued by this producer instance.
 //
 // Upon successful return from this function the application has to perform at
-// least one of the following operations within `transactional.timeout.ms` to
+// least one of the following operations within `transaction.timeout.ms` to
 // avoid timing out the transaction on the broker:
 //  * `Produce()` (et.al)
 //  * `SendOffsetsToTransaction()`

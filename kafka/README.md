@@ -44,16 +44,21 @@ $ go test -coverprofile=coverage.out -bench=.
 $ go tool cover -func=coverage.out
 ```
 
-## Build tags (static linking)
 
+## Build tags
 
 Different build types are supported through Go build tags (`-tags ..`),
-these tags should be specified on the **application** build command.
+these tags should be specified on the **application** build/get/install command.
 
- * `static` - Build with librdkafka linked statically (but librdkafka
-              dependencies linked dynamically).
- * `static_all` - Build with all libraries linked statically.
- * neither - Build with librdkafka (and its dependencies) linked dynamically.
+ * By default the bundled platform-specific static build of librdkafka will
+   be used. This works out of the box on Mac OSX and glibc-based Linux distros,
+   such as Ubuntu and CentOS.
+ * `-tags musl` - must be specified when building on/for musl-based Linux
+   distros, such as Alpine. Will use the bundled static musl build of
+   librdkafka.
+ * `-tags dynamic` - link librdkafka dynamically. A shared librdkafka library
+   must be installed manually through other means (apt-get, yum, build from
+   source, etc).
 
 
 
@@ -74,12 +79,9 @@ $ make -f mk/Makefile docs
 
 For each release candidate and final release, perform the following steps:
 
-### Install librdkafka
+### Update bundle to latest librdkafka
 
-Make sure the librdkafka version installed is the version this release
-is aimed to be used with.
-
-E.g., confluent-kafka-go v1.3.0 will require librdkafka v1.3.0.
+See instructions in [kafka/librdkafka/README.md](kafka/librdkafka/README.md).
 
 
 ### Update librdkafka version requirement
