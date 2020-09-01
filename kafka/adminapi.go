@@ -25,7 +25,7 @@ import (
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "rdkafka_select.h"
 #include <stdlib.h>
 
 static const rd_kafka_topic_result_t *

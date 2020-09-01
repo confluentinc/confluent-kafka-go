@@ -14,7 +14,7 @@ set -e
 usage() {
     echo "Usage: $0 [--devel] path/to/librdkafka-static-bundle-<VERSION>.tgz"
     echo ""
-    echo "This tool must be run from the TOPDIR/kafka/librdkafka directory"
+    echo "This tool must be run from the TOPDIR/kafka/librdkafka_vendor directory"
     echo ""
     echo "Options:"
     echo "  --devel  - Development use: No branch checks and does not push to github"

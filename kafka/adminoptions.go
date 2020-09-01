@@ -23,7 +23,7 @@ import (
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "rdkafka_select.h"
 #include <stdlib.h>
 */
 import "C"

@@ -25,7 +25,7 @@ import (
 /*
 #include <string.h>
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "rdkafka_select.h"
 #include "glue_rdkafka.h"
 
 void setup_rkmessage (rd_kafka_message_t *rkmessage,

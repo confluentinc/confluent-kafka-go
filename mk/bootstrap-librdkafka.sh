@@ -22,8 +22,8 @@ if [[ $PREFIXDIR != /* ]]; then
     PREFIXDIR="$PWD/$PREFIXDIR"
 fi
 
-mkdir -p "$PREFIXDIR/librdkafka"
-pushd "$PREFIXDIR/librdkafka"
+mkdir -p "$PREFIXDIR/librdkafka_vendor"
+pushd "$PREFIXDIR/librdkafka_vendor"
 
 test -f configure ||
 curl -sL "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \

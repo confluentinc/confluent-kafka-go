@@ -6,7 +6,7 @@ import (
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "rdkafka_select.h"
 */
 import "C"
 
