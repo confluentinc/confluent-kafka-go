@@ -38,7 +38,7 @@ function errorcheck {
 	fi
 }
 
-pacman -S --noconfirm --needed git mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-cyrus-sasl
+pacman -S --noconfirm --needed git mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-zstd mingw-w64-x86_64-openssl mingw-w64-x86_64-lz4
 errorcheck
 
 mkdir -p $SRC_DIR
@@ -50,6 +50,9 @@ errorcheck
 rename
 
 cd librdkafka
+
+# WITH_SASL=OFF because we don't want cmake searching in the MinGW install
+# for SASL libs, since Win32 SASL is handled natively
 cmake \
     -G "MinGW Makefiles" \
     -D WITHOUT_WIN32_CONFIG=ON  \
