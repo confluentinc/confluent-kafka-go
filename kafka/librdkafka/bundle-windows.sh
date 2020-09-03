@@ -4,8 +4,35 @@
 VERSION=v1.5.0
 SRC_DIR=/mingw64/src/github.com/edenhill
 
+RENAMED=0
+function rename {
+	# Hide these from cmake because we want the static libs
+	pushd /mingw64/lib
+	mv libzstd.dll.a libzstd.dll.a~
+	mv libcrypto.dll.a libcrypto.dll.a~
+	mv liblz4.dll.a liblz4.dll.a~
+	mv libssl.dll.a libssl.dll.a~
+	popd
+	RENAMED=1
+}
+
+function derename {
+	# Put these back
+	pushd /mingw64/lib
+	mv libzstd.dll.a~ libzstd.dll.a
+	mv libcrypto.dll.a~ libcrypto.dll.a
+	mv liblz4.dll.a~ liblz4.dll.a
+	mv libssl.dll.a~ libssl.dll.a
+	popd
+	RENAMED=0
+}
+
 function errorcheck {
-	if [ $? -ne 0 ]; then
+	if [ $? -ne 0 ]; then		
+		if [ $RENAMED -eq 1 ]; then
+			derename
+		fi
+
 		read -p "Press Enter to exit"
 		exit 1
 	fi
@@ -20,13 +47,15 @@ rm -rf librdkafka
 git clone --depth 1 --branch $VERSION https://github.com/edenhill/librdkafka.git
 errorcheck
 
+rename
+
 cd librdkafka
 cmake \
     -G "MinGW Makefiles" \
     -D WITHOUT_WIN32_CONFIG=ON  \
     -D WITH_LIBDL=OFF \
     -D WITH_PLUGINS=OFF \
-    -D WITH_SASL=ON \
+    -D WITH_SASL=OFF \
     -D WITH_SSL=ON \
     -D WITH_ZLIB=OFF \
     -D RDKAFKA_BUILD_STATIC=ON \
@@ -38,7 +67,24 @@ mingw32-make
 errorcheck
 
 popd
-cp $SRC_DIR/librdkafka/src/librdkafka.a ./librdkafka_windows.a
+
+mkdir -p mergescratch
+pushd mergescratch
+
+cp /mingw64/lib/libzstd.a ./
+cp /mingw64/lib/libcrypto.a ./
+cp /mingw64/lib/liblz4.a ./
+cp /mingw64/lib/libssl.a ./
+cp $SRC_DIR/librdkafka/src/librdkafka.a ./
+
+ar -M < ../librdkafka_windows.mri
+errorcheck
+
+cp ./librdkafka_windows.a ../
+
+popd
+rm -rf mergescratch
+
 cat >../build_windows.go <<EOF
 // +build !dynamic
 
@@ -48,11 +94,13 @@ cat >../build_windows.go <<EOF
 package kafka
 
 // #cgo CFLAGS: -I\${SRCDIR} -DLIBRDKAFKA_STATICLIB
-// #cgo LDFLAGS: \${SRCDIR}/librdkafka/librdkafka_windows.a -lws2_32 -lcrypto -lzstd -lssl -llz4 -lsasl2 -lsecur32 -lcrypt32
+// #cgo LDFLAGS: \${SRCDIR}/librdkafka/librdkafka_windows.a -lws2_32 -lsecur32 -lcrypt32
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
 const LibrdkafkaLinkInfo = "static windows built with Mingw-w64"
 EOF
+
+derename
 
 exit

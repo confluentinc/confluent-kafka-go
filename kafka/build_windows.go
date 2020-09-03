@@ -6,7 +6,7 @@
 package kafka
 
 // #cgo CFLAGS: -I${SRCDIR} -DLIBRDKAFKA_STATICLIB
-// #cgo LDFLAGS: ${SRCDIR}/librdkafka/librdkafka_windows.a -lws2_32 -lcrypto -lzstd -lssl -llz4 -lsasl2 -lsecur32 -lcrypt32
+// #cgo LDFLAGS: ${SRCDIR}/librdkafka/librdkafka_windows.a -lws2_32 -lsecur32 -lcrypt32
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client

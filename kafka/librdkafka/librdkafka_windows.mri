@@ -1,0 +1,8 @@
+create librdkafka_windows.a
+addlib librdkafka.a
+addlib libzstd.a
+addlib libcrypto.a
+addlib liblz4.a
+addlib libssl.a
+save
+end
