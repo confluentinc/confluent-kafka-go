@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -853,4 +854,16 @@ func NewTestConsumerGroupMetadata(groupID string) (*ConsumerGroupMetadata, error
 	}
 
 	return &ConsumerGroupMetadata{serialized}, nil
+}
+
+// RefreshSSL will ask librdkafka to re-read certificates off disk.
+func (c *Consumer) RefreshSSL() error {
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+	cErr := C.rd_kafka_ssl_refresh(c.handle.rk, cErrstr, cErrstrSize)
+	if cErr != 0 {
+		return errors.New(C.GoString(cErrstr))
+	}
+	return nil
 }
