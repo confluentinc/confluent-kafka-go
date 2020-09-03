@@ -79,6 +79,12 @@ type Handle interface {
 	gethandle() *handle
 }
 
+// key for rkqtAssignedPartitions
+type topicPartitionKey struct {
+	Topic     string
+	Partition int32
+}
+
 // Common instance handle for both Producer and Consumer
 type handle struct {
 	rk  *C.rd_kafka_t
@@ -95,6 +101,10 @@ type handle struct {
 	rktCache map[string]*C.rd_kafka_topic_t
 	// rkt -> topic name cache
 	rktNameCache map[*C.rd_kafka_topic_t]string
+
+	// topic partition - rkqt
+	// to store partition queues for currently assigned partitions
+	rkqtAssignedPartitions map[topicPartitionKey]*handleIOTrigger
 
 	// Cached instance name to avoid CGo call in String()
 	name string
@@ -137,6 +147,7 @@ func (h *handle) String() string {
 func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
+	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*handleIOTrigger)
 	h.cgomap = make(map[int]cgoif)
 	h.name = C.GoString(C.rd_kafka_name(h.rk))
 }
@@ -156,6 +167,17 @@ func (h *handle) cleanup() {
 	if h.rkq != nil {
 		C.rd_kafka_queue_destroy(h.rkq)
 	}
+
+	h.closePartitionQueues()
+}
+
+func (h *handle) closePartitionQueues() {
+	for _, parQueueTrigger := range h.rkqtAssignedPartitions {
+		parQueueTrigger.stop()
+		C.rd_kafka_queue_destroy(parQueueTrigger.rkq)
+	}
+
+	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*handleIOTrigger)
 }
 
 func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) error {
@@ -238,6 +260,37 @@ func (h *handle) getTopicNameFromRkt(crkt *C.rd_kafka_topic_t) (topic string) {
 	crkt = h.getRkt0(topic, ctopic, false /* dont lock */)
 
 	return topic
+}
+
+// disablePartitionQueueForwarding disables forwarding messages from the topic
+// partition queue to consumer queue.
+// Stores C rd_kafka_queue_t object in rkqtAssignedPartitions
+func (h *handle) disablePartitionQueueForwarding(topic string, partition int32) {
+	partitionQueue := C.rd_kafka_queue_get_partition(h.rk, C.CString(topic), C.int32_t(partition))
+	if partitionQueue == nil {
+		return
+	}
+
+	C.rd_kafka_queue_forward(partitionQueue, nil)
+
+	ioHandle, err := startIOTrigger(partitionQueue)
+	if err != nil {
+		return
+	}
+
+	tp := topicPartitionKey{
+		Topic:     topic,
+		Partition: partition,
+	}
+	h.rkqtAssignedPartitions[tp] = ioHandle
+}
+
+func (h *handle) getAssignedPartitionQueue(topic string, partition int32) *handleIOTrigger {
+	tp := topicPartitionKey{
+		Topic:     topic,
+		Partition: partition,
+	}
+	return h.rkqtAssignedPartitions[tp]
 }
 
 // cgoif is a generic interface for holding Go state passed as opaque

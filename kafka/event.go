@@ -142,22 +142,13 @@ func (o OAuthBearerTokenRefresh) String() string {
 	return "OAuthBearerTokenRefresh"
 }
 
-// eventPollContext waits for a single "returnable" event on the underlying
-// rd_kafka_queue_t queue and returns it. It uses the ioPollTrigger channel
-// on h to be notified of any new event by librdkafka.
-//
-// An event is considered "returnable" if it is _not_ internally processed by
-// processRkevToGoEvent.
-//
-// returns (event Event, terminate Bool) tuple, where Terminate indicates
-// if the context was canceled
-func (h *handle) eventPollContext(ctx context.Context) (Event, bool) {
+func (h *handle) eventPollQueueContext(ctx context.Context, trigger *handleIOTrigger) (Event, bool) {
 	for {
 		// Check if there's a message already
 		for {
 			var evtype C.rd_kafka_event_type_t
 			var fcMsg C.fetched_c_msg_t
-			rkev := C._rk_queue_poll(h.rkq, 0, &evtype, &fcMsg)
+			rkev := C._rk_queue_poll(trigger.rkq, 0, &evtype, &fcMsg)
 
 			if evtype == C.RD_KAFKA_EVENT_NONE {
 				// We drained the queue and found nothing, now we must wait
@@ -174,10 +165,26 @@ func (h *handle) eventPollContext(ctx context.Context) (Event, bool) {
 		select {
 		case <-ctx.Done():
 			return nil, true
-		case <-h.ioPollTrigger.notifyChan:
+		case _, ok := <-trigger.notifyChan:
+			if !ok {
+				return nil, false
+			}
 			// Triggered, go back into check loop.
 		}
 	}
+}
+
+// eventPollContext waits for a single "returnable" event on the underlying
+// rd_kafka_queue_t queue and returns it. It uses the ioPollTrigger channel
+// on h to be notified of any new event by librdkafka.
+//
+// An event is considered "returnable" if it is _not_ internally processed by
+// processRkevToGoEvent.
+//
+// returns (event Event, terminate Bool) tuple, where Terminate indicates
+// if the context was canceled
+func (h *handle) eventPollContext(ctx context.Context) (Event, bool) {
+	return h.eventPollQueueContext(ctx, h.ioPollTrigger)
 }
 
 // processRkevToGoEvent handles events coming out of librdkafka from the rd_kafka_poll call in
