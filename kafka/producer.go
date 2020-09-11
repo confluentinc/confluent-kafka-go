@@ -531,10 +531,13 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_DR|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
+	p.handle.setupGlobalCgoMap()
+	C.rd_kafka_conf_set_opaque(cConf, p.handle.globalCgoPointer)
 
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if p.handle.rk == nil {
+		p.handle.cleanup()
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 

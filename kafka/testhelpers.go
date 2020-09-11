@@ -33,6 +33,7 @@ import "C"
 
 var testconf struct {
 	Brokers      string
+	TLSBrokers   string
 	Topic        string
 	GroupID      string
 	PerfMsgCount int

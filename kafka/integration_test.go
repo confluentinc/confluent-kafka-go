@@ -18,8 +18,11 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"path"
 	"reflect"
@@ -1758,4 +1761,105 @@ func TestAdminClient_ControllerID(t *testing.T) {
 	}
 
 	t.Logf("ControllerID: %d\n", controllerID)
+}
+
+func TestTLSStaticCerts(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+	if testconf.TLSBrokers == "" {
+		t.Skipf("Missing TLSBrokers in testconf.json")
+	}
+
+	config := &ConfigMap{
+		"bootstrap.servers":                     testconf.TLSBrokers,
+		"security.protocol":                     "SSL",
+		"ssl.certificate.location":              "test_certs/kafka-client-cert.pem",
+		"ssl.key.location":                      "test_certs/kafka-client-key.pem",
+		"ssl.ca.location":                       "test_certs/ca-cert.pem",
+		"ssl.endpoint.identification.algorithm": "https",
+		"group.id":                              testconf.GroupID,
+		"debug":                                 "all",
+		"log_level":                             "7",
+	}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %s\n", err)
+	}
+
+	consumer, err := NewConsumer(config)
+	if err != nil {
+		t.Fatalf("failed to create consumer: %s\n", err)
+	}
+	admin, err := NewAdminClientFromConsumer(consumer)
+	if err != nil {
+		t.Fatalf("failed to create admin client: %s\n", err)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	controllerID, err := admin.ControllerID(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get ControllerID: %s\n", err)
+	}
+	if controllerID < 0 {
+		t.Fatalf("ControllerID is negative: %d\n", controllerID)
+	}
+}
+
+func TestTLSDynamicCerts(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+	if testconf.TLSBrokers == "" {
+		t.Skipf("Missing TLSBrokers in testconf.json")
+	}
+
+	tlsCert, err := tls.LoadX509KeyPair("test_certs/kafka-client-cert.pem", "test_certs/kafka-client-key.pem")
+	if err != nil {
+		t.Fatalf("failed loading x509 key: %s\n", err)
+	}
+	caCertPool := x509.NewCertPool()
+	rootCAPEMBytes, err := ioutil.ReadFile("test_certs/ca-cert.pem")
+	if err != nil {
+		t.Fatalf("failed reading CA cert: %s\n", err)
+	}
+	if !caCertPool.AppendCertsFromPEM(rootCAPEMBytes) {
+		t.Fatalf("failed loading CA cert PEM\n")
+	}
+	tlsConfig := tls.Config{
+		GetClientCertificate: func(info *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &tlsCert, nil
+		},
+		RootCAs: caCertPool,
+	}
+
+	config := &ConfigMap{
+		"bootstrap.servers":                     testconf.TLSBrokers,
+		"security.protocol":                     "SSL",
+		"go.tls.config":                         &tlsConfig,
+		"ssl.endpoint.identification.algorithm": "https",
+		"group.id":                              testconf.GroupID,
+		"debug":                                 "all",
+		"log_level":                             "7",
+	}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %s\n", err)
+	}
+
+	consumer, err := NewConsumer(config)
+	if err != nil {
+		t.Fatalf("failed to create consumer: %s\n", err)
+	}
+	admin, err := NewAdminClientFromConsumer(consumer)
+	if err != nil {
+		t.Fatalf("failed to create admin client: %s\n", err)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	controllerID, err := admin.ControllerID(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get ControllerID: %s\n", err)
+	}
+	if controllerID < 0 {
+		t.Fatalf("ControllerID is negative: %d\n", controllerID)
+	}
 }
