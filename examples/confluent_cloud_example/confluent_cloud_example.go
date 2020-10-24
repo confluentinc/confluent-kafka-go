@@ -72,11 +72,11 @@ func main() {
 
 	// Produce a new record to the topic...
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"sasl.mechanisms":         "PLAIN",
-		"security.protocol":       "SASL_SSL",
-		"sasl.username":           ccloudAPIKey,
-		"sasl.password":           ccloudAPISecret})
+		"bootstrap.servers": bootstrapServers,
+		"sasl.mechanisms":   "PLAIN",
+		"security.protocol": "SASL_SSL",
+		"sasl.username":     ccloudAPIKey,
+		"sasl.password":     ccloudAPISecret})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create producer: %s", err))
@@ -106,14 +106,14 @@ func main() {
 
 	// Now consumes the record and print its value...
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"sasl.mechanisms":         "PLAIN",
-		"security.protocol":       "SASL_SSL",
-		"sasl.username":           ccloudAPIKey,
-		"sasl.password":           ccloudAPISecret,
-		"session.timeout.ms":      6000,
-		"group.id":                "my-group",
-		"auto.offset.reset":       "earliest"})
+		"bootstrap.servers":  bootstrapServers,
+		"sasl.mechanisms":    "PLAIN",
+		"security.protocol":  "SASL_SSL",
+		"sasl.username":      ccloudAPIKey,
+		"sasl.password":      ccloudAPISecret,
+		"session.timeout.ms": 6000,
+		"group.id":           "my-group",
+		"auto.offset.reset":  "earliest"})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create consumer: %s", err))

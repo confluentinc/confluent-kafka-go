@@ -2,3 +2,4 @@
 \#*
 *.prof
 tmp-build
+.idea

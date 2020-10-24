@@ -40,11 +40,11 @@ var (
 func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 	p, err := kafka.NewProducer(config)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Created Producer %v, topic %s [%d]\n", p, topic, partition)
+	_, _ = fmt.Fprintf(os.Stderr, "Created Producer %v, topic %s [%d]\n", p, topic, partition)
 
 	tp := kafka.TopicPartition{Topic: &topic, Partition: partition}
 
@@ -55,9 +55,9 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 				continue
 			}
 			if m.TopicPartition.Error != nil {
-				fmt.Fprintf(os.Stderr, "%% Delivery error: %v\n", m.TopicPartition)
+				_, _ = fmt.Fprintf(os.Stderr, "%% Delivery error: %v\n", m.TopicPartition)
 			} else if verbosity >= 2 {
-				fmt.Fprintf(os.Stderr, "%% Delivered %v\n", m)
+				_, _ = fmt.Fprintf(os.Stderr, "%% Delivered %v\n", m)
 			}
 		}
 	}(p.Events())
@@ -87,7 +87,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 	for run == true {
 		select {
 		case sig := <-sigs:
-			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
+			_, _ = fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
 			run = false
 
 		case line, ok := <-stdinChan:
@@ -114,22 +114,22 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Flushing %d message(s)\n", p.Len())
+	_, _ = fmt.Fprintf(os.Stderr, "%% Flushing %d message(s)\n", p.Len())
 	p.Flush(10000)
-	fmt.Fprintf(os.Stderr, "%% Closing\n")
+	_, _ = fmt.Fprintf(os.Stderr, "%% Closing\n")
 	p.Close()
 }
 
 func runConsumer(config *kafka.ConfigMap, topics []string) {
 	c, err := kafka.NewConsumer(config)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Created Consumer %v\n", c)
+	_, _ = fmt.Fprintf(os.Stderr, "%% Created Consumer %v\n", c)
 
-	c.SubscribeTopics(topics, nil)
+	err = c.SubscribeTopics(topics, nil)
 
 	run := true
 
@@ -140,21 +140,25 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
 			run = false
 
-		case ev := <-c.Events():
+		default:
+			ev := c.Poll(100)
+			if ev == nil {
+				continue
+			}
 			switch e := ev.(type) {
 			case kafka.AssignedPartitions:
-				fmt.Fprintf(os.Stderr, "%% %v\n", e)
-				c.Assign(e.Partitions)
+				_, _ = fmt.Fprintf(os.Stderr, "%% %v\n", e)
+				err = c.Assign(e.Partitions)
 				partitionCnt = len(e.Partitions)
 				eofCnt = 0
 			case kafka.RevokedPartitions:
-				fmt.Fprintf(os.Stderr, "%% %v\n", e)
-				c.Unassign()
+				_, _ = fmt.Fprintf(os.Stderr, "%% %v\n", e)
+				err = c.Unassign()
 				partitionCnt = 0
 				eofCnt = 0
 			case *kafka.Message:
 				if verbosity >= 2 {
-					fmt.Fprintf(os.Stderr, "%% %v:\n", e.TopicPartition)
+					_, _ = fmt.Fprintf(os.Stderr, "%% %v:\n", e.TopicPartition)
 				}
 				if keyDelim != "" {
 					if e.Key != nil {
@@ -165,26 +169,26 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 				}
 				fmt.Println(string(e.Value))
 			case kafka.PartitionEOF:
-				fmt.Fprintf(os.Stderr, "%% Reached %v\n", e)
+				_, _ = fmt.Fprintf(os.Stderr, "%% Reached %v\n", e)
 				eofCnt++
 				if exitEOF && eofCnt >= partitionCnt {
 					run = false
 				}
 			case kafka.Error:
 				// Errors should generally be considered as informational, the client will try to automatically recover
-				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
+				_, _ = fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 			case kafka.OffsetsCommitted:
 				if verbosity >= 2 {
-					fmt.Fprintf(os.Stderr, "%% %v\n", e)
+					_, _ = fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				}
 			default:
-				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
+				_, _ = fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 			}
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "%% Closing consumer\n")
-	c.Close()
+	_, _ = fmt.Fprintf(os.Stderr, "%% Closing consumer\n")
+	err = c.Close()
 }
 
 type configArgs struct {

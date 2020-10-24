@@ -246,7 +246,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"go.batch.producer":            pc.batchProducer,
 		"go.delivery.reports":          pc.withDr,
 		"queue.buffering.max.messages": len(testmsgs),
-		"acks": "all"}
+		"acks":                         "all"}
 
 	conf.updateFromTestconf()
 

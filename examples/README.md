@@ -4,8 +4,7 @@ Examples:
   consumer_channel_example - Channel based consumer
   consumer_example - Function & callback based consumer
   consumer_offset_metadata - Commit offset with metadata
-
-  producer_channel_example - Channel based producer
+  
   producer_example - Function based producer
 
   transactions_example - Showcasing a transactional consume-process-produce application
