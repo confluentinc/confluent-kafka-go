@@ -9,8 +9,6 @@ jobs:
  - name: "Go 1.9 OSX bundled librdkafka"
    go: "1.9"
    os: osx
-   env:
-     - GO111MODULE=off
  - name: "Go 1.11 OSX bundled librdkafka"
    go: "1.11"
    os: osx
