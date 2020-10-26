@@ -30,7 +30,7 @@ jobs:
    os: osx
    env:
    - BUILD_TYPE='-tags dynamic'
-   - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+   - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
     - LIBRDKAFKA_VERSION=master
