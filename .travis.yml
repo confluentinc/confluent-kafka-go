@@ -58,6 +58,7 @@ install:
   - for dir in kafka examples ; do (cd $dir && go install ${BUILD_TYPE} ./...) ; done
 
 script:
-  - if [[ -f .do_lint ]]; then golint -set_exit_status ./... ; fi
+  # should be replaced with golangci-lint
+  - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ; fi
   - for dir in kafka ; do (cd $dir && go test -timeout 60s -v ${BUILD_TYPE} ./...) ; done
   - go-kafkacat --help
