@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"gopkg.in/gdamore/tcell.v1"
+	"github.com/gdamore/tcell"
 	"os"
 	"sort"
 	"sync"
