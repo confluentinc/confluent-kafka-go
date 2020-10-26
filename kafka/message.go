@@ -205,3 +205,15 @@ func (h *handle) messageToCDummy(msg *Message) {
 	var cmsg C.rd_kafka_message_t
 	h.messageToC(msg, &cmsg)
 }
+
+// MessageWithError is the type returned from DR channels when go.message.dr.errors is on
+type MessageWithError struct {
+	Message Message
+	Error   *Error
+}
+
+func (m *MessageWithError) String() string {
+	return m.Message.String()
+}
+
+var _ Event = &MessageWithError{}

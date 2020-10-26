@@ -312,9 +312,21 @@ func (h *handle) processRkevToGoEvent(
 				}
 			}
 
+			var outEvent Event
+			if h.fwdDrErrEvents {
+				mwe := &MessageWithError{Message: *msg}
+				if rkmessage.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+					ep := newError(rkmessage.err)
+					mwe.Error = &ep
+				}
+				outEvent = mwe
+			} else {
+				outEvent = msg
+			}
+
 			if ch != nil {
 				select {
-				case *ch <- msg:
+				case *ch <- outEvent:
 				case <-ctx.Done():
 					// This is a _very_ dangerous codepath. If the context passed in is canceled, and causes us
 					// to return in this branch, it means we have only half-processed the batch of message delivery

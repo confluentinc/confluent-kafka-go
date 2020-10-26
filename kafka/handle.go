@@ -124,6 +124,9 @@ type handle struct {
 	// Forward delivery reports on Producer.Events channel
 	fwdDr bool
 
+	// Include DeliveryReportError objects in DR events channels
+	fwdDrErrEvents bool
+
 	//
 	// consumer
 	//

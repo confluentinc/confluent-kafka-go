@@ -501,6 +501,12 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	produceChannelSize := v.(int)
 
+	v, err = confCopy.extract("go.message.dr.errors", false)
+	if err != nil {
+		return nil, err
+	}
+	p.handle.fwdDrErrEvents = v.(bool)
+
 	logsChanEnable, logsChan, err := confCopy.extractLogConfig()
 	if err != nil {
 		return nil, err
