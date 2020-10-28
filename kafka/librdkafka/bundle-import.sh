@@ -15,10 +15,18 @@ usage() {
 
 
 parse_dynlibs() {
-    # Parse dynamic libraries from pkg-config file
+    # Parse dynamic libraries from pkg-config file,
+    # both the ones specified with Libs: but also through Requires:
     local pc=$1
     local libs=
+    local req=
     local n=
+    for req in $(grep ^Requires: $pc | sed -e 's/^Requires://'); do
+        n=$(pkg-config --libs $req)
+        if [[ $n == -l* ]]; then
+            libs="${libs} $n"
+        fi
+    done
     for n in $(grep ^Libs: $pc); do
         if [[ $n == -l* ]]; then
             libs="${libs} $n"
