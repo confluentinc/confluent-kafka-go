@@ -20,7 +20,7 @@
 //
 // High-level Consumer
 //
-// * Decide if you want to read messages and events by calling `.Poll()` or 
+// * Decide if you want to read messages and events by calling `.Poll()` or
 // the deprecated option of using the `.Events()` channel. (If you want to use
 // `.Events()` channel then set `"go.events.channel.enable": true`).
 //

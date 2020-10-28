@@ -228,8 +228,9 @@ with `-tags dynamic`.
 
 API Strands
 ===========
-
-There are two main API strands: function and channel based.
+**NOTE**: The channel based consumer has been *deprecated* due to outdated events and messages that might 
+be consumed due to the buffering nature of channels. 
+Please use the function based consumer instead. 
 
 Function Based Consumer
 -----------------------
@@ -247,35 +248,6 @@ Cons:
  * Slower than the channel consumer.
 
 See [examples/consumer_example](examples/consumer_example)
-
-
-Channel Based Consumer (deprecated)
------------------------------------
-
-*Deprecated*: The channel based consumer is deprecated due to the channel issues
-              mentioned below. Use the function based consumer.
-
-Messages, errors and events are posted on the consumer.Events channel
-for the application to read.
-
-Pros:
-
- * Possibly more Golang:ish
- * Makes reading from multiple channels easy
- * Fast
-
-Cons:
-
- * Outdated events and messages may be consumed due to the buffering nature
-   of channels. The extent is limited, but not remedied, by the Events channel
-   buffer size (`go.events.channel.size`).
-
-See [examples/consumer_channel_example](examples/consumer_channel_example)
-
-
-
-
-
 
 Channel Based Producer
 ----------------------

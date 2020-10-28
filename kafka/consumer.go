@@ -258,7 +258,8 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	return ev
 }
 
-// Events returns the Events channel (if enabled)
+// Events returns the Events channel (Deprecated)
+// Deprecated: The channel based consumer is deprecated. Use the function based consumer.
 func (c *Consumer) Events() chan Event {
 	return c.events
 }
