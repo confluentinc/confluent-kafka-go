@@ -9,19 +9,28 @@ jobs:
  - name: "Go 1.11 OSX bundled librdkafka"
    go: "1.11"
    os: osx
+   env:
+    - EXPECT_LINK_INFO="static"
  - name: "Go 1.14 OSX bundled librdkafka"
    go: "1.14"
    os: osx
+   env:
+    - EXPECT_LINK_INFO="static"
  - name: "Go 1.11 Linux bundled librdkafka"
    go: "1.11"
    os: linux
+   env:
+    - EXPECT_LINK_INFO="static"
  - name: "Go 1.14 Linux bundled librdkafka"
    go: "1.14"
    os: linux
+   env:
+    - EXPECT_LINK_INFO="static"
  - name: "Go 1.14 OSX dynamic librdkafka"
    go: "1.14"
    os: osx
    env:
+   - EXPECT_LINK_INFO="dynamic"
    - BUILD_TYPE='-tags dynamic'
    - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
@@ -31,6 +40,7 @@ jobs:
    go: "1.14"
    os: linux
    env:
+   - EXPECT_LINK_INFO="dynamic"
    - BUILD_TYPE='-tags dynamic'
    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
@@ -55,3 +65,5 @@ script:
   - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ; fi
   - for dir in kafka ; do (cd $dir && go test -timeout 60s -v ${BUILD_TYPE} ./...) ; done
   - go-kafkacat --help
+  - library-version
+  - (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
