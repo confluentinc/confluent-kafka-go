@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This should be run from the MSYS2 MinGW 64-bit shell to build librdkafka_windows.a
-VERSION=v1.5.0
+VERSION=v1.5.2
 SRC_DIR=/mingw64/src/github.com/edenhill
 
 RENAMED=0
