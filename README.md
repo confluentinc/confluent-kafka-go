@@ -4,7 +4,6 @@ Confluent's Golang Client for Apache Kafka<sup>TM</sup>
 **confluent-kafka-go** is Confluent's Golang client for [Apache Kafka](http://kafka.apache.org/) and the
 [Confluent Platform](https://www.confluent.io/product/compare/).
 
-Officialy support Go 1.11+ and librdkafka 1.4.0+.
 
 Features:
 
@@ -125,6 +124,8 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 
 Getting Started
 ===============
+
+Supports Go 1.11+ and librdkafka 1.4.0+.
 
 Using Go Modules
 ----------------
