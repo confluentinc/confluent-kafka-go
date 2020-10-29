@@ -151,7 +151,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION  0x010500ff
+#define RD_KAFKA_VERSION  0x010502ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -566,6 +566,18 @@ typedef enum {
         /** Static consumer fenced by other consumer with same
          *  group.instance.id. */
         RD_KAFKA_RESP_ERR_FENCED_INSTANCE_ID = 82,
+        /** Eligible partition leaders are not available */
+        RD_KAFKA_RESP_ERR_ELIGIBLE_LEADERS_NOT_AVAILABLE = 83,
+        /** Leader election not needed for topic partition */
+        RD_KAFKA_RESP_ERR_ELECTION_NOT_NEEDED = 84,
+        /** No partition reassignment is in progress */
+        RD_KAFKA_RESP_ERR_NO_REASSIGNMENT_IN_PROGRESS = 85,
+        /** Deleting offsets of a topic while the consumer group is subscribed to it */
+        RD_KAFKA_RESP_ERR_GROUP_SUBSCRIBED_TO_TOPIC = 86,
+        /** Broker failed to validate record */
+        RD_KAFKA_RESP_ERR_INVALID_RECORD = 87,
+        /** There are unstable offsets that need to be cleared */
+        RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT = 88,
 
         RD_KAFKA_RESP_ERR_END_ALL,
 } rd_kafka_resp_err_t;
@@ -741,13 +753,15 @@ rd_kafka_test_fatal_error (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 
 
 /**
- * @returns the error code for \p error.
+ * @returns the error code for \p error or RD_KAFKA_RESP_ERR_NO_ERROR if
+ *          \p error is NULL.
  */
 RD_EXPORT
 rd_kafka_resp_err_t rd_kafka_error_code (const rd_kafka_error_t *error);
 
 /**
- * @returns the error code name for \p error, e.g, "ERR_UNKNOWN_MEMBER_ID".
+ * @returns the error code name for \p error, e.g, "ERR_UNKNOWN_MEMBER_ID",
+ *          or an empty string if \p error is NULL.
  *
  * @remark The lifetime of the returned pointer is the same as the error object.
  *
@@ -757,7 +771,8 @@ RD_EXPORT
 const char *rd_kafka_error_name (const rd_kafka_error_t *error);
 
 /**
- * @returns a human readable error string for \p error.
+ * @returns a human readable error string for \p error,
+ *          or an empty string if \p error is NULL.
  *
  * @remark The lifetime of the returned pointer is the same as the error object.
  */
@@ -767,14 +782,15 @@ const char *rd_kafka_error_string (const rd_kafka_error_t *error);
 
 /**
  * @returns 1 if the error is a fatal error, indicating that the client
- *          instance is no longer usable, else 0.
+ *          instance is no longer usable, else 0 (also if \p error is NULL).
  */
 RD_EXPORT
 int rd_kafka_error_is_fatal (const rd_kafka_error_t *error);
 
 
 /**
- * @returns 1 if the operation may be retried, else 0.
+ * @returns 1 if the operation may be retried,
+ *          else 0 (also if \p error is NULL).
  */
 RD_EXPORT
 int rd_kafka_error_is_retriable (const rd_kafka_error_t *error);
@@ -785,7 +801,7 @@ int rd_kafka_error_is_retriable (const rd_kafka_error_t *error);
  *          the application must call rd_kafka_abort_transaction() and
  *          start a new transaction with rd_kafka_begin_transaction() if it
  *          wishes to proceed with transactions.
- *          Else returns 0.
+ *          Else returns 0 (also if \p error is NULL).
  *
  * @remark The return value of this method is only valid for errors returned
  *         by the transactional API.
@@ -795,6 +811,8 @@ int rd_kafka_error_txn_requires_abort (const rd_kafka_error_t *error);
 
 /**
  * @brief Free and destroy an error object.
+ *
+ * @remark As a conveniance it is permitted to pass a NULL \p error.
  */
 RD_EXPORT
 void rd_kafka_error_destroy (rd_kafka_error_t *error);
@@ -1533,7 +1551,9 @@ rd_kafka_message_status (const rd_kafka_message_t *rkmessage);
  */
 typedef enum {
 	RD_KAFKA_CONF_UNKNOWN = -2, /**< Unknown configuration name. */
-	RD_KAFKA_CONF_INVALID = -1, /**< Invalid configuration value. */
+	RD_KAFKA_CONF_INVALID = -1, /**< Invalid configuration value or
+                                     *   property or value not supported in
+                                     *   this build. */
 	RD_KAFKA_CONF_OK = 0        /**< Configuration okay */
 } rd_kafka_conf_res_t;
 
@@ -1630,6 +1650,9 @@ const rd_kafka_conf_t *rd_kafka_conf (rd_kafka_t *rk);
  * @returns \c rd_kafka_conf_res_t to indicate success or failure.
  * In case of failure \p errstr is updated to contain a human readable
  * error string.
+ *
+ * @remark Setting properties or values that were disabled at build time due to
+ *         missing dependencies will return RD_KAFKA_CONF_INVALID.
  */
 RD_EXPORT
 rd_kafka_conf_res_t rd_kafka_conf_set(rd_kafka_conf_t *conf,
@@ -2327,6 +2350,9 @@ void rd_kafka_conf_dump_free(const char **arr, size_t cnt);
 /**
  * @brief Prints a table to \p fp of all supported configuration properties,
  *        their default values as well as a description.
+ *
+ * @remark All properties and properties and values are shown, even those
+ *         that have been disabled at build time due to missing dependencies.
  */
 RD_EXPORT
 void rd_kafka_conf_properties_show(FILE *fp);
@@ -3159,10 +3185,11 @@ size_t rd_kafka_queue_length (rd_kafka_queue_t *rkqu);
  * @remark IO and callback event triggering are mutually exclusive.
  * @remark When using forwarded queues the IO event must only be enabled
  *         on the final forwarded-to (destination) queue.
+ * @remark The file-descriptor/socket must be set to non-blocking.
  */
 RD_EXPORT
 void rd_kafka_queue_io_event_enable (rd_kafka_queue_t *rkqu, int fd,
-				     const void *payload, size_t size);
+                                     const void *payload, size_t size);
 
 /**
  * @brief Enable callback event triggering for queue.

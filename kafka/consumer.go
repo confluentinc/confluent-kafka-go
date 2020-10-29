@@ -277,7 +277,7 @@ func (c *Consumer) Logs() chan LogEvent {
 // a new message or error. `timeout` may be set to -1 for
 // indefinite wait.
 //
-// Timeout is returned as (nil, err) where err is `kafka.(Error).Code == Kafka.ErrTimedOut`.
+// Timeout is returned as (nil, err) where err is `err.(kafka.Error).Code() == kafka.ErrTimedOut`.
 //
 // Messages are returned as (msg, nil),
 // while general errors are returned as (nil, err),
