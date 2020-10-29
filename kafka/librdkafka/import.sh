@@ -67,7 +67,7 @@ import_branch="import_$version"
 exists=$(git branch -rlq | grep "/$import_branch\$" || true)
 if [[ ! -z $exists ]]; then
     echo "Error: This version branch already seems to exist: $exists: already imorted?"
-    exit 1
+    [[ $devel != 1 ]] && exit 1
 fi
 
 echo "Checking for existing commits that match this version (should be none)"
@@ -82,6 +82,13 @@ echo "Importing bundle $bundle"
 
 echo "Committing $version"
 git commit -a -m "librdkafka static bundle $version" || error_cleanup
+
+echo "Updating error codes and docs"
+pushd ../../
+make -f mk/Makefile docs || error_cleanup
+git commit -a -m "Documentation and error code update for librdkafka $version" \
+    || error_cleanup
+popd
 
 if [[ $devel != 1 ]]; then
     echo "Pushing branch"
