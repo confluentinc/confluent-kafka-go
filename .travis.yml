@@ -46,6 +46,11 @@ jobs:
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - LIBRDKAFKA_VERSION=master
+ - name: "Go 1.14 Windows bundled librdkafka"
+   go: "1.14"
+   os: windows
+   env:
+    - EXPECT_LINK_INFO="static"
 
 before_install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
