@@ -1,5 +1,6 @@
 language: go
 osx_image: xcode9.2
+go_import_path: github.com/confluentinc/confluent-kafka-go
 env:
  global:
   - PATH="$PATH:$GOPATH/bin"
@@ -60,6 +61,8 @@ before_install:
   - rm -rf tmp-build
   - if [[ -n $BUILD_TYPE ]]; then bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
   - go get -u golang.org/x/lint/golint && touch .do_lint
+  - mkdir -p "$GOPATH/src/gopkg.in/confluentinc/confluent-kafka-go.v1/"
+  - cp -r . "$GOPATH/src/gopkg.in/confluentinc/confluent-kafka-go.v1/"
   - |-
       case $TRAVIS_OS_NAME in
         windows)
