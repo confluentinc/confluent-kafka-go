@@ -1,6 +1,6 @@
 package kafka
 // Copyright 2016-2020 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2020-04-08 13:17:23.310983 +0200 CEST m=+0.001902312 USING librdkafka 1.4.0
+// AUTOMATICALLY GENERATED ON 2020-11-05 11:15:05.835042851 +0100 CET m=+0.000270713 USING librdkafka 1.5.2-dirty
 
 /*
 #include <librdkafka/rdkafka.h>
@@ -298,4 +298,16 @@ const (
     ErrGroupMaxSizeReached ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_GROUP_MAX_SIZE_REACHED)
     // ErrFencedInstanceID Broker: Static consumer fenced by other consumer with same group.instance.id
     ErrFencedInstanceID ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_FENCED_INSTANCE_ID)
+    // ErrEligibleLeadersNotAvailable Broker: Eligible partition leaders are not available
+    ErrEligibleLeadersNotAvailable ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_ELIGIBLE_LEADERS_NOT_AVAILABLE)
+    // ErrElectionNotNeeded Broker: Leader election not needed for topic partition
+    ErrElectionNotNeeded ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_ELECTION_NOT_NEEDED)
+    // ErrNoReassignmentInProgress Broker: No partition reassignment is in progress
+    ErrNoReassignmentInProgress ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_NO_REASSIGNMENT_IN_PROGRESS)
+    // ErrGroupSubscribedToTopic Broker: Deleting offsets of a topic while the consumer group is subscribed to it
+    ErrGroupSubscribedToTopic ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_GROUP_SUBSCRIBED_TO_TOPIC)
+    // ErrInvalidRecord Broker: Broker failed to validate record
+    ErrInvalidRecord ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INVALID_RECORD)
+    // ErrUnstableOffsetCommit Broker: There are unstable offsets that need to be cleared
+    ErrUnstableOffsetCommit ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT)
 )
