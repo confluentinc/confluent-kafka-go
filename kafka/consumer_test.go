@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -272,6 +273,10 @@ func TestConsumerAssignment(t *testing.T) {
 }
 
 func TestConsumerOAuthBearerConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("OAUTHBEARER SASL mechanism not supported on Windows")
+	}
+
 	myOAuthConfig := "scope=myscope principal=gotest"
 
 	c, err := NewConsumer(&ConfigMap{

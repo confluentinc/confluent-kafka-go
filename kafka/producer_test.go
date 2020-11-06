@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -272,6 +273,10 @@ func TestProducerInvalidConfig(t *testing.T) {
 }
 
 func TestProducerOAuthBearerConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("OAUTHBEARER SASL mechanism not supported on Windows")
+	}
+
 	myOAuthConfig := "scope=myscope principal=gotest"
 
 	p, err := NewProducer(&ConfigMap{
