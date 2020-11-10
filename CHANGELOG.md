@@ -2,8 +2,11 @@
 
 ## v1.6.0
 
-v1.6.0 is a feature release adding support for KIP-429 Incremental rebalancing.
+v1.6.0 is a feature release adding support for KIP-429 Incremental rebalancing
+and KIP-480 Sticky producer partitioner.
 
+ - See [cooperative_consumer_example.go](examples/cooperative_consumer_example/cooperative_consumer_example.go)
+   for an example how to use the new incremental rebalancing consumer.
  - Bundles librdkafka v1.6.0 - see release notes for all enhancements and fixes.
 
 

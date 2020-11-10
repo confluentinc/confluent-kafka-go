@@ -122,9 +122,6 @@ type handle struct {
 	//
 	c *Consumer
 
-	// Forward rebalancing ack responsibility to application (current setting)
-	currAppRebalanceEnable bool
-
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
 }
