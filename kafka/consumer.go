@@ -1,7 +1,7 @@
 package kafka
 
 /**
- * Copyright 2016 Confluent Inc.
+ * Copyright 2016-2020 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ type Consumer struct {
 	readerTermChan     chan bool
 	rebalanceCb        RebalanceCb
 	appReassigned      bool
-	appRebalanceEnable bool // config setting
+	appRebalanceEnable bool // Config setting
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -83,7 +83,6 @@ func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (er
 	}
 
 	c.rebalanceCb = rebalanceCb
-	c.handle.currAppRebalanceEnable = c.rebalanceCb != nil || c.appRebalanceEnable
 
 	return nil
 }
@@ -95,6 +94,13 @@ func (c *Consumer) Unsubscribe() (err error) {
 }
 
 // Assign an atomic set of partitions to consume.
+//
+// The .Offset field of each TopicPartition must either be set to an absolute
+// starting offset (>= 0), or one of the logical offsets (`kafka.OffsetEnd` etc),
+// but should typically be set to `kafka.OffsetStored` to have the consumer
+// use the committed offset as a start position, with a fallback to
+// `auto.offset.reset` if there is no committed offset.
+//
 // This replaces the current assignment.
 func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 	c.appReassigned = true
@@ -120,6 +126,73 @@ func (c *Consumer) Unassign() (err error) {
 	}
 
 	return nil
+}
+
+// IncrementalAssign adds the specified partitions to the current set of
+// partitions to consume.
+//
+// The .Offset field of each TopicPartition must either be set to an absolute
+// starting offset (>= 0), or one of the logical offsets (`kafka.OffsetEnd` etc),
+// but should typically be set to `kafka.OffsetStored` to have the consumer
+// use the committed offset as a start position, with a fallback to
+// `auto.offset.reset` if there is no committed offset.
+//
+// The new partitions must not be part of the current assignment.
+func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
+	c.appReassigned = true
+
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
+
+	cError := C.rd_kafka_incremental_assign(c.handle.rk, cparts)
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// IncrementalUnassign removes the specified partitions from the current set of
+// partitions to consume.
+//
+// The .Offset field of the TopicPartition is ignored.
+//
+// The removed partitions must be part of the current assignment.
+func (c *Consumer) IncrementalUnassign(partitions []TopicPartition) (err error) {
+	c.appReassigned = true
+
+	cparts := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cparts)
+
+	cError := C.rd_kafka_incremental_unassign(c.handle.rk, cparts)
+	if cError != nil {
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// GetRebalanceProtocol returns the current consumer group rebalance protocol,
+// which is either "EAGER" or "COOPERATIVE".
+// If the rebalance protocol is not known in the current state an empty string
+// is returned.
+// Should typically only be called during rebalancing.
+func (c *Consumer) GetRebalanceProtocol() string {
+	cStr := C.rd_kafka_rebalance_protocol(c.handle.rk)
+	if cStr == nil {
+		return ""
+	}
+
+	return C.GoString(cStr)
+}
+
+// AssignmentLost returns true if current partition assignment has been lost.
+// This method is only applicable for use with a subscribing consumer when
+// handling a rebalance event or callback.
+// Partitions that have been lost may already be owned by other members in the
+// group and therefore commiting offsets, for example, may fail.
+func (c *Consumer) AssignmentLost() bool {
+	return cint2bool(C.rd_kafka_assignment_lost(c.handle.rk))
 }
 
 // commit offsets for specified offsets.
@@ -337,13 +410,29 @@ func (c *Consumer) Close() (err error) {
 		close(c.events)
 	}
 
+	// librdkafka's rd_kafka_consumer_close() will block
+	// and trigger the rebalance_cb() if one is set, if not, which is the
+	// case with the Go client since it registers EVENTs rather than callbacks,
+	// librdkafka will shortcut the rebalance_cb and do a forced unassign.
+	// But we can't have that since the application might need the final RevokePartitions
+	// before shutting down. So we trigger an Unsubscribe() first, wait for that to
+	// propagate (in the Poll loop below), and then close the consumer.
+	c.Unsubscribe()
+
+	// Poll for rebalance events
+	for {
+		c.Poll(10 * 1000)
+		if int(C.rd_kafka_queue_length(c.handle.rkq)) == 0 {
+			break
+		}
+	}
+
+	// Destroy our queue
 	C.rd_kafka_queue_destroy(c.handle.rkq)
 	c.handle.rkq = nil
 
-	e := C.rd_kafka_consumer_close(c.handle.rk)
-	if e != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return newError(e)
-	}
+	// Close the consumer
+	C.rd_kafka_consumer_close(c.handle.rk)
 
 	c.handle.cleanup()
 
@@ -456,18 +545,6 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	return c, nil
-}
-
-// rebalance calls the application's rebalance callback, if any.
-// Returns true if the underlying assignment was updated, else false.
-func (c *Consumer) rebalance(ev Event) bool {
-	c.appReassigned = false
-
-	if c.rebalanceCb != nil {
-		c.rebalanceCb(c, ev)
-	}
-
-	return c.appReassigned
 }
 
 // consumerReader reads messages and events from the librdkafka consumer queue
@@ -720,4 +797,113 @@ func NewTestConsumerGroupMetadata(groupID string) (*ConsumerGroupMetadata, error
 	}
 
 	return &ConsumerGroupMetadata{serialized}, nil
+}
+
+// cEventToRebalanceEvent returns an Event (AssignedPartitions or RevokedPartitions)
+// based on the specified rkev.
+func cEventToRebalanceEvent(rkev *C.rd_kafka_event_t) Event {
+	if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
+		var ev AssignedPartitions
+		ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
+		return ev
+	} else if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS {
+		var ev RevokedPartitions
+		ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
+		return ev
+	} else {
+		panic(fmt.Sprintf("Unable to create rebalance event from C type %s",
+			C.GoString(C.rd_kafka_err2name(C.rd_kafka_event_error(rkev)))))
+	}
+
+}
+
+// handleRebalanceEvent handles a assign/rebalance rebalance event.
+//
+// If the app provided a RebalanceCb to Subscribe*() or
+// has go.application.rebalance.enable=true we create an event
+// and forward it to the application thru the RebalanceCb or the
+// Events channel respectively.
+// Since librdkafka requires the rebalance event to be "acked" by
+// the application (by calling *assign()) to synchronize state we keep track
+// of if the application performed *Assign() or *Unassign(), but this only
+// works for the non-channel case. For the channel case we assume the
+// application calls *Assign() or *Unassign().
+// Failure to do so will "hang" the consumer, e.g., it wont start consuming
+// and it wont close cleanly, so this error case should be visible
+// immediately to the application developer.
+//
+// In the polling case (not channel based consumer) the rebalance event
+// is returned in retval, else nil is returned.
+
+func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_event_t) (retval Event) {
+
+	var ev Event
+
+	if c.rebalanceCb != nil || c.appRebalanceEnable {
+		// Application has a rebalance callback or has enabled
+		// rebalances on the events channel, create the appropriate Event.
+		ev = cEventToRebalanceEvent(rkev)
+
+	}
+
+	if channel != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
+		// Channel-based consumer with rebalancing enabled,
+		// return the rebalance event and rely on the application
+		// to call *Assign() / *Unassign().
+		return ev
+	}
+
+	// Call the application's rebalance callback, if any.
+	if c.rebalanceCb != nil {
+		// Mark .appReassigned as false to keep track of whether the
+		// application called *Assign() / *Unassign().
+		c.appReassigned = false
+
+		c.rebalanceCb(c, ev)
+
+		if c.appReassigned {
+			// Rebalance event handled by application.
+			return nil
+		}
+	}
+
+	// Either there was no rebalance callback, or the application
+	// did not call *Assign / *Unassign, so we need to do it.
+
+	isCooperative := c.GetRebalanceProtocol() == "COOPERATIVE"
+	var cError *C.rd_kafka_error_t
+	var cErr C.rd_kafka_resp_err_t
+
+	if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
+		// Assign partitions
+		if isCooperative {
+			cError = C.rd_kafka_incremental_assign(
+				c.handle.rk,
+				C.rd_kafka_event_topic_partition_list(rkev))
+		} else {
+			cErr = C.rd_kafka_assign(
+				c.handle.rk,
+				C.rd_kafka_event_topic_partition_list(rkev))
+		}
+	} else {
+		// Revoke partitions
+
+		if isCooperative {
+			cError = C.rd_kafka_incremental_unassign(
+				c.handle.rk,
+				C.rd_kafka_event_topic_partition_list(rkev))
+		} else {
+			cErr = C.rd_kafka_assign(c.handle.rk, nil)
+		}
+	}
+
+	// If the *assign() call returned error, forward it to the
+	// the consumer's Events() channel for visibility.
+	if cError != nil {
+		c.events <- newErrorFromCErrorDestroy(cError)
+	} else if cErr != 0 {
+		c.events <- newError(cErr)
+	}
+
+	return nil
 }
