@@ -115,6 +115,38 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Unassign failed: %s", err)
 	}
 
+	// Incremental Assign & Unassign
+	err = c.IncrementalAssign([]TopicPartition{
+		{Topic: &topic1, Partition: 9, Offset: 1},
+		{Topic: &topic2, Partition: 40, Offset: OffsetEnd},
+		{Topic: &topic1, Partition: 10, Offset: OffsetInvalid},
+		{Topic: &topic2, Partition: 30},
+	})
+	if err != nil {
+		t.Errorf("IncrementalAssign failed: %s", err)
+	}
+
+	err = c.IncrementalUnassign([]TopicPartition{
+		{Topic: &topic2, Partition: 30},
+		{Topic: &topic2, Partition: 40},
+		{Topic: &topic1, Partition: 10},
+	})
+	if err != nil {
+		t.Errorf("IncrementalUnassign failed: %s", err)
+	}
+
+	assignment, err := c.Assignment()
+	if err != nil {
+		t.Errorf("Assignment (after incremental) failed: %s", err)
+	}
+
+	t.Logf("(Incremental) Assignment: %s\n", assignment)
+	if len(assignment) != 1 ||
+		*assignment[0].Topic != topic1 ||
+		assignment[0].Partition != 9 {
+		t.Errorf("(Incremental) Assignment mismatch: %v", assignment)
+	}
+
 	// ConsumerGroupMetadata
 	_, err = c.GetConsumerGroupMetadata()
 	if err != nil {
