@@ -123,7 +123,7 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.11+ and librdkafka 1.4.0+.
+Supports Go 1.11+ and librdkafka 1.6.0+.
 
 Using Go Modules
 ----------------
@@ -223,7 +223,7 @@ with `-tags dynamic`.
 **Note:** If you use the master branch of the Go client, then you need to use
           the master branch of librdkafka.
 
-**confluent-kafka-go requires librdkafka v1.4.0 or later.**
+**confluent-kafka-go requires librdkafka v1.6.0 or later.**
 
 
 
