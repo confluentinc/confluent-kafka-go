@@ -16,7 +16,7 @@ usage() {
 
 parse_dynlibs() {
     # Parse dynamic libraries from pkg-config file,
-    # both the ones specified with Libs: but also through Requires:
+    # both the ones specified with Libs/Libs.private: but also through Requires:
     local pc=$1
     local libs=
     local req=
@@ -28,6 +28,11 @@ parse_dynlibs() {
         fi
     done
     for n in $(grep ^Libs: $pc); do
+        if [[ $n == -l* ]]; then
+            libs="${libs} $n"
+        fi
+    done
+    for n in $(grep ^Libs.private: $pc); do
         if [[ $n == -l* ]]; then
             libs="${libs} $n"
         fi
