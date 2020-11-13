@@ -19,8 +19,9 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
+
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 func main() {
@@ -58,7 +59,15 @@ func main() {
 						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 				}
 				return
+			case *kafka.Error:
+				err := ev
+				if err.IsRetriable() {
+					fmt.Printf("Delivery errored and will be retried: %v\n", err)
+				}
 
+				if err.IsFatal() {
+					fmt.Printf("Delivery errored: %v\n", err)
+				}
 			default:
 				fmt.Printf("Ignored event: %s\n", ev)
 			}
