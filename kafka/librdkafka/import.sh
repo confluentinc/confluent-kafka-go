@@ -48,7 +48,7 @@ if [[ -z $version ]]; then
 fi
 
 # Verify branch state
-curr_branch=$(git symbolic-ref HEAD 2>/dev/null | cut -d"/" -f 3)
+curr_branch=$(git symbolic-ref HEAD 2>/dev/null | cut -d"/" -f 3-)
 uncommitted=$(git status --untracked-files=no --porcelain)
 
 if [[ $devel != 1 ]] && ( [[ $curr_branch != master ]] || [[ ! -z $uncommitted ]] ); then
