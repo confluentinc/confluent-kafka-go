@@ -21,7 +21,7 @@ import (
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 
 //Minimum required librdkafka version. This is checked both during
 //build-time and runtime.

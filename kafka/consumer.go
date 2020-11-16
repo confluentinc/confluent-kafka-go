@@ -25,7 +25,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 
 
 static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafka_topic_partition_list_t *rktparlist, int idx) {
