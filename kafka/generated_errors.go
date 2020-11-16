@@ -3,7 +3,7 @@ package kafka
 // AUTOMATICALLY GENERATED ON 2020-11-05 11:15:05.835042851 +0100 CET m=+0.000270713 USING librdkafka 1.5.2-dirty
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 */
 import "C"
 

@@ -253,15 +253,15 @@ package kafka
 
 import (
 	"fmt"
-	// Make sure librdkafka/ sub-directory is included in vendor pulls.
-	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka"
+	// Make sure librdkafka_vendor/ sub-directory is included in vendor pulls.
+	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka_vendor"
 	"unsafe"
 )
 
 /*
 #include <stdlib.h>
 #include <string.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 
 static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafka_topic_partition_list_t *rktparlist, int idx) {
    return idx < rktparlist->cnt ? &rktparlist->elems[idx] : NULL;
