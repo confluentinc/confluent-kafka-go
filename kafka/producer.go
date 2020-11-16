@@ -26,7 +26,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 
 
