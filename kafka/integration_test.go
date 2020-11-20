@@ -1550,7 +1550,8 @@ func TestAdminClient_ClusterID(t *testing.T) {
 	}
 	defer admin.Close()
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	clusterID, err := admin.ClusterID(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get ClusterID: %s\n", err)
@@ -1583,7 +1584,8 @@ func TestAdminClient_ControllerID(t *testing.T) {
 	}
 	defer admin.Close()
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	controllerID, err := admin.ControllerID(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get ControllerID: %s\n", err)
