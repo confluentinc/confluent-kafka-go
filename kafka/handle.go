@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 	"unsafe"
@@ -123,6 +124,10 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
+
+	// IO-trigger functionality (wake golang up when an event is ready, without polling)
+	ioPollTrigger    *handleIOTrigger
+	logIOPollTrigger *handleIOTrigger
 }
 
 func (h *handle) String() string {
@@ -153,7 +158,7 @@ func (h *handle) cleanup() {
 	}
 }
 
-func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
+func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) error {
 	if logsChan == nil {
 		logsChan = make(chan LogEvent, 10000)
 		h.closeLogsChan = true
@@ -165,13 +170,21 @@ func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
 	h.logq = C.rd_kafka_queue_new(h.rk)
 	C.rd_kafka_set_log_queue(h.rk, h.logq)
 
-	// Start a polling goroutine to consume the log queue
+	// Use librdkafka's FD-based event notifications to find out when there are log events.
+	var err error
+	h.logIOPollTrigger, err = startIOTrigger(h.logq)
+	if err != nil {
+		return nil
+	}
 	h.waitGroup.Add(1)
+	// Start a goroutine to consume the log queue by waiting for log events
 	go func() {
-		h.pollLogEvents(h.logs, 100, termChan)
+		h.pollLogEvents(h.logs, termChan)
+		_ = h.logIOPollTrigger.stop()
 		h.waitGroup.Done()
 	}()
 
+	return nil
 }
 
 // getRkt0 finds or creates and returns a C topic_t object from the local cache.
@@ -322,4 +335,73 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 		return nil
 	}
 	return newError(cErr)
+}
+
+// handleIOTrigger wraps up librdkafka's rd_kafka_queue_io_event_enable functionality to let Go be notified of
+// new events available on librdkafka queues. The idea is that we set up a pair of pipe FD's in startIOTrigger,
+// and ask librdkafka to write a byte to the pipe when we go from 0 -> 1 events in a queue (i.e. it's edge
+// triggered).
+//
+// Because the Golang scheduler understands how to wake this goroutine up when there's data on the pipe, this
+// enables us to "bridge" librdkafka's event-loop and the Golang event-loop.
+type handleIOTrigger struct {
+	notifyChan chan struct{}
+	readerPipe *os.File
+	writerPipe *os.File
+	rkq        *C.rd_kafka_queue_t
+	wg         sync.WaitGroup
+}
+
+// startIOTrigger hooks up IO based event triggering on the provided librdkafka queue, and sets up a goroutine
+// to read from the pipe and signal other goutines waiting for events on the notifyChan.
+func startIOTrigger(rkq *C.rd_kafka_queue_t) (*handleIOTrigger, error) {
+	t := &handleIOTrigger{}
+
+	t.rkq = rkq
+	// It's important that this is a buffered channel, so that in the case where _nobody_ is waiting for
+	// events, we don't block an internal librdkafka thread on the other side of the pipe.
+	t.notifyChan = make(chan struct{}, 1)
+	var err error
+	t.readerPipe, t.writerPipe, err = os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed constructing IO poll pipe: %s", err.Error())
+	}
+	edgeMessage := C.CBytes([]byte{9})
+	C.rd_kafka_queue_io_event_enable(rkq, C.int(t.writerPipe.Fd()), edgeMessage, 1)
+	C.free(edgeMessage)
+
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		defer close(t.notifyChan)
+		oneByteBuffer := make([]byte, 1)
+
+		for {
+			_, err := t.readerPipe.Read(oneByteBuffer)
+			if err != nil {
+				return
+			}
+			// If the channel write fails, that means the buffer (of 1) was already full, which is fine; nobody is
+			// currently waiting for events, and they'll see the existing wakeup singal the next time they look at
+			// the channel anyway.
+			select {
+			case t.notifyChan <- struct{}{}:
+			default:
+			}
+		}
+	}()
+	return t, nil
+}
+
+// stop stops the internal goroutine watching for events from librdkafka and disables IO event triggering.
+func (t *handleIOTrigger) stop() error {
+	C.rd_kafka_queue_io_event_enable(t.rkq, -1, nil, 0)
+	if err := t.writerPipe.Close(); err != nil {
+		return err
+	}
+	if err := t.readerPipe.Close(); err != nil {
+		return err
+	}
+	t.wg.Wait()
+	return nil
 }

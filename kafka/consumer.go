@@ -17,6 +17,7 @@ package kafka
  */
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -254,7 +255,21 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
-	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	return c.PollContext(ctx)
+}
+
+// PollContext polls the consumer for message or events
+//
+// Will block until either an event is returned or the context is done.
+//
+// The following callbacks may be triggered:
+//   Subscribe()'s rebalanceCb
+//
+// Returns nil if the context was done, else an event
+func (c *Consumer) PollContext(ctx context.Context) Event {
+	ev, _ := c.handle.eventPollContext(ctx)
 	return ev
 }
 
@@ -332,6 +347,9 @@ func (c *Consumer) Close() (err error) {
 
 	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
 	close(c.readerTermChan)
+	if err := c.handle.ioPollTrigger.stop(); err != nil {
+		return err
+	}
 	c.handle.waitGroup.Wait()
 	if c.eventsChanEnable {
 		close(c.events)
@@ -442,7 +460,17 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	if logsChanEnable {
-		c.handle.setupLogQueue(logsChan, c.readerTermChan)
+		if err := c.handle.setupLogQueue(logsChan, c.readerTermChan); err != nil {
+			c.handle.cleanup()
+			return nil, err
+		}
+	}
+
+	// Begin receiving events on a FD from librdkafka
+	c.handle.ioPollTrigger, err = startIOTrigger(c.handle.rkq)
+	if err != nil {
+		c.handle.cleanup()
+		return nil, err
 	}
 
 	if c.eventsChanEnable {
@@ -474,16 +502,25 @@ func (c *Consumer) rebalance(ev Event) bool {
 // and posts them on the consumer channel.
 // Runs until termChan closes
 func consumerReader(c *Consumer, termChan chan bool) {
-	for {
+	// This setup creates a context such that:
+	//   * Either it becomes canceled when termChan is closed, causing eventPollContext to exit, or
+	//   * It is canceled when the method is returned from, ensuring that the goroutine is not leaked.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
 		select {
-		case _ = <-termChan:
-			return
-		default:
-			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan)
-			if term {
-				return
-			}
+		case <-ctx.Done():
+		case <-termChan:
+			cancel()
+		}
+	}()
+	defer cancel()
 
+	for ctx.Err() == nil {
+		ev, _ := c.handle.eventPollContext(ctx)
+		select {
+		case c.events <- ev:
+		case <-ctx.Done():
+			return
 		}
 	}
 }
