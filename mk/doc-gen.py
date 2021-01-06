@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Extract godoc HTML documentation for our packages,
 # remove some nonsense, update some links and make it ready
@@ -35,5 +35,5 @@ if __name__ == '__main__':
         t['src'] = '//golang.org' + t['src']
 
     # Write updated HTML to stdout
-    print(soup.prettify().encode('utf-8'))
+    print(soup.prettify())
 
