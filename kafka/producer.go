@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"time"
 	"unsafe"
@@ -27,6 +28,7 @@ import (
 #include <stdlib.h>
 #include "rdkafka_select.h"
 #include "glue_rdkafka.h"
+#include "tlscb_thunk.h"
 
 
 #ifdef RD_KAFKA_V_HEADERS
@@ -512,6 +514,14 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		return nil, err
 	}
 
+	v, err = confCopy.extract("go.tls.config", nil)
+	if err != nil {
+		return nil, err
+	}
+	if v != nil {
+		p.handle.tlsConfig = v.(*tls.Config)
+	}
+
 	if int(C.rd_kafka_version()) < 0x01000000 {
 		// produce.offset.report is no longer used in librdkafka >= v1.0.0
 		v, _ = confCopy.extract("{topic}.produce.offset.report", nil)
@@ -533,6 +543,10 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_DR|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
 	p.handle.setupGlobalCgoMap()
 	C.rd_kafka_conf_set_opaque(cConf, p.handle.globalCgoPointer)
+
+	if p.handle.tlsConfig != nil {
+		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
+	}
 
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)

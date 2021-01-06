@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 	"unsafe"
 )
@@ -33,8 +32,6 @@ import "C"
 func goSSLCertVerifyCB(
 	rk *C.rd_kafka_t, brokerName *C.char, brokerID C.int32_t, x509Error *C.int, depth C.int, buf *C.char,
 	size C.size_t, errstr *C.char, errstrSize C.size_t, opaque unsafe.Pointer) C.int {
-
-	fmt.Fprintf(os.Stderr, "in tlscb.go: goSSLCertVerifyCB\n")
 
 	globalCgoMapLock.Lock()
 	h := globalCgoMap[opaque]
@@ -75,8 +72,6 @@ func goSSLCertFetchCB(
 	leafCert **C.char, leafCertSize *C.size_t, pkey **C.char, pkeySize *C.size_t,
 	chainCerts **C.char, chainCertSizes *C.size_t, format *C.rd_kafka_cert_enc_t,
 	opaque unsafe.Pointer) C.int {
-
-	fmt.Fprintf(os.Stderr, "in tlscb.go: goSSLCertFetchCB\n")
 
 	globalCgoMapLock.Lock()
 	h := globalCgoMap[opaque]
