@@ -552,6 +552,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
 	}
 
+	c.handle.preRdkafkaSetup()
 	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, cConf, cErrstr, 256)
 	if c.handle.rk == nil {
 		c.handle.cleanup()

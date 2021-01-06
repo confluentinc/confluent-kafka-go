@@ -156,6 +156,8 @@ func (h *handle) String() string {
 	return h.name
 }
 
+// setupGlobalCgoMap needs to be called before preRdkafkaSetup, because
+// globalCgoPointer needs to be put into the config as the opaque pointer
 func (h *handle) setupGlobalCgoMap() {
 	h.globalCgoPointer = C.malloc(C.size_t(1))
 	globalCgoMapLock.Lock()
@@ -163,13 +165,18 @@ func (h *handle) setupGlobalCgoMap() {
 	globalCgoMapLock.Unlock()
 }
 
-func (h *handle) setup() {
+// preRdkafkaSetup needs to be called _before_ rd_kafka_new
+func (h *handle) preRdkafkaSetup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
 	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*handleIOTrigger)
 	h.cgomap = make(map[int]cgoif)
-	h.name = C.GoString(C.rd_kafka_name(h.rk))
 	h.intermediates = x509.NewCertPool()
+}
+
+// setup needs to be called _after_ rd_kafka_new
+func (h *handle) setup() {
+	h.name = C.GoString(C.rd_kafka_name(h.rk))
 }
 
 func (h *handle) cleanup() {

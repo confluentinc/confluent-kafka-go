@@ -548,6 +548,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
 	}
 
+	p.handle.preRdkafkaSetup()
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if p.handle.rk == nil {
