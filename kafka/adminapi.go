@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"strings"
 	"time"
@@ -25,8 +26,9 @@ import (
 )
 
 /*
-#include "rdkafka_select.h"
 #include <stdlib.h>
+#include "rdkafka_select.h"
+#include "tlscb_thunk.h"
 
 static const rd_kafka_topic_result_t *
 topic_result_by_idx (const rd_kafka_topic_result_t **topics, size_t cnt, size_t idx) {
@@ -978,8 +980,20 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 	a := &AdminClient{}
 	a.handle = &handle{}
 
+	// before we do anything with the configuration, create a copy such that
+	// the original is not mutated.
+	confCopy := conf.clone()
+
+	v, err := confCopy.extract("go.tls.config", nil)
+	if err != nil {
+		return nil, err
+	}
+	if v != nil {
+		a.handle.tlsConfig = v.(*tls.Config)
+	}
+
 	// Convert ConfigMap to librdkafka conf_t
-	cConf, err := conf.convert()
+	cConf, err := confCopy.convert()
 	if err != nil {
 		return nil, err
 	}
@@ -988,7 +1002,14 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
+	a.handle.setupGlobalCgoMap()
+	C.rd_kafka_conf_set_opaque(cConf, a.handle.globalCgoPointer)
 
+	if a.handle.tlsConfig != nil {
+		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
+	}
+
+	a.handle.preRdkafkaSetup()
 	// Create librdkafka producer instance. The Producer is somewhat cheaper than
 	// the consumer, but any instance type can be used for Admin APIs.
 	a.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
