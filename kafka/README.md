@@ -125,11 +125,6 @@ Manually verify that the examples/ applications work.
 
 Also make sure the examples in README.md work.
 
-Convert any examples using `github.com/confluentinc/confluent-kafka-go/kafka` to use
-`gopkg.in/confluentinc/confluent-kafka-go.v1/kafka` import path.
-
-    $ find examples/ -type f -name *\.go -exec sed -i -e 's|github\.com/confluentinc/confluent-kafka-go/kafka|gopkg\.in/confluentinc/confluent-kafka-go\.v1/kafka|g' {} +
-
 ### Commit any changes
 
 Make sure to push to github before creating the tag to have CI tests pass.
