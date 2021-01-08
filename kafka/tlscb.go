@@ -44,12 +44,14 @@ func goSSLCertVerifyCB(
 		C.free(unsafe.Pointer(e))
 		return 0
 	}
+	h.tlsLock.RLock()
 	chains, err := cert.Verify(x509.VerifyOptions{
 		Intermediates: h.intermediates,
 		Roots:         h.tlsConfig.RootCAs,
 		CurrentTime:   time.Now(),
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	})
+	h.tlsLock.RUnlock()
 	if len(chains) == 0 {
 		err = errors.New("no path to root")
 	}
@@ -60,7 +62,9 @@ func goSSLCertVerifyCB(
 		return 0
 	}
 	if cert.IsCA {
+		h.tlsLock.Lock()
 		h.intermediates.AddCert(cert)
+		h.tlsLock.Unlock()
 	}
 	*x509Error = 0
 	return 1

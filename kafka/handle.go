@@ -150,6 +150,7 @@ type handle struct {
 
 	tlsConfig     *tls.Config
 	intermediates *x509.CertPool
+	tlsLock       sync.RWMutex
 }
 
 func (h *handle) String() string {
