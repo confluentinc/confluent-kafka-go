@@ -29,17 +29,24 @@ import (
 // TestConsumerAPIs dry-tests most Consumer APIs, no broker is needed.
 func TestConsumerAPIs(t *testing.T) {
 
+	cm := &ConfigMap{
+		"group.id":                 "gotest",
+		"socket.timeout.ms":        10,
+		"session.timeout.ms":       10,
+		"enable.auto.offset.store": false, // permit StoreOffsets()
+	}
+
+	testConsumerAPIs(t, cm)
+}
+
+func testConsumerAPIs(t *testing.T, cm *ConfigMap) {
+
 	c, err := NewConsumer(&ConfigMap{})
 	if err == nil {
 		t.Fatalf("Expected NewConsumer() to fail without group.id")
 	}
 
-	c, err = NewConsumer(&ConfigMap{
-		"group.id":                 "gotest",
-		"socket.timeout.ms":        10,
-		"session.timeout.ms":       10,
-		"enable.auto.offset.store": false, // permit StoreOffsets()
-	})
+	c, err = NewConsumer(cm)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -386,4 +393,18 @@ func TestConsumerLog(t *testing.T) {
 				expectedLog.message)
 		}
 	}
+}
+
+func TestReadFromPartition(t *testing.T) {
+
+	cm := &ConfigMap{
+		"group.id":                             "gotest",
+		"socket.timeout.ms":                    10,
+		"session.timeout.ms":                   10,
+		"enable.auto.offset.store":             false, // permit StoreOffsets()
+		"go.enable.read.from.partition.queues": true,
+		"go.application.rebalance.enable":		true,
+	}
+
+	testConsumerAPIs(t, cm)
 }

@@ -40,13 +40,14 @@ type RebalanceCb func(*Consumer, Event) error
 
 // Consumer implements a High-level Apache Kafka Consumer instance
 type Consumer struct {
-	events             chan Event
-	handle             handle
-	eventsChanEnable   bool
-	readerTermChan     chan bool
-	rebalanceCb        RebalanceCb
-	appReassigned      bool
-	appRebalanceEnable bool // config setting
+	events                  chan Event
+	handle                  handle
+	eventsChanEnable        bool
+	readerTermChan          chan bool
+	rebalanceCb             RebalanceCb
+	appReassigned           bool
+	appRebalanceEnable      bool // config setting
+	readFromPartitionQueues bool
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -68,6 +69,12 @@ func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
 // SubscribeTopics subscribes to the provided list of topics.
 // This replaces the current subscription.
 func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (err error) {
+
+	if c.readFromPartitionQueues && !c.appRebalanceEnable && rebalanceCb == nil {
+		return newErrorFromString(C.RD_KAFKA_RESP_ERR_INVALID_CONFIG,
+			"Enabling read from partition queues requires either enabling application rebalance or pass a rebalance event callback when Subscribing")
+	}
+
 	ctopics := C.rd_kafka_topic_partition_list_new(C.int(len(topics)))
 	defer C.rd_kafka_topic_partition_list_destroy(ctopics)
 
@@ -107,6 +114,10 @@ func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 		return newError(e)
 	}
 
+	if c.readFromPartitionQueues {
+		c.enableReadFromPartition(partitions)
+	}
+
 	return nil
 }
 
@@ -119,7 +130,19 @@ func (c *Consumer) Unassign() (err error) {
 		return newError(e)
 	}
 
+	if c.readFromPartitionQueues {
+		c.handle.closePartitionQueues()
+	}
+
 	return nil
+}
+
+func (c *Consumer) enableReadFromPartition(partitions []TopicPartition) {
+	c.handle.closePartitionQueues()
+
+	for _, tp := range partitions {
+		c.handle.disablePartitionQueueForwarding(*tp.Topic, tp.Partition)
+	}
 }
 
 // commit offsets for specified offsets.
@@ -254,7 +277,7 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
-	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil)
+	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil, nil)
 	return ev
 }
 
@@ -288,6 +311,43 @@ func (c *Consumer) Logs() chan LogEvent {
 //
 func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 
+	return readMessage(timeout, c.Poll)
+}
+
+// ReadFromPartition polls the partition queue for a message.
+//
+// Returns err if go.enable.read.from.partition.queues is not enabled, or Assign() has not been called.
+// This API only returns messages or errors.
+//
+// The call will block for at most `timeout` waiting for a new
+// message or error. `timeout` may be set to -1 for indefinite wait.
+//
+// Timeout is returned as (nil, err) where err is `kafka.(Error).Code == Kafka.ErrTimedOut`.
+// Reading from unassigned partition is returned as (nil, err) where
+// err is `kafka.(Error).Code == Kafka.ErrInvalidPartitions`.
+//
+// Messages are returned as (msg, nil),
+// while general errors are returned as (nil, err),
+// and partition-specific errors are returned as (msg, err) where
+// msg.TopicPartition provides partition-specific information (such as topic, partition and offset).
+//
+func (c *Consumer) ReadFromPartition(toppar TopicPartition, timeout time.Duration) (*Message, error) {
+
+	partitionQueue := c.handle.getAssignedPartitionQueue(*toppar.Topic, toppar.Partition)
+	if partitionQueue == nil {
+		return nil, newErrorFromString(C.RD_KAFKA_RESP_ERR_INVALID_PARTITIONS, "readFromPartitionQueues not enabled or Partition not assigned")
+	}
+
+	pollFn := func(timeoutMs int) Event {
+		ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil, partitionQueue)
+		return ev
+	}
+
+	return readMessage(timeout, pollFn)
+}
+
+func readMessage(timeout time.Duration, pollFn func(timeoutMs int) Event) (*Message, error) {
+
 	var absTimeout time.Time
 	var timeoutMs int
 
@@ -299,7 +359,7 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 	}
 
 	for {
-		ev := c.Poll(timeoutMs)
+		ev := pollFn(timeoutMs)
 
 		switch e := ev.(type) {
 		case *Message:
@@ -337,6 +397,10 @@ func (c *Consumer) Close() (err error) {
 		close(c.events)
 	}
 
+	if c.readFromPartitionQueues {
+		c.handle.closePartitionQueues()
+	}
+
 	C.rd_kafka_queue_destroy(c.handle.rkq)
 	c.handle.rkq = nil
 
@@ -361,6 +425,10 @@ func (c *Consumer) Close() (err error) {
 //                                        If set to true the app must handle the AssignedPartitions and
 //                                        RevokedPartitions events and call Assign() and Unassign()
 //                                        respectively.
+//   go.enable.read.from.partition.queues (bool, false) - Enables to read messages by each partition. (Experimental)
+//											If set to true, and Assign() is called, ReadFromPartition() must be used to receive kafka messages.
+//											Poll will only receive other kafka events.
+//											Call Unassign() to cleanup the partition queues.
 //   go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
 //   go.events.channel.size (int, 1000) - Events() channel size
 //   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
@@ -399,6 +467,12 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 	c.appRebalanceEnable = v.(bool)
 
+	v, err = confCopy.extract("go.enable.read.from.partition.queues", false)
+	if err != nil {
+		return nil, err
+	}
+	c.readFromPartitionQueues = v.(bool)
+
 	v, err = confCopy.extract("go.events.channel.enable", false)
 	if err != nil {
 		return nil, err
@@ -430,7 +504,9 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
-	C.rd_kafka_poll_set_consumer(c.handle.rk)
+	if !c.readFromPartitionQueues {
+		C.rd_kafka_poll_set_consumer(c.handle.rk)
+	}
 
 	c.handle.c = c
 	c.handle.setup()
@@ -479,7 +555,7 @@ func consumerReader(c *Consumer, termChan chan bool) {
 		case _ = <-termChan:
 			return
 		default:
-			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan)
+			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan, nil)
 			if term {
 				return
 			}

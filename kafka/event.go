@@ -151,7 +151,7 @@ func (o OAuthBearerTokenRefresh) String() string {
 // to indicate that `channel` is being terminated.
 // returns (event Event, terminate Bool) tuple, where Terminate indicates
 // if termChan received a termination event.
-func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, termChan chan bool) (Event, bool) {
+func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, termChan chan bool, queue *C.rd_kafka_queue_t) (Event, bool) {
 
 	var prevRkev *C.rd_kafka_event_t
 	term := false
@@ -161,11 +161,16 @@ func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, ter
 	if channel == nil {
 		maxEvents = 1
 	}
+
+	rkq := h.rkq
+	if queue != nil {
+		rkq = queue
+	}
 out:
 	for evcnt := 0; evcnt < maxEvents; evcnt++ {
 		var evtype C.rd_kafka_event_type_t
 		var fcMsg C.fetched_c_msg_t
-		rkev := C._rk_queue_poll(h.rkq, C.int(timeoutMs), &evtype, &fcMsg, prevRkev)
+		rkev := C._rk_queue_poll(rkq, C.int(timeoutMs), &evtype, &fcMsg, prevRkev)
 		prevRkev = rkev
 		timeoutMs = 0
 

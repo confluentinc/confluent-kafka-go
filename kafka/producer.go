@@ -344,7 +344,7 @@ func (p *Producer) Flush(timeoutMs int) int {
 		}
 
 		p.handle.eventPoll(p.events,
-			int(math.Min(100, remain*1000)), 1000, termChan)
+			int(math.Min(100, remain*1000)), 1000, termChan, nil)
 	}
 
 	return 0
@@ -624,7 +624,7 @@ func poller(p *Producer, termChan chan bool) {
 			return
 
 		default:
-			_, term := p.handle.eventPoll(p.events, 100, 1000, termChan)
+			_, term := p.handle.eventPoll(p.events, 100, 1000, termChan, nil)
 			if term {
 				return
 			}
