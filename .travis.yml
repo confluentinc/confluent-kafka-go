@@ -6,8 +6,8 @@ env:
 
 jobs:
  include:
- - name: "Go 1.11 OSX bundled librdkafka"
-   go: "1.11"
+ - name: "Go 1.16 OSX bundled librdkafka"
+   go: "1.16"
    os: osx
    env:
     - EXPECT_LINK_INFO="static"
@@ -16,8 +16,8 @@ jobs:
    os: osx
    env:
     - EXPECT_LINK_INFO="static"
- - name: "Go 1.11 Linux bundled librdkafka"
-   go: "1.11"
+ - name: "Go 1.16 Linux bundled librdkafka"
+   go: "1.16"
    os: linux
    env:
     - EXPECT_LINK_INFO="static"
