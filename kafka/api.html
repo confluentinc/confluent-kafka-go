@@ -633,6 +633,11 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#Consumer.AssignmentLost">
+          func (c *Consumer) AssignmentLost() bool
+         </a>
+        </dd>
+        <dd>
          <a href="#Consumer.Close">
           func (c *Consumer) Close() (err error)
          </a>
@@ -673,8 +678,23 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#Consumer.GetRebalanceProtocol">
+          func (c *Consumer) GetRebalanceProtocol() string
+         </a>
+        </dd>
+        <dd>
          <a href="#Consumer.GetWatermarkOffsets">
           func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#Consumer.IncrementalAssign">
+          func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#Consumer.IncrementalUnassign">
+          func (c *Consumer) IncrementalUnassign(partitions []TopicPartition) (err error)
          </a>
         </dd>
         <dd>
@@ -1315,7 +1335,7 @@ possible complications with blocking Poll() calls.
     <p>
      LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
     </p>
-    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static glibc_linux from librdkafka-static-bundle-v1.5.2.tgz"</pre>
+    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static glibc_linux from librdkafka-static-bundle-v1.6.1.tgz"</pre>
     <p>
      OffsetBeginning represents the earliest offset (logical)
     </p>
@@ -1339,7 +1359,7 @@ or unspecified value (for all other cases)
     <pre>const <span id="PartitionAny">PartitionAny</span> = <a href="//golang.org/pkg/builtin/#int32">int32</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_PARTITION_UA">RD_KAFKA_PARTITION_UA</a>)</pre>
     <h2 id="LibraryVersion">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=15359:15394#L361">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=15369:15404#L361">
       LibraryVersion
      </a>
      <a class="permalink" href="#LibraryVersion">
@@ -1353,7 +1373,7 @@ or unspecified value (for all other cases)
     </p>
     <h2 id="WriteErrorCodes">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error_gen.go?s=1505:1537#L49">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error_gen.go?s=1501:1533#L49">
       WriteErrorCodes
      </a>
      <a class="permalink" href="#WriteErrorCodes">
@@ -1368,7 +1388,7 @@ This function is not intended for public use.
     </p>
     <h2 id="AdminClient">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1379:1480#L45">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1375:1476#L45">
       AdminClient
      </a>
      <a class="permalink" href="#AdminClient">
@@ -1384,7 +1404,7 @@ This function is not intended for public use.
 </pre>
     <h3 id="NewAdminClient">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32693:32751#L961">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32689:32747#L961">
       NewAdminClient
      </a>
      <a class="permalink" href="#NewAdminClient">
@@ -1397,7 +1417,7 @@ This function is not intended for public use.
     </p>
     <h3 id="NewAdminClientFromConsumer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=34216:34288#L1010">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=34212:34284#L1010">
       NewAdminClientFromConsumer
      </a>
      <a class="permalink" href="#NewAdminClientFromConsumer">
@@ -1411,7 +1431,7 @@ The AdminClient will use the same configuration and connections as the parent in
     </p>
     <h3 id="NewAdminClientFromProducer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=33752:33824#L997">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=33748:33820#L997">
       NewAdminClientFromProducer
      </a>
      <a class="permalink" href="#NewAdminClientFromProducer">
@@ -1425,7 +1445,7 @@ The AdminClient will use the same configuration and connections as the parent in
     </p>
     <h3 id="AdminClient.AlterConfigs">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=25268:25430#L747">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=25264:25426#L747">
       AlterConfigs
      </a>
      <a class="permalink" href="#AdminClient.AlterConfigs">
@@ -1458,7 +1478,7 @@ resource requests must be sent to the broker specified in the resource.
     </p>
     <h3 id="AdminClient.Close">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32417:32446#L948">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32413:32442#L948">
       Close
      </a>
      <a class="permalink" href="#AdminClient.Close">
@@ -1471,7 +1491,7 @@ resource requests must be sent to the broker specified in the resource.
     </p>
     <h3 id="AdminClient.ClusterID">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=14524:14606#L420">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=14520:14602#L420">
       ClusterID
      </a>
      <a class="permalink" href="#AdminClient.ClusterID">
@@ -1492,7 +1512,7 @@ cancelling the context will block until the C function call returns.
     </p>
     <h3 id="AdminClient.ControllerID">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=15516:15603#L452">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=15512:15599#L452">
       ControllerID
      </a>
      <a class="permalink" href="#AdminClient.ControllerID">
@@ -1514,7 +1534,7 @@ cancelling the context will block until the C function call returns.
     </p>
     <h3 id="AdminClient.CreatePartitions">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=22048:22219#L657">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=22044:22215#L657">
       CreatePartitions
      </a>
      <a class="permalink" href="#AdminClient.CreatePartitions">
@@ -1527,7 +1547,7 @@ cancelling the context will block until the C function call returns.
     </p>
     <h3 id="AdminClient.CreateTopics">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=16346:16500#L481">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=16342:16496#L481">
       CreateTopics
      </a>
      <a class="permalink" href="#AdminClient.CreateTopics">
@@ -1550,7 +1570,7 @@ make sure to check the result for topic-specific errors.
     </p>
     <h3 id="AdminClient.DeleteTopics">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=20275:20417#L599">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=20271:20413#L599">
       DeleteTopics
      </a>
      <a class="permalink" href="#AdminClient.DeleteTopics">
@@ -1573,7 +1593,7 @@ topic metadata and configuration may continue to return information about delete
     </p>
     <h3 id="AdminClient.DescribeConfigs">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=28470:28638#L845">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=28466:28634#L845">
       DescribeConfigs
      </a>
      <a class="permalink" href="#AdminClient.DescribeConfigs">
@@ -1613,7 +1633,7 @@ in the resource.
     </p>
     <h3 id="AdminClient.GetMetadata">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30651:30749#L908">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30647:30745#L908">
       GetMetadata
      </a>
      <a class="permalink" href="#AdminClient.GetMetadata">
@@ -1630,7 +1650,7 @@ GetMetadata is equivalent to listTopics, describeTopics and describeCluster in t
     </p>
     <h3 id="AdminClient.SetOAuthBearerToken">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=31675:31757#L932">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=31671:31753#L932">
       SetOAuthBearerToken
      </a>
      <a class="permalink" href="#AdminClient.SetOAuthBearerToken">
@@ -1655,7 +1675,7 @@ authentication mechanism.
     </p>
     <h3 id="AdminClient.SetOAuthBearerTokenFailure">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32256:32325#L943">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32252:32321#L943">
       SetOAuthBearerTokenFailure
      </a>
      <a class="permalink" href="#AdminClient.SetOAuthBearerTokenFailure">
@@ -1674,7 +1694,7 @@ authentication mechanism.
     </p>
     <h3 id="AdminClient.String">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30875:30912#L913">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30871:30908#L913">
       String
      </a>
      <a class="permalink" href="#AdminClient.String">
@@ -1687,7 +1707,7 @@ authentication mechanism.
     </p>
     <h2 id="AdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6795:6875#L236">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6791:6871#L236">
       AdminOption
      </a>
      <a class="permalink" href="#AdminOption">
@@ -1705,7 +1725,7 @@ authentication mechanism.
 }</pre>
     <h2 id="AdminOptionOperationTimeout">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=1231:1307#L33">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=1227:1303#L33">
       AdminOptionOperationTimeout
      </a>
      <a class="permalink" href="#AdminOptionOperationTimeout">
@@ -1735,7 +1755,7 @@ in cluster.
 </pre>
     <h3 id="SetAdminOperationTimeout">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=2578:2657#L79">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=2574:2653#L79">
       SetAdminOperationTimeout
      </a>
      <a class="permalink" href="#SetAdminOperationTimeout">
@@ -1762,7 +1782,7 @@ in cluster.
     </p>
     <h2 id="AdminOptionRequestTimeout">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=2931:3005#L91">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=2927:3001#L91">
       AdminOptionRequestTimeout
      </a>
      <a class="permalink" href="#AdminOptionRequestTimeout">
@@ -1785,7 +1805,7 @@ lookup, request transmission, operation time on broker, and response.
 </pre>
     <h3 id="SetAdminRequestTimeout">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=4077:4152#L135">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=4073:4148#L135">
       SetAdminRequestTimeout
      </a>
      <a class="permalink" href="#SetAdminRequestTimeout">
@@ -1805,7 +1825,7 @@ lookup, request transmission, operation time on broker, and response.
     </p>
     <h2 id="AdminOptionValidateOnly">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=4423:4486#L147">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=4419:4482#L147">
       AdminOptionValidateOnly
      </a>
      <a class="permalink" href="#AdminOptionValidateOnly">
@@ -1828,7 +1848,7 @@ without performing the requested operation (create topics, etc).
 </pre>
     <h3 id="SetAdminValidateOnly">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5410:5483#L187">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5406:5479#L187">
       SetAdminValidateOnly
      </a>
      <a class="permalink" href="#SetAdminValidateOnly">
@@ -1848,7 +1868,7 @@ without performing the requested operation (create topics, etc).
     </p>
     <h2 id="AlterConfigsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6375:6491#L220">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6371:6487#L220">
       AlterConfigsAdminOption
      </a>
      <a class="permalink" href="#AlterConfigsAdminOption">
@@ -1866,7 +1886,7 @@ without performing the requested operation (create topics, etc).
 }</pre>
     <h2 id="AlterOperation">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6824:6847#L188">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6820:6843#L188">
       AlterOperation
      </a>
      <a class="permalink" href="#AlterOperation">
@@ -1880,7 +1900,7 @@ Currently only AlterOperationSet.
     <pre>type AlterOperation <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="AlterOperation.String">
      func (AlterOperation)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7024:7063#L196">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7020:7059#L196">
       String
      </a>
      <a class="permalink" href="#AlterOperation.String">
@@ -1893,7 +1913,7 @@ Currently only AlterOperationSet.
     </p>
     <h2 id="AssignedPartitions">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2640:2703#L92">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2636:2699#L92">
       AssignedPartitions
      </a>
      <a class="permalink" href="#AssignedPartitions">
@@ -1909,7 +1929,7 @@ Currently only AlterOperationSet.
 </pre>
     <h3 id="AssignedPartitions.String">
      func (AssignedPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2705:2748#L96">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2701:2744#L96">
       String
      </a>
      <a class="permalink" href="#AssignedPartitions.String">
@@ -1919,7 +1939,7 @@ Currently only AlterOperationSet.
     <pre>func (e <a href="#AssignedPartitions">AssignedPartitions</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="BrokerMetadata">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1266:1331#L37">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1262:1327#L37">
       BrokerMetadata
      </a>
      <a class="permalink" href="#BrokerMetadata">
@@ -1937,7 +1957,7 @@ Currently only AlterOperationSet.
 </pre>
     <h2 id="ConfigEntry">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7250:7477#L206">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7246:7473#L206">
       ConfigEntry
      </a>
      <a class="permalink" href="#ConfigEntry">
@@ -1958,7 +1978,7 @@ Currently only AlterOperationSet.
 </pre>
     <h3 id="StringMapToConfigEntries">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7630:7728#L217">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7626:7724#L217">
       StringMapToConfigEntries
      </a>
      <a class="permalink" href="#StringMapToConfigEntries">
@@ -1972,7 +1992,7 @@ provided string map. The AlterOperation is set on each created entry.
     </p>
     <h3 id="ConfigEntry.String">
      func (ConfigEntry)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7959:7995#L228">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7955:7991#L228">
       String
      </a>
      <a class="permalink" href="#ConfigEntry.String">
@@ -1985,7 +2005,7 @@ provided string map. The AlterOperation is set on each created entry.
     </p>
     <h2 id="ConfigEntryResult">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8175:8908#L234">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8171:8904#L234">
       ConfigEntryResult
      </a>
      <a class="permalink" href="#ConfigEntryResult">
@@ -2015,7 +2035,7 @@ DescribeConfigs request.
 </pre>
     <h3 id="ConfigEntryResult.String">
      func (ConfigEntryResult)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8984:9026#L252">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8980:9022#L252">
       String
      </a>
      <a class="permalink" href="#ConfigEntryResult.String">
@@ -2028,7 +2048,7 @@ DescribeConfigs request.
     </p>
     <h2 id="ConfigMap">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1398:1435#L36">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1394:1431#L36">
       ConfigMap
      </a>
      <a class="permalink" href="#ConfigMap">
@@ -2054,7 +2074,7 @@ takes precedence.
     <pre>type ConfigMap map[<a href="//golang.org/pkg/builtin/#string">string</a>]<a href="#ConfigValue">ConfigValue</a></pre>
     <h3 id="ConfigMap.Get">
      func (ConfigMap)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=7598:7673#L268">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=7594:7669#L268">
       Get
      </a>
      <a class="permalink" href="#ConfigMap.Get">
@@ -2070,7 +2090,7 @@ an ErrInvalidArg error is returned.
     </p>
     <h3 id="ConfigMap.Set">
      func (ConfigMap)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=2066:2105#L58">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=2062:2101#L58">
       Set
      </a>
      <a class="permalink" href="#ConfigMap.Set">
@@ -2084,7 +2104,7 @@ for `-X key=value` config.
     </p>
     <h3 id="ConfigMap.SetKey">
      func (ConfigMap)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1623:1685#L42">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=1619:1681#L42">
       SetKey
      </a>
      <a class="permalink" href="#ConfigMap.SetKey">
@@ -2101,7 +2121,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
     </p>
     <h2 id="ConfigResource">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6146:6541#L169">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6142:6537#L169">
       ConfigResource
      </a>
      <a class="permalink" href="#ConfigResource">
@@ -2125,7 +2145,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
 </pre>
     <h3 id="ConfigResource.String">
      func (ConfigResource)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6613:6652#L182">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6609:6648#L182">
       String
      </a>
      <a class="permalink" href="#ConfigResource.String">
@@ -2138,7 +2158,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
     </p>
     <h2 id="ConfigResourceResult">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10154:10453#L285">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10150:10449#L285">
       ConfigResourceResult
      </a>
      <a class="permalink" href="#ConfigResourceResult">
@@ -2162,7 +2182,7 @@ DescribeConfigs request.
 </pre>
     <h3 id="ConfigResourceResult.String">
      func (ConfigResourceResult)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10532:10577#L297">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10528:10573#L297">
       String
      </a>
      <a class="permalink" href="#ConfigResourceResult.String">
@@ -2175,7 +2195,7 @@ DescribeConfigs request.
     </p>
     <h2 id="ConfigSource">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4721:4742#L146">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4717:4738#L146">
       ConfigSource
      </a>
      <a class="permalink" href="#ConfigSource">
@@ -2188,7 +2208,7 @@ DescribeConfigs request.
     <pre>type ConfigSource <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="ConfigSource.String">
      func (ConfigSource)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=5937:5974#L164">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=5933:5970#L164">
       String
      </a>
      <a class="permalink" href="#ConfigSource.String">
@@ -2201,7 +2221,7 @@ DescribeConfigs request.
     </p>
     <h2 id="ConfigValue">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=846:874#L24">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go?s=842:870#L24">
       ConfigValue
      </a>
      <a class="permalink" href="#ConfigValue">
@@ -2216,7 +2236,7 @@ DescribeConfigs request.
     <pre>type ConfigValue interface{}</pre>
     <h2 id="Consumer">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1183:1420#L32">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1184:1421#L32">
       Consumer
      </a>
      <a class="permalink" href="#Consumer">
@@ -2232,7 +2252,7 @@ DescribeConfigs request.
 </pre>
     <h3 id="NewConsumer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=11814:11866#L365">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15101:15153#L454">
       NewConsumer
      </a>
      <a class="permalink" href="#NewConsumer">
@@ -2268,7 +2288,7 @@ event or message may be outdated.
     </p>
     <h3 id="Consumer.Assign">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=2856:2922#L89">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=3143:3209#L95">
       Assign
      </a>
      <a class="permalink" href="#Consumer.Assign">
@@ -2278,11 +2298,20 @@ event or message may be outdated.
     <pre>func (c *<a href="#Consumer">Consumer</a>) Assign(partitions []<a href="#TopicPartition">TopicPartition</a>) (err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
     <p>
      Assign an atomic set of partitions to consume.
-This replaces the current assignment.
+    </p>
+    <p>
+     The .Offset field of each TopicPartition must either be set to an absolute
+starting offset (&gt;= 0), or one of the logical offsets (`kafka.OffsetEnd` etc),
+but should typically be set to `kafka.OffsetStored` to have the consumer
+use the committed offset as a start position, with a fallback to
+`auto.offset.reset` if there is no committed offset.
+    </p>
+    <p>
+     This replaces the current assignment.
     </p>
     <h3 id="Consumer.Assignment">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=17687:17759#L544">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=20686:20758#L621">
       Assignment
      </a>
      <a class="permalink" href="#Consumer.Assignment">
@@ -2293,9 +2322,26 @@ This replaces the current assignment.
     <p>
      Assignment returns the current partition assignments
     </p>
+    <h3 id="Consumer.AssignmentLost">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=5976:6016#L184">
+      AssignmentLost
+     </a>
+     <a class="permalink" href="#Consumer.AssignmentLost">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) AssignmentLost() <a href="//golang.org/pkg/builtin/#bool">bool</a></pre>
+    <p>
+     AssignmentLost returns true if current partition assignment has been lost.
+This method is only applicable for use with a subscribing consumer when
+handling a rebalance event or callback.
+Partitions that have been lost may already be owned by other members in the
+group and therefore commiting offsets, for example, may fail.
+    </p>
     <h3 id="Consumer.Close">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=9906:9944#L321">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=12559:12597#L394">
       Close
      </a>
      <a class="permalink" href="#Consumer.Close">
@@ -2309,7 +2355,7 @@ The object is no longer usable after this call.
     </p>
     <h3 id="Consumer.Commit">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=5068:5121#L166">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=7721:7774#L239">
       Commit
      </a>
      <a class="permalink" href="#Consumer.Commit">
@@ -2324,7 +2370,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.CommitMessage">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=5285:5355#L173">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=7938:8008#L246">
       CommitMessage
      </a>
      <a class="permalink" href="#Consumer.CommitMessage">
@@ -2339,7 +2385,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.CommitOffsets">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=5701:5785#L185">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=8354:8438#L258">
       CommitOffsets
      </a>
      <a class="permalink" href="#Consumer.CommitOffsets">
@@ -2354,7 +2400,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.Committed">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18146:18256#L559">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=21145:21255#L636">
       Committed
      </a>
      <a class="permalink" href="#Consumer.Committed">
@@ -2367,7 +2413,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.Events">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=8098:8136#L252">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=10751:10789#L325">
       Events
      </a>
      <a class="permalink" href="#Consumer.Events">
@@ -2380,7 +2426,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.GetConsumerGroupMetadata">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=23041:23118#L679">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=26040:26117#L756">
       GetConsumerGroupMetadata
      </a>
      <a class="permalink" href="#Consumer.GetConsumerGroupMetadata">
@@ -2395,7 +2441,7 @@ SendOffsetsToTransaction() API.
     </p>
     <h3 id="Consumer.GetMetadata">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15189:15284#L486">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18188:18283#L563">
       GetMetadata
      </a>
      <a class="permalink" href="#Consumer.GetMetadata">
@@ -2410,9 +2456,26 @@ allTopics is false only information about locally used topics is returned,
 else information about all topics is returned.
 GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
     </p>
+    <h3 id="Consumer.GetRebalanceProtocol">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=5471:5519#L170">
+      GetRebalanceProtocol
+     </a>
+     <a class="permalink" href="#Consumer.GetRebalanceProtocol">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) GetRebalanceProtocol() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
+    <p>
+     GetRebalanceProtocol returns the current consumer group rebalance protocol,
+which is either "EAGER" or "COOPERATIVE".
+If the rebalance protocol is not known in the current state an empty string
+is returned.
+Should typically only be called during rebalancing.
+    </p>
     <h3 id="Consumer.GetWatermarkOffsets">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15989:16087#L499">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18988:19086#L576">
       GetWatermarkOffsets
      </a>
      <a class="permalink" href="#Consumer.GetWatermarkOffsets">
@@ -2426,9 +2489,53 @@ and partition.  The high offset is populated on every fetch response or via call
 The low offset is populated every statistics.interval.ms if that value is set.
 OffsetInvalid will be returned if there is no cached offset for either value.
     </p>
+    <h3 id="Consumer.IncrementalAssign">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=4246:4323#L131">
+      IncrementalAssign
+     </a>
+     <a class="permalink" href="#Consumer.IncrementalAssign">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) IncrementalAssign(partitions []<a href="#TopicPartition">TopicPartition</a>) (err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     IncrementalAssign adds the specified partitions to the current set of
+partitions to consume.
+    </p>
+    <p>
+     The .Offset field of each TopicPartition must either be set to an absolute
+starting offset (&gt;= 0), or one of the logical offsets (`kafka.OffsetEnd` etc),
+but should typically be set to `kafka.OffsetStored` to have the consumer
+use the committed offset as a start position, with a fallback to
+`auto.offset.reset` if there is no committed offset.
+    </p>
+    <p>
+     The new partitions must not be part of the current assignment.
+    </p>
+    <h3 id="Consumer.IncrementalUnassign">
+     func (*Consumer)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=4836:4915#L151">
+      IncrementalUnassign
+     </a>
+     <a class="permalink" href="#Consumer.IncrementalUnassign">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Consumer">Consumer</a>) IncrementalUnassign(partitions []<a href="#TopicPartition">TopicPartition</a>) (err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     IncrementalUnassign removes the specified partitions from the current set of
+partitions to consume.
+    </p>
+    <p>
+     The .Offset field of the TopicPartition is ignored.
+    </p>
+    <p>
+     The removed partitions must be part of the current assignment.
+    </p>
     <h3 id="Consumer.Logs">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=8221:8260#L257">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=10874:10913#L330">
       Logs
      </a>
      <a class="permalink" href="#Consumer.Logs">
@@ -2441,7 +2548,7 @@ OffsetInvalid will be returned if there is no cached offset for either value.
     </p>
     <h3 id="Consumer.OffsetsForTimes">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=16856:16967#L518">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=19855:19966#L595">
       OffsetsForTimes
      </a>
      <a class="permalink" href="#Consumer.OffsetsForTimes">
@@ -2472,7 +2579,7 @@ Per-partition errors may be returned in the `.Error` field.
     </p>
     <h3 id="Consumer.Pause">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=19595:19660#L592">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=22594:22659#L669">
       Pause
      </a>
      <a class="permalink" href="#Consumer.Pause">
@@ -2490,7 +2597,7 @@ this call, set `go.events.channel.size` accordingly.
     </p>
     <h3 id="Consumer.Poll">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=7926:7978#L246">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=10579:10631#L319">
       Poll
      </a>
      <a class="permalink" href="#Consumer.Poll">
@@ -2514,7 +2621,7 @@ this call, set `go.events.channel.size` accordingly.
     </p>
     <h3 id="Consumer.Position">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18955:19049#L576">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=21954:22048#L653">
       Position
      </a>
      <a class="permalink" href="#Consumer.Position">
@@ -2532,7 +2639,7 @@ i.e., the offset of the last message seen by the application + 1.
     </p>
     <h3 id="Consumer.QueryWatermarkOffsets">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=15450:15565#L491">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=18449:18564#L568">
       QueryWatermarkOffsets
      </a>
      <a class="permalink" href="#Consumer.QueryWatermarkOffsets">
@@ -2545,7 +2652,7 @@ i.e., the offset of the last message seen by the application + 1.
     </p>
     <h3 id="Consumer.ReadMessage">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=9069:9140#L279">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=11722:11793#L352">
       ReadMessage
      </a>
      <a class="permalink" href="#Consumer.ReadMessage">
@@ -2579,7 +2686,7 @@ msg.TopicPartition provides partition-specific information (such as topic, parti
     </p>
     <h3 id="Consumer.Resume">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=19971:20037#L603">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=22970:23036#L680">
       Resume
      </a>
      <a class="permalink" href="#Consumer.Resume">
@@ -2592,7 +2699,7 @@ msg.TopicPartition provides partition-specific information (such as topic, parti
     </p>
     <h3 id="Consumer.Seek">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=7391:7461#L226">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=10044:10114#L299">
       Seek
      </a>
      <a class="permalink" href="#Consumer.Seek">
@@ -2621,7 +2728,7 @@ a starting offset for each partition.
     </p>
     <h3 id="Consumer.SetOAuthBearerToken">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=20887:20966#L623">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=23886:23965#L700">
       SetOAuthBearerToken
      </a>
      <a class="permalink" href="#Consumer.SetOAuthBearerToken">
@@ -2646,7 +2753,7 @@ authentication mechanism.
     </p>
     <h3 id="Consumer.SetOAuthBearerTokenFailure">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=21465:21531#L634">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=24464:24530#L711">
       SetOAuthBearerTokenFailure
      </a>
      <a class="permalink" href="#Consumer.SetOAuthBearerTokenFailure">
@@ -2665,7 +2772,7 @@ authentication mechanism.
     </p>
     <h3 id="Consumer.StoreOffsets">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=6199:6300#L196">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=8852:8953#L269">
       StoreOffsets
      </a>
      <a class="permalink" href="#Consumer.StoreOffsets">
@@ -2685,7 +2792,7 @@ specific errors via its `.Error` member.
     </p>
     <h3 id="Consumer.String">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1487:1521#L43">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1488:1522#L43">
       String
      </a>
      <a class="permalink" href="#Consumer.String">
@@ -2698,7 +2805,7 @@ specific errors via its `.Error` member.
     </p>
     <h3 id="Consumer.Subscribe">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1733:1806#L54">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1734:1807#L54">
       Subscribe
      </a>
      <a class="permalink" href="#Consumer.Subscribe">
@@ -2712,7 +2819,7 @@ This replaces the current subscription
     </p>
     <h3 id="Consumer.SubscribeTopics">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1973:2061#L60">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1974:2062#L60">
       SubscribeTopics
      </a>
      <a class="permalink" href="#Consumer.SubscribeTopics">
@@ -2726,7 +2833,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Subscription">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=17089:17151#L523">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=20088:20150#L600">
       Subscription
      </a>
      <a class="permalink" href="#Consumer.Subscription">
@@ -2739,7 +2846,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Unassign">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=3237:3278#L104">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=3524:3565#L110">
       Unassign
      </a>
      <a class="permalink" href="#Consumer.Unassign">
@@ -2752,7 +2859,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Unsubscribe">
      func (*Consumer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=2666:2710#L82">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=2587:2631#L81">
       Unsubscribe
      </a>
      <a class="permalink" href="#Consumer.Unsubscribe">
@@ -2765,7 +2872,7 @@ This replaces the current subscription.
     </p>
     <h2 id="ConsumerGroupMetadata">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=21667:21723#L639">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=24666:24722#L716">
       ConsumerGroupMetadata
      </a>
      <a class="permalink" href="#ConsumerGroupMetadata">
@@ -2781,7 +2888,7 @@ This replaces the current subscription.
 </pre>
     <h3 id="NewTestConsumerGroupMetadata">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=23655:23736#L697">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=26654:26735#L774">
       NewTestConsumerGroupMetadata
      </a>
      <a class="permalink" href="#NewTestConsumerGroupMetadata">
@@ -2796,7 +2903,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
     </p>
     <h2 id="CreatePartitionsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6130:6254#L212">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6126:6250#L212">
       CreatePartitionsAdminOption
      </a>
      <a class="permalink" href="#CreatePartitionsAdminOption">
@@ -2814,7 +2921,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
 }</pre>
     <h2 id="CreateTopicsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5664:5780#L196">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5660:5776#L196">
       CreateTopicsAdminOption
      </a>
      <a class="permalink" href="#CreateTopicsAdminOption">
@@ -2832,7 +2939,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
 }</pre>
     <h2 id="DeleteTopicsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5884:6000#L204">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5880:5996#L204">
       DeleteTopicsAdminOption
      </a>
      <a class="permalink" href="#DeleteTopicsAdminOption">
@@ -2850,7 +2957,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
 }</pre>
     <h2 id="DescribeConfigsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6572:6694#L228">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6568:6690#L228">
       DescribeConfigsAdminOption
      </a>
      <a class="permalink" href="#DescribeConfigsAdminOption">
@@ -2868,7 +2975,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
 }</pre>
     <h2 id="Error">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=911:1054#L25">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=907:1050#L25">
       Error
      </a>
      <a class="permalink" href="#Error">
@@ -2884,7 +2991,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
 </pre>
     <h3 id="NewError">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=1185:1250#L38">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=1181:1246#L38">
       NewError
      </a>
      <a class="permalink" href="#NewError">
@@ -2897,7 +3004,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
     </p>
     <h3 id="Error.Code">
      func (Error)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=2773:2804#L96">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=2769:2800#L96">
       Code
      </a>
      <a class="permalink" href="#Error.Code">
@@ -2910,7 +3017,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
     </p>
     <h3 id="Error.Error">
      func (Error)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=2396:2425#L75">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=2392:2421#L75">
       Error
      </a>
      <a class="permalink" href="#Error.Error">
@@ -2924,7 +3031,7 @@ Same as Error.String()
     </p>
     <h3 id="Error.IsFatal">
      func (Error)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=3048:3077#L104">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=3044:3073#L104">
       IsFatal
      </a>
      <a class="permalink" href="#Error.IsFatal">
@@ -2940,7 +3047,7 @@ idempotent producer errors.
     </p>
     <h3 id="Error.IsRetriable">
      func (Error)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=3256:3289#L111">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=3252:3285#L111">
       IsRetriable
      </a>
      <a class="permalink" href="#Error.IsRetriable">
@@ -2955,7 +3062,7 @@ This flag is currently only set by the Transactional producer API.
     </p>
     <h3 id="Error.String">
      func (Error)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=2512:2542#L80">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=2508:2538#L80">
       String
      </a>
      <a class="permalink" href="#Error.String">
@@ -2968,7 +3075,7 @@ This flag is currently only set by the Transactional producer API.
     </p>
     <h3 id="Error.TxnRequiresAbort">
      func (Error)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=3658:3696#L120">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/error.go?s=3654:3692#L120">
       TxnRequiresAbort
      </a>
      <a class="permalink" href="#Error.TxnRequiresAbort">
@@ -2985,7 +3092,7 @@ This flag is only set by the Transactional producer API.
     </p>
     <h2 id="ErrorCode">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=292:310#L1">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=288:306#L1">
       ErrorCode
      </a>
      <a class="permalink" href="#ErrorCode">
@@ -3111,6 +3218,12 @@ This flag is only set by the Transactional producer API.
     <span id="ErrFenced">ErrFenced</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__FENCED">RD_KAFKA_RESP_ERR__FENCED</a>)
     <span class="comment">// ErrApplication Local: Application generated error</span>
     <span id="ErrApplication">ErrApplication</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__APPLICATION">RD_KAFKA_RESP_ERR__APPLICATION</a>)
+    <span class="comment">// ErrAssignmentLost Local: Group partition assignment lost</span>
+    <span id="ErrAssignmentLost">ErrAssignmentLost</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__ASSIGNMENT_LOST">RD_KAFKA_RESP_ERR__ASSIGNMENT_LOST</a>)
+    <span class="comment">// ErrNoop Local: No operation performed</span>
+    <span id="ErrNoop">ErrNoop</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__NOOP">RD_KAFKA_RESP_ERR__NOOP</a>)
+    <span class="comment">// ErrAutoOffsetReset Local: No offset to automatically reset to</span>
+    <span id="ErrAutoOffsetReset">ErrAutoOffsetReset</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET">RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET</a>)
     <span class="comment">// ErrUnknown Unknown broker error</span>
     <span id="ErrUnknown">ErrUnknown</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNKNOWN">RD_KAFKA_RESP_ERR_UNKNOWN</a>)
     <span class="comment">// ErrNoError Success</span>
@@ -3291,10 +3404,28 @@ This flag is only set by the Transactional producer API.
     <span id="ErrInvalidRecord">ErrInvalidRecord</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_INVALID_RECORD">RD_KAFKA_RESP_ERR_INVALID_RECORD</a>)
     <span class="comment">// ErrUnstableOffsetCommit Broker: There are unstable offsets that need to be cleared</span>
     <span id="ErrUnstableOffsetCommit">ErrUnstableOffsetCommit</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT">RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT</a>)
+    <span class="comment">// ErrThrottlingQuotaExceeded Broker: Throttling quota has been exceeded</span>
+    <span id="ErrThrottlingQuotaExceeded">ErrThrottlingQuotaExceeded</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_THROTTLING_QUOTA_EXCEEDED">RD_KAFKA_RESP_ERR_THROTTLING_QUOTA_EXCEEDED</a>)
+    <span class="comment">// ErrProducerFenced Broker: There is a newer producer with the same transactionalId which fences the current one</span>
+    <span id="ErrProducerFenced">ErrProducerFenced</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_PRODUCER_FENCED">RD_KAFKA_RESP_ERR_PRODUCER_FENCED</a>)
+    <span class="comment">// ErrResourceNotFound Broker: Request illegally referred to resource that does not exist</span>
+    <span id="ErrResourceNotFound">ErrResourceNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_RESOURCE_NOT_FOUND">RD_KAFKA_RESP_ERR_RESOURCE_NOT_FOUND</a>)
+    <span class="comment">// ErrDuplicateResource Broker: Request illegally referred to the same resource twice</span>
+    <span id="ErrDuplicateResource">ErrDuplicateResource</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_DUPLICATE_RESOURCE">RD_KAFKA_RESP_ERR_DUPLICATE_RESOURCE</a>)
+    <span class="comment">// ErrUnacceptableCredential Broker: Requested credential would not meet criteria for acceptability</span>
+    <span id="ErrUnacceptableCredential">ErrUnacceptableCredential</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_UNACCEPTABLE_CREDENTIAL">RD_KAFKA_RESP_ERR_UNACCEPTABLE_CREDENTIAL</a>)
+    <span class="comment">// ErrInconsistentVoterSet Broker: Indicates that the either the sender or recipient of a voter-only request is not one of the expected voters</span>
+    <span id="ErrInconsistentVoterSet">ErrInconsistentVoterSet</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_INCONSISTENT_VOTER_SET">RD_KAFKA_RESP_ERR_INCONSISTENT_VOTER_SET</a>)
+    <span class="comment">// ErrInvalidUpdateVersion Broker: Invalid update version</span>
+    <span id="ErrInvalidUpdateVersion">ErrInvalidUpdateVersion</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_INVALID_UPDATE_VERSION">RD_KAFKA_RESP_ERR_INVALID_UPDATE_VERSION</a>)
+    <span class="comment">// ErrFeatureUpdateFailed Broker: Unable to update finalized features due to server error</span>
+    <span id="ErrFeatureUpdateFailed">ErrFeatureUpdateFailed</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_FEATURE_UPDATE_FAILED">RD_KAFKA_RESP_ERR_FEATURE_UPDATE_FAILED</a>)
+    <span class="comment">// ErrPrincipalDeserializationFailure Broker: Request principal deserialization failed during forwarding</span>
+    <span id="ErrPrincipalDeserializationFailure">ErrPrincipalDeserializationFailure</span> <a href="#ErrorCode">ErrorCode</a> = <a href="#ErrorCode">ErrorCode</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE">RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE</a>)
 )</pre>
     <h3 id="ErrorCode.String">
      func (ErrorCode)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=379:413#L4">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=375:409#L4">
       String
      </a>
      <a class="permalink" href="#ErrorCode.String">
@@ -3307,7 +3438,7 @@ This flag is only set by the Transactional producer API.
     </p>
     <h2 id="Event">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2308:2413#L75">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2304:2409#L75">
       Event
      </a>
      <a class="permalink" href="#Event">
@@ -3323,7 +3454,7 @@ This flag is only set by the Transactional producer API.
 }</pre>
     <h2 id="Handle">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=1825:3094#L45">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=1832:3101#L46">
       Handle
      </a>
      <a class="permalink" href="#Handle">
@@ -3359,7 +3490,7 @@ both Producer and Consumer.
 }</pre>
     <h2 id="Header">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/header.go?s=1268:1388#L32">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/header.go?s=1264:1384#L32">
       Header
      </a>
      <a class="permalink" href="#Header">
@@ -3389,7 +3520,7 @@ The value may be a byte array, empty, or nil.
 </pre>
     <h3 id="Header.String">
      func (Header)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/header.go?s=1521:1552#L39">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/header.go?s=1517:1548#L39">
       String
      </a>
      <a class="permalink" href="#Header.String">
@@ -3403,7 +3534,7 @@ suitable for displaying to the user.
     </p>
     <h2 id="LogEvent">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/log.go?s=157:475#L4">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/log.go?s=153:471#L4">
       LogEvent
      </a>
      <a class="permalink" href="#LogEvent">
@@ -3423,7 +3554,7 @@ suitable for displaying to the user.
 </pre>
     <h3 id="LogEvent.String">
      func (LogEvent)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/log.go?s=2036:2076#L71">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/log.go?s=2032:2072#L71">
       String
      </a>
      <a class="permalink" href="#LogEvent.String">
@@ -3433,7 +3564,7 @@ suitable for displaying to the user.
     <pre>func (logEvent <a href="#LogEvent">LogEvent</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="Message">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=2122:2331#L63">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=2118:2327#L63">
       Message
      </a>
      <a class="permalink" href="#Message">
@@ -3455,7 +3586,7 @@ suitable for displaying to the user.
 </pre>
     <h3 id="Message.String">
      func (*Message)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=2437:2470#L75">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=2433:2466#L75">
       String
      </a>
      <a class="permalink" href="#Message.String">
@@ -3469,7 +3600,7 @@ Key and payload are not represented.
     </p>
     <h2 id="Metadata">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1723:1842#L60">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1719:1838#L60">
       Metadata
      </a>
      <a class="permalink" href="#Metadata">
@@ -3488,7 +3619,7 @@ Key and payload are not represented.
 </pre>
     <h2 id="OAuthBearerToken">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=839:1719#L24">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/handle.go?s=846:1726#L25">
       OAuthBearerToken
      </a>
      <a class="permalink" href="#OAuthBearerToken">
@@ -3520,7 +3651,7 @@ to a broker during SASL/OAUTHBEARER authentication.
 </pre>
     <h2 id="OAuthBearerTokenRefresh">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3646:3764#L129">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3642:3760#L129">
       OAuthBearerTokenRefresh
      </a>
      <a class="permalink" href="#OAuthBearerTokenRefresh">
@@ -3537,7 +3668,7 @@ to a broker during SASL/OAUTHBEARER authentication.
 </pre>
     <h3 id="OAuthBearerTokenRefresh.String">
      func (OAuthBearerTokenRefresh)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3766:3814#L134">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3762:3810#L134">
       String
      </a>
      <a class="permalink" href="#OAuthBearerTokenRefresh.String">
@@ -3547,7 +3678,7 @@ to a broker during SASL/OAUTHBEARER authentication.
     <pre>func (o <a href="#OAuthBearerTokenRefresh">OAuthBearerTokenRefresh</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="Offset">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=860:877#L25">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=856:873#L25">
       Offset
      </a>
      <a class="permalink" href="#Offset">
@@ -3560,7 +3691,7 @@ to a broker during SASL/OAUTHBEARER authentication.
     <pre>type Offset <a href="//golang.org/pkg/builtin/#int64">int64</a></pre>
     <h3 id="NewOffset">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=1924:1974#L68">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=1920:1970#L68">
       NewOffset
      </a>
      <a class="permalink" href="#NewOffset">
@@ -3575,7 +3706,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
     </p>
     <h3 id="OffsetTail">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=2710:2755#L107">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=2706:2751#L107">
       OffsetTail
      </a>
      <a class="permalink" href="#OffsetTail">
@@ -3588,7 +3719,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
     </p>
     <h3 id="Offset.Set">
      func (*Offset)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=1602:1648#L55">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=1598:1644#L55">
       Set
      </a>
      <a class="permalink" href="#Offset.Set">
@@ -3601,7 +3732,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
     </p>
     <h3 id="Offset.String">
      func (Offset)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=1314:1345#L39">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/offset.go?s=1310:1341#L39">
       String
      </a>
      <a class="permalink" href="#Offset.String">
@@ -3611,7 +3742,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
     <pre>func (o <a href="#Offset">Offset</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="OffsetsCommitted">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3392:3465#L119">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3388:3461#L119">
       OffsetsCommitted
      </a>
      <a class="permalink" href="#OffsetsCommitted">
@@ -3628,7 +3759,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
 </pre>
     <h3 id="OffsetsCommitted.String">
      func (OffsetsCommitted)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3467:3508#L124">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3463:3504#L124">
       String
      </a>
      <a class="permalink" href="#OffsetsCommitted.String">
@@ -3638,7 +3769,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
     <pre>func (o <a href="#OffsetsCommitted">OffsetsCommitted</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="PartitionEOF">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3217:3249#L112">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3213:3245#L112">
       PartitionEOF
      </a>
      <a class="permalink" href="#PartitionEOF">
@@ -3653,7 +3784,7 @@ configuration property to true.
     <pre>type PartitionEOF <a href="#TopicPartition">TopicPartition</a></pre>
     <h3 id="PartitionEOF.String">
      func (PartitionEOF)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3251:3288#L114">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=3247:3284#L114">
       String
      </a>
      <a class="permalink" href="#PartitionEOF.String">
@@ -3663,7 +3794,7 @@ configuration property to true.
     <pre>func (p <a href="#PartitionEOF">PartitionEOF</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="PartitionMetadata">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1386:1503#L44">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1382:1499#L44">
       PartitionMetadata
      </a>
      <a class="permalink" href="#PartitionMetadata">
@@ -3683,7 +3814,7 @@ configuration property to true.
 </pre>
     <h2 id="PartitionsSpecification">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2938:3452#L94">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2934:3448#L94">
       PartitionsSpecification
      </a>
      <a class="permalink" href="#PartitionsSpecification">
@@ -3709,7 +3840,7 @@ PartitionsSpecification is analogous to NewPartitions in the Java Topic Admin AP
 </pre>
     <h2 id="Producer">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=3613:3782#L122">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=3609:3778#L122">
       Producer
      </a>
      <a class="permalink" href="#Producer">
@@ -3725,7 +3856,7 @@ PartitionsSpecification is analogous to NewPartitions in the Java Topic Admin AP
 </pre>
     <h3 id="NewProducer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=13663:13715#L421">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=13872:13924#L423">
       NewProducer
      </a>
      <a class="permalink" href="#NewProducer">
@@ -3747,6 +3878,8 @@ PartitionsSpecification is analogous to NewPartitions in the Java Topic Admin AP
                                   Note: timestamps and headers are not supported with this interface.
 go.delivery.reports (bool, true) - Forward per-message delivery reports to the
                                    Events() channel.
+go.delivery.report.fields (string, all) - Comma separated list of fields to enable for delivery reports.
+                                          Allowed values: all, none (or empty string), key, value
 go.events.channel.size (int, 1000000) - Events().
 go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
@@ -3754,7 +3887,7 @@ go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provide
 </pre>
     <h3 id="Producer.AbortTransaction">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=30149:30211#L887">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=30574:30636#L900">
       AbortTransaction
      </a>
      <a class="permalink" href="#Producer.AbortTransaction">
@@ -3799,7 +3932,7 @@ has been raised by calling `err.(kafka.Error).IsFatal()`.
     </p>
     <h3 id="Producer.BeginTransaction">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=24490:24533#L750">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=24915:24958#L763">
       BeginTransaction
      </a>
      <a class="permalink" href="#Producer.BeginTransaction">
@@ -3836,7 +3969,7 @@ transaction, will fail.
     </p>
     <h3 id="Producer.Close">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=10443:10469#L345">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=10439:10465#L345">
       Close
      </a>
      <a class="permalink" href="#Producer.Close">
@@ -3850,7 +3983,7 @@ The Producer object or its channels are no longer usable after this call.
     </p>
     <h3 id="Producer.CommitTransaction">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=28733:28796#L851">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=29158:29221#L864">
       CommitTransaction
      </a>
      <a class="permalink" href="#Producer.CommitTransaction">
@@ -3900,7 +4033,7 @@ respectively.
     </p>
     <h3 id="Producer.Events">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9073:9111#L300">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9069:9107#L300">
       Events
      </a>
      <a class="permalink" href="#Producer.Events">
@@ -3913,7 +4046,7 @@ respectively.
     </p>
     <h3 id="Producer.Flush">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9939:9982#L325">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9935:9978#L325">
       Flush
      </a>
      <a class="permalink" href="#Producer.Flush">
@@ -3929,7 +4062,7 @@ Returns the number of outstanding events still un-flushed.
     </p>
     <h3 id="Producer.GetFatalError">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=20097:20137#L648">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=20522:20562#L661">
       GetFatalError
      </a>
      <a class="permalink" href="#Producer.GetFatalError">
@@ -3942,7 +4075,7 @@ Returns the number of outstanding events still un-flushed.
     </p>
     <h3 id="Producer.GetMetadata">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=18680:18775#L618">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=19105:19200#L631">
       GetMetadata
      </a>
      <a class="permalink" href="#Producer.GetMetadata">
@@ -3959,7 +4092,7 @@ GetMetadata is equivalent to listTopics, describeTopics and describeCluster in t
     </p>
     <h3 id="Producer.InitTransactions">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=23392:23454#L720">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=23817:23879#L733">
       InitTransactions
      </a>
      <a class="permalink" href="#Producer.InitTransactions">
@@ -4014,7 +4147,7 @@ error has been raised by calling `err.(kafka.Error).IsFatal()`.
     </p>
     <h3 id="Producer.Len">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9589:9617#L317">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9585:9613#L317">
       Len
      </a>
      <a class="permalink" href="#Producer.Len">
@@ -4029,7 +4162,7 @@ Includes messages on ProduceChannel.
     </p>
     <h3 id="Producer.Logs">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9189:9228#L305">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9185:9224#L305">
       Logs
      </a>
      <a class="permalink" href="#Producer.Logs">
@@ -4042,7 +4175,7 @@ Includes messages on ProduceChannel.
     </p>
     <h3 id="Producer.OffsetsForTimes">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=19835:19946#L643">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=20260:20371#L656">
       OffsetsForTimes
      </a>
      <a class="permalink" href="#Producer.OffsetsForTimes">
@@ -4073,7 +4206,7 @@ Per-partition errors may be returned in the `.Error` field.
     </p>
     <h3 id="Producer.Produce">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=8169:8240#L274">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=8165:8236#L274">
       Produce
      </a>
      <a class="permalink" href="#Producer.Produce">
@@ -4095,7 +4228,7 @@ Returns an error if message could not be enqueued.
     </p>
     <h3 id="Producer.ProduceChannel">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9319:9368#L310">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=9315:9364#L310">
       ProduceChannel
      </a>
      <a class="permalink" href="#Producer.ProduceChannel">
@@ -4108,7 +4241,7 @@ Returns an error if message could not be enqueued.
     </p>
     <h3 id="Producer.Purge">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=12452:12493#L397">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=12448:12489#L397">
       Purge
      </a>
      <a class="permalink" href="#Producer.Purge">
@@ -4149,7 +4282,7 @@ queues are purged.
     </p>
     <h3 id="Producer.QueryWatermarkOffsets">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=18938:19053#L624">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=19363:19478#L637">
       QueryWatermarkOffsets
      </a>
      <a class="permalink" href="#Producer.QueryWatermarkOffsets">
@@ -4163,7 +4296,7 @@ and partition.
     </p>
     <h3 id="Producer.SendOffsetsToTransaction">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=26596:26733#L795">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=27021:27158#L808">
       SendOffsetsToTransaction
      </a>
      <a class="permalink" href="#Producer.SendOffsetsToTransaction">
@@ -4218,7 +4351,7 @@ respectively.
     </p>
     <h3 id="Producer.SetOAuthBearerToken">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=20998:21077#L668">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=21423:21502#L681">
       SetOAuthBearerToken
      </a>
      <a class="permalink" href="#Producer.SetOAuthBearerToken">
@@ -4243,7 +4376,7 @@ authentication mechanism.
     </p>
     <h3 id="Producer.SetOAuthBearerTokenFailure">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=21576:21642#L679">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=22001:22067#L692">
       SetOAuthBearerTokenFailure
      </a>
      <a class="permalink" href="#Producer.SetOAuthBearerTokenFailure">
@@ -4262,7 +4395,7 @@ authentication mechanism.
     </p>
     <h3 id="Producer.String">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=3848:3882#L132">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=3844:3878#L132">
       String
      </a>
      <a class="permalink" href="#Producer.String">
@@ -4275,7 +4408,7 @@ authentication mechanism.
     </p>
     <h3 id="Producer.TestFatalError">
      func (*Producer)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=20288:20359#L654">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/producer.go?s=20713:20784#L667">
       TestFatalError
      </a>
      <a class="permalink" href="#Producer.TestFatalError">
@@ -4289,7 +4422,7 @@ This is to be used strictly for testing purposes.
     </p>
     <h2 id="RebalanceCb">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1069:1114#L29">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/consumer.go?s=1070:1115#L29">
       RebalanceCb
      </a>
      <a class="permalink" href="#RebalanceCb">
@@ -4303,7 +4436,7 @@ The passed Event will be either AssignedPartitions or RevokedPartitions
     <pre>type RebalanceCb func(*<a href="#Consumer">Consumer</a>, <a href="#Event">Event</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
     <h2 id="ResourceType">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=3511:3532#L108">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=3507:3528#L108">
       ResourceType
      </a>
      <a class="permalink" href="#ResourceType">
@@ -4316,7 +4449,7 @@ The passed Event will be either AssignedPartitions or RevokedPartitions
     <pre>type ResourceType <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="ResourceTypeFromString">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4287:4355#L130">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4283:4351#L130">
       ResourceTypeFromString
      </a>
      <a class="permalink" href="#ResourceTypeFromString">
@@ -4330,7 +4463,7 @@ a ResourceType value.
     </p>
     <h3 id="ResourceType.String">
      func (ResourceType)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4072:4109#L124">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4068:4105#L124">
       String
      </a>
      <a class="permalink" href="#ResourceType.String">
@@ -4343,7 +4476,7 @@ a ResourceType value.
     </p>
     <h2 id="RevokedPartitions">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2889:2951#L101">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2885:2947#L101">
       RevokedPartitions
      </a>
      <a class="permalink" href="#RevokedPartitions">
@@ -4359,7 +4492,7 @@ a ResourceType value.
 </pre>
     <h3 id="RevokedPartitions.String">
      func (RevokedPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2953:2995#L105">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2949:2991#L105">
       String
      </a>
      <a class="permalink" href="#RevokedPartitions.String">
@@ -4369,7 +4502,7 @@ a ResourceType value.
     <pre>func (e <a href="#RevokedPartitions">RevokedPartitions</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="Stats">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2466:2505#L83">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2462:2501#L83">
       Stats
      </a>
      <a class="permalink" href="#Stats">
@@ -4385,7 +4518,7 @@ a ResourceType value.
 </pre>
     <h3 id="Stats.String">
      func (Stats)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2507:2537#L87">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/event.go?s=2503:2533#L87">
       String
      </a>
      <a class="permalink" href="#Stats.String">
@@ -4395,7 +4528,7 @@ a ResourceType value.
     <pre>func (e <a href="#Stats">Stats</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="TimestampType">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=1328:1350#L38">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=1324:1346#L38">
       TimestampType
      </a>
      <a class="permalink" href="#TimestampType">
@@ -4408,7 +4541,7 @@ a ResourceType value.
     <pre>type TimestampType <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="TimestampType.String">
      func (TimestampType)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=1844:1882#L49">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/message.go?s=1840:1878#L49">
       String
      </a>
      <a class="permalink" href="#TimestampType.String">
@@ -4418,7 +4551,7 @@ a ResourceType value.
     <pre>func (t <a href="#TimestampType">TimestampType</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="TopicMetadata">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1550:1648#L53">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/metadata.go?s=1546:1644#L53">
       TopicMetadata
      </a>
      <a class="permalink" href="#TopicMetadata">
@@ -4436,7 +4569,7 @@ a ResourceType value.
 </pre>
     <h2 id="TopicPartition">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=12712:12832#L267">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=12722:12842#L267">
       TopicPartition
      </a>
      <a class="permalink" href="#TopicPartition">
@@ -4456,7 +4589,7 @@ a ResourceType value.
 </pre>
     <h3 id="TopicPartition.String">
      func (TopicPartition)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=12834:12873#L275">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=12844:12883#L275">
       String
      </a>
      <a class="permalink" href="#TopicPartition.String">
@@ -4466,7 +4599,7 @@ a ResourceType value.
     <pre>func (p <a href="#TopicPartition">TopicPartition</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
     <h2 id="TopicPartitions">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13202:13239#L290">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13212:13249#L290">
       TopicPartitions
      </a>
      <a class="permalink" href="#TopicPartitions">
@@ -4480,7 +4613,7 @@ the sort interface
     <pre>type TopicPartitions []<a href="#TopicPartition">TopicPartition</a></pre>
     <h3 id="TopicPartitions.Len">
      func (TopicPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13241:13277#L292">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13251:13287#L292">
       Len
      </a>
      <a class="permalink" href="#TopicPartitions.Len">
@@ -4490,7 +4623,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Len() <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="TopicPartitions.Less">
      func (TopicPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13300:13346#L296">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13310:13356#L296">
       Less
      </a>
      <a class="permalink" href="#TopicPartitions.Less">
@@ -4500,7 +4633,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Less(i, j <a href="//golang.org/pkg/builtin/#int">int</a>) <a href="//golang.org/pkg/builtin/#bool">bool</a></pre>
     <h3 id="TopicPartitions.Swap">
      func (TopicPartitions)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13507:13548#L305">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/kafka.go?s=13517:13558#L305">
       Swap
      </a>
      <a class="permalink" href="#TopicPartitions.Swap">
@@ -4510,7 +4643,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Swap(i, j <a href="//golang.org/pkg/builtin/#int">int</a>)</pre>
     <h2 id="TopicResult">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1677:1817#L58">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1673:1813#L58">
       TopicResult
      </a>
      <a class="permalink" href="#TopicResult">
@@ -4529,7 +4662,7 @@ the sort interface
 </pre>
     <h3 id="TopicResult.String">
      func (TopicResult)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1887:1923#L66">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1883:1919#L66">
       String
      </a>
      <a class="permalink" href="#TopicResult.String">
@@ -4542,7 +4675,7 @@ the sort interface
     </p>
     <h2 id="TopicSpecification">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2167:2758#L75">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2163:2754#L75">
       TopicSpecification
      </a>
      <a class="permalink" href="#TopicSpecification">
