@@ -1,6 +1,6 @@
 package kafka
-// Copyright 2016-2020 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2020-11-05 11:15:05.835042851 +0100 CET m=+0.000270713 USING librdkafka 1.5.2-dirty
+// Copyright 2016-2021 Confluent Inc.
+// AUTOMATICALLY GENERATED ON 2021-02-26 10:30:20.002504127 +0100 CET m=+0.000255761 USING librdkafka 1.6.1-dirty
 
 /*
 #include "select_rdkafka.h"
@@ -130,6 +130,12 @@ const (
     ErrFenced ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__FENCED)
     // ErrApplication Local: Application generated error
     ErrApplication ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__APPLICATION)
+    // ErrAssignmentLost Local: Group partition assignment lost
+    ErrAssignmentLost ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__ASSIGNMENT_LOST)
+    // ErrNoop Local: No operation performed
+    ErrNoop ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__NOOP)
+    // ErrAutoOffsetReset Local: No offset to automatically reset to
+    ErrAutoOffsetReset ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET)
     // ErrUnknown Unknown broker error
     ErrUnknown ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNKNOWN)
     // ErrNoError Success
@@ -310,4 +316,22 @@ const (
     ErrInvalidRecord ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INVALID_RECORD)
     // ErrUnstableOffsetCommit Broker: There are unstable offsets that need to be cleared
     ErrUnstableOffsetCommit ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT)
+    // ErrThrottlingQuotaExceeded Broker: Throttling quota has been exceeded
+    ErrThrottlingQuotaExceeded ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_THROTTLING_QUOTA_EXCEEDED)
+    // ErrProducerFenced Broker: There is a newer producer with the same transactionalId which fences the current one
+    ErrProducerFenced ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_PRODUCER_FENCED)
+    // ErrResourceNotFound Broker: Request illegally referred to resource that does not exist
+    ErrResourceNotFound ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_RESOURCE_NOT_FOUND)
+    // ErrDuplicateResource Broker: Request illegally referred to the same resource twice
+    ErrDuplicateResource ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_DUPLICATE_RESOURCE)
+    // ErrUnacceptableCredential Broker: Requested credential would not meet criteria for acceptability
+    ErrUnacceptableCredential ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNACCEPTABLE_CREDENTIAL)
+    // ErrInconsistentVoterSet Broker: Indicates that the either the sender or recipient of a voter-only request is not one of the expected voters
+    ErrInconsistentVoterSet ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INCONSISTENT_VOTER_SET)
+    // ErrInvalidUpdateVersion Broker: Invalid update version
+    ErrInvalidUpdateVersion ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INVALID_UPDATE_VERSION)
+    // ErrFeatureUpdateFailed Broker: Unable to update finalized features due to server error
+    ErrFeatureUpdateFailed ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_FEATURE_UPDATE_FAILED)
+    // ErrPrincipalDeserializationFailure Broker: Request principal deserialization failed during forwarding
+    ErrPrincipalDeserializationFailure ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE)
 )
