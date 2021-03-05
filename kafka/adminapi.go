@@ -27,7 +27,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 #include "tlscb_thunk.h"
 
 static const rd_kafka_topic_result_t *

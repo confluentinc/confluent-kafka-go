@@ -215,8 +215,16 @@ func eventTestReadFromPartition(hasAssigned <-chan bool) func(c *Consumer, mt *m
 			cancel()
 		}
 
+		assignedToppars := map[int32]bool{}
+		var assignedTopparsLock sync.Mutex
+
 		readMessages := func(ctx context.Context, cancel func(), wg *sync.WaitGroup, k topicPartitionKey, events chan *Message) {
 			defer wg.Done()
+			defer func() {
+				assignedTopparsLock.Lock()
+				assignedToppars[k.Partition] = false
+				assignedTopparsLock.Unlock()
+			}()
 
 			for ctx.Err() == nil {
 				ev, err := c.ReadMessageContext(ctx, k.Topic, k.Partition)
@@ -243,12 +251,29 @@ func eventTestReadFromPartition(hasAssigned <-chan bool) func(c *Consumer, mt *m
 		tickerWg.Add(1)
 		go tickr(ctx, cancel, tickerWg, events)
 
-		<-hasAssigned // wait for first partition assignment
-		mt.t.Log(fmt.Sprintf("%d partitions, at %v", len(c.handle.rkqtAssignedPartitions), time.Now()))
-		for toppar := range c.handle.rkqtAssignedPartitions {
-			wg.Add(1)
-			go readMessages(ctx, cancel, wg, toppar, events)
+		handleRebalance := func() {
+			assignedTopparsLock.Lock()
+			defer assignedTopparsLock.Unlock()
+
+			mt.t.Log(fmt.Sprintf("%d partitions, at %v", len(c.handle.rkqtAssignedPartitions), time.Now()))
+			for toppar := range c.handle.rkqtAssignedPartitions {
+				if !assignedToppars[toppar.Partition] {
+					wg.Add(1)
+					mt.t.Logf("Assigned %d\n", toppar.Partition)
+					go readMessages(ctx, cancel, wg, toppar, events)
+					assignedToppars[toppar.Partition] = true
+				}
+			}
 		}
+
+		<-hasAssigned
+		handleRebalance()
+		//go func() {
+		//	// handle incremental rebalancing
+		//	for range hasAssigned {
+		//		handleRebalance()
+		//	}
+		//}()
 
 		wg.Wait()
 		close(events)
@@ -267,6 +292,7 @@ func eventTestChannelConsumer(c *Consumer, mt *msgtracker, expCnt int) {
 
 // handleTestEvent returns false if processing should stop, else true. Tracks the message received
 func handleTestEvent(c *Consumer, mt *msgtracker, expCnt int, ev Event) bool {
+	mt.t.Logf("Received test event: %+v", ev)
 	switch e := ev.(type) {
 	case *Message:
 		if e.TopicPartition.Error != nil {
@@ -434,8 +460,9 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	}
 }
 
-// consumerTest consumes messages from a pre-primed (produced to) topic
-func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+// consumerTest consumes messages from a pre-primed (produced to) topic.
+// assignmentStrategy may be "" to use the default strategy.
+func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
 
 	if msgcnt == 0 {
 		createTestMessages()
@@ -456,6 +483,9 @@ func consumerTest(t *testing.T, testname string, msgcnt int, cc consumerCtrl, co
 		"log_level":                            7,
 		"auto.offset.reset":                    "earliest",
 		"go.enable.read.from.partition.queues": cc.readFromPartitionQueue,
+	}
+	if assignmentStrategy != "" {
+		conf["partition.assignment.strategy"] = assignmentStrategy
 	}
 
 	conf.updateFromTestconf()
@@ -924,25 +954,23 @@ func verifyMessages(t *testing.T, msgs []*Message, expected []*testmsgType) {
 }
 
 // test consumer APIs with various message commit modes
-func consumerTestWithCommits(t *testing.T, testname string, msgcnt int, useChannel bool, readFromPartitionQueue bool,
+func consumerTestWithCommits(t *testing.T, testname string, assignmentStrategy string, msgcnt int, useChannel bool, readFromPartitionQueue bool,
 	consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+	consumerTest(t, testname+" auto commit", assignmentStrategy,
+		msgcnt, consumerCtrl{useChannel: useChannel, autoCommit: true, readFromPartitionQueue: readFromPartitionQueue},
+		consumeFunc, rebalanceCb)
 
-	consumerTest(t, testname+" auto commit",
-		msgcnt, consumerCtrl{useChannel: useChannel, autoCommit: true,
-			readFromPartitionQueue: readFromPartitionQueue}, consumeFunc, rebalanceCb)
+	consumerTest(t, testname+" using CommitMessage() API", assignmentStrategy,
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitMessageAPI, readFromPartitionQueue: readFromPartitionQueue},
+		consumeFunc, rebalanceCb)
 
-	consumerTest(t, testname+" using CommitMessage() API",
-		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitMessageAPI,
-			readFromPartitionQueue: readFromPartitionQueue}, consumeFunc, rebalanceCb)
+	consumerTest(t, testname+" using CommitOffsets() API", assignmentStrategy,
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitOffsetsAPI, readFromPartitionQueue: readFromPartitionQueue},
+		consumeFunc, rebalanceCb)
 
-	consumerTest(t, testname+" using CommitOffsets() API",
-		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitOffsetsAPI,
-			readFromPartitionQueue: readFromPartitionQueue}, consumeFunc, rebalanceCb)
-
-	consumerTest(t, testname+" using Commit() API",
-		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitAPI,
-			readFromPartitionQueue: readFromPartitionQueue}, consumeFunc, rebalanceCb)
-
+	consumerTest(t, testname+" using Commit() API", assignmentStrategy,
+		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitAPI, readFromPartitionQueue: readFromPartitionQueue},
+		consumeFunc, rebalanceCb)
 }
 
 func rebalanceFn(t *testing.T, hasAssigned chan bool) func(c *Consumer, event Event) error {
@@ -1004,19 +1032,103 @@ func validateCommitsOnRevokedPartitions(t *testing.T) func(c *Consumer, event Ev
 
 // test consumer channel-based API
 func TestConsumerChannel(t *testing.T) {
-	consumerTestWithCommits(t, "Channel Consumer", 0, true, false, eventTestChannelConsumer, nil)
+	consumerTestWithCommits(t, "Channel Consumer",
+		"", 0, true, false, eventTestChannelConsumer, nil)
+}
+
+// test consumer channel-based API with incremental rebalancing
+func TestConsumerChannelIncremental(t *testing.T) {
+	consumerTestWithCommits(t, "Channel Consumer Incremental",
+		"cooperative-sticky", 0, true, false, eventTestChannelConsumer, nil)
 }
 
 // test consumer poll-based API
 func TestConsumerPoll(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer", 0, false, false, eventTestPollConsumer, nil)
+	consumerTestWithCommits(t, "Poll Consumer", "", 0, false, false, eventTestPollConsumer, nil)
+}
+
+// test consumer poll-based API with incremental rebalancing
+func TestConsumerPollIncremental(t *testing.T) {
+	consumerTestWithCommits(t, "Poll Consumer ncremental",
+		"cooperative-sticky", 0, false, false, eventTestPollConsumer, nil)
 }
 
 // test consumer poll-based API with rebalance callback
 func TestConsumerPollRebalance(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer (rebalance callback)", 0, false, false, eventTestPollConsumer,
+	consumerTestWithCommits(t, "Poll Consumer (rebalance callback)",
+		"", 0, false, false, eventTestPollConsumer,
 		func(c *Consumer, event Event) error {
 			t.Logf("Rebalanced: %s", event)
+			return nil
+		})
+}
+
+// test consumer poll-based API with incremental no-op rebalance callback
+func TestConsumerPollRebalanceIncrementalNoop(t *testing.T) {
+	consumerTestWithCommits(t, "Poll Consumer (incremental no-op rebalance callback)",
+		"cooperative-sticky", 0, false, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s", event)
+			return nil
+		})
+}
+
+// test consumer poll-based API with incremental rebalance callback
+func TestConsumerPollRebalanceIncremental(t *testing.T) {
+	consumerTestWithCommits(t, "Poll Consumer (incremental rebalance callback)",
+		"cooperative-sticky", 0, false, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s (RebalanceProtocol=%s, AssignmentLost=%v)",
+				event, c.GetRebalanceProtocol(), c.AssignmentLost())
+
+			switch e := event.(type) {
+			case AssignedPartitions:
+				err := c.IncrementalAssign(e.Partitions)
+				if err != nil {
+					t.Errorf("IncrementalAssign() failed: %s\n", err)
+					return err
+				}
+			case RevokedPartitions:
+				err := c.IncrementalUnassign(e.Partitions)
+				if err != nil {
+					t.Errorf("IncrementalUnassign() failed: %s\n", err)
+					return err
+				}
+			default:
+				t.Fatalf("Unexpected rebalance event: %v\n", e)
+			}
+
+			return nil
+		})
+}
+
+// test consumer poll-based API with incremental rebalance callback and per-partition queues
+func TestConsumerPollRebalanceIncrementalPerPartitionQueues(t *testing.T) {
+	assignCh := make(chan bool, 10)
+	consumerTest(t, "Poll Consumer (incremental rebalance callback)", "cooperative-sticky", 0,
+		consumerCtrl{useChannel: false, autoCommit: true, readFromPartitionQueue: true}, eventTestReadFromPartition(assignCh),
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s (RebalanceProtocol=%s, AssignmentLost=%v)",
+				event, c.GetRebalanceProtocol(), c.AssignmentLost())
+
+			switch e := event.(type) {
+			case AssignedPartitions:
+				err := c.IncrementalAssign(e.Partitions)
+				if err != nil {
+					t.Errorf("IncrementalAssign() failed: %s\n", err)
+					return err
+				}
+				assignCh <- true
+			case RevokedPartitions:
+				err := c.IncrementalUnassign(e.Partitions)
+				if err != nil {
+					t.Errorf("IncrementalUnassign() failed: %s\n", err)
+					return err
+				}
+			default:
+				t.Fatalf("Unexpected rebalance event: %v\n", e)
+			}
+
 			return nil
 		})
 }
@@ -1024,27 +1136,41 @@ func TestConsumerPollRebalance(t *testing.T) {
 // Test Committed() API
 func TestConsumerCommitted(t *testing.T) {
 	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
-		0, false, false, eventTestPollConsumer, validateCommitsOnRevokedPartitions(t))
+		"", 0, false, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s", event)
+			rp, ok := event.(RevokedPartitions)
+			if ok {
+				offsets, err := c.Committed(rp.Partitions, 5000)
+				if err != nil {
+					t.Errorf("Failed to get committed offsets: %s\n", err)
+					return nil
+				}
+
+				t.Logf("Retrieved Committed offsets: %s\n", offsets)
+			}
+			return nil
+		})
 }
 
 // test consumer poll-based API
 func TestConsumerReadMessageContext(t *testing.T) {
 	hasAssigned := make(chan bool, 1)
-	consumerTestWithCommits(t, "ReadMessageContext Consumer", 0, false, true,
+	consumerTestWithCommits(t, "ReadMessageContext Consumer", "", 0, false, true,
 		eventTestReadFromPartition(hasAssigned), rebalanceFn(t, hasAssigned))
 }
 
 // test consumer poll-based API with rebalance callback
 func TestConsumerReadMessageContextRebalance(t *testing.T) {
 	hasAssigned := make(chan bool, 1)
-	consumerTestWithCommits(t, "ReadMessageContext Consumer (rebalance callback)", 0, false, true,
+	consumerTestWithCommits(t, "ReadMessageContext Consumer (rebalance callback)", "", 0, false, true,
 		eventTestReadFromPartition(hasAssigned), rebalanceFn(t, hasAssigned))
 }
 
 // Test Committed() API
 func TestConsumerReadMessageContextCommitted(t *testing.T) {
 	hasAssigned := make(chan bool, 1)
-	consumerTestWithCommits(t, "ReadMessageContext Consumer (rebalance callback, verify Committed())", 0, false, true,
+	consumerTestWithCommits(t, "ReadMessageContext Consumer (rebalance callback, verify Committed())", "", 0, false, true,
 		eventTestReadFromPartition(hasAssigned),
 		func(c *Consumer, event Event) error {
 			_ = validateCommitsOnRevokedPartitions(t)(c, event)

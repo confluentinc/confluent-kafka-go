@@ -25,7 +25,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 */
 import "C"
 

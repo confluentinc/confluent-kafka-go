@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -562,4 +563,106 @@ func TestTransactionalAPI(t *testing.T) {
 	}
 
 	p.Close()
+}
+
+// TestProducerDeliveryReportFields tests the `go.delivery.report.fields` config setting
+func TestProducerDeliveryReportFields(t *testing.T) {
+	t.Run("none", func(t *testing.T) {
+		runProducerDeliveryReportFieldTest(t, &ConfigMap{
+			"socket.timeout.ms":         10,
+			"message.timeout.ms":        10,
+			"go.delivery.report.fields": "",
+		}, func(expected, actual *Message) {
+			if len(actual.Key) > 0 {
+				t.Errorf("key should not be set")
+			}
+			if len(actual.Value) > 0 {
+				t.Errorf("value should not be set")
+			}
+			if s, ok := actual.Opaque.(*string); ok {
+				if *s != *(expected.Opaque.(*string)) {
+					t.Errorf("Opaque should be \"%v\", not \"%v\"", expected.Opaque, actual.Opaque)
+				}
+			} else {
+				t.Errorf("opaque value should be a string, not \"%v\"", actual.Opaque)
+			}
+		})
+	})
+	t.Run("single", func(t *testing.T) {
+		runProducerDeliveryReportFieldTest(t, &ConfigMap{
+			"socket.timeout.ms":         10,
+			"message.timeout.ms":        10,
+			"go.delivery.report.fields": "key",
+		}, func(expected, actual *Message) {
+			if !bytes.Equal(expected.Key, actual.Key) {
+				t.Errorf("key should be \"%s\", not \"%s\"", expected.Key, actual.Key)
+			}
+			if len(actual.Value) > 0 {
+				t.Errorf("value should not be set")
+			}
+			if s, ok := actual.Opaque.(*string); ok {
+				if *s != *(expected.Opaque.(*string)) {
+					t.Errorf("Opaque should be \"%v\", not \"%v\"", expected.Opaque, actual.Opaque)
+				}
+			} else {
+				t.Errorf("opaque value should be a string, not \"%v\"", actual.Opaque)
+			}
+		})
+	})
+	t.Run("multiple", func(t *testing.T) {
+		runProducerDeliveryReportFieldTest(t, &ConfigMap{
+			"socket.timeout.ms":         10,
+			"message.timeout.ms":        10,
+			"go.delivery.report.fields": "key,value",
+		}, func(expected, actual *Message) {
+			if !bytes.Equal(expected.Key, actual.Key) {
+				t.Errorf("key should be \"%s\", not \"%s\"", expected.Key, actual.Key)
+			}
+			if !bytes.Equal(expected.Value, actual.Value) {
+				t.Errorf("value should be \"%s\", not \"%s\"", expected.Value, actual.Value)
+			}
+			if s, ok := actual.Opaque.(*string); ok {
+				if *s != *(expected.Opaque.(*string)) {
+					t.Errorf("Opaque should be \"%v\", not \"%v\"", expected.Opaque, actual.Opaque)
+				}
+			} else {
+				t.Errorf("opaque value should be a string, not \"%v\"", actual.Opaque)
+			}
+		})
+	})
+}
+
+func runProducerDeliveryReportFieldTest(t *testing.T, config *ConfigMap, fn func(expected, actual *Message)) {
+	p, err := NewProducer(config)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	topic1 := "gotest"
+
+	myOpq := "My opaque"
+	expected := &Message{
+		TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
+		Opaque:         &myOpq,
+		Value:          []byte("ProducerChannel"),
+		Key:            []byte("This is my key"),
+	}
+	p.ProduceChannel() <- expected
+
+	// We should expect a single message and possibly events
+	for msgCnt := 0; msgCnt < 1; {
+		ev := <-p.Events()
+		switch e := ev.(type) {
+		case *Message:
+			msgCnt++
+			fn(expected, e)
+		default:
+			t.Logf("Ignored event %s", e)
+		}
+	}
+
+	r := p.Flush(2000)
+	if r > 0 {
+		t.Errorf("Expected empty queue after Flush, still has %d", r)
+	}
 }

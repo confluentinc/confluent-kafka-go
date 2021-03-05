@@ -30,8 +30,6 @@ for the balanced consumer groups of Apache Kafka 0.9 and above.
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-go/index.html) for more information.
 
-**License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
-
 
 Examples
 ========
@@ -125,7 +123,7 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.11+ and librdkafka 1.4.0+.
+Supports Go 1.11+ and librdkafka 1.6.0+.
 
 Using Go Modules
 ----------------
@@ -225,7 +223,7 @@ with `-tags dynamic`.
 **Note:** If you use the master branch of the Go client, then you need to use
           the master branch of librdkafka.
 
-**confluent-kafka-go requires librdkafka v1.4.0 or later.**
+**confluent-kafka-go requires librdkafka v1.6.0 or later.**
 
 
 
@@ -317,14 +315,20 @@ Cons:
 
 See [examples/producer_example](examples/producer_example)
 
+License
+=======
 
-Tests
-=====
+[Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
+by confluent-kafka-go. confluent-kafka-go has no affiliation with and is not endorsed by The Apache
+Software Foundation.
+
+Developer Notes
+===============
 
 See [kafka/README](kafka/README.md)
 
-Contributing
-------------
 Contributions to the code, examples, documentation, et.al, are very much appreciated.
 
 Make your changes, run gofmt, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).

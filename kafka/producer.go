@@ -26,7 +26,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 #include "tlscb_thunk.h"
 
@@ -453,6 +453,8 @@ func (p *Producer) Purge(flags int) error {
 //                                     Note: timestamps and headers are not supported with this interface.
 //   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
 //                                      Events() channel.
+//   go.delivery.report.fields (string, all) - Comma separated list of fields to enable for delivery reports.
+//                                             Allowed values: all, none (or empty string), key, value
 //   go.events.channel.size (int, 1000000) - Events().
 //   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
@@ -490,6 +492,17 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		return nil, err
 	}
 	p.handle.fwdDr = v.(bool)
+
+	v, err = confCopy.extract("go.delivery.report.fields", "all")
+	if err != nil {
+		return nil, err
+	}
+
+	msgFields, err := newMessageFieldsFrom(v)
+	if err != nil {
+		return nil, err
+	}
+	p.handle.msgFields = msgFields
 
 	v, err = confCopy.extract("go.events.channel.size", 1000000)
 	if err != nil {

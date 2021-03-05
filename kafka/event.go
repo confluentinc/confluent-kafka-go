@@ -25,7 +25,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 
 
@@ -203,52 +203,7 @@ func (h *handle) processRkevToGoEvent(
 		return h.newMessageFromFcMsg(fcMsg)
 
 	case C.RD_KAFKA_EVENT_REBALANCE:
-		// Consumer rebalance event
-		// If the app provided a RebalanceCb to Subscribe*() or
-		// has go.application.rebalance.enable=true we create an event
-		// and forward it to the application thru the RebalanceCb or the
-		// Events channel respectively.
-		// Since librdkafka requires the rebalance event to be "acked" by
-		// the application to synchronize state we keep track of if the
-		// application performed Assign() or Unassign(), but this only works for
-		// the non-channel case. For the channel case we assume the application
-		// calls Assign() / Unassign().
-		// Failure to do so will "hang" the consumer, e.g., it wont start consuming
-		// and it wont close cleanly, so this error case should be visible
-		// immediately to the application developer.
-		appReassigned := false
-		if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
-			if h.currAppRebalanceEnable {
-				// Application must perform Assign() call
-				var ev AssignedPartitions
-				ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
-				if h.c.rebalanceCb == nil {
-					// App wants rebalance events
-					return ev
-				}
-				appReassigned = h.c.rebalance(ev)
-			}
-
-			if !appReassigned {
-				C.rd_kafka_assign(h.rk, C.rd_kafka_event_topic_partition_list(rkev))
-			}
-		} else {
-			if h.currAppRebalanceEnable {
-				// Application must perform Unassign() call
-				var ev RevokedPartitions
-				ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
-				if h.c.rebalanceCb == nil {
-					// App wants rebalance events
-					return ev
-				}
-				appReassigned = h.c.rebalance(ev)
-			}
-
-			if !appReassigned {
-				C.rd_kafka_assign(h.rk, nil)
-			}
-		}
-		return nil
+		return h.c.handleRebalanceEvent(rkev)
 
 	case C.RD_KAFKA_EVENT_ERROR:
 		// Error event
