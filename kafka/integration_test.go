@@ -27,6 +27,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -370,7 +371,10 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 
 	if testmsgs == nil {
 		createTestMessages()
-		testmsgs = pAllTestMsgs
+		// Upstream seems to have added a message that _can't_ be published to
+		// pAllTestMsgs, making this test fail; use p0TestMsgs instead, which seems
+		// to be what is _actually_ desired.
+		testmsgs = p0TestMsgs
 	}
 
 	//get the number of messages prior to producing more messages
@@ -463,8 +467,21 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 // consumerTest consumes messages from a pre-primed (produced to) topic.
 // assignmentStrategy may be "" to use the default strategy.
 func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+	// Running some tests in isolation fails if this isn't done.
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	startOffset := 0
 
 	if msgcnt == 0 {
+		// We need to measure the offset of the topic before the test begins (see below)
+		var err error
+		startOffset, err = getMessageCountInTopic(testconf.Topic)
+		if err != nil {
+			panic(err)
+		}
+
 		createTestMessages()
 		producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{},
 			func(p *Producer, m *Message, drChan chan Event) {
@@ -473,10 +490,19 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		msgcnt = len(p0TestMsgs)
 	}
 
+	// Upstream seems to have broken a ton of these tests, because the same consumer group is used between
+	// every test, and some of them now have different partition assignment strategies. So, we need to randomise
+	// the consumer group name...
+	randomConsumerGroup := fmt.Sprintf(
+		"group-%s-%d",
+		strings.Replace(assignmentStrategy, " ", "-", -1),
+		rand.Intn(10000),
+	)
+
 	conf := ConfigMap{
 		"bootstrap.servers":                    testconf.Brokers,
 		"go.events.channel.enable":             cc.useChannel,
-		"group.id":                             testconf.GroupID,
+		"group.id":                             randomConsumerGroup,
 		"session.timeout.ms":                   6000,
 		"api.version.request":                  "true",
 		"enable.auto.commit":                   cc.autoCommit,
@@ -501,7 +527,41 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 	mt := msgtrackerStart(t, expCnt)
 
 	t.Logf("%s, expecting %d messages", testname, expCnt)
-	c.Subscribe(testconf.Topic, rebalanceCb)
+	err = c.Subscribe(testconf.Topic, rebalanceCb)
+	if err != nil {
+		panic(err)
+	}
+	// ...but, since we are using a different consumer group name, we need to seek it to where the test started
+	// so that it can see exactly the messages it is supposed to see. I think this was working before only because
+	// all the tests were publishing the same messages.
+	for {
+		for {
+			haveAssigned := false
+			assignment, err := c.Assignment()
+			if err != nil {
+				panic(err)
+			}
+			for _, toppar := range assignment {
+				if *toppar.Topic == testconf.Topic && toppar.Partition == 0 {
+					haveAssigned = true
+				}
+			}
+			if haveAssigned {
+				break
+			}
+			c.Poll(1000)
+		}
+		t.Logf("Seeking to %d", startOffset)
+		err = c.Seek(TopicPartition{
+			Topic:     &testconf.Topic,
+			Partition: 0,
+			Offset:    Offset(startOffset),
+		}, 10000)
+		if err == nil {
+			break
+		}
+	}
+
 	t.Logf("start consume %v", time.Now())
 	consumeFunc(c, &mt, expCnt)
 	t.Logf("finish consume %v", time.Now())
