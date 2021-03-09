@@ -23,7 +23,7 @@ import (
 
 /*
 #include <string.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 */
 import "C"

@@ -23,7 +23,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 
 static int64_t _c_rdkafka_offset_tail(int64_t rel) {
    return RD_KAFKA_OFFSET_TAIL(rel);

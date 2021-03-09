@@ -25,7 +25,7 @@ import (
 /*
 #include <string.h>
 #include <stdlib.h>
-#include "rdkafka_select.h"
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 
 void setup_rkmessage (rd_kafka_message_t *rkmessage,
@@ -135,10 +135,10 @@ func (h *handle) setupMessageFromC(msg *Message, cmsg *C.rd_kafka_message_t) {
 		msg.TopicPartition.Topic = &topic
 	}
 	msg.TopicPartition.Partition = int32(cmsg.partition)
-	if cmsg.payload != nil {
+	if cmsg.payload != nil && h.msgFields.Value {
 		msg.Value = C.GoBytes(unsafe.Pointer(cmsg.payload), C.int(cmsg.len))
 	}
-	if cmsg.key != nil {
+	if cmsg.key != nil && h.msgFields.Key {
 		msg.Key = C.GoBytes(unsafe.Pointer(cmsg.key), C.int(cmsg.key_len))
 	}
 	msg.TopicPartition.Offset = Offset(cmsg.offset)

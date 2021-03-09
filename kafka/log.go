@@ -6,8 +6,8 @@ import (
 )
 
 /*
-#include "rdkafka_select.h"
 #include <stdlib.h>
+#include "rdkafka_select.h"
 */
 import "C"
 
