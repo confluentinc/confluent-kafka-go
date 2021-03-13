@@ -7,14 +7,14 @@ Confluent's Golang Client for Apache Kafka<sup>TM</sup>
 
 Features:
 
-- **High performance** - `confluent-kafka-go` is a lightweight wrapper around
-[`librdkafka`](https://github.com/edenhill/librdkafka), a finely tuned C
+- **High performance** - confluent-kafka-go is a lightweight wrapper around
+[librdkafka](https://github.com/edenhill/librdkafka), a finely tuned C
 client.
 
 - **Reliability** - There are a lot of details to get right when writing an Apache Kafka
-client. We get them right in one place (`librdkafka`) and leverage this work
-across all of our clients (also [`confluent-kafka-python`](https://github.com/confluentinc/confluent-kafka-python)
-and [`confluent-kafka-dotnet`](https://github.com/confluentinc/confluent-kafka-dotnet)).
+client. We get them right in one place (librdkafka) and leverage this work
+across all of our clients (also [confluent-kafka-python](https://github.com/confluentinc/confluent-kafka-python)
+and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dotnet)).
 
 - **Supported** - Commercial support is offered by
 [Confluent](https://confluent.io/).
@@ -123,13 +123,13 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.11+ and `librdkafka` 1.6.0+.
+Supports Go 1.11+ and librdkafka 1.6.0+.
 
 Using Go Modules
 ----------------
 
 Starting with Go 1.13, you can use [Go Modules](https://blog.golang.org/using-go-modules) to install
-`confluent-kafka-go`.
+confluent-kafka-go.
 
 Import the `kafka` package from GitHub in your code:
 
@@ -149,16 +149,14 @@ If you are building for Alpine Linux (musl), `-tags musl` must be specified.
 go build -tags musl ./...
 ```
 
-A dependency to the latest stable version of `confluent-kafka-go` should be automatically added to
+A dependency to the latest stable version of confluent-kafka-go should be automatically added to
 your `go.mod` file.
-
-
 
 Install the client
 ------------------
 
 If Go modules can't be used we recommend that you version pin the
-`confluent-kafka-go` import to `v1` using gopkg.in:
+confluent-kafka-go import to `v1` using gopkg.in:
 
 Manual install:
 ```bash
@@ -170,12 +168,12 @@ Golang import:
 import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 ```
 
-`librdkafka`
+librdkafka
 ----------
 
-Prebuilt `librdkafka` binaries are included with the Go client and `librdkafka`
+Prebuilt librdkafka binaries are included with the Go client and librdkafka
 does not need to be installed separately on the build or target system.
-The following platforms are supported by the prebuilt `librdkafka` binaries:
+The following platforms are supported by the prebuilt librdkafka binaries:
 
  * Mac OSX x64
  * glibc-based Linux x64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
@@ -185,27 +183,25 @@ When building your application for Alpine Linux (`musl libc`) you must pass
 `-tags musl` to `go get`, `go build`, etc.
 
 `CGO_ENABLED` must NOT be set to `0` since the Go client is based on the
-C library `librdkafka`.
+C library librdkafka.
 
 If GSSAPI/Kerberos authentication support is required you will need
-to install `librdkafka` separately, see the **Installing librdkafka** chapter
+to install librdkafka separately, see the **Installing librdkafka** chapter
 below, and then build your Go application with `-tags dynamic`.
 
-
-
-Installing `librdkafka`
+Installing librdkafka
 ---------------------
 
-If the bundled `librdkafka` build is not supported on your platform, or you
-need a `librdkafka` with GSSAPI/Kerberos support, you must install `librdkafka`
+If the bundled librdkafka build is not supported on your platform, or you
+need a librdkafka with GSSAPI/Kerberos support, you must install librdkafka
 manually on the build and target system using one of the following alternatives:
 
 - For Debian and Ubuntu based distros, install `librdkafka-dev` from the standard
 repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
 - For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
-- For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install `pkg-config` if you don't already have it: `brew install librdkafka pkg-config`.
+- For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install pkg-config if you don't already have it: `brew install librdkafka pkg-config`.
 - For Alpine: `apk add librdkafka-dev pkgconf`
-- `confluent-kafka-go` is not supported on Windows.
+- confluent-kafka-go is not supported on Windows.
 - For source builds, see instructions below.
 
 Build from source:
@@ -216,21 +212,19 @@ Build from source:
     make
     sudo make install
 
-
-After installing `librdkafka` you will need to build your Go application
+After installing librdkafka you will need to build your Go application
 with `-tags dynamic`.
 
-**Note:** If you use the master branch of the Go client, then you need to use
-          the `master` branch of `librdkafka`.
+**Note:** If you use the `master` branch of the Go client, then you need to use
+          the `master` branch of librdkafka.
 
-**confluent-kafka-go requires `librdkafka` v1.6.0 or later.**
-
+**confluent-kafka-go requires librdkafka v1.6.0 or later.**
 
 
 API Strands
 ===========
 
-There are two main API strands: function and channel based.
+There are two main API strands: function and channel-based.
 
 Function-Based Consumer
 -----------------------
@@ -239,16 +233,15 @@ Messages, errors and events are polled through the `consumer.Poll()` function.
 
 Pros:
 
- * More direct mapping to underlying `librdkafka` functionality.
+ * More direct mapping to underlying librdkafka functionality.
 
 Cons:
 
  * Makes it harder to read from multiple channels, but a go-routine easily
-   solves that (see Cons in channel based consumer above about outdated events).
+   solves that (see Cons in channel-based consumer below about outdated events).
  * Slower than the channel consumer.
 
 See [examples/consumer_example](examples/consumer_example)
-
 
 Channel-Based Consumer (deprecated)
 -----------------------------------
@@ -256,7 +249,7 @@ Channel-Based Consumer (deprecated)
 *Deprecated*: The channel-based consumer is deprecated due to the channel issues
               mentioned below. Use the function-based consumer.
 
-Messages, errors and events are posted on the `consumer.Events` channel
+Messages, errors and events are posted on the `consumer.Events()` channel
 for the application to read.
 
 Pros:
@@ -273,35 +266,29 @@ Cons:
 
 See [examples/consumer_channel_example](examples/consumer_channel_example)
 
-
-
-
-
-
 Channel-Based Producer
 ----------------------
 
-Application writes messages to the `producer.ProducerChannel`.
-Delivery reports are emitted on the `producer.Events` or specified private channel.
+Application writes messages to the `producer.ProducerChannel()`.
+Delivery reports are emitted on the `producer.Events()` or specified private channel.
 
 Pros:
 
  * Go:ish
- * Proper channel backpressure if `librdkafka` internal queue is full.
+ * Proper channel backpressure if librdkafka internal queue is full.
 
 Cons:
 
  * Double queueing: messages are first queued in the channel (size is configurable)
-   and then inside `librdkafka`.
+   and then inside librdkafka.
 
 See [examples/producer_channel_example](examples/producer_channel_example)
-
 
 Function-Based Producer
 -----------------------
 
 Application calls `producer.Produce()` to produce messages.
-Delivery reports are emitted on the `producer.Events` or specified private channel.
+Delivery reports are emitted on the `producer.Events()` or specified private channel.
 
 Pros:
 
@@ -309,7 +296,7 @@ Pros:
 
 Cons:
 
- * `Produce()` is a non-blocking call, if the internal `librdkafka` queue is full
+ * `Produce()` is a non-blocking call, if the internal librdkafka queue is full
    the call will fail.
  * Somewhat slower than the channel producer.
 
@@ -321,7 +308,7 @@ License
 [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
-by `confluent-kafka-go`. `confluent-kafka-go` has no affiliation with and is not endorsed by The Apache
+by confluent-kafka-go. confluent-kafka-go has no affiliation with and is not endorsed by The Apache
 Software Foundation.
 
 Developer Notes
@@ -331,4 +318,4 @@ See [kafka/README](kafka/README.md)
 
 Contributions to the code, examples, documentation, et.al, are very much appreciated.
 
-Make your changes, run gofmt, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).
+Make your changes, run `gofmt`, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).
