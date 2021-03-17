@@ -179,7 +179,7 @@ The following platforms are supported by the prebuilt librdkafka binaries:
  * glibc-based Linux x64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
  - musl-based Linux 64 (Alpine) - without GSSAPI/Kerberos support
 
-When building your application for Alpine Linux (`musl libc`) you must pass
+When building your application for Alpine Linux (musl libc) you must pass
 `-tags musl` to `go get`, `go build`, etc.
 
 `CGO_ENABLED` must NOT be set to `0` since the Go client is based on the
