@@ -63,7 +63,7 @@ install:
 script:
   # should be replaced with golangci-lint
   - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ; fi
-  - for dir in kafka ; do (cd $dir && go test -timeout 60s -v ${BUILD_TYPE} ./...) ; done
+  - for dir in kafka ; do (cd $dir && go test -timeout 180s -v ${BUILD_TYPE} ./...) ; done
   - go-kafkacat --help
   - library-version
   - (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
