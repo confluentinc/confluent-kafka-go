@@ -70,6 +70,8 @@ before_install:
       case $TRAVIS_OS_NAME in
         windows)
           ./mk/setup-msys2-mingw64.sh
+          export PATH=/C/tools/msys64/mingw64/bin:$PATH
+          export MAKE=mingw32-make  # so that Autotools can find it
       esac
 
 install:
