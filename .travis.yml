@@ -47,6 +47,11 @@ jobs:
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - LIBRDKAFKA_VERSION=master
+ - name: "Go 1.16 Windows bundled librdkafka"
+   go: "1.16"
+   os: windows
+   env:
+    - EXPECT_LINK_INFO="static"
  - name: "Go 1.14 Windows bundled librdkafka"
    go: "1.14"
    os: windows
