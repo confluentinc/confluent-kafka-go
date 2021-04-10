@@ -341,11 +341,12 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		"go.events.channel.enable": cc.useChannel,
 		"group.id": testconf.GroupID +
 			fmt.Sprintf("-%d", rand.Intn(1000000)),
-		"session.timeout.ms":  6000,
-		"api.version.request": "true",
-		"enable.auto.commit":  cc.autoCommit,
-		"debug":               ",",
-		"auto.offset.reset":   "earliest"}
+		"session.timeout.ms":      6000,
+		"api.version.request":     "true",
+		"enable.auto.commit":      cc.autoCommit,
+		"auto.commit.interval.ms": 500,
+		"debug":                   ",",
+		"auto.offset.reset":       "earliest"}
 	if assignmentStrategy != "" {
 		conf["partition.assignment.strategy"] = assignmentStrategy
 	}
@@ -394,6 +395,12 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 			t.Errorf("Failed to commit. Error: %s", commitErr)
 		}
 
+	}
+
+	if cc.autoCommit {
+		// Sleep for a while to actually let the auto commit happen
+		// We set auto.commit.interval.ms to 500, so give it a bit longer.
+		time.Sleep(1 * time.Second)
 	}
 
 	// Trigger RevokePartitions
