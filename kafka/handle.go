@@ -17,6 +17,7 @@ package kafka
  */
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,10 +26,62 @@ import (
 )
 
 /*
-#include "select_rdkafka.h"
 #include <stdlib.h>
+#include "select_rdkafka.h"
+#include "glue_rdkafka.h"
+
+
+void chdrs_to_tmphdrs (glue_msg_t *gMsg) {
+    size_t i = 0;
+    const char *name;
+    const void *val;
+    size_t size;
+    rd_kafka_headers_t *chdrs;
+
+    if (rd_kafka_message_headers(gMsg->msg, &chdrs)) {
+        gMsg->tmphdrs = NULL;
+        gMsg->tmphdrsCnt = 0;
+        return;
+    }
+
+    gMsg->tmphdrsCnt = rd_kafka_header_cnt(chdrs);
+    gMsg->tmphdrs = malloc(sizeof(*gMsg->tmphdrs) * gMsg->tmphdrsCnt);
+
+    while (!rd_kafka_header_get_all(chdrs, i,
+                                    &gMsg->tmphdrs[i].key,
+                                    &gMsg->tmphdrs[i].val,
+                                    (size_t *)&gMsg->tmphdrs[i].size))
+        i++;
+}
+
+rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
+                                  rd_kafka_event_type_t *evtype,
+                                  glue_msg_t *gMsg,
+                                  rd_kafka_event_t *prev_rkev) {
+    rd_kafka_event_t *rkev;
+
+    if (prev_rkev)
+      rd_kafka_event_destroy(prev_rkev);
+
+    rkev = rd_kafka_queue_poll(rkq, timeoutMs);
+    *evtype = rd_kafka_event_type(rkev);
+
+    if (*evtype == RD_KAFKA_EVENT_FETCH) {
+        gMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
+        gMsg->ts = rd_kafka_message_timestamp(gMsg->msg, &gMsg->tstype);
+
+        if (gMsg->want_hdrs)
+            chdrs_to_tmphdrs(gMsg);
+    }
+
+    return rkev;
+}
 */
 import "C"
+
+func chdrsToTmphdrs(gMsg *C.glue_msg_t) {
+	C.chdrs_to_tmphdrs(gMsg)
+}
 
 // OAuthBearerToken represents the data to be transmitted
 // to a broker during SASL/OAUTHBEARER authentication.
@@ -172,7 +225,7 @@ func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
 	// Start a polling goroutine to consume the log queue
 	h.waitGroup.Add(1)
 	go func() {
-		h.pollLogEvents(h.logs, 100, termChan)
+		h.pollLogEvents(h.logs, termChan)
 		h.waitGroup.Done()
 	}()
 
@@ -376,4 +429,50 @@ func newMessageFieldsFrom(v ConfigValue) (*messageFields, error) {
 		}
 	}
 	return msgFields, nil
+}
+
+type polledEvent struct {
+	rkev   *C.rd_kafka_event_t
+	evType C.rd_kafka_event_type_t
+	gMsg   C.glue_msg_t
+}
+
+func (h *handle) pollSingleCEventWithYield(ctx context.Context, queue *C.rd_kafka_queue_t) (polledEvent, error) {
+	// See if there's anything ready-to-go without blocking
+	var goEvent polledEvent
+	goEvent.gMsg.want_hdrs = C.int8_t(bool2cint(h.msgFields.Headers))
+	goEvent.rkev = C._rk_queue_poll(queue, C.int(0), &goEvent.evType, &goEvent.gMsg, nil)
+
+	// This needs to be in a loop, and _not_ a single execution, because otherwise
+	// concurrent calls to Poll() for the same handle might end up getting deadlocked
+	// because the rd_kafka_queue_yield call on one might wake up the rd_kafka_event_poll
+	// call on the other.
+	//
+	// I don't think concurrent calls to Poll() (or calling Poll() whilst using the channel
+	// consumer) is a particularly good idea anyway, but I found the test cases doing it in
+	// a couple of spots which probably means somebody is doing this in their app too.
+	for ctx.Err() == nil && goEvent.evType == C.RD_KAFKA_EVENT_NONE {
+		// Need to actually wait for a while.
+		eventWaitChan := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case <-eventWaitChan:
+				// This branch means that rd_kafka_queue_poll successfully
+				// managed to return something.
+			case <-ctx.Done():
+				C.rd_kafka_queue_yield(queue)
+			}
+		}()
+
+		goEvent.rkev = C._rk_queue_poll(queue, C.int(-1), &goEvent.evType, &goEvent.gMsg, nil)
+		close(eventWaitChan)
+		wg.Wait()
+	}
+	if goEvent.evType == C.RD_KAFKA_EVENT_NONE {
+		return goEvent, ctx.Err()
+	}
+	return goEvent, nil
 }
