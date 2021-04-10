@@ -405,10 +405,6 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 	// Trigger RevokePartitions
 	c.Unsubscribe()
-
-	// Handle RevokePartitions
-	c.Poll(500)
-
 }
 
 //Test consumer QueryWatermarkOffsets API
