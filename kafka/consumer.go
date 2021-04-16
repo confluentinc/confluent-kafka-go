@@ -35,10 +35,6 @@ static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafk
 */
 import "C"
 
-// ErrConsumerRebalanceError is generated when a consumer-provided rebalance callback
-// returns an error.
-const ErrConsumerRebalanceError = ErrorCode(0x100)
-
 // RebalanceCb provides a per-Subscribe*() rebalance event callback.
 // The passed Event will be either AssignedPartitions or RevokedPartitions
 type RebalanceCb func(*Consumer, Event) error
@@ -1045,7 +1041,7 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 		err := c.rebalanceCb(c, ev)
 		if err != nil {
-			retval = NewError(ErrConsumerRebalanceError, err.Error(), false)
+			retval = NewApplicationRebalanceError(err)
 		}
 
 		if c.appReassigned {
