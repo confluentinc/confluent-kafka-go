@@ -1,5 +1,6 @@
 language: go
 osx_image: xcode9.2
+go_import_path: github.com/confluentinc/confluent-kafka-go
 env:
  global:
   - PATH="$PATH:$GOPATH/bin"
@@ -46,6 +47,16 @@ jobs:
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - LIBRDKAFKA_VERSION=master
+ - name: "Go 1.16 Windows bundled librdkafka"
+   go: "1.16"
+   os: windows
+   env:
+    - EXPECT_LINK_INFO="static"
+ - name: "Go 1.14 Windows bundled librdkafka"
+   go: "1.14"
+   os: windows
+   env:
+    - EXPECT_LINK_INFO="static"
 
 before_install:
   - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
@@ -55,6 +66,13 @@ before_install:
   - rm -rf tmp-build
   - if [[ -n $BUILD_TYPE ]]; then bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
   - go get -u golang.org/x/lint/golint && touch .do_lint
+  - |-
+      case $TRAVIS_OS_NAME in
+        windows)
+          ./mk/setup-msys2-mingw64.sh
+          export PATH=/C/tools/msys64/mingw64/bin:$PATH
+          export MAKE=mingw32-make  # so that Autotools can find it
+      esac
 
 install:
   - for dir in kafka examples ; do (cd $dir && go get ${BUILD_TYPE} ./...) ; done
