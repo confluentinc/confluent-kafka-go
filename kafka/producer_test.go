@@ -33,8 +33,9 @@ func TestProducerAPIs(t *testing.T) {
 	// expected message dr count on events channel
 	expMsgCnt := 0
 	p, err := NewProducer(&ConfigMap{
-		"socket.timeout.ms":  10,
-		"message.timeout.ms": 10})
+		"socket.timeout.ms":         10,
+		"message.timeout.ms":        10,
+		"go.delivery.report.fields": "key,value,headers"})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -152,8 +153,7 @@ func TestProducerAPIs(t *testing.T) {
 					t.Errorf("Message opaque should be nil, not %v", e.Opaque)
 				}
 				if !reflect.DeepEqual(e.Headers, myHeaders) {
-					// FIXME: Headers are currently not available on the delivery report.
-					// t.Errorf("Message headers should be %v, not %v", myHeaders, e.Headers)
+					t.Errorf("Message headers should be %v, not %v", myHeaders, e.Headers)
 				}
 			} else {
 				if e.Opaque != nil {
@@ -630,6 +630,57 @@ func TestProducerDeliveryReportFields(t *testing.T) {
 			}
 		})
 	})
+	t.Run("default", func(t *testing.T) {
+		runProducerDeliveryReportFieldTest(t, &ConfigMap{
+			"socket.timeout.ms":  10,
+			"message.timeout.ms": 10,
+		}, func(expected, actual *Message) {
+			if !bytes.Equal(expected.Key, actual.Key) {
+				t.Errorf("key should be \"%s\", not \"%s\"", expected.Key, actual.Key)
+			}
+			if !bytes.Equal(expected.Value, actual.Value) {
+				t.Errorf("value should be \"%s\", not \"%s\"", expected.Value, actual.Value)
+			}
+			if actual.Headers != nil {
+				t.Errorf("Did not expect Headers")
+			}
+			if s, ok := actual.Opaque.(*string); ok {
+				if *s != *(expected.Opaque.(*string)) {
+					t.Errorf("Opaque should be \"%v\", not \"%v\"", expected.Opaque, actual.Opaque)
+				}
+			} else {
+				t.Errorf("opaque value should be a string, not \"%v\"", actual.Opaque)
+			}
+		})
+	})
+	t.Run("all", func(t *testing.T) {
+		runProducerDeliveryReportFieldTest(t, &ConfigMap{
+			"socket.timeout.ms":         10,
+			"message.timeout.ms":        10,
+			"go.delivery.report.fields": "all",
+		}, func(expected, actual *Message) {
+			if !bytes.Equal(expected.Key, actual.Key) {
+				t.Errorf("key should be \"%s\", not \"%s\"", expected.Key, actual.Key)
+			}
+			if !bytes.Equal(expected.Value, actual.Value) {
+				t.Errorf("value should be \"%s\", not \"%s\"", expected.Value, actual.Value)
+			}
+			if actual.Headers == nil {
+				t.Errorf("Expected headers")
+			}
+			if !reflect.DeepEqual(expected.Headers, actual.Headers) {
+				t.Errorf("Headers mismatch: Expected %v, got %v",
+					expected.Headers, actual.Headers)
+			}
+			if s, ok := actual.Opaque.(*string); ok {
+				if *s != *(expected.Opaque.(*string)) {
+					t.Errorf("Opaque should be \"%v\", not \"%v\"", expected.Opaque, actual.Opaque)
+				}
+			} else {
+				t.Errorf("opaque value should be a string, not \"%v\"", actual.Opaque)
+			}
+		})
+	})
 }
 
 func runProducerDeliveryReportFieldTest(t *testing.T, config *ConfigMap, fn func(expected, actual *Message)) {
@@ -646,6 +697,10 @@ func runProducerDeliveryReportFieldTest(t *testing.T, config *ConfigMap, fn func
 		Opaque:         &myOpq,
 		Value:          []byte("ProducerChannel"),
 		Key:            []byte("This is my key"),
+		Headers: []Header{
+			{"hdr1", []byte("value1")},
+			{"hdr2", []byte("value2")},
+			{"hdr2", []byte("headers are not unique")}},
 	}
 	p.ProduceChannel() <- expected
 

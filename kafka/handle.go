@@ -114,7 +114,7 @@ type handle struct {
 	// Forward delivery reports on Producer.Events channel
 	fwdDr bool
 
-	// Enabled fields for delivery reports
+	// Enabled message fields for delivery reports and consumed messages.
 	msgFields *messageFields
 
 	//
@@ -328,24 +328,27 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 	return newError(cErr)
 }
 
-// messageFields controls which fields are made available for producer delivery reports & incoming messages
+// messageFields controls which fields are made available for producer delivery reports & consumed messages.
 // true values indicate that the field should be included
 type messageFields struct {
-	Key   bool
-	Value bool
+	Key     bool
+	Value   bool
+	Headers bool
 }
 
 // disableAll disable all fields
 func (mf *messageFields) disableAll() {
 	mf.Key = false
 	mf.Value = false
+	mf.Headers = false
 }
 
 // newMessageFields returns a new messageFields with all fields enabled
 func newMessageFields() *messageFields {
 	return &messageFields{
-		Key:   true,
-		Value: true,
+		Key:     true,
+		Value:   true,
+		Headers: true,
 	}
 }
 
@@ -365,6 +368,8 @@ func newMessageFieldsFrom(v ConfigValue) (*messageFields, error) {
 				msgFields.Key = true
 			case "value":
 				msgFields.Value = true
+			case "headers":
+				msgFields.Headers = true
 			default:
 				return nil, fmt.Errorf("unknown message field: %s", value)
 			}
