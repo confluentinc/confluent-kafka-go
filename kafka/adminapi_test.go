@@ -23,6 +23,59 @@ import (
 	"time"
 )
 
+// TestAdminAPIWithDefaultValue tests CreateTopics with default
+// NumPartitions and ReplicationFactor values
+func TestAdminAPIWithDefaultValue(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	topic := "testWithDefaultValue"
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := conf.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %v\n", err)
+	}
+
+	expDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("Failed to Parse Duration: %s", err)
+	}
+
+	adminClient, err := NewAdminClient(&conf)
+	if err != nil {
+		t.Fatalf("Failed to create AdminClient %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	res, err := adminClient.CreateTopics(
+		ctx,
+		[]TopicSpecification{
+			{
+				Topic:             topic,
+				NumPartitions:     -1,
+				ReplicationFactor: -1,
+			},
+		})
+	if err != nil {
+		adminClient.Close()
+		t.Fatalf("Failed to create topics %v\n", err)
+	}
+	t.Logf("Succeed to create topic %v\n", res)
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	res, err = adminClient.DeleteTopics(ctx, []string{topic})
+	if err != nil {
+		adminClient.Close()
+		t.Fatalf("Failed to delete topic %v, err: %v", topic, err)
+	}
+	t.Logf("Succeed to delete topic %v\n", res)
+
+	adminClient.Close()
+}
+
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 

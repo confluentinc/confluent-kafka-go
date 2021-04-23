@@ -1,5 +1,15 @@
 # Confluent's Golang client for Apache Kafka
 
+## v1.7.0
+
+### Fixes
+
+* AdminClient.CreateTopics() previously did not accept default value(-1) of
+  ReplicationFactor without specifying an explicit ReplicaAssignment, this is
+  now fixed.
+
+
+
 ## v1.6.1
 
 v1.6.1 is a feature release:
