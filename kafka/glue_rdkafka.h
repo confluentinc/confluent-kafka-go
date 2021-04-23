@@ -34,13 +34,15 @@ typedef struct tmphdr_s {
 
 
 /**
- * Represents a fetched C message, with all extra fields extracted
- * to struct fields.
+ * @struct This is a glue struct used by the C code in this client to
+ *         effectively map fields from a librdkafka rd_kafka_message_t
+ *         to something usable in Go with as few CGo calls as possible.
  */
-typedef struct fetched_c_msg {
+typedef struct glue_msg_s {
   rd_kafka_message_t *msg;
   rd_kafka_timestamp_type_t tstype;
-  int64_t ts;
+  int64_t   ts;
   tmphdr_t *tmphdrs;
   size_t    tmphdrsCnt;
-} fetched_c_msg_t;
+  int8_t    want_hdrs;  /**< If true, copy headers */
+} glue_msg_t;
