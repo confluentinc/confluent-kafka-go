@@ -177,7 +177,7 @@ func (h *handle) eventPoll(ctx context.Context) (Event, error) {
 
 			if rkmessage._private != nil {
 				// Find cgoif by id
-				cg, found := h.cgoGet((int)((uintptr)(rkmessage._private)))
+				cg, found := h.cgoGet(rkmessage._private)
 				if found {
 					cdr := cg.(cgoDr)
 

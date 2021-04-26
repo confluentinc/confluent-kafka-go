@@ -73,7 +73,7 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
           int keyIsNull, void *key, size_t key_len,
           int64_t timestamp,
           tmphdr_t *tmphdrs, size_t tmphdrsCnt,
-          uintptr_t cgoid) {
+          void *cgoid) {
   void *valp = valIsNull ? NULL : val;
   void *keyp = keyIsNull ? NULL : key;
 #ifdef RD_KAFKA_V_TIMESTAMP
@@ -105,7 +105,7 @@ rd_kafka_resp_err_t err;
 #ifdef RD_KAFKA_V_HEADERS
         RD_KAFKA_V_HEADERS(hdrs),
 #endif
-        RD_KAFKA_V_OPAQUE((void *)cgoid),
+        RD_KAFKA_V_OPAQUE(cgoid),
         RD_KAFKA_V_END);
 #ifdef RD_KAFKA_V_HEADERS
   if (err && hdrs)
@@ -118,15 +118,11 @@ rd_kafka_resp_err_t err;
   if (rd_kafka_produce(rkt, partition, msgflags,
                        valp, val_len,
                        keyp, key_len,
-                       (void *)cgoid) == -1)
+                       cgoid) == -1)
       return rd_kafka_last_error();
   else
       return RD_KAFKA_RESP_ERR_NO_ERROR;
 #endif
-}
-
-void set_message_private_cgoid(rd_kafka_message_t *msg, uintptr_t cgoid) {
-	msg->_private = (void*)cgoid;
 }
 */
 import "C"
@@ -207,7 +203,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		}
 	}
 
-	var cgoid int
+	var cgoid unsafe.Pointer
 
 	// Per-message state that needs to be retained through the C code:
 	//   delivery channel (if specified)
@@ -263,9 +259,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		keyIsNull, unsafe.Pointer(&keyp[0]), C.size_t(keyLen),
 		C.int64_t(timestamp),
 		(*C.tmphdr_t)(unsafe.Pointer(&tmphdrs[0])), C.size_t(tmphdrsCnt),
-		(C.uintptr_t)(cgoid))
+		cgoid)
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		if cgoid != 0 {
+		if cgoid != nil {
 			p.handle.cgoGet(cgoid)
 		}
 		return newError(cErr)
@@ -303,14 +299,14 @@ func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) err
 
 	cmsgs := make([]C.rd_kafka_message_t, len(msgs))
 	for i, m := range msgs {
-		p.handle.messageToC(m, &cmsgs[i])
 		// Batch production doesn't support a per-message delivery report channel, but it does support
 		// dispatching delivery reports to the main channel. Writing the channel cgoid to _private is
-		// done by set_message_private_cgoid and ensures that eventPoll can find it.
+		// done by messageToC and ensures that eventPoll can find it.
+		var cgoState cgoif
 		if p.handle.fwdDr {
-			cgoid := p.handle.cgoPut(cgoDr{deliveryChan: p.events})
-			C.set_message_private_cgoid(&cmsgs[i], C.uintptr_t(cgoid))
+			cgoState = cgoDr{deliveryChan: p.events}
 		}
+		p.handle.messageToC(m, &cmsgs[i], cgoState)
 	}
 	r := C.rd_kafka_produce_batch(crkt, C.RD_KAFKA_PARTITION_UA, C.int(msgFlags)|C.RD_KAFKA_MSG_F_FREE,
 		(*C.rd_kafka_message_t)(&cmsgs[0]), C.int(len(msgs)))
