@@ -8,6 +8,7 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 ### Enhancements
 
+ * Experimental Windows support (by @neptoess).
  * The produced message headers are now available in the delivery report
    `Message.Headers` if the Producer's `go.delivery.report.fields`
    configuration property is set to include `headers`, e.g.:
