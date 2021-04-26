@@ -19,7 +19,6 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"os"
 	"unsafe"
 )
 
@@ -221,10 +220,6 @@ func (h *handle) eventPoll(ctx context.Context) (Event, error) {
 		return nil, ctx.Err()
 
 	default:
-		if polledEv.rkev != nil {
-			fmt.Fprintf(os.Stderr, "Ignored event %s\n",
-				C.GoString(C.rd_kafka_event_name(polledEv.rkev)))
-		}
 		return nil, nil
 	}
 }
