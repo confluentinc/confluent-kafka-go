@@ -5,9 +5,9 @@
 
 package kafka
 
-// #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA
+// #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB
 // #cgo LDFLAGS: ${SRCDIR}/librdkafka_vendor/librdkafka_musl_linux.a  -lm -ldl -lpthread -lrt -lpthread -lrt
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
-const LibrdkafkaLinkInfo = "static musl_linux from librdkafka-static-bundle-v1.6.1.tgz"
+const LibrdkafkaLinkInfo = "static musl_linux from librdkafka-static-bundle-v1.7.0.tgz"
