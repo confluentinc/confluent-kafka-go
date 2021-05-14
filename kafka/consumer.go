@@ -905,5 +905,5 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 		c.events <- newError(cErr)
 	}
 
-	return nil
+	return ev
 }

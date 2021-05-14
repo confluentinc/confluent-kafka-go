@@ -419,3 +419,166 @@ func TestConsumerLog(t *testing.T) {
 		}
 	}
 }
+
+func TestConsumerRebalanceEvents(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+	broker := testconf.Brokers
+	topic := testconf.Topic
+
+	testConsumerRebalanceEvents("range", broker, topic, false)
+	testConsumerRebalanceEvents("cooperative-sticky", broker, topic, false)
+
+	testConsumerRebalanceEvents("cooperative-sticky", broker, topic, true)
+	testConsumerRebalanceEvents("range", broker, topic, true)
+}
+
+func testConsumerRebalanceEvents(partitionAssignmentStrategy, broker, topic string,
+	callback bool) {
+	c, err := NewConsumer(&ConfigMap{
+		"bootstrap.servers":               testconf.Brokers,
+		"group.id":                        "groupID",
+		"go.application.rebalance.enable": true,
+		"partition.assignment.strategy":   partitionAssignmentStrategy,
+	})
+	if err != nil {
+		fmt.Printf("Failed to create consumer: %s\n", err)
+		return
+	}
+
+	if callback && partitionAssignmentStrategy == "range" {
+		err = c.Subscribe(topic, rebalanceCallbackEager)
+	} else if callback && partitionAssignmentStrategy == "cooperative-sticky" {
+		err = c.Subscribe(topic, rebalanceCallbackCooperative)
+	} else {
+		err = c.Subscribe(topic, nil)
+	}
+
+	if err != nil {
+		fmt.Printf("Failed to subscribe to topic: %s with "+
+			"error %s\n", topic, err)
+		return
+	}
+
+	run := true
+	for run {
+		ev := c.Poll(100)
+		if ev == nil {
+			continue
+		}
+
+		switch e := ev.(type) {
+		case *Message:
+			fmt.Printf("Message on %s:\n%s\n",
+				e.TopicPartition, string(e.Value))
+			if e.Headers != nil {
+				fmt.Printf("Headers: %v\n", e.Headers)
+			}
+			run = false
+
+		case RevokedPartitions:
+			fmt.Fprintf(os.Stderr,
+				"%s rebalance: %d partition(s) revoked: %v\n",
+				c.GetRebalanceProtocol(), len(e.Partitions),
+				e.Partitions)
+			if c.AssignmentLost() {
+				// Our consumer has been kicked out of the group and the
+				// entire assignment is thus lost.
+				fmt.Fprintf(os.Stderr, "Current assignment lost!\n")
+			}
+			run = false
+
+		case AssignedPartitions:
+			fmt.Fprintf(os.Stderr,
+				"%s rebalance: %d new partition(s) assigned: %v\n",
+				c.GetRebalanceProtocol(), len(e.Partitions),
+				e.Partitions)
+
+		case Error:
+			// Errors should generally be
+			// considered informational, the client
+			// will try to automatically recover.
+			fmt.Printf("Error: %v: %v for "+
+				"consumer %v\n", e.Code(), e, c)
+
+		default:
+			fmt.Printf("Ignored %v for consumer %v\n",
+				e, c)
+		}
+	}
+	c.Close()
+	fmt.Printf("Consumer closed\n")
+}
+
+func rebalanceCallbackCooperative(c *Consumer, event Event) error {
+
+	switch ev := event.(type) {
+	case AssignedPartitions:
+		fmt.Fprintf(os.Stderr,
+			"%s rebalance: %d new partition(s) assigned: %v\n",
+			c.GetRebalanceProtocol(), len(ev.Partitions),
+			ev.Partitions)
+
+		// The application may update the start .Offset of each
+		// assigned partition and then call IncrementalAssign().
+		// Even though this example does not alter the offsets we
+		// provide the call to IncrementalAssign() as an example.
+		err := c.IncrementalAssign(ev.Partitions)
+		if err != nil {
+			panic(err)
+		}
+
+	case RevokedPartitions:
+		fmt.Fprintf(os.Stderr,
+			"%s rebalance: %d partition(s) revoked: %v\n",
+			c.GetRebalanceProtocol(), len(ev.Partitions),
+			ev.Partitions)
+		if c.AssignmentLost() {
+			// Our consumer has been kicked out of the group and the
+			// entire assignment is thus lost.
+			fmt.Fprintf(os.Stderr, "%% Current assignment lost!\n")
+		}
+
+		// The client automatically calls IncrementalUnassign() unless
+		// the callback has already called that method.
+	}
+
+	return nil
+}
+
+func rebalanceCallbackEager(c *Consumer, event Event) error {
+
+	switch ev := event.(type) {
+	case AssignedPartitions:
+		fmt.Fprintf(os.Stderr,
+			"%s rebalance: %d new partition(s) assigned: %v\n",
+			c.GetRebalanceProtocol(), len(ev.Partitions),
+			ev.Partitions)
+
+		// The application may update the start .Offset of each
+		// assigned partition and then call IncrementalAssign().
+		// Even though this example does not alter the offsets we
+		// provide the call to IncrementalAssign() as an example.
+		err := c.Assign(ev.Partitions)
+		if err != nil {
+			panic(err)
+		}
+
+	case RevokedPartitions:
+		fmt.Fprintf(os.Stderr,
+			"%s rebalance: %d partition(s) revoked: %v\n",
+			c.GetRebalanceProtocol(), len(ev.Partitions),
+			ev.Partitions)
+		if c.AssignmentLost() {
+			// Our consumer has been kicked out of the group and the
+			// entire assignment is thus lost.
+			fmt.Fprintf(os.Stderr, "%% Current assignment lost!\n")
+		}
+
+		// The client automatically calls Unassign() unless
+		// the callback has already called that method.
+	}
+
+	return nil
+}
