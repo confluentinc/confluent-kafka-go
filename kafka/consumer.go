@@ -424,29 +424,32 @@ func (c *Consumer) Close() (err error) {
 		close(c.events)
 	}
 
-	// librdkafka's rd_kafka_consumer_close() will block
-	// and trigger the rebalance_cb() if one is set, if not, which is the
-	// case with the Go client since it registers EVENTs rather than callbacks,
-	// librdkafka will shortcut the rebalance_cb and do a forced unassign.
-	// But we can't have that since the application might need the final RevokePartitions
-	// before shutting down. So we trigger an Unsubscribe() first, wait for that to
-	// propagate (in the Poll loop below), and then close the consumer.
-	c.Unsubscribe()
+	doneChan := make(chan bool)
 
-	// Poll for rebalance events
-	for {
-		c.Poll(10 * 1000)
-		if int(C.rd_kafka_queue_length(c.handle.rkq)) == 0 {
-			break
+	go func() {
+		C.rd_kafka_consumer_close(c.handle.rk)
+		// wake up Poll()
+		C.rd_kafka_queue_yield(c.handle.rkq)
+		doneChan <- true
+	}()
+
+	// wait for consumer_close() to finish while serving c.Poll() for rebalance callbacks/events
+	run := true
+	for run {
+		select {
+		case <-doneChan:
+			run = false
+
+		default:
+			c.Poll(100)
 		}
 	}
+
+	close(doneChan)
 
 	// Destroy our queue
 	C.rd_kafka_queue_destroy(c.handle.rkq)
 	c.handle.rkq = nil
-
-	// Close the consumer
-	C.rd_kafka_consumer_close(c.handle.rk)
 
 	c.handle.cleanup()
 
