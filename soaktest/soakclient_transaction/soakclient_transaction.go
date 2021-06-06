@@ -20,13 +20,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"soaktest"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 const producerTransactionCommitSucceed = "producer.transaction.commit.succeed"
@@ -34,6 +35,9 @@ const producerTransactionCommitFailed = "producer.transaction.commit.failed"
 const producerTransactionAbortSucceed = "producer.transaction.abort.succeed"
 const producerTransactionAbortFailed = "producer.transaction.abort.failed"
 const transaction = "transaction."
+
+const producerType = "TxnProducer"
+const consumerType = "TxnConsumer"
 
 var msgMissCntForInput uint64
 var msgDupCntForInput uint64
@@ -92,8 +96,8 @@ func main() {
 		soaktest.ErrorLogger.Printf("Error caught: %s\n", err)
 	}
 	wg.Wait()
-	soaktest.PrintConsumerStatus()
-	soaktest.PrintProducerStatus()
+	soaktest.PrintConsumerStatus(consumerType)
+	soaktest.PrintProducerStatus(producerType)
 }
 
 // getConsumerPosition gets consumer position according to partition id
@@ -150,7 +154,6 @@ func verifyProducerTransaction(broker, inputTopic, outTopic, groupID,
 		"bootstrap.servers":        broker,
 		"group.id":                 groupID,
 		"go.events.channel.enable": true,
-		"enable.auto.commit":       false,
 		"statistics.interval.ms":   5000,
 		"sasl.mechanisms":          "PLAIN",
 		"security.protocol":        "SASL_SSL",
@@ -268,7 +271,7 @@ func verifyProducerTransaction(broker, inputTopic, outTopic, groupID,
 					partitionToMsgIDMapLastCommitted)
 				if err != nil {
 					soaktest.ErrorLogger.Printf("Failed to commit "+
-						"transaction %v\n", err)
+						"transaction: %v\n", err)
 					terminate(c, p, err, errorChan)
 					return
 				}

@@ -20,11 +20,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 var drErrCnt uint64
@@ -103,8 +105,7 @@ func rttStats(raw map[string]interface{}, topic string) error {
 		var nodeid int
 
 		topparsValue := broker.(map[string]interface{})["toppars"]
-		if topparsValue == nil ||
-			len(topparsValue.(map[string]interface{})) == 0 {
+		if topparsValue == nil {
 			continue
 		}
 
@@ -145,8 +146,8 @@ func rttStats(raw map[string]interface{}, topic string) error {
 		}
 		nodeid = int(nid)
 
-		tags := []string{fmt.Sprintf("broker:%d, type:%s, topic:%s, parts:%s",
-			nodeid, raw["type"], topic, parts)}
+		tags := []string{fmt.Sprintf("broker:%d, type:%s, parts:%s",
+			nodeid, raw["type"], parts)}
 
 		DatadogGauge(brokerRttP99, p99/1000000.0, tags)
 		DatadogGauge(brokerRttAvg, avg/1000000.0, tags)
@@ -154,7 +155,7 @@ func rttStats(raw map[string]interface{}, topic string) error {
 	return nil
 }
 
-// HandleStatsEvent converts Stats events to hashmap
+// HandleStatsEvent converts Stats events to map
 func HandleStatsEvent(e *kafka.Stats, topic string) error {
 	var raw map[string]interface{}
 	err := json.Unmarshal([]byte(e.String()), &raw)
@@ -184,7 +185,7 @@ func ProducerDeliveryCheck(e *kafka.Message) {
 		drCnt++
 		DatadogIncrement(producerDr, 1, tags)
 		if drCnt%1000 == 0 {
-			InfoLogger.Printf("Delivered message to topic at events channel "+
+			InfoLogger.Printf("Delivered message to topic "+
 				"%s [%d] at offset %d\n", *e.TopicPartition.Topic,
 				e.TopicPartition.Partition, e.TopicPartition.Offset)
 		}
@@ -192,38 +193,42 @@ func ProducerDeliveryCheck(e *kafka.Message) {
 }
 
 // PrintConsumerStatus prints the information for the consumer
-func PrintConsumerStatus() {
-	InfoLogger.Printf("Consumer: %d messages consumed, %d duplicates, "+
+func PrintConsumerStatus(consumer string) {
+	InfoLogger.Printf("%s: %d messages consumed, %d duplicates, "+
 		"%d missed, %d message errors, %d consumer client-level errors\n",
-		consumerMsgCnt, msgDupCntForOutput, msgMissCntForOutput,
+		consumer, consumerMsgCnt, msgDupCntForOutput, msgMissCntForOutput,
 		consumerMsgErrs, ConsumerErrCnt)
 }
 
 // PrintProducerStatus prints the information for the producer
-func PrintProducerStatus() {
-	InfoLogger.Printf("Producer: %d messages produced, %d delivered, %d "+
+func PrintProducerStatus(producer string) {
+	InfoLogger.Printf("%s: %d messages produced, %d delivered, %d "+
 		"failed to deliver, %d producer client-level errors\n",
-		ProduceMsgCnt, drCnt, drErrCnt, ProducerErrCnt)
+		producer, ProduceMsgCnt, drCnt, drErrCnt, ProducerErrCnt)
 }
 
 // HandleMessage handles received messages, monitors latency and
 // verifies messages
 func HandleMessage(e *kafka.Message,
 	hwmarks map[string]uint64) bool {
-	tags := []string{fmt.Sprintf("topic:%s, partition:%d",
-		*e.TopicPartition.Topic, e.TopicPartition.Partition)}
+	topicTags := []string{fmt.Sprintf("topic:%s", *e.TopicPartition.Topic)}
+	partitionTags := []string{fmt.Sprintf("partition:%s",
+		*e.TopicPartition.Topic+"_"+
+			strconv.FormatInt(int64(e.TopicPartition.Partition), 10))}
 	if e.TopicPartition.Error != nil {
 		consumerMsgErrs++
-		DatadogIncrement(consumerReceiveError, 1, tags)
+		DatadogIncrement(consumerReceiveError, 1, topicTags)
+		DatadogIncrement(consumerReceiveError, 1, partitionTags)
 		ErrorLogger.Printf("Message receive failed from: %s\n",
 			e.TopicPartition.Error)
 		return false
 	}
 	consumerMsgCnt++
-	DatadogIncrement(consumerConsumeMSG, 1, tags)
+	DatadogIncrement(consumerConsumeMSG, 1, topicTags)
+	DatadogIncrement(consumerConsumeMSG, 1, partitionTags)
 	if consumerMsgCnt%1000 == 0 {
-		InfoLogger.Printf("Consumer out Message on TopicPartition: %s, "+
-			"Headers: %s, values: %s\n", e.TopicPartition,
+		InfoLogger.Printf("TxnConsumer received message on TopicPartition: "+
+			"%s, Headers: %s, values: %s\n", e.TopicPartition,
 			e.Headers, string(e.Value))
 	}
 
@@ -232,12 +237,12 @@ func HandleMessage(e *kafka.Message,
 			if hdr.Key == "time" {
 				var timestamp time.Time
 				timestamp.GobDecode(hdr.Value)
-				DatadogGauge(
-					latency,
+				DatadogGauge(latency,
 					time.Now().Sub(timestamp).Seconds(),
-					[]string{fmt.Sprintf("topic:%s, partition:%d",
-						*e.TopicPartition.Topic,
-						e.TopicPartition.Partition)})
+					topicTags)
+				DatadogGauge(latency,
+					time.Now().Sub(timestamp).Seconds(),
+					topicTags)
 			} else if hdr.Key == "msgid" {
 				msgid := binary.LittleEndian.Uint64(hdr.Value)
 				verifyMessage(e, hwmarks, msgid)

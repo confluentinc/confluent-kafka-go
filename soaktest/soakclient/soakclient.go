@@ -20,17 +20,20 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"soaktest"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 const endToEnd = "end.to.end."
 const rate = 2
+const producerType = "InputProducer"
+const consumerType = "OutputConsumer"
 
 func main() {
 
@@ -41,9 +44,9 @@ func main() {
 		"consumer will consume messages from this topic")
 	groupID := flag.String("groupID", "groupID",
 		"the group consumer will join")
-	inputTopicPartitionsNum := flag.Int("inputTopicPartitionsNum", 1,
+	inputTopicPartitionsNum := flag.Int("inputTopicPartitionsNum", 4,
 		"inputTopic partition number")
-	outTopicPartitionsNum := flag.Int("outTopicPartitionsNum", 1,
+	outTopicPartitionsNum := flag.Int("outTopicPartitionsNum", 4,
 		"outTopic partition number")
 	replicationFactor := flag.Int("replicationFactor", 1, "topic replication")
 	ccloudAPIKey := flag.String("ccloudAPIKey", "", "sasl username")
@@ -114,8 +117,8 @@ func main() {
 		soaktest.ErrorLogger.Printf("Error caught: %s\n", err)
 	}
 	wg.Wait()
-	soaktest.PrintConsumerStatus()
-	soaktest.PrintProducerStatus()
+	soaktest.PrintConsumerStatus(consumerType)
+	soaktest.PrintProducerStatus(producerType)
 }
 
 // CreateTopic creates the topics if it doesn't exist
@@ -261,7 +264,7 @@ func producer(inputTopic, broker, ccloudAPIKey, ccloudAPISecret string,
 				TopicPartition: kafka.TopicPartition{
 					Topic:     &inputTopic,
 					Partition: kafka.PartitionAny},
-				Key:   soaktest.ConvertUint64ToByteArray(soaktest.ProduceMsgCnt % partitionNum),
+				Key:   soaktest.ConvertUint64ToByteArray(key),
 				Value: []byte(value),
 				Headers: []kafka.Header{{Key: "time",
 					Value: encodingTime},
@@ -291,9 +294,8 @@ func consumer(topic, broker, groupID, ccloudAPIKey, ccloudAPISecret string,
 	hwmarks := make(map[string]uint64)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":      broker,
-		"group.id":               "groupID",
+		"group.id":               groupID,
 		"auto.offset.reset":      "earliest",
-		"enable.auto.commit":     false,
 		"statistics.interval.ms": 5000,
 		"sasl.mechanisms":        "PLAIN",
 		"security.protocol":      "SASL_SSL",
