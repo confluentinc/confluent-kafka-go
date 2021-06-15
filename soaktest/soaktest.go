@@ -99,7 +99,6 @@ func InitLogFiles(filename string) {
 // monitors broker avg and p99 using datadog
 func rttStats(raw map[string]interface{}, topic string) error {
 	for _, broker := range raw["brokers"].(map[string]interface{}) {
-		var parts string
 		var avg float64
 		var p99 float64
 		var nodeid int
@@ -107,23 +106,6 @@ func rttStats(raw map[string]interface{}, topic string) error {
 		topparsValue := broker.(map[string]interface{})["toppars"]
 		if topparsValue == nil {
 			continue
-		}
-
-		for _, val := range topparsValue.(map[string]interface{}) {
-			if val.(map[string]interface{})["topic"] != topic {
-				continue
-			}
-			partition := val.(map[string]interface{})["partition"]
-			f, ok := partition.(float64)
-			if !ok {
-				err := fmt.Errorf("Failed to convert partition "+
-					"to float64 %v\n", ok)
-				return err
-			}
-			if len(parts) > 0 {
-				parts += ","
-			}
-			parts += fmt.Sprintf("%d", int(f))
 		}
 
 		rttValue := broker.(map[string]interface{})["rtt"]
@@ -146,8 +128,8 @@ func rttStats(raw map[string]interface{}, topic string) error {
 		}
 		nodeid = int(nid)
 
-		tags := []string{fmt.Sprintf("broker:%d, type:%s, parts:%s",
-			nodeid, raw["type"], parts)}
+		tags := []string{fmt.Sprintf("broker:%d", nodeid),
+			fmt.Sprintf("type:%s", raw["type"])}
 
 		DatadogGauge(brokerRttP99, p99/1000000.0, tags)
 		DatadogGauge(brokerRttAvg, avg/1000000.0, tags)
@@ -211,23 +193,21 @@ func PrintProducerStatus(producer string) {
 // verifies messages
 func HandleMessage(e *kafka.Message,
 	hwmarks map[string]uint64) bool {
-	topicTags := []string{fmt.Sprintf("topic:%s", *e.TopicPartition.Topic)}
-	partitionTags := []string{fmt.Sprintf("partition:%s",
-		*e.TopicPartition.Topic+"_"+
+	tags := []string{fmt.Sprintf("topic:%s", *e.TopicPartition.Topic),
+		fmt.Sprintf("partition:%s", *e.TopicPartition.Topic+"_"+
 			strconv.FormatInt(int64(e.TopicPartition.Partition), 10))}
 	if e.TopicPartition.Error != nil {
 		consumerMsgErrs++
-		DatadogIncrement(consumerReceiveError, 1, topicTags)
-		DatadogIncrement(consumerReceiveError, 1, partitionTags)
-		ErrorLogger.Printf("Message receive failed from: %s\n",
+		DatadogIncrement(consumerReceiveError, 1, tags)
+		ErrorLogger.Printf("Consumer received message on TopicPartition: %s "+
+			"failed with error: %s\n", e.TopicPartition,
 			e.TopicPartition.Error)
 		return false
 	}
 	consumerMsgCnt++
-	DatadogIncrement(consumerConsumeMSG, 1, topicTags)
-	DatadogIncrement(consumerConsumeMSG, 1, partitionTags)
+	DatadogIncrement(consumerConsumeMSG, 1, tags)
 	if consumerMsgCnt%1000 == 0 {
-		InfoLogger.Printf("TxnConsumer received message on TopicPartition: "+
+		InfoLogger.Printf("Consumer received message on TopicPartition: "+
 			"%s, Headers: %s, values: %s\n", e.TopicPartition,
 			e.Headers, string(e.Value))
 	}
@@ -239,10 +219,7 @@ func HandleMessage(e *kafka.Message,
 				timestamp.GobDecode(hdr.Value)
 				DatadogGauge(latency,
 					time.Now().Sub(timestamp).Seconds(),
-					topicTags)
-				DatadogGauge(latency,
-					time.Now().Sub(timestamp).Seconds(),
-					topicTags)
+					tags)
 			} else if hdr.Key == "msgid" {
 				msgid := binary.LittleEndian.Uint64(hdr.Value)
 				verifyMessage(e, hwmarks, msgid)
@@ -256,8 +233,8 @@ func HandleMessage(e *kafka.Message,
 // lost messages from consumer side
 func verifyMessage(e *kafka.Message,
 	hwmarks map[string]uint64, msgid uint64) {
-	tags := []string{fmt.Sprintf("topic:%s, partition:%d",
-		*e.TopicPartition.Topic, e.TopicPartition.Partition)}
+	tags := []string{fmt.Sprintf("topic:%s", *e.TopicPartition.Topic),
+		fmt.Sprintf("partition:%d", e.TopicPartition.Partition)}
 	hwkey := fmt.Sprintf("%s--%d",
 		*e.TopicPartition.Topic,
 		e.TopicPartition.Partition)
