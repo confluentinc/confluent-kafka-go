@@ -29,54 +29,53 @@ import (
 #include "glue_rdkafka.h"
 
 
-#ifdef RD_KAFKA_V_HEADERS
-void chdrs_to_tmphdrs (rd_kafka_headers_t *chdrs, tmphdr_t *tmphdrs) {
-   size_t i = 0;
-   const char *name;
-   const void *val;
-   size_t size;
+void chdrs_to_tmphdrs (glue_msg_t *gMsg) {
+    size_t i = 0;
+    const char *name;
+    const void *val;
+    size_t size;
+    rd_kafka_headers_t *chdrs;
 
-   while (!rd_kafka_header_get_all(chdrs, i,
-                                   &tmphdrs[i].key,
-                                   &tmphdrs[i].val,
-                                   (size_t *)&tmphdrs[i].size))
-     i++;
+    if (rd_kafka_message_headers(gMsg->msg, &chdrs)) {
+        gMsg->tmphdrs = NULL;
+        gMsg->tmphdrsCnt = 0;
+        return;
+    }
+
+    gMsg->tmphdrsCnt = rd_kafka_header_cnt(chdrs);
+    gMsg->tmphdrs = malloc(sizeof(*gMsg->tmphdrs) * gMsg->tmphdrsCnt);
+
+    while (!rd_kafka_header_get_all(chdrs, i,
+                                    &gMsg->tmphdrs[i].key,
+                                    &gMsg->tmphdrs[i].val,
+                                    (size_t *)&gMsg->tmphdrs[i].size))
+        i++;
 }
-#endif
 
 rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
                                   rd_kafka_event_type_t *evtype,
-                                  fetched_c_msg_t *fcMsg) {
+                                  glue_msg_t *gMsg) {
     rd_kafka_event_t *rkev;
 
     rkev = rd_kafka_queue_poll(rkq, timeoutMs);
     *evtype = rd_kafka_event_type(rkev);
 
     if (*evtype == RD_KAFKA_EVENT_FETCH) {
-#ifdef RD_KAFKA_V_HEADERS
-        rd_kafka_headers_t *hdrs;
-#endif
+        gMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
+        gMsg->ts = rd_kafka_message_timestamp(gMsg->msg, &gMsg->tstype);
 
-        fcMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
-        fcMsg->ts = rd_kafka_message_timestamp(fcMsg->msg, &fcMsg->tstype);
-
-#ifdef RD_KAFKA_V_HEADERS
-        if (!rd_kafka_message_headers(fcMsg->msg, &hdrs)) {
-           fcMsg->tmphdrsCnt = rd_kafka_header_cnt(hdrs);
-           fcMsg->tmphdrs = malloc(sizeof(*fcMsg->tmphdrs) * fcMsg->tmphdrsCnt);
-           chdrs_to_tmphdrs(hdrs, fcMsg->tmphdrs);
-        } else {
-#else
-        if (1) {
-#endif
-           fcMsg->tmphdrs = NULL;
-           fcMsg->tmphdrsCnt = 0;
-        }
+        if (gMsg->want_hdrs)
+            chdrs_to_tmphdrs(gMsg);
     }
+
     return rkev;
 }
 */
 import "C"
+
+func chdrsToTmphdrs(gMsg *C.glue_msg_t) {
+	C.chdrs_to_tmphdrs(gMsg)
+}
 
 // Event generic interface
 type Event interface {
@@ -147,14 +146,14 @@ func (h *handle) eventPollQueueContext(ctx context.Context, trigger *handleIOTri
 		// Check if there's a message already
 		for {
 			var evtype C.rd_kafka_event_type_t
-			var fcMsg C.fetched_c_msg_t
-			rkev := C._rk_queue_poll(trigger.rkq, 0, &evtype, &fcMsg)
+			var gMsg C.glue_msg_t
+			rkev := C._rk_queue_poll(trigger.rkq, 0, &evtype, &gMsg)
 
 			if evtype == C.RD_KAFKA_EVENT_NONE {
 				// We drained the queue and found nothing, now we must wait
 				break
 			}
-			ev := h.processRkevToGoEvent(ctx, rkev, evtype, &fcMsg)
+			ev := h.processRkevToGoEvent(ctx, rkev, evtype, &gMsg)
 			C.rd_kafka_event_destroy(rkev)
 			if ev != nil {
 				// We found something
@@ -193,14 +192,14 @@ func (h *handle) eventPollContext(ctx context.Context) (Event, bool) {
 // assigning partitions if configured to do so).
 // All other events are handled by wrapping them in an appropriate Go type and returning them to the caller.
 func (h *handle) processRkevToGoEvent(
-	ctx context.Context, rkev *C.rd_kafka_event_t, evtype C.rd_kafka_event_type_t, fcMsg *C.fetched_c_msg_t,
+	ctx context.Context, rkev *C.rd_kafka_event_t, evtype C.rd_kafka_event_type_t, gMsg *C.glue_msg_t,
 ) Event {
 
 	switch evtype {
 	case C.RD_KAFKA_EVENT_FETCH:
 		// Consumer fetch event, new message.
 		// Extracted into temporary fcMsg for optimization
-		return h.newMessageFromFcMsg(fcMsg)
+		return h.newMessageFromGlueMsg(gMsg)
 
 	case C.RD_KAFKA_EVENT_REBALANCE:
 		return h.c.handleRebalanceEvent(rkev)

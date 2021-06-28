@@ -1,5 +1,29 @@
 # Confluent's Golang client for Apache Kafka
 
+## v1.7.0
+
+confluent-kafka-go is based on librdkafka v1.7.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.7.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+### Enhancements
+
+ * Experimental Windows support (by @neptoess).
+ * The produced message headers are now available in the delivery report
+   `Message.Headers` if the Producer's `go.delivery.report.fields`
+   configuration property is set to include `headers`, e.g.:
+   `"go.delivery.report.fields": "key,value,headers"`
+   This comes at a performance cost and are thus disabled by default.
+
+
+### Fixes
+
+* AdminClient.CreateTopics() previously did not accept default value(-1) of
+  ReplicationFactor without specifying an explicit ReplicaAssignment, this is
+  now fixed.
+
+
+
 ## v1.6.1
 
 v1.6.1 is a feature release:
