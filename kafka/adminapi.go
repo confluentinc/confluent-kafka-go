@@ -1005,7 +1005,6 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
 	}
 
-	a.handle.preRdkafkaSetup()
 	// Create librdkafka producer instance. The Producer is somewhat cheaper than
 	// the consumer, but any instance type can be used for Admin APIs.
 	a.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)

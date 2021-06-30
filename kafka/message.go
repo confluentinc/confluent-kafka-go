@@ -174,7 +174,7 @@ func (h *handle) newMessageFromC(cmsg *C.rd_kafka_message_t) (msg *Message) {
 }
 
 // messageToC sets up cmsg as a clone of msg
-func (h *handle) messageToC(msg *Message, cmsg *C.rd_kafka_message_t) {
+func (h *handle) messageToC(msg *Message, cmsg *C.rd_kafka_message_t, state cgoif) {
 	var valp unsafe.Pointer
 	var keyp unsafe.Pointer
 
@@ -213,13 +213,18 @@ func (h *handle) messageToC(msg *Message, cmsg *C.rd_kafka_message_t) {
 	cmsg.len = C.size_t(valueLen)
 	cmsg.key = keyp
 	cmsg.key_len = C.size_t(keyLen)
-	cmsg._private = nil
+	if state != nil {
+		cgoid := h.cgoPut(state)
+		cmsg._private = cgoid
+	} else {
+		cmsg._private = nil
+	}
 }
 
 // used for testing messageToC performance
 func (h *handle) messageToCDummy(msg *Message) {
 	var cmsg C.rd_kafka_message_t
-	h.messageToC(msg, &cmsg)
+	h.messageToC(msg, &cmsg, nil)
 }
 
 // MessageWithError is the type returned from DR channels when go.message.dr.errors is on

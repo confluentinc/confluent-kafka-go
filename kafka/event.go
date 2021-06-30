@@ -19,7 +19,6 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"os"
 	"unsafe"
 )
 
@@ -27,55 +26,8 @@ import (
 #include <stdlib.h>
 #include "select_rdkafka.h"
 #include "glue_rdkafka.h"
-
-
-void chdrs_to_tmphdrs (glue_msg_t *gMsg) {
-    size_t i = 0;
-    const char *name;
-    const void *val;
-    size_t size;
-    rd_kafka_headers_t *chdrs;
-
-    if (rd_kafka_message_headers(gMsg->msg, &chdrs)) {
-        gMsg->tmphdrs = NULL;
-        gMsg->tmphdrsCnt = 0;
-        return;
-    }
-
-    gMsg->tmphdrsCnt = rd_kafka_header_cnt(chdrs);
-    gMsg->tmphdrs = malloc(sizeof(*gMsg->tmphdrs) * gMsg->tmphdrsCnt);
-
-    while (!rd_kafka_header_get_all(chdrs, i,
-                                    &gMsg->tmphdrs[i].key,
-                                    &gMsg->tmphdrs[i].val,
-                                    (size_t *)&gMsg->tmphdrs[i].size))
-        i++;
-}
-
-rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
-                                  rd_kafka_event_type_t *evtype,
-                                  glue_msg_t *gMsg) {
-    rd_kafka_event_t *rkev;
-
-    rkev = rd_kafka_queue_poll(rkq, timeoutMs);
-    *evtype = rd_kafka_event_type(rkev);
-
-    if (*evtype == RD_KAFKA_EVENT_FETCH) {
-        gMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
-        gMsg->ts = rd_kafka_message_timestamp(gMsg->msg, &gMsg->tstype);
-
-        if (gMsg->want_hdrs)
-            chdrs_to_tmphdrs(gMsg);
-    }
-
-    return rkev;
-}
 */
 import "C"
-
-func chdrsToTmphdrs(gMsg *C.glue_msg_t) {
-	C.chdrs_to_tmphdrs(gMsg)
-}
 
 // Event generic interface
 type Event interface {
@@ -141,85 +93,54 @@ func (o OAuthBearerTokenRefresh) String() string {
 	return "OAuthBearerTokenRefresh"
 }
 
-func (h *handle) eventPollQueueContext(ctx context.Context, trigger *handleIOTrigger) (Event, bool) {
-	for {
-		// Check if there's a message already
-		for {
-			var evtype C.rd_kafka_event_type_t
-			var gMsg C.glue_msg_t
-			rkev := C._rk_queue_poll(trigger.rkq, 0, &evtype, &gMsg)
-
-			if evtype == C.RD_KAFKA_EVENT_NONE {
-				// We drained the queue and found nothing, now we must wait
-				break
-			}
-			ev := h.processRkevToGoEvent(ctx, rkev, evtype, &gMsg)
-			C.rd_kafka_event_destroy(rkev)
-			if ev != nil {
-				// We found something
-				return ev, false
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil, true
-		case _, ok := <-trigger.notifyChan:
-			if !ok {
-				return nil, false
-			}
-			// Triggered, go back into check loop.
-		}
-	}
-}
-
-// eventPollContext waits for a single "returnable" event on the underlying
-// rd_kafka_queue_t queue and returns it. It uses the ioPollTrigger channel
-// on h to be notified of any new event by librdkafka.
+// eventPoll waits for a single "returnable" event on the underlying
+// rd_kafka_queue_t queue and returns it. It polls indefinitely until
+// either an event is found or the provided context is canceled.
 //
 // An event is considered "returnable" if it is _not_ internally processed by
-// processRkevToGoEvent.
+// this method.
 //
-// returns (event Event, terminate Bool) tuple, where Terminate indicates
-// if the context was canceled
-func (h *handle) eventPollContext(ctx context.Context) (Event, bool) {
-	return h.eventPollQueueContext(ctx, h.ioPollTrigger)
-}
+// Once an event is retrieved from librdkafka, it is processed or returned as
+// required, _regardless of whether ctx is subsequently canceled_. This ensures
+// that we do not end up in an inconsistent state where we have thrown away an
+// event.
+func (h *handle) eventPoll(ctx context.Context, rkq *C.rd_kafka_queue_t) (Event, error) {
+	polledEv, err := h.pollSingleCEventWithYield(ctx, rkq)
+	if err != nil {
+		// poll timed out: no events available
+		return nil, err
+	}
 
-// processRkevToGoEvent handles events coming out of librdkafka from the rd_kafka_poll call in
-// eventPollContext. It processes some kinds of events itself (for example, it handles delivery reports
-// by finding the appropriate channel to dispatch the report to, or handles assignment events by
-// assigning partitions if configured to do so).
-// All other events are handled by wrapping them in an appropriate Go type and returning them to the caller.
-func (h *handle) processRkevToGoEvent(
-	ctx context.Context, rkev *C.rd_kafka_event_t, evtype C.rd_kafka_event_type_t, gMsg *C.glue_msg_t,
-) Event {
+	if polledEv.rkev != nil {
+		defer C.rd_kafka_event_destroy(polledEv.rkev)
+	}
 
-	switch evtype {
+	switch polledEv.evType {
 	case C.RD_KAFKA_EVENT_FETCH:
 		// Consumer fetch event, new message.
-		// Extracted into temporary fcMsg for optimization
-		return h.newMessageFromGlueMsg(gMsg)
+		// Extracted into temporary gMsg for optimization
+		return h.newMessageFromGlueMsg(&polledEv.gMsg), nil
 
 	case C.RD_KAFKA_EVENT_REBALANCE:
-		return h.c.handleRebalanceEvent(rkev)
+		// Consumer rebalance event
+		return h.c.handleRebalanceEvent(polledEv.rkev), nil
 
 	case C.RD_KAFKA_EVENT_ERROR:
 		// Error event
-		cErr := C.rd_kafka_event_error(rkev)
+		cErr := C.rd_kafka_event_error(polledEv.rkev)
 		if cErr == C.RD_KAFKA_RESP_ERR__PARTITION_EOF {
-			crktpar := C.rd_kafka_event_topic_partition(rkev)
+			crktpar := C.rd_kafka_event_topic_partition(polledEv.rkev)
 			if crktpar == nil {
-				return nil
+				return nil, nil
 			}
 
 			defer C.rd_kafka_topic_partition_destroy(crktpar)
 			var peof PartitionEOF
 			setupTopicPartitionFromCrktpar((*TopicPartition)(&peof), crktpar)
 
-			return peof
+			return peof, nil
 
-		} else if int(C.rd_kafka_event_error_is_fatal(rkev)) != 0 {
+		} else if int(C.rd_kafka_event_error_is_fatal(polledEv.rkev)) != 0 {
 			// A fatal error has been raised.
 			// Extract the actual error from the client
 			// instance and return a new Error with
@@ -230,14 +151,14 @@ func (h *handle) processRkevToGoEvent(
 			cFatalErr := C.rd_kafka_fatal_error(h.rk, cFatalErrstr, cFatalErrstrSize)
 			fatalErr := newErrorFromCString(cFatalErr, cFatalErrstr)
 			fatalErr.fatal = true
-			return fatalErr
+			return fatalErr, nil
 
 		} else {
-			return newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev))
+			return newErrorFromCString(cErr, C.rd_kafka_event_error_string(polledEv.rkev)), nil
 		}
 
 	case C.RD_KAFKA_EVENT_STATS:
-		return &Stats{C.GoString(C.rd_kafka_event_stats(rkev))}
+		return &Stats{C.GoString(C.rd_kafka_event_stats(polledEv.rkev))}, nil
 
 	case C.RD_KAFKA_EVENT_DR:
 		// Producer Delivery Report event
@@ -245,9 +166,9 @@ func (h *handle) processRkevToGoEvent(
 		// messages in the produced batch.
 		// Forward delivery reports to per-message's response channel
 		// or to the global Producer.Events channel, or none.
-		rkmessages := make([]*C.rd_kafka_message_t, int(C.rd_kafka_event_message_count(rkev)))
+		rkmessages := make([]*C.rd_kafka_message_t, int(C.rd_kafka_event_message_count(polledEv.rkev)))
 
-		cnt := int(C.rd_kafka_event_message_array(rkev, (**C.rd_kafka_message_t)(unsafe.Pointer(&rkmessages[0])), C.size_t(len(rkmessages))))
+		cnt := int(C.rd_kafka_event_message_array(polledEv.rkev, (**C.rd_kafka_message_t)(unsafe.Pointer(&rkmessages[0])), C.size_t(len(rkmessages))))
 
 		for _, rkmessage := range rkmessages[:cnt] {
 			msg := h.newMessageFromC(rkmessage)
@@ -255,7 +176,7 @@ func (h *handle) processRkevToGoEvent(
 
 			if rkmessage._private != nil {
 				// Find cgoif by id
-				cg, found := h.cgoGet((int)((uintptr)(rkmessage._private)))
+				cg, found := h.cgoGet(rkmessage._private)
 				if found {
 					cdr := cg.(cgoDr)
 
@@ -266,68 +187,39 @@ func (h *handle) processRkevToGoEvent(
 				}
 			}
 
-			var outEvent Event
-			if h.fwdDrErrEvents {
-				mwe := &MessageWithError{Message: *msg}
-				if rkmessage.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-					ep := newError(rkmessage.err)
-					mwe.Error = &ep
-				}
-				outEvent = mwe
-			} else {
-				outEvent = msg
-			}
-
 			if ch != nil {
-				select {
-				case *ch <- outEvent:
-				case <-ctx.Done():
-					// This is a _very_ dangerous codepath. If the context passed in is canceled, and causes us
-					// to return in this branch, it means we have only half-processed the batch of message delivery
-					// reports in this event, and some of the DR channels will _never_ have the DR posted to them.
-					// This is OK when we're shutting down a producer, but not OK otherwise.
-					//
-					// By the same token, if we _don't_ return here, it's possible to deadlock forever when shutting
-					// down a producer because some client is not listening to their DR channel. So we kind of have
-					// to do it. (We could change the exceptions of library users around what they have to do with
-					// their DR channels, but that would be a pretty significant behaviour change.
-					//
-					// The producer is careful to pass in a context to this function that only expires when we
-					// genuinely are shutting down, so it _should_ be OK.
-					return nil
-				}
-
+				// Note that if nothing is consuming *ch (which could be either a per-message DR channel, or the
+				// global deliveryChan) then Poll() and Close() can block indefinitely because of this line.
+				// Therefore, it's crucial that users consume deliveryChan/per-message DR channels from another
+				// goroutine than the one that calls Poll()/Close().
+				*ch <- msg
 			}
 		}
-		return nil
+		return nil, ctx.Err()
 
 	case C.RD_KAFKA_EVENT_OFFSET_COMMIT:
 		// Offsets committed
-		cErr := C.rd_kafka_event_error(rkev)
-		coffsets := C.rd_kafka_event_topic_partition_list(rkev)
+		cErr := C.rd_kafka_event_error(polledEv.rkev)
+		coffsets := C.rd_kafka_event_topic_partition_list(polledEv.rkev)
 		var offsets []TopicPartition
 		if coffsets != nil {
 			offsets = newTopicPartitionsFromCparts(coffsets)
 		}
 
 		if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-			return OffsetsCommitted{newErrorFromCString(cErr, C.rd_kafka_event_error_string(rkev)), offsets}
+			return OffsetsCommitted{newErrorFromCString(cErr, C.rd_kafka_event_error_string(polledEv.rkev)), offsets}, nil
 		}
-		return OffsetsCommitted{nil, offsets}
+		return OffsetsCommitted{nil, offsets}, nil
 
 	case C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH:
-		return OAuthBearerTokenRefresh{C.GoString(C.rd_kafka_event_config_string(rkev))}
+		ev := OAuthBearerTokenRefresh{C.GoString(C.rd_kafka_event_config_string(polledEv.rkev))}
+		return ev, nil
 
 	case C.RD_KAFKA_EVENT_NONE:
 		// poll timed out: no events available
-		return nil
+		return nil, ctx.Err()
 
 	default:
-		if rkev != nil {
-			fmt.Fprintf(os.Stderr, "Ignored event %s\n",
-				C.GoString(C.rd_kafka_event_name(rkev)))
-		}
-		return nil
-
+		return nil, nil
 	}
 }
