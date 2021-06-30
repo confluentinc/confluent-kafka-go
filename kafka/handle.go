@@ -245,6 +245,10 @@ func (h *handle) cleanup() {
 
 	h.closePartitionQueues()
 
+	if h.rk != nil {
+		C.rd_kafka_destroy(h.rk)
+	}
+
 	globalCgoMapLock.Lock()
 	delete(globalCgoMap, h.globalCgoPointer)
 	globalCgoMapLock.Unlock()

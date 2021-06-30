@@ -394,8 +394,6 @@ func (p *Producer) Close() {
 	close(p.events)
 
 	p.handle.cleanup()
-
-	C.rd_kafka_destroy(p.handle.rk)
 }
 
 const (

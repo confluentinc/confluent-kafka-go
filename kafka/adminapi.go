@@ -961,8 +961,6 @@ func (a *AdminClient) Close() {
 	}
 
 	a.handle.cleanup()
-
-	C.rd_kafka_destroy(a.handle.rk)
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance

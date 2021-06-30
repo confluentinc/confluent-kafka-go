@@ -545,8 +545,6 @@ func (c *Consumer) Close() (err error) {
 
 	c.handle.cleanup()
 
-	C.rd_kafka_destroy(c.handle.rk)
-
 	return nil
 }
 
