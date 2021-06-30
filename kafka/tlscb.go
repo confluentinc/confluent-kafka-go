@@ -45,12 +45,18 @@ func goSSLCertVerifyCB(
 		return 0
 	}
 	h.tlsLock.RLock()
-	chains, err := cert.Verify(x509.VerifyOptions{
+	verifyOpts := x509.VerifyOptions{
 		Intermediates: h.intermediates,
 		Roots:         h.tlsConfig.RootCAs,
 		CurrentTime:   time.Now(),
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	})
+	}
+	if int(depth) == 0 {
+		// peer certificate - need to validate CN as well
+		// broker name can have host:port format, so split to just get host.
+		verifyOpts.DNSName = strings.Split(C.GoString(brokerName), ":")[0]
+	}
+	chains, err := cert.Verify(verifyOpts)
 	h.tlsLock.RUnlock()
 	if len(chains) == 0 {
 		err = errors.New("no path to root")
