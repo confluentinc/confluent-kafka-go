@@ -187,12 +187,24 @@ func (h *handle) eventPoll(ctx context.Context, rkq *C.rd_kafka_queue_t) (Event,
 				}
 			}
 
+			var outEvent Event
+			if h.fwdDrErrEvents {
+				mwe := &MessageWithError{Message: *msg}
+				if rkmessage.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+					ep := newError(rkmessage.err)
+					mwe.Error = &ep
+				}
+				outEvent = mwe
+			} else {
+				outEvent = msg
+			}
+
 			if ch != nil {
 				// Note that if nothing is consuming *ch (which could be either a per-message DR channel, or the
 				// global deliveryChan) then Poll() and Close() can block indefinitely because of this line.
 				// Therefore, it's crucial that users consume deliveryChan/per-message DR channels from another
 				// goroutine than the one that calls Poll()/Close().
-				*ch <- msg
+				*ch <- outEvent
 			}
 		}
 		return nil, ctx.Err()
