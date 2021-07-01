@@ -69,7 +69,7 @@ $build_tag
 
 package kafka
 
-// #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA
+// #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB
 // #cgo LDFLAGS: \${SRCDIR}/librdkafka_vendor/${dpath} $dynlibs
 import "C"
 
@@ -99,7 +99,7 @@ for f in rdkafka.h LICENSES.txt ; do
 done
 
 
-for btype in glibc_linux musl_linux darwin ; do
+for btype in glibc_linux musl_linux darwin windows ; do
     lib=$bdir/librdkafka_${btype}.a
     pc=${lib/%.a/.pc}
     [[ -f $lib ]] || (echo "Expected file $lib missing" ; exit 1)

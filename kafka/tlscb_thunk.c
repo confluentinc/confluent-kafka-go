@@ -1,10 +1,6 @@
 #include "rdkafka_select.h"
 #include "tlscb_thunk.h"
 
-int goSSLCertVerifyCB(rd_kafka_t *rk, char *broker_name, int32_t broker_id,
-                          int *x509_error, int depth, char *buf, size_t size,
-                          char *errstr, size_t errstr_size, void *opaque);
-
 int cgoSSLCertVerifyCB(rd_kafka_t *rk, const char *broker_name, int32_t broker_id,
 						   int *x509_error, int depth, const char *buf, size_t size,
                            char *errstr, size_t errstr_size, void *opaque) {
@@ -12,19 +8,10 @@ int cgoSSLCertVerifyCB(rd_kafka_t *rk, const char *broker_name, int32_t broker_i
                                  (char*)buf, size, errstr, errstr_size, opaque);
 }
 
-int goSSLCertFetchCB(rd_kafka_t *rk, char *broker_name, int32_t broker_id,
-                         char *buf, size_t *buf_size, char **leaf_cert, size_t *leaf_cert_size,
-                         char **pkey, size_t *pkey_size, char **chain_certs,
-				         size_t *chain_cert_sizes, rd_kafka_cert_enc_t *format,
-						 void *opaque);
-
-int cgoSSLCertFetchCB(rd_kafka_t *rk, const char *broker_name, int32_t broker_id,
-                          char *buf, size_t *buf_size, char **leaf_cert, size_t *leaf_cert_size,
-                          char **pkey, size_t *pkey_size, char *chain_certs[16],
-				          size_t chain_cert_sizes[16], rd_kafka_cert_enc_t *format,
-						  void *opaque) {
-	return goSSLCertFetchCB(rk, (char*)broker_name, broker_id, buf, buf_size, leaf_cert, leaf_cert_size,
-							    pkey, pkey_size, chain_certs, chain_cert_sizes, format, opaque);
+rd_kafka_cert_fetch_cb_res_t cgoSSLCertFetchCB(rd_kafka_t *rk, const char *broker_name, int32_t broker_id,
+                                              rd_kafka_ssl_cert_fetch_cb_certs_t *certsp, char *errstr,
+                                              size_t errstr_size, void *opaque) {
+	return goSSLCertFetchCB(rk, (char*)broker_name, broker_id, certsp, errstr, errstr_size, opaque);
 }
 
 int cgo_rd_kafka_conf_set_tls_callbacks(rd_kafka_conf_t *conf) {

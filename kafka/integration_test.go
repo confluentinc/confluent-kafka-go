@@ -27,7 +27,6 @@ import (
 	"path"
 	"reflect"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -306,6 +305,8 @@ func handleTestEvent(c *Consumer, mt *msgtracker, expCnt int, ev Event) bool {
 		}
 	case PartitionEOF:
 		break // silence
+	case OffsetsCommitted:
+		break // could happen because we have auto commit on some tests
 	default:
 		mt.t.Fatalf("Consumer error: %v", e)
 	}
@@ -387,7 +388,8 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"go.batch.producer":            pc.batchProducer,
 		"go.delivery.reports":          pc.withDr,
 		"queue.buffering.max.messages": len(testmsgs),
-		"acks":                         "all"}
+		"acks":                         "all",
+	}
 
 	conf.updateFromTestconf()
 
@@ -490,23 +492,16 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		msgcnt = len(p0TestMsgs)
 	}
 
-	// Upstream seems to have broken a ton of these tests, because the same consumer group is used between
-	// every test, and some of them now have different partition assignment strategies. So, we need to randomise
-	// the consumer group name...
-	randomConsumerGroup := fmt.Sprintf(
-		"group-%s-%d",
-		strings.Replace(assignmentStrategy, " ", "-", -1),
-		rand.Intn(10000),
-	)
-
 	conf := ConfigMap{
-		"bootstrap.servers":                    testconf.Brokers,
-		"go.events.channel.enable":             cc.useChannel,
-		"group.id":                             randomConsumerGroup,
+		"bootstrap.servers":        testconf.Brokers,
+		"go.events.channel.enable": cc.useChannel,
+		"group.id": testconf.GroupID +
+			fmt.Sprintf("-%d", rand.Intn(1000000)),
 		"session.timeout.ms":                   6000,
 		"api.version.request":                  "true",
 		"enable.auto.commit":                   cc.autoCommit,
-		"log_level":                            7,
+		"auto.commit.interval.ms":              500,
+		"debug":                                ",",
 		"auto.offset.reset":                    "earliest",
 		"go.enable.read.from.partition.queues": cc.readFromPartitionQueue,
 	}
@@ -594,12 +589,14 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 	}
 
+	if cc.autoCommit {
+		// Sleep for a while to actually let the auto commit happen
+		// We set auto.commit.interval.ms to 500, so give it a bit longer.
+		time.Sleep(1 * time.Second)
+	}
+
 	// Trigger RevokePartitions
 	c.Unsubscribe()
-
-	// Handle RevokePartitions
-	c.Poll(500)
-
 }
 
 //Test consumer QueryWatermarkOffsets API

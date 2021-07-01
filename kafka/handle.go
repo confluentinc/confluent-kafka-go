@@ -17,10 +17,10 @@ package kafka
  */
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -30,11 +30,62 @@ import (
 /*
 #include <stdlib.h>
 #include "select_rdkafka.h"
-*/
+#include "glue_rdkafka.h"
+
+
+void chdrs_to_tmphdrs (glue_msg_t *gMsg) {
+    size_t i = 0;
+    const char *name;
+    const void *val;
+    size_t size;
+    rd_kafka_headers_t *chdrs;
+
+    if (rd_kafka_message_headers(gMsg->msg, &chdrs)) {
+        gMsg->tmphdrs = NULL;
+        gMsg->tmphdrsCnt = 0;
+        return;
+    }
+
+    gMsg->tmphdrsCnt = rd_kafka_header_cnt(chdrs);
+    gMsg->tmphdrs = malloc(sizeof(*gMsg->tmphdrs) * gMsg->tmphdrsCnt);
+
+    while (!rd_kafka_header_get_all(chdrs, i,
+                                    &gMsg->tmphdrs[i].key,
+                                    &gMsg->tmphdrs[i].val,
+                                    (size_t *)&gMsg->tmphdrs[i].size))
+        i++;
+}
+
+rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
+                                  rd_kafka_event_type_t *evtype,
+                                  glue_msg_t *gMsg,
+                                  rd_kafka_event_t *prev_rkev) {
+    rd_kafka_event_t *rkev;
+
+    if (prev_rkev)
+      rd_kafka_event_destroy(prev_rkev);
+
+    rkev = rd_kafka_queue_poll(rkq, timeoutMs);
+    *evtype = rd_kafka_event_type(rkev);
+
+    if (*evtype == RD_KAFKA_EVENT_FETCH) {
+        gMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
+        gMsg->ts = rd_kafka_message_timestamp(gMsg->msg, &gMsg->tstype);
+
+        if (gMsg->want_hdrs)
+            chdrs_to_tmphdrs(gMsg);
+    }
+
+    return rkev;
+}*/
 import "C"
 
 var globalCgoMapLock sync.Mutex
 var globalCgoMap map[unsafe.Pointer]*handle = make(map[unsafe.Pointer]*handle)
+
+func chdrsToTmphdrs(gMsg *C.glue_msg_t) {
+	C.chdrs_to_tmphdrs(gMsg)
+}
 
 // OAuthBearerToken represents the data to be transmitted
 // to a broker during SASL/OAUTHBEARER authentication.
@@ -110,7 +161,7 @@ type handle struct {
 
 	// topic partition - rkqt
 	// to store partition queues for currently assigned partitions
-	rkqtAssignedPartitions map[topicPartitionKey]*handleIOTrigger
+	rkqtAssignedPartitions map[topicPartitionKey]*C.rd_kafka_queue_t
 
 	// Cached instance name to avoid CGo call in String()
 	name string
@@ -119,8 +170,8 @@ type handle struct {
 	// cgo map
 	// Maps C callbacks based on cgoid back to its Go object
 	cgoLock          sync.Mutex
-	cgoidNext        uintptr
-	cgomap           map[int]cgoif
+	cgomap           map[unsafe.Pointer]cgoif
+	cgoTokenCache    chan unsafe.Pointer
 	globalCgoPointer unsafe.Pointer
 
 	//
@@ -133,7 +184,8 @@ type handle struct {
 
 	// Include DeliveryReportError objects in DR events channels
 	fwdDrErrEvents bool
-	// Enabled fields for delivery reports
+
+	// Enabled message fields for delivery reports and consumed messages.
 	msgFields *messageFields
 
 	//
@@ -143,10 +195,6 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
-
-	// IO-trigger functionality (wake golang up when an event is ready, without polling)
-	ioPollTrigger    *handleIOTrigger
-	logIOPollTrigger *handleIOTrigger
 
 	tlsConfig     *tls.Config
 	intermediates *x509.CertPool
@@ -166,17 +214,13 @@ func (h *handle) setupGlobalCgoMap() {
 	globalCgoMapLock.Unlock()
 }
 
-// preRdkafkaSetup needs to be called _before_ rd_kafka_new
-func (h *handle) preRdkafkaSetup() {
+func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
-	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*handleIOTrigger)
-	h.cgomap = make(map[int]cgoif)
+	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*C.rd_kafka_queue_t)
+	h.cgomap = make(map[unsafe.Pointer]cgoif)
+	h.cgoTokenCache = make(chan unsafe.Pointer, 32)
 	h.intermediates = x509.NewCertPool()
-}
-
-// setup needs to be called _after_ rd_kafka_new
-func (h *handle) setup() {
 	h.name = C.GoString(C.rd_kafka_name(h.rk))
 	if h.msgFields == nil {
 		h.msgFields = newMessageFields()
@@ -201,19 +245,28 @@ func (h *handle) cleanup() {
 
 	h.closePartitionQueues()
 
+	if h.rk != nil {
+		C.rd_kafka_destroy(h.rk)
+	}
+
 	globalCgoMapLock.Lock()
 	delete(globalCgoMap, h.globalCgoPointer)
 	globalCgoMapLock.Unlock()
 	C.free(h.globalCgoPointer)
+
+	for len(h.cgoTokenCache) > 0 {
+		ptr := <-h.cgoTokenCache
+		C.free(ptr)
+	}
+	close(h.cgoTokenCache)
 }
 
 func (h *handle) closePartitionQueues() {
-	for _, parQueueTrigger := range h.rkqtAssignedPartitions {
-		parQueueTrigger.stop()
-		C.rd_kafka_queue_destroy(parQueueTrigger.rkq)
+	for _, parQueue := range h.rkqtAssignedPartitions {
+		C.rd_kafka_queue_destroy(parQueue)
 	}
 
-	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*handleIOTrigger)
+	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*C.rd_kafka_queue_t)
 }
 
 func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) error {
@@ -228,17 +281,10 @@ func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) error
 	h.logq = C.rd_kafka_queue_new(h.rk)
 	C.rd_kafka_set_log_queue(h.rk, h.logq)
 
-	// Use librdkafka's FD-based event notifications to find out when there are log events.
-	var err error
-	h.logIOPollTrigger, err = startIOTrigger(h.logq)
-	if err != nil {
-		return nil
-	}
 	h.waitGroup.Add(1)
 	// Start a goroutine to consume the log queue by waiting for log events
 	go func() {
 		h.pollLogEvents(h.logs, termChan)
-		_ = h.logIOPollTrigger.stop()
 		h.waitGroup.Done()
 	}()
 
@@ -308,20 +354,14 @@ func (h *handle) disablePartitionQueueForwarding(topic string, partition int32) 
 	}
 
 	C.rd_kafka_queue_forward(partitionQueue, nil)
-
-	ioHandle, err := startIOTrigger(partitionQueue)
-	if err != nil {
-		return
-	}
-
 	tp := topicPartitionKey{
 		Topic:     topic,
 		Partition: partition,
 	}
-	h.rkqtAssignedPartitions[tp] = ioHandle
+	h.rkqtAssignedPartitions[tp] = partitionQueue
 }
 
-func (h *handle) getAssignedPartitionQueue(topic string, partition int32) *handleIOTrigger {
+func (h *handle) getAssignedPartitionQueue(topic string, partition int32) *C.rd_kafka_queue_t {
 	tp := topicPartitionKey{
 		Topic:     topic,
 		Partition: partition,
@@ -345,17 +385,35 @@ type cgoDr struct {
 
 // cgoPut adds object cg to the handle's cgo map and returns a
 // unique id for the added entry.
+//
+// All void* parameters passed into cgo need to either point at a valid Go
+// object, or something that definitely can't be a valid Go object (i.e. a
+// valid pointer to something in the C heap). Furthermore, an unsafe.Pointer
+// pointing to a Go object cannot be stored in a C structure that is passed
+// to a cgo call.
+//
+// This method therefore returns an unsafe.Pointer that is guaranteed to never
+// point to a valid Go object, by invoking C.malloc to produce it. This can
+// safely be passed through cgo calls and back into cgoGet() to return the
+// passed-in object.
+//
 // Thread-safe.
-// FIXME: the uniquity of the id is questionable over time.
-func (h *handle) cgoPut(cg cgoif) (cgoid int) {
+func (h *handle) cgoPut(cg cgoif) unsafe.Pointer {
+	var cgoid unsafe.Pointer
+
+	// Instead of repeatedly malloc/free'ing pointers, this cache can recycle
+	// this set of values whose only property is essentially that it will never
+	// point to a valid Go object.
+	select {
+	case cgoid = <-h.cgoTokenCache:
+		// token already available in cache, no need to call malloc() again
+	default:
+		cgoid = C.malloc(C.size_t(1))
+	}
+
 	h.cgoLock.Lock()
 	defer h.cgoLock.Unlock()
 
-	h.cgoidNext++
-	if h.cgoidNext == 0 {
-		h.cgoidNext++
-	}
-	cgoid = (int)(h.cgoidNext)
 	h.cgomap[cgoid] = cg
 	return cgoid
 }
@@ -363,8 +421,8 @@ func (h *handle) cgoPut(cg cgoif) (cgoid int) {
 // cgoGet looks up cgoid in the cgo map, deletes the reference from the map
 // and returns the object, if found. Else returns nil, false.
 // Thread-safe.
-func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
-	if cgoid == 0 {
+func (h *handle) cgoGet(cgoid unsafe.Pointer) (cg cgoif, found bool) {
+	if cgoid == nil {
 		return nil, false
 	}
 
@@ -373,6 +431,13 @@ func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
 	cg, found = h.cgomap[cgoid]
 	if found {
 		delete(h.cgomap, cgoid)
+
+		select {
+		case h.cgoTokenCache <- cgoid:
+			// token returned to cache
+		default:
+			C.free(cgoid)
+		}
 	}
 
 	return cg, found
@@ -426,93 +491,28 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 	return newError(cErr)
 }
 
-// handleIOTrigger wraps up librdkafka's rd_kafka_queue_io_event_enable functionality to let Go be notified of
-// new events available on librdkafka queues. The idea is that we set up a pair of pipe FD's in startIOTrigger,
-// and ask librdkafka to write a byte to the pipe when we go from 0 -> 1 events in a queue (i.e. it's edge
-// triggered).
-//
-// Because the Golang scheduler understands how to wake this goroutine up when there's data on the pipe, this
-// enables us to "bridge" librdkafka's event-loop and the Golang event-loop.
-type handleIOTrigger struct {
-	notifyChan chan struct{}
-	readerPipe *os.File
-	writerPipe *os.File
-	rkq        *C.rd_kafka_queue_t
-	wg         sync.WaitGroup
-}
-
-// startIOTrigger hooks up IO based event triggering on the provided librdkafka queue, and sets up a goroutine
-// to read from the pipe and signal other goutines waiting for events on the notifyChan.
-func startIOTrigger(rkq *C.rd_kafka_queue_t) (*handleIOTrigger, error) {
-	t := &handleIOTrigger{}
-
-	t.rkq = rkq
-	// It's important that this is a buffered channel, so that in the case where _nobody_ is waiting for
-	// events, we don't block an internal librdkafka thread on the other side of the pipe.
-	t.notifyChan = make(chan struct{}, 1)
-	var err error
-	t.readerPipe, t.writerPipe, err = os.Pipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed constructing IO poll pipe: %s", err.Error())
-	}
-	edgeMessage := C.CBytes([]byte{9})
-	C.rd_kafka_queue_io_event_enable(rkq, C.int(t.writerPipe.Fd()), edgeMessage, 1)
-	C.free(edgeMessage)
-
-	t.wg.Add(1)
-	go func() {
-		defer t.wg.Done()
-		defer close(t.notifyChan)
-		oneByteBuffer := make([]byte, 1)
-
-		for {
-			_, err := t.readerPipe.Read(oneByteBuffer)
-			if err != nil {
-				return
-			}
-			// If the channel write fails, that means the buffer (of 1) was already full, which is fine; nobody is
-			// currently waiting for events, and they'll see the existing wakeup singal the next time they look at
-			// the channel anyway.
-			select {
-			case t.notifyChan <- struct{}{}:
-			default:
-			}
-		}
-	}()
-	return t, nil
-}
-
-// stop stops the internal goroutine watching for events from librdkafka and disables IO event triggering.
-func (t *handleIOTrigger) stop() error {
-	C.rd_kafka_queue_io_event_enable(t.rkq, -1, nil, 0)
-	if err := t.writerPipe.Close(); err != nil {
-		return err
-	}
-	if err := t.readerPipe.Close(); err != nil {
-		return err
-	}
-	t.wg.Wait()
-	return nil
-}
-
 // messageFields controls which fields are made available for producer delivery reports & incoming messages
+// messageFields controls which fields are made available for producer delivery reports & consumed messages.
 // true values indicate that the field should be included
 type messageFields struct {
-	Key   bool
-	Value bool
+	Key     bool
+	Value   bool
+	Headers bool
 }
 
 // disableAll disable all fields
 func (mf *messageFields) disableAll() {
 	mf.Key = false
 	mf.Value = false
+	mf.Headers = false
 }
 
 // newMessageFields returns a new messageFields with all fields enabled
 func newMessageFields() *messageFields {
 	return &messageFields{
-		Key:   true,
-		Value: true,
+		Key:     true,
+		Value:   true,
+		Headers: true,
 	}
 }
 
@@ -532,10 +532,58 @@ func newMessageFieldsFrom(v ConfigValue) (*messageFields, error) {
 				msgFields.Key = true
 			case "value":
 				msgFields.Value = true
+			case "headers":
+				msgFields.Headers = true
 			default:
 				return nil, fmt.Errorf("unknown message field: %s", value)
 			}
 		}
 	}
 	return msgFields, nil
+}
+
+type polledEvent struct {
+	rkev   *C.rd_kafka_event_t
+	evType C.rd_kafka_event_type_t
+	gMsg   C.glue_msg_t
+}
+
+func (h *handle) pollSingleCEventWithYield(ctx context.Context, queue *C.rd_kafka_queue_t) (polledEvent, error) {
+	// See if there's anything ready-to-go without blocking
+	var goEvent polledEvent
+	goEvent.gMsg.want_hdrs = C.int8_t(bool2cint(h.msgFields.Headers))
+	goEvent.rkev = C._rk_queue_poll(queue, C.int(0), &goEvent.evType, &goEvent.gMsg, nil)
+
+	// This needs to be in a loop, and _not_ a single execution, because otherwise
+	// concurrent calls to Poll() for the same handle might end up getting deadlocked
+	// because the rd_kafka_queue_yield call on one might wake up the rd_kafka_event_poll
+	// call on the other.
+	//
+	// I don't think concurrent calls to Poll() (or calling Poll() whilst using the channel
+	// consumer) is a particularly good idea anyway, but I found the test cases doing it in
+	// a couple of spots which probably means somebody is doing this in their app too.
+	for ctx.Err() == nil && goEvent.evType == C.RD_KAFKA_EVENT_NONE {
+		// Need to actually wait for a while.
+		eventWaitChan := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case <-eventWaitChan:
+				// This branch means that rd_kafka_queue_poll successfully
+				// managed to return something.
+			case <-ctx.Done():
+				C.rd_kafka_queue_yield(queue)
+			}
+		}()
+
+		goEvent.rkev = C._rk_queue_poll(queue, C.int(-1), &goEvent.evType, &goEvent.gMsg, nil)
+		close(eventWaitChan)
+		wg.Wait()
+	}
+	if goEvent.evType == C.RD_KAFKA_EVENT_NONE {
+		return goEvent, ctx.Err()
+	}
+	return goEvent, nil
 }

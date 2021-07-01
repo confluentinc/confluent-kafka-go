@@ -359,7 +359,11 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
 	defer cancel()
-	return c.PollContext(ctx)
+	ev, err := c.handle.eventPoll(ctx, c.handle.rkq)
+	if err != nil {
+		return nil
+	}
+	return ev
 }
 
 // PollContext polls the consumer for message or events
@@ -371,7 +375,7 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 //
 // Returns nil if the context was done, else an event
 func (c *Consumer) PollContext(ctx context.Context) Event {
-	ev, _ := c.handle.eventPollContext(ctx)
+	ev, _ := c.handle.eventPoll(ctx, c.handle.rkq)
 	return ev
 }
 
@@ -385,11 +389,11 @@ func (c *Consumer) PollContext(ctx context.Context) Event {
 //
 // Returns nil if the context was done, else an event
 func (c *Consumer) PollPartitionContext(ctx context.Context, topic string, partition int32) Event {
-	trigger := c.handle.getAssignedPartitionQueue(topic, partition)
-	if trigger == nil {
+	rkq := c.handle.getAssignedPartitionQueue(topic, partition)
+	if rkq == nil {
 		return newErrorFromString(C.RD_KAFKA_RESP_ERR_INVALID_PARTITIONS, "readFromPartitionQueues not enabled or Partition not assigned")
 	}
-	ev, _ := c.handle.eventPollQueueContext(ctx, trigger)
+	ev, _ := c.handle.eventPoll(ctx, rkq)
 	return ev
 }
 
@@ -506,9 +510,6 @@ func (c *Consumer) Close() (err error) {
 
 	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
 	close(c.readerTermChan)
-	if err := c.handle.ioPollTrigger.stop(); err != nil {
-		return err
-	}
 	c.handle.waitGroup.Wait()
 	if c.eventsChanEnable {
 		close(c.events)
@@ -525,7 +526,7 @@ func (c *Consumer) Close() (err error) {
 
 	// Poll for rebalance events
 	for {
-		c.Poll(10 * 1000)
+		c.Poll(1000)
 		if int(C.rd_kafka_queue_length(c.handle.rkq)) == 0 {
 			break
 		}
@@ -543,8 +544,6 @@ func (c *Consumer) Close() (err error) {
 	C.rd_kafka_consumer_close(c.handle.rk)
 
 	c.handle.cleanup()
-
-	C.rd_kafka_destroy(c.handle.rk)
 
 	return nil
 }
@@ -645,7 +644,6 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
 	}
 
-	c.handle.preRdkafkaSetup()
 	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, cConf, cErrstr, 256)
 	if c.handle.rk == nil {
 		c.handle.cleanup()
@@ -672,13 +670,6 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		}
 	}
 
-	// Begin receiving events on a FD from librdkafka
-	c.handle.ioPollTrigger, err = startIOTrigger(c.handle.rkq)
-	if err != nil {
-		c.handle.cleanup()
-		return nil, err
-	}
-
 	if c.eventsChanEnable {
 		c.events = make(chan Event, eventsChanSize)
 		/* Start rdkafka consumer queue reader -> events writer goroutine */
@@ -695,11 +686,13 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 // consumerReader reads messages and events from the librdkafka consumer queue
 // and posts them on the consumer channel.
 // Runs until termChan closes
+// Won't work if per-partition queues are enabled.
 func consumerReader(c *Consumer, termChan chan bool) {
 	// This setup creates a context such that:
 	//   * Either it becomes canceled when termChan is closed, causing eventPollContext to exit, or
 	//   * It is canceled when the method is returned from, ensuring that the goroutine is not leaked.
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -707,14 +700,19 @@ func consumerReader(c *Consumer, termChan chan bool) {
 			cancel()
 		}
 	}()
-	defer cancel()
 
-	for ctx.Err() == nil {
-		ev, _ := c.handle.eventPollContext(ctx)
-		select {
-		case c.events <- ev:
-		case <-ctx.Done():
+	for {
+		ev, err := c.handle.eventPoll(ctx, c.handle.rkq)
+		if err != nil {
+			// cancellation
 			return
+		}
+		if ev != nil {
+			select {
+			case c.events <- ev:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}
 }
@@ -999,7 +997,7 @@ func (c *Consumer) handleRebalanceEvent(rkev *C.rd_kafka_event_t) (retval Event)
 
 	}
 
-	if c.eventsChanEnable && c.appRebalanceEnable && c.rebalanceCb == nil {
+	if c.events != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
 		// Channel-based consumer with rebalancing enabled,
 		// return the rebalance event and rely on the application
 		// to call *Assign() / *Unassign().

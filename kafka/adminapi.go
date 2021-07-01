@@ -516,10 +516,6 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecificat
 				return nil, newErrorFromString(ErrInvalidArg,
 					"TopicSpecification.ReplicaAssignment must contain exactly TopicSpecification.NumPartitions partitions")
 			}
-
-		} else if cReplicationFactor == -1 {
-			return nil, newErrorFromString(ErrInvalidArg,
-				"TopicSpecification.ReplicationFactor or TopicSpecification.ReplicaAssignment must be specified")
 		}
 
 		cTopics[i] = C.rd_kafka_NewTopic_new(
@@ -965,8 +961,6 @@ func (a *AdminClient) Close() {
 	}
 
 	a.handle.cleanup()
-
-	C.rd_kafka_destroy(a.handle.rk)
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance
@@ -1009,7 +1003,6 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
 	}
 
-	a.handle.preRdkafkaSetup()
 	// Create librdkafka producer instance. The Producer is somewhat cheaper than
 	// the consumer, but any instance type can be used for Admin APIs.
 	a.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
