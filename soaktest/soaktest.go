@@ -67,7 +67,7 @@ const FailedToProduceMsg = "failed.to.produce.message"
 var producerDr = "producer.dr"
 var producerDrErr = "producer.dr.err"
 
-const consumerConsumeMSG = "consumer.consume.msg"
+const consumerConsumeMsg = "consumer.consume.msg"
 const consumerReceiveError = "consumer.receive.err"
 const latency = "latency"
 const consumerConsumeDupMSG = "consumer.consume.dup.msg"
@@ -81,6 +81,9 @@ func InitLogFiles(filename string) {
 	path := filepath.Dir(filename)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		os.Mkdir(path, os.ModePerm)
+	}
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY,
@@ -205,7 +208,7 @@ func HandleMessage(e *kafka.Message,
 		return false
 	}
 	consumerMsgCnt++
-	DatadogIncrement(consumerConsumeMSG, 1, tags)
+	DatadogIncrement(consumerConsumeMsg, 1, tags)
 	if consumerMsgCnt%1000 == 0 {
 		InfoLogger.Printf("Consumer received message on TopicPartition: "+
 			"%s, Headers: %s, values: %s\n", e.TopicPartition,
