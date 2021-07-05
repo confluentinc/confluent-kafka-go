@@ -533,6 +533,12 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	if v != nil {
 		p.handle.tlsConfig = v.(*tls.Config)
+		v, err = confCopy.extract("ssl.endpoint.identification.algorithm", "none")
+		if err != nil {
+			return nil, err
+		}
+		identAlgo := v.(string)
+		p.handle.verifyBrokerDNS = identAlgo == "https"
 	}
 
 	if int(C.rd_kafka_version()) < 0x01000000 {

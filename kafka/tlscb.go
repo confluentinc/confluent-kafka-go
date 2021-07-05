@@ -66,14 +66,14 @@ func goSSLCertVerifyCB(
 		CurrentTime:   time.Now(),
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
-	if int(depth) == 0 {
+	if int(depth) == 0 && h.verifyBrokerDNS {
 		// peer certificate - need to validate CN as well
 		// broker name can have host:port format, so split to just get host.
 		verifyOpts.DNSName = strings.Split(C.GoString(brokerName), ":")[0]
 	}
 	chains, err := cert.Verify(verifyOpts)
 	h.tlsLock.RUnlock()
-	if len(chains) == 0 {
+	if len(chains) == 0 && err == nil {
 		err = errors.New("no path to root")
 	}
 	if err != nil {
