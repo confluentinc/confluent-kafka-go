@@ -73,7 +73,7 @@ func goSSLCertVerifyCB(
 	}
 	chains, err := cert.Verify(verifyOpts)
 	h.tlsLock.RUnlock()
-	if len(chains) == 0 {
+	if len(chains) == 0 && err == nil {
 		err = errors.New("no path to root")
 	}
 	if err != nil {
