@@ -623,6 +623,12 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 	if v != nil {
 		c.handle.tlsConfig = v.(*tls.Config)
+		v, err = confCopy.extract("ssl.endpoint.identification.algorithm", "none")
+		if err != nil {
+			return nil, err
+		}
+		identAlgo := v.(string)
+		c.handle.verifyBrokerDNS = identAlgo == "https"
 	}
 
 	logsChanEnable, logsChan, err := confCopy.extractLogConfig()

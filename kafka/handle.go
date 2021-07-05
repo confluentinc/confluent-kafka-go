@@ -196,9 +196,10 @@ type handle struct {
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
 
-	tlsConfig     *tls.Config
-	intermediates *x509.CertPool
-	tlsLock       sync.RWMutex
+	tlsConfig       *tls.Config
+	intermediates   *x509.CertPool
+	tlsLock         sync.RWMutex
+	verifyBrokerDNS bool
 }
 
 func (h *handle) String() string {
