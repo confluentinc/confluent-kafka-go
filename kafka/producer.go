@@ -533,7 +533,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	}
 	if v != nil {
 		p.handle.tlsConfig = v.(*tls.Config)
-		v, err = confCopy.extract("ssl.endpoint.identification.algorithm", "none")
+		v, err = confCopy.get("ssl.endpoint.identification.algorithm", "none")
 		if err != nil {
 			return nil, err
 		}

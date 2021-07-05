@@ -623,7 +623,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 	if v != nil {
 		c.handle.tlsConfig = v.(*tls.Config)
-		v, err = confCopy.extract("ssl.endpoint.identification.algorithm", "none")
+		v, err = confCopy.get("ssl.endpoint.identification.algorithm", "none")
 		if err != nil {
 			return nil, err
 		}
