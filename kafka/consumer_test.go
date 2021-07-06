@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestConsumerAPIs dry-tests most Consumer APIs, no broker is needed.
@@ -427,23 +429,23 @@ func TestConsumerRebalanceEvents(t *testing.T) {
 	broker := testconf.Brokers
 	topic := testconf.Topic
 
-	testConsumerRebalanceEvents("range", broker, topic, false)
-	testConsumerRebalanceEvents("cooperative-sticky", broker, topic, false)
+	testConsumerRebalanceEvents(t, "range", broker, topic, false)
+	testConsumerRebalanceEvents(t, "cooperative-sticky", broker, topic, false)
 
-	testConsumerRebalanceEvents("cooperative-sticky", broker, topic, true)
-	testConsumerRebalanceEvents("range", broker, topic, true)
+	testConsumerRebalanceEvents(t, "cooperative-sticky", broker, topic, true)
+	testConsumerRebalanceEvents(t, "range", broker, topic, true)
 }
 
-func testConsumerRebalanceEvents(partitionAssignmentStrategy, broker, topic string,
-	callback bool) {
+func testConsumerRebalanceEvents(t *testing.T,
+	partitionAssignmentStrategy, broker, topic string, callback bool) {
 	c, err := NewConsumer(&ConfigMap{
 		"bootstrap.servers":               testconf.Brokers,
-		"group.id":                        "groupID",
+		"group.id":                        "gotest",
 		"go.application.rebalance.enable": true,
 		"partition.assignment.strategy":   partitionAssignmentStrategy,
 	})
 	if err != nil {
-		fmt.Printf("Failed to create consumer: %s\n", err)
+		t.Logf("Failed to create consumer: %s\n", err)
 		return
 	}
 
@@ -456,8 +458,7 @@ func testConsumerRebalanceEvents(partitionAssignmentStrategy, broker, topic stri
 	}
 
 	if err != nil {
-		fmt.Printf("Failed to subscribe to topic: %s with "+
-			"error %s\n", topic, err)
+		t.Logf("Failed to subscribe to topic %s: %s\n", topic, err)
 		return
 	}
 
@@ -470,28 +471,28 @@ func testConsumerRebalanceEvents(partitionAssignmentStrategy, broker, topic stri
 
 		switch e := ev.(type) {
 		case *Message:
-			fmt.Printf("Message on %s:\n%s\n",
+			t.Logf("Message on %s:\n%s\n",
 				e.TopicPartition, string(e.Value))
 			if e.Headers != nil {
-				fmt.Printf("Headers: %v\n", e.Headers)
+				t.Logf("Headers: %v\n", e.Headers)
 			}
 			run = false
 
 		case RevokedPartitions:
-			fmt.Fprintf(os.Stderr,
-				"%s rebalance: %d partition(s) revoked: %v\n",
+			assert.Nil(t, c.rebalanceCb)
+			t.Logf("%s rebalance: %d partition(s) revoked: %v\n",
 				c.GetRebalanceProtocol(), len(e.Partitions),
 				e.Partitions)
 			if c.AssignmentLost() {
 				// Our consumer has been kicked out of the group and the
 				// entire assignment is thus lost.
-				fmt.Fprintf(os.Stderr, "Current assignment lost!\n")
+				t.Logf("Current assignment lost!\n")
 			}
 			run = false
 
 		case AssignedPartitions:
-			fmt.Fprintf(os.Stderr,
-				"%s rebalance: %d new partition(s) assigned: %v\n",
+			assert.Nil(t, c.rebalanceCb)
+			t.Logf("%s rebalance: %d new partition(s) assigned: %v\n",
 				c.GetRebalanceProtocol(), len(e.Partitions),
 				e.Partitions)
 
@@ -499,11 +500,11 @@ func testConsumerRebalanceEvents(partitionAssignmentStrategy, broker, topic stri
 			// Errors should generally be
 			// considered informational, the client
 			// will try to automatically recover.
-			fmt.Printf("Error: %v: %v for "+
+			t.Logf("Error: %v: %v for "+
 				"consumer %v\n", e.Code(), e, c)
 
 		default:
-			fmt.Printf("Ignored %v for consumer %v\n",
+			t.Logf("Ignored %v for consumer %v\n",
 				e, c)
 		}
 	}
