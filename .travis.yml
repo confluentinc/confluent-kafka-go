@@ -80,7 +80,7 @@ install:
 
 script:
   # should be replaced with golangci-lint
-  - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ; fi
+  - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
   - for dir in kafka ; do (cd $dir && go test -timeout 180s -v ${BUILD_TYPE} ./...) ; done
   - go-kafkacat --help
   - library-version
