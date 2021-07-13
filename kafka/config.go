@@ -147,6 +147,23 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 			return err
 		}
 	}
+
+	if defaultTopicConfig, ok := m["default.topic.config"]; ok {
+		if defaultTopicConfigMap, isMap := defaultTopicConfig.(ConfigMap); isMap {
+			var cTopicConf = C.rd_kafka_topic_conf_new()
+
+			err = configConvertAnyconf(defaultTopicConfigMap, (*rdkTopicConf)(cTopicConf))
+			if err != nil {
+				C.rd_kafka_topic_conf_destroy(cTopicConf)
+				return err
+			}
+
+			C.rd_kafka_conf_set_default_topic_conf(
+				(*C.rd_kafka_conf_t)(anyconf.(*rdkConf)),
+				(*C.rd_kafka_topic_conf_t)((*rdkTopicConf)(cTopicConf)))
+		}
+	}
+
 	for k, v := range m {
 		if k == "plugin.library.paths" {
 			continue
@@ -158,20 +175,6 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 			if k != "default.topic.config" {
 				return newErrorFromString(ErrInvalidArg, fmt.Sprintf("Invalid type for key %s", k))
 			}
-
-			var cTopicConf = C.rd_kafka_topic_conf_new()
-
-			err = configConvertAnyconf(v.(ConfigMap),
-				(*rdkTopicConf)(cTopicConf))
-			if err != nil {
-				C.rd_kafka_topic_conf_destroy(cTopicConf)
-				return err
-			}
-
-			C.rd_kafka_conf_set_default_topic_conf(
-				(*C.rd_kafka_conf_t)(anyconf.(*rdkConf)),
-				(*C.rd_kafka_topic_conf_t)((*rdkTopicConf)(cTopicConf)))
-
 		default:
 			err = anyconfSet(anyconf, k, v)
 			if err != nil {
