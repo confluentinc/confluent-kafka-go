@@ -1,5 +1,18 @@
 # Confluent's Golang client for Apache Kafka
 
+## v1.8.0
+
+v1.8.0 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Fix Rebalance events behavior when config go.application.rebalance.enable to true.
+
+confluent-kafka-go is based on librdkafka v1.8.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.7.0
 
 confluent-kafka-go is based on librdkafka v1.7.0, see the
