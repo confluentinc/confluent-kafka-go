@@ -859,11 +859,14 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 		// application called *Assign() / *Unassign().
 		c.appReassigned = false
 
-		c.rebalanceCb(c, ev)
+		err := c.rebalanceCb(c, ev)
+		if err != nil {
+			retval = NewApplicationRebalanceError(err)
+		}
 
 		if c.appReassigned {
 			// Rebalance event handled by application.
-			return nil
+			return retval
 		}
 	}
 
@@ -905,5 +908,5 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 		c.events <- newError(cErr)
 	}
 
-	return nil
+	return retval
 }
