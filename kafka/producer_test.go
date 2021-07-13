@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -339,7 +340,10 @@ func TestProducerLog(t *testing.T) {
 		{"INIT", "librdkafka"}: false,
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case log, ok := <-p.Logs():
@@ -366,6 +370,7 @@ func TestProducerLog(t *testing.T) {
 
 	<-time.After(time.Second * 5)
 	p.Close()
+	wg.Wait()
 
 	for expectedLog, found := range expectedLogs {
 		if !found {

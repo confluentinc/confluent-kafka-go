@@ -19,7 +19,6 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 	"unsafe"
 )
@@ -74,7 +73,7 @@ rd_kafka_resp_err_t do_produce (rd_kafka_t *rk,
           int keyIsNull, void *key, size_t key_len,
           int64_t timestamp,
           tmphdr_t *tmphdrs, size_t tmphdrsCnt,
-          uintptr_t cgoid) {
+          void *cgoid) {
   void *valp = valIsNull ? NULL : val;
   void *keyp = keyIsNull ? NULL : key;
 #ifdef RD_KAFKA_V_TIMESTAMP
@@ -106,7 +105,7 @@ rd_kafka_resp_err_t err;
 #ifdef RD_KAFKA_V_HEADERS
         RD_KAFKA_V_HEADERS(hdrs),
 #endif
-        RD_KAFKA_V_OPAQUE((void *)cgoid),
+        RD_KAFKA_V_OPAQUE(cgoid),
         RD_KAFKA_V_END);
 #ifdef RD_KAFKA_V_HEADERS
   if (err && hdrs)
@@ -119,7 +118,7 @@ rd_kafka_resp_err_t err;
   if (rd_kafka_produce(rkt, partition, msgflags,
                        valp, val_len,
                        keyp, key_len,
-                       (void *)cgoid) == -1)
+                       cgoid) == -1)
       return rd_kafka_last_error();
   else
       return RD_KAFKA_RESP_ERR_NO_ERROR;
@@ -204,7 +203,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		}
 	}
 
-	var cgoid int
+	var cgoid unsafe.Pointer
 
 	// Per-message state that needs to be retained through the C code:
 	//   delivery channel (if specified)
@@ -260,9 +259,9 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		keyIsNull, unsafe.Pointer(&keyp[0]), C.size_t(keyLen),
 		C.int64_t(timestamp),
 		(*C.tmphdr_t)(unsafe.Pointer(&tmphdrs[0])), C.size_t(tmphdrsCnt),
-		(C.uintptr_t)(cgoid))
+		cgoid)
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		if cgoid != 0 {
+		if cgoid != nil {
 			p.handle.cgoGet(cgoid)
 		}
 		return newError(cErr)
@@ -282,6 +281,11 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // api.version.request=true, and broker >= 0.11.0.0.
 // Returns an error if message could not be enqueued.
 func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
+	// If we're asked to forward delivery notifications to the main events chan, attach the delivery chan
+	// to the message so that eventPoll can find it.
+	if deliveryChan == nil && p.handle.fwdDr {
+		deliveryChan = p.events
+	}
 	return p.produce(msg, 0, deliveryChan)
 }
 
@@ -295,7 +299,14 @@ func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) err
 
 	cmsgs := make([]C.rd_kafka_message_t, len(msgs))
 	for i, m := range msgs {
-		p.handle.messageToC(m, &cmsgs[i])
+		// Batch production doesn't support a per-message delivery report channel, but it does support
+		// dispatching delivery reports to the main channel. Writing the channel cgoid to _private is
+		// done by messageToC and ensures that eventPoll can find it.
+		var cgoState cgoif
+		if p.handle.fwdDr {
+			cgoState = cgoDr{deliveryChan: p.events}
+		}
+		p.handle.messageToC(m, &cmsgs[i], cgoState)
 	}
 	r := C.rd_kafka_produce_batch(crkt, C.RD_KAFKA_PARTITION_UA, C.int(msgFlags)|C.RD_KAFKA_MSG_F_FREE,
 		(*C.rd_kafka_message_t)(&cmsgs[0]), C.int(len(msgs)))
@@ -333,21 +344,31 @@ func (p *Producer) Len() int {
 // Runs until value reaches zero or on timeoutMs.
 // Returns the number of outstanding events still un-flushed.
 func (p *Producer) Flush(timeoutMs int) int {
-	termChan := make(chan bool) // unused stand-in termChan
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	return p.FlushContext(ctx)
+}
 
-	d, _ := time.ParseDuration(fmt.Sprintf("%dms", timeoutMs))
-	tEnd := time.Now().Add(d)
-	for p.Len() > 0 {
-		remain := tEnd.Sub(time.Now()).Seconds()
-		if remain <= 0.0 {
-			return p.Len()
+// FlushContext flushes and waits for outstanding messages and requests to complete delivery.
+// Includes messages on ProduceChannel.
+// Runs until value reaches zero or ctx is canceled.
+// Returns the number of outstanding events still un-flushed.
+// Note that this method is implemented by polling the current state of internal queues every 100 milliseconds,
+// so there can be that much latency between a message being delivered and this method returning. If this is not
+// appropriate, consider having your application monitor delivery reports itself so it can be notified when the
+// number of outstanding messages decreases.
+func (p *Producer) FlushContext(ctx context.Context) int {
+	for ctx.Err() == nil {
+		subctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		// The polling loop is being driven by the poller() goroutine; all we need to do
+		// is keep checking p.Len() until it's ready.
+		<-subctx.Done()
+		cancel()
+		if p.Len() == 0 {
+			return 0
 		}
-
-		p.handle.eventPoll(p.events,
-			int(math.Min(100, remain*1000)), 1000, termChan)
 	}
-
-	return 0
+	return p.Len()
 }
 
 // Close a Producer instance.
@@ -554,7 +575,11 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 // channel_producer serves the ProduceChannel channel
 func channelProducer(p *Producer) {
 	for m := range p.produceChannel {
-		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
+		var deliveryChan chan Event
+		if p.handle.fwdDr {
+			deliveryChan = p.events
+		}
+		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, deliveryChan)
 		if err != nil {
 			m.TopicPartition.Error = err
 			p.events <- m
@@ -618,17 +643,26 @@ func channelBatchProducer(p *Producer) {
 
 // poller polls the rd_kafka_t handle for events until signalled for termination
 func poller(p *Producer, termChan chan bool) {
-	for {
-		select {
-		case _ = <-termChan:
-			return
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		default:
-			_, term := p.handle.eventPoll(p.events, 100, 1000, termChan)
-			if term {
+	go func() {
+		<-termChan
+		cancel()
+	}()
+
+	for {
+		ev, err := p.handle.eventPoll(ctx)
+		if err != nil {
+			// cancellation
+			return
+		}
+		if ev != nil {
+			select {
+			case p.events <- ev:
+			case <-ctx.Done():
 				return
 			}
-			break
 		}
 	}
 }

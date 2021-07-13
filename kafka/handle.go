@@ -17,6 +17,7 @@ package kafka
  */
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,10 +26,62 @@ import (
 )
 
 /*
-#include "select_rdkafka.h"
 #include <stdlib.h>
+#include "select_rdkafka.h"
+#include "glue_rdkafka.h"
+
+
+void chdrs_to_tmphdrs (glue_msg_t *gMsg) {
+    size_t i = 0;
+    const char *name;
+    const void *val;
+    size_t size;
+    rd_kafka_headers_t *chdrs;
+
+    if (rd_kafka_message_headers(gMsg->msg, &chdrs)) {
+        gMsg->tmphdrs = NULL;
+        gMsg->tmphdrsCnt = 0;
+        return;
+    }
+
+    gMsg->tmphdrsCnt = rd_kafka_header_cnt(chdrs);
+    gMsg->tmphdrs = malloc(sizeof(*gMsg->tmphdrs) * gMsg->tmphdrsCnt);
+
+    while (!rd_kafka_header_get_all(chdrs, i,
+                                    &gMsg->tmphdrs[i].key,
+                                    &gMsg->tmphdrs[i].val,
+                                    (size_t *)&gMsg->tmphdrs[i].size))
+        i++;
+}
+
+rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
+                                  rd_kafka_event_type_t *evtype,
+                                  glue_msg_t *gMsg,
+                                  rd_kafka_event_t *prev_rkev) {
+    rd_kafka_event_t *rkev;
+
+    if (prev_rkev)
+      rd_kafka_event_destroy(prev_rkev);
+
+    rkev = rd_kafka_queue_poll(rkq, timeoutMs);
+    *evtype = rd_kafka_event_type(rkev);
+
+    if (*evtype == RD_KAFKA_EVENT_FETCH) {
+        gMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
+        gMsg->ts = rd_kafka_message_timestamp(gMsg->msg, &gMsg->tstype);
+
+        if (gMsg->want_hdrs)
+            chdrs_to_tmphdrs(gMsg);
+    }
+
+    return rkev;
+}
 */
 import "C"
+
+func chdrsToTmphdrs(gMsg *C.glue_msg_t) {
+	C.chdrs_to_tmphdrs(gMsg)
+}
 
 // OAuthBearerToken represents the data to be transmitted
 // to a broker during SASL/OAUTHBEARER authentication.
@@ -102,9 +155,9 @@ type handle struct {
 	//
 	// cgo map
 	// Maps C callbacks based on cgoid back to its Go object
-	cgoLock   sync.Mutex
-	cgoidNext uintptr
-	cgomap    map[int]cgoif
+	cgoLock       sync.Mutex
+	cgomap        map[unsafe.Pointer]cgoif
+	cgoTokenCache chan unsafe.Pointer
 
 	//
 	// producer
@@ -133,7 +186,8 @@ func (h *handle) String() string {
 func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
-	h.cgomap = make(map[int]cgoif)
+	h.cgomap = make(map[unsafe.Pointer]cgoif)
+	h.cgoTokenCache = make(chan unsafe.Pointer, 32)
 	h.name = C.GoString(C.rd_kafka_name(h.rk))
 	if h.msgFields == nil {
 		h.msgFields = newMessageFields()
@@ -155,6 +209,12 @@ func (h *handle) cleanup() {
 	if h.rkq != nil {
 		C.rd_kafka_queue_destroy(h.rkq)
 	}
+
+	for len(h.cgoTokenCache) > 0 {
+		ptr := <-h.cgoTokenCache
+		C.free(ptr)
+	}
+	close(h.cgoTokenCache)
 }
 
 func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
@@ -172,7 +232,7 @@ func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
 	// Start a polling goroutine to consume the log queue
 	h.waitGroup.Add(1)
 	go func() {
-		h.pollLogEvents(h.logs, 100, termChan)
+		h.pollLogEvents(h.logs, termChan)
 		h.waitGroup.Done()
 	}()
 
@@ -247,17 +307,35 @@ type cgoDr struct {
 
 // cgoPut adds object cg to the handle's cgo map and returns a
 // unique id for the added entry.
+//
+// All void* parameters passed into cgo need to either point at a valid Go
+// object, or something that definitely can't be a valid Go object (i.e. a
+// valid pointer to something in the C heap). Furthermore, an unsafe.Pointer
+// pointing to a Go object cannot be stored in a C structure that is passed
+// to a cgo call.
+//
+// This method therefore returns an unsafe.Pointer that is guaranteed to never
+// point to a valid Go object, by invoking C.malloc to produce it. This can
+// safely be passed through cgo calls and back into cgoGet() to return the
+// passed-in object.
+//
 // Thread-safe.
-// FIXME: the uniquity of the id is questionable over time.
-func (h *handle) cgoPut(cg cgoif) (cgoid int) {
+func (h *handle) cgoPut(cg cgoif) unsafe.Pointer {
+	var cgoid unsafe.Pointer
+
+	// Instead of repeatedly malloc/free'ing pointers, this cache can recycle
+	// this set of values whose only property is essentially that it will never
+	// point to a valid Go object.
+	select {
+	case cgoid = <-h.cgoTokenCache:
+		// token already available in cache, no need to call malloc() again
+	default:
+		cgoid = C.malloc(C.size_t(1))
+	}
+
 	h.cgoLock.Lock()
 	defer h.cgoLock.Unlock()
 
-	h.cgoidNext++
-	if h.cgoidNext == 0 {
-		h.cgoidNext++
-	}
-	cgoid = (int)(h.cgoidNext)
 	h.cgomap[cgoid] = cg
 	return cgoid
 }
@@ -265,8 +343,8 @@ func (h *handle) cgoPut(cg cgoif) (cgoid int) {
 // cgoGet looks up cgoid in the cgo map, deletes the reference from the map
 // and returns the object, if found. Else returns nil, false.
 // Thread-safe.
-func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
-	if cgoid == 0 {
+func (h *handle) cgoGet(cgoid unsafe.Pointer) (cg cgoif, found bool) {
+	if cgoid == nil {
 		return nil, false
 	}
 
@@ -275,6 +353,13 @@ func (h *handle) cgoGet(cgoid int) (cg cgoif, found bool) {
 	cg, found = h.cgomap[cgoid]
 	if found {
 		delete(h.cgomap, cgoid)
+
+		select {
+		case h.cgoTokenCache <- cgoid:
+			// token returned to cache
+		default:
+			C.free(cgoid)
+		}
 	}
 
 	return cg, found
@@ -376,4 +461,50 @@ func newMessageFieldsFrom(v ConfigValue) (*messageFields, error) {
 		}
 	}
 	return msgFields, nil
+}
+
+type polledEvent struct {
+	rkev   *C.rd_kafka_event_t
+	evType C.rd_kafka_event_type_t
+	gMsg   C.glue_msg_t
+}
+
+func (h *handle) pollSingleCEventWithYield(ctx context.Context, queue *C.rd_kafka_queue_t) (polledEvent, error) {
+	// See if there's anything ready-to-go without blocking
+	var goEvent polledEvent
+	goEvent.gMsg.want_hdrs = C.int8_t(bool2cint(h.msgFields.Headers))
+	goEvent.rkev = C._rk_queue_poll(queue, C.int(0), &goEvent.evType, &goEvent.gMsg, nil)
+
+	// This needs to be in a loop, and _not_ a single execution, because otherwise
+	// concurrent calls to Poll() for the same handle might end up getting deadlocked
+	// because the rd_kafka_queue_yield call on one might wake up the rd_kafka_event_poll
+	// call on the other.
+	//
+	// I don't think concurrent calls to Poll() (or calling Poll() whilst using the channel
+	// consumer) is a particularly good idea anyway, but I found the test cases doing it in
+	// a couple of spots which probably means somebody is doing this in their app too.
+	for ctx.Err() == nil && goEvent.evType == C.RD_KAFKA_EVENT_NONE {
+		// Need to actually wait for a while.
+		eventWaitChan := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case <-eventWaitChan:
+				// This branch means that rd_kafka_queue_poll successfully
+				// managed to return something.
+			case <-ctx.Done():
+				C.rd_kafka_queue_yield(queue)
+			}
+		}()
+
+		goEvent.rkev = C._rk_queue_poll(queue, C.int(-1), &goEvent.evType, &goEvent.gMsg, nil)
+		close(eventWaitChan)
+		wg.Wait()
+	}
+	if goEvent.evType == C.RD_KAFKA_EVENT_NONE {
+		return goEvent, ctx.Err()
+	}
+	return goEvent, nil
 }
