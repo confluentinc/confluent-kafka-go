@@ -148,7 +148,7 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
+func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan<- Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")
 	}
@@ -281,7 +281,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // msg.Headers requires librdkafka >= 0.11.4 (else returns ErrNotImplemented),
 // api.version.request=true, and broker >= 0.11.0.0.
 // Returns an error if message could not be enqueued.
-func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
+func (p *Producer) Produce(msg *Message, deliveryChan chan<- Event) error {
 	return p.produce(msg, 0, deliveryChan)
 }
 
@@ -307,17 +307,17 @@ func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) err
 }
 
 // Events returns the Events channel (read)
-func (p *Producer) Events() chan Event {
+func (p *Producer) Events() <-chan Event {
 	return p.events
 }
 
 // Logs returns the Log channel (if enabled), else nil
-func (p *Producer) Logs() chan LogEvent {
+func (p *Producer) Logs() <-chan LogEvent {
 	return p.handle.logs
 }
 
 // ProduceChannel returns the produce *Message channel (write)
-func (p *Producer) ProduceChannel() chan *Message {
+func (p *Producer) ProduceChannel() chan<- *Message {
 	return p.produceChannel
 }
 

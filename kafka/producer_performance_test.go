@@ -22,7 +22,7 @@ import (
 	"testing"
 )
 
-func deliveryHandler(b *testing.B, expCnt int64, deliveryChan chan Event, doneChan chan int64) {
+func deliveryHandler(b *testing.B, expCnt int64, deliveryChan <-chan Event, doneChan chan int64) {
 
 	var cnt, size int64
 
@@ -54,7 +54,7 @@ func deliveryHandler(b *testing.B, expCnt int64, deliveryChan chan Event, doneCh
 	close(doneChan)
 }
 
-func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, batchProducer bool, silent bool, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
+func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, batchProducer bool, silent bool, produceFunc func(p *Producer, m *Message, drChan chan<- Event)) {
 
 	if !testconfRead() {
 		b.Skipf("Missing testconf.json")
@@ -70,7 +70,7 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 		"queue.buffering.max.messages": msgcnt,
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
-		"acks": 1}
+		"acks":                         1}
 
 	conf.updateFromTestconf()
 
@@ -90,8 +90,8 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 
 	if withDr {
 		doneChan = make(chan int64)
-		drChan = p.Events()
-		go deliveryHandler(b, int64(msgcnt), p.Events(), doneChan)
+		drChan = make(chan Event)
+		go deliveryHandler(b, int64(msgcnt), drChan, doneChan)
 	}
 
 	if !silent {
@@ -148,7 +148,7 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 func BenchmarkProducerFunc(b *testing.B) {
 	producerPerfTest(b, "Function producer (without DR)",
 		0, false, false, false,
-		func(p *Producer, m *Message, drChan chan Event) {
+		func(p *Producer, m *Message, drChan chan<- Event) {
 			err := p.Produce(m, drChan)
 			if err != nil {
 				b.Errorf("Produce() failed: %v", err)
@@ -159,7 +159,7 @@ func BenchmarkProducerFunc(b *testing.B) {
 func BenchmarkProducerFuncDR(b *testing.B) {
 	producerPerfTest(b, "Function producer (with DR)",
 		0, true, false, false,
-		func(p *Producer, m *Message, drChan chan Event) {
+		func(p *Producer, m *Message, drChan chan<- Event) {
 			err := p.Produce(m, drChan)
 			if err != nil {
 				b.Errorf("Produce() failed: %v", err)
@@ -170,7 +170,7 @@ func BenchmarkProducerFuncDR(b *testing.B) {
 func BenchmarkProducerChannel(b *testing.B) {
 	producerPerfTest(b, "Channel producer (without DR)",
 		0, false, false, false,
-		func(p *Producer, m *Message, drChan chan Event) {
+		func(p *Producer, m *Message, drChan chan<- Event) {
 			p.ProduceChannel() <- m
 		})
 }
@@ -178,7 +178,7 @@ func BenchmarkProducerChannel(b *testing.B) {
 func BenchmarkProducerChannelDR(b *testing.B) {
 	producerPerfTest(b, "Channel producer (with DR)",
 		testconf.PerfMsgCount, true, false, false,
-		func(p *Producer, m *Message, drChan chan Event) {
+		func(p *Producer, m *Message, drChan chan<- Event) {
 			p.ProduceChannel() <- m
 		})
 
@@ -187,7 +187,7 @@ func BenchmarkProducerChannelDR(b *testing.B) {
 func BenchmarkProducerBatchChannel(b *testing.B) {
 	producerPerfTest(b, "Channel producer (without DR, batch channel)",
 		0, false, true, false,
-		func(p *Producer, m *Message, drChan chan Event) {
+		func(p *Producer, m *Message, drChan chan<- Event) {
 			p.ProduceChannel() <- m
 		})
 }
@@ -195,7 +195,7 @@ func BenchmarkProducerBatchChannel(b *testing.B) {
 func BenchmarkProducerBatchChannelDR(b *testing.B) {
 	producerPerfTest(b, "Channel producer (DR, batch channel)",
 		0, true, true, false,
-		func(p *Producer, m *Message, drChan chan Event) {
+		func(p *Producer, m *Message, drChan chan<- Event) {
 			p.ProduceChannel() <- m
 		})
 }
