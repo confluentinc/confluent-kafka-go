@@ -251,6 +251,8 @@ out:
 					select {
 					case *ch <- msg:
 					case <-termChan:
+						retval = nil
+						term = true
 						break out
 					}
 
