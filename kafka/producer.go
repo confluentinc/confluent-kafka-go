@@ -722,14 +722,6 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 // will acquire the internal producer id and epoch, used in all future
 // transactional messages issued by this producer instance.
 //
-// Upon successful return from this function the application has to perform at
-// least one of the following operations within `transaction.timeout.ms` to
-// avoid timing out the transaction on the broker:
-//  * `Produce()` (et.al)
-//  * `SendOffsetsToTransaction()`
-//  * `CommitTransaction()`
-//  * `AbortTransaction()`
-//
 // Parameters:
 //  * `ctx` - The maximum time to block, or nil for indefinite.
 //            On timeout the operation may continue in the background,
