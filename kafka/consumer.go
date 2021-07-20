@@ -656,9 +656,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
-	if !c.readFromPartitionQueues {
-		C.rd_kafka_poll_set_consumer(c.handle.rk)
-	}
+	C.rd_kafka_poll_set_consumer(c.handle.rk)
 
 	c.handle.c = c
 	c.handle.setup()
