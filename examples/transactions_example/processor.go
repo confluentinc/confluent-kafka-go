@@ -24,7 +24,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/zendesk/confluent-kafka-go/kafka"
 	"sync"
 	"time"
 )

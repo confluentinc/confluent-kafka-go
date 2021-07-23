@@ -33,6 +33,6 @@ Instructions
     $ cd ~/src/kafka # your Kafka git checkout
     $ source ~/src/venv2.7/bin/activate # your virtualenv containing ducktape
     $ vagrant rsync  # to copy go_verifiable_* clients to worker instances
-    $ ducktape --debug tests/kafkatest/tests/client --globals $GOPATH/src/github.com/confluentinc/confluent-kafka-go/kafkatest/globals.json
+    $ ducktape --debug tests/kafkatest/tests/client --globals $GOPATH/src/github.com/zendesk/confluent-kafka-go/kafkatest/globals.json
     # Go do something else for 40 minutes
     # Come back and look at the results

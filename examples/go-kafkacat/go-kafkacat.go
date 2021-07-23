@@ -21,7 +21,7 @@ import (
 	"bufio"
 	"fmt"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/zendesk/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"strings"

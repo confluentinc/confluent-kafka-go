@@ -1,4 +1,4 @@
-module github.com/confluentinc/confluent-kafka-go
+module github.com/zendesk/confluent-kafka-go
 
 go 1.16
 

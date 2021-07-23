@@ -134,7 +134,7 @@ confluent-kafka-go.
 Import the `kafka` package from GitHub in your code:
 
 ```golang
-import "github.com/confluentinc/confluent-kafka-go/kafka"
+import "github.com/zendesk/confluent-kafka-go/kafka"
 ```
 
 Build your project:

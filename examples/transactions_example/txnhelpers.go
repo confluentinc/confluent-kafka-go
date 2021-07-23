@@ -21,7 +21,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/zendesk/confluent-kafka-go/kafka"
 	"time"
 )
 
