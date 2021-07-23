@@ -5,9 +5,19 @@
 
 package kafka
 
+/*
+This file exists upstream, but I'm commenting it out (instead of deleting it) to avoid gratuitious
+merge conflicts when merging upstream into our branch.
+
+This is being removed to force a dynamic library build in all circumstances without having to have
+every individual library user build their app with -tags=dynamic
+
+
 // #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB
 // #cgo LDFLAGS: ${SRCDIR}/librdkafka_vendor/librdkafka_glibc_linux.a  -lm -ldl -lpthread -lrt
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
 const LibrdkafkaLinkInfo = "static glibc_linux from librdkafka-static-bundle-v1.7.0.tgz"
+
+ */
