@@ -292,6 +292,17 @@ func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []Topic
 	return storedOffsets, nil
 }
 
+// StoreMessage stores offset based on the provided message.
+// This is a convenience method that uses StoreOffsets to do the actual work
+func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err error) {
+	if m.TopicPartition.Error != nil {
+		return nil, newErrorFromString(ErrInvalidArg, "Can't store errored message")
+	}
+	offsets := []TopicPartition{m.TopicPartition}
+	offsets[0].Offset++
+	return c.StoreOffsets(offsets)
+}
+
 // Seek seeks the given topic partitions using the offset from the TopicPartition.
 //
 // If timeoutMs is not 0 the call will wait this long for the

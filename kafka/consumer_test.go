@@ -85,6 +85,16 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("StoreOffsets(empty) failed: %s", err)
 	}
 
+	// test StoreMessage doesn't fail either
+	stored, err = c.StoreMessage(&Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0, Offset: 1}})
+	if err != nil && err.(Error).Code() != ErrUnknownPartition {
+		t.Errorf("StoreMessage() failed: %s", err)
+		toppar := stored[0]
+		if toppar.Error != nil && toppar.Error.(Error).Code() == ErrUnknownPartition {
+			t.Errorf("StoreMessage() TopicPartition error: %s", toppar.Error)
+		}
+	}
+
 	topic1 := "gotest1"
 	topic2 := "gotest2"
 	err = c.Assign([]TopicPartition{{Topic: &topic1, Partition: 2},
