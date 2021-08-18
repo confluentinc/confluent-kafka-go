@@ -293,7 +293,7 @@ func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []Topic
 }
 
 // StoreMessage stores offset based on the provided message.
-// This is a convenience method that uses StoreOffsets to do the actual work
+// This is a convenience method that uses StoreOffsets to do the actual work.
 func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err error) {
 	if m.TopicPartition.Error != nil {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't store errored message")
