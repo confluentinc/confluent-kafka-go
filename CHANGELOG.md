@@ -1,10 +1,15 @@
 # Confluent's Golang client for Apache Kafka
 
-## v1.7.0
+## v1.8.0
 
-confluent-kafka-go is based on librdkafka v1.7.0, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.7.0)
+This is a maintenance release to upgrade the bundled librdkafka version to v1.8.0.
+
+confluent-kafka-go is based on librdkafka v1.8.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v1.7.0
 
 ### Enhancements
 
@@ -21,6 +26,10 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 * AdminClient.CreateTopics() previously did not accept default value(-1) of
   ReplicationFactor without specifying an explicit ReplicaAssignment, this is
   now fixed.
+
+confluent-kafka-go is based on librdkafka v1.7.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.7.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 
