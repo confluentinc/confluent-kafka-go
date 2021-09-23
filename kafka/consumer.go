@@ -257,9 +257,6 @@ func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 	if m.TopicPartition.Error != nil {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't commit errored message")
 	}
-	if m.TopicPartition.Offset < 0 {
-		return nil, newErrorFromString(ErrInvalidArg, "Can't commit message with offset less than 0")
-	}
 	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset++
 	return c.commit(offsets)
@@ -300,6 +297,9 @@ func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []Topic
 func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err error) {
 	if m.TopicPartition.Error != nil {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't store errored message")
+	}
+	if m.TopicPartition.Offset < 0 {
+		return nil, newErrorFromString(ErrInvalidArg, "Can't store message with offset less than 0")
 	}
 	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset++
