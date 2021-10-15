@@ -907,3 +907,10 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	return nil
 }
+
+// MemberID returns this client's broker-assigned group member id.
+func(c *Consumer) MemberID() string {
+	cMemberId := C.rd_kafka_memberid(c.handle.rk)
+	defer C.rd_kafka_mem_free(c.handle.rk, unsafe.Pointer(cMemberId))
+	return C.GoString(cMemberId)
+}
