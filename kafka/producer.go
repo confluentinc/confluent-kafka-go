@@ -557,8 +557,8 @@ func channelProducer(p *Producer) {
 		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
 		if err != nil {
 			m.TopicPartition.Error = err
-			p.events <- m
 		}
+		p.events <- m
 	}
 }
 
@@ -603,11 +603,11 @@ func channelBatchProducer(p *Producer) {
 
 		for topic, buffered2 := range buffered {
 			err := p.produceBatch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
-			if err != nil {
-				for _, m = range buffered2 {
+			for _, m = range buffered2 {
+				if err != nil {
 					m.TopicPartition.Error = err
-					p.events <- m
 				}
+				p.events <- m
 			}
 		}
 
