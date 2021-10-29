@@ -17,6 +17,7 @@ package kafka
  */
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -341,7 +342,25 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
-	ev, _ := c.handle.eventPoll(nil, timeoutMs, 1, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	ev, err := c.handle.eventPoll(ctx)
+	if err != nil {
+		return nil
+	}
+	return ev
+}
+
+// PollContext polls the consumer for message or events
+//
+// Will block until either an event is returned or the context is done.
+//
+// The following callbacks may be triggered:
+//   Subscribe()'s rebalanceCb
+//
+// Returns nil if the context was done, else an event
+func (c *Consumer) PollContext(ctx context.Context) Event {
+	ev, _ := c.handle.eventPoll(ctx)
 	return ev
 }
 
@@ -565,16 +584,31 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 // and posts them on the consumer channel.
 // Runs until termChan closes
 func consumerReader(c *Consumer, termChan chan bool) {
-	for {
+	// This setup creates a context such that:
+	//   * Either it becomes canceled when termChan is closed, causing eventPollContext to exit, or
+	//   * It is canceled when the method is returned from, ensuring that the goroutine is not leaked.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
 		select {
-		case _ = <-termChan:
+		case <-ctx.Done():
+		case <-termChan:
+			cancel()
+		}
+	}()
+
+	for {
+		ev, err := c.handle.eventPoll(ctx)
+		if err != nil {
+			// cancellation
 			return
-		default:
-			_, term := c.handle.eventPoll(c.events, 100, 1000, termChan)
-			if term {
+		}
+		if ev != nil {
+			select {
+			case c.events <- ev:
+			case <-ctx.Done():
 				return
 			}
-
 		}
 	}
 }
@@ -849,7 +883,7 @@ func cEventToRebalanceEvent(rkev *C.rd_kafka_event_t) Event {
 // In the polling case (not channel based consumer) the rebalance event
 // is returned in retval, else nil is returned.
 
-func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_event_t) (retval Event) {
+func (c *Consumer) handleRebalanceEvent(rkev *C.rd_kafka_event_t) (retval Event) {
 
 	var ev Event
 
@@ -860,7 +894,7 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	}
 
-	if channel != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
+	if c.events != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
 		// Channel-based consumer with rebalancing enabled,
 		// return the rebalance event and rely on the application
 		// to call *Assign() / *Unassign().

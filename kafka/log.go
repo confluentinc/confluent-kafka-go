@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -47,33 +48,34 @@ func (h *handle) newLogEvent(cEvent *C.rd_kafka_event_t) LogEvent {
 // Each call to librdkafka times out after timeoutMs. If a call to librdkafka
 // is ongoing when doneChan is closed, the function will wait until the call
 // returns or times out, whatever happens first.
-func (h *handle) pollLogEvents(toChannel chan LogEvent, timeoutMs int, doneChan chan bool) {
+func (h *handle) pollLogEvents(toChannel chan LogEvent, termChan chan bool) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-termChan
+		cancel()
+	}()
+
 	for {
+		polledEv, err := h.pollSingleCEventWithYield(ctx, h.logq)
+		if err != nil {
+			// We're shutting down and context is canceled.
+			return
+		}
+
+		if polledEv.evType != C.RD_KAFKA_EVENT_LOG {
+			C.rd_kafka_event_destroy(polledEv.rkev)
+			continue
+		}
+
+		logEvent := h.newLogEvent(polledEv.rkev)
+		C.rd_kafka_event_destroy(polledEv.rkev)
+
 		select {
-		case <-doneChan:
+		case <-termChan:
 			return
 
-		default:
-			cEvent := C.rd_kafka_queue_poll(h.logq, C.int(timeoutMs))
-			if cEvent == nil {
-				continue
-			}
-
-			if C.rd_kafka_event_type(cEvent) != C.RD_KAFKA_EVENT_LOG {
-				C.rd_kafka_event_destroy(cEvent)
-				continue
-			}
-
-			logEvent := h.newLogEvent(cEvent)
-			C.rd_kafka_event_destroy(cEvent)
-
-			select {
-			case <-doneChan:
-				return
-
-			case toChannel <- logEvent:
-				continue
-			}
+		case toChannel <- logEvent:
+			continue
 		}
 	}
 }
