@@ -158,7 +158,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION  0x010700ff
+#define RD_KAFKA_VERSION  0x010802ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -2302,6 +2302,9 @@ typedef enum rd_kafka_cert_enc_t {
  *
  * @remark Private and public keys in PEM format may also be set with the
  *         `ssl.key.pem` and `ssl.certificate.pem` configuration properties.
+ *
+ * @remark CA certificate in PEM format may also be set with the
+ *         `ssl.ca.pem` configuration property.
  */
 RD_EXPORT rd_kafka_conf_res_t
 rd_kafka_conf_set_ssl_cert (rd_kafka_conf_t *conf,
@@ -2315,18 +2318,18 @@ rd_kafka_conf_set_ssl_cert (rd_kafka_conf_t *conf,
  * @brief Set callback_data for OpenSSL engine.
  *
  * @param conf Configuration object.
- * @param callback_data passed to engine callbacks, 
+ * @param callback_data passed to engine callbacks,
  *                      e.g. \c ENGINE_load_ssl_client_cert.
  *
- * @remark The \c ssl.engine.location configuration must be set for this 
+ * @remark The \c ssl.engine.location configuration must be set for this
  *         to have affect.
  *
- * @remark The memory pointed to by \p value must remain valid for the 
- *         lifetime of the configuration object and any Kafka clients that 
+ * @remark The memory pointed to by \p value must remain valid for the
+ *         lifetime of the configuration object and any Kafka clients that
  *         use it.
  */
 RD_EXPORT
-void rd_kafka_conf_set_engine_callback_data (rd_kafka_conf_t *conf, 
+void rd_kafka_conf_set_engine_callback_data (rd_kafka_conf_t *conf,
                                              void *callback_data);
 
 
@@ -4443,6 +4446,9 @@ int rd_kafka_produce_batch(rd_kafka_topic_t *rkt, int32_t partition,
  *        before terminating.
  *
  * @remark This function will call rd_kafka_poll() and thus trigger callbacks.
+ *
+ * @remark The \c linger.ms time will be ignored for the duration of the call,
+ *         queued messages will be sent to the broker as soon as possible.
  *
  * @remark If RD_KAFKA_EVENT_DR has been enabled
  *         (through rd_kafka_conf_set_events()) this function will not call
