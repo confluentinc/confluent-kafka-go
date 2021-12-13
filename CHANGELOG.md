@@ -1,12 +1,20 @@
 # Confluent's Golang client for Apache Kafka
 
-## v1.8.0
+## v1.8.2
 
-This is a maintenance release to upgrade the bundled librdkafka version to v1.8.0.
+This is a maintenance release:
 
-confluent-kafka-go is based on librdkafka v1.8.0, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.0)
+ * Bundles librdkafka v1.8.2
+ * Check termination channel while reading delivery reports (by @zjj)
+ * Added convenience method Consumer.StoreMessage() (@finncolman, #676)
+
+
+confluent-kafka-go is based on librdkafka v1.8.2, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+**Note**: There were no confluent-kafka-go v1.8.0 and v1.8.1 releases.
 
 
 ## v1.7.0
