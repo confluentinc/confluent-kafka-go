@@ -12,23 +12,14 @@ jobs:
    os: osx
    env:
     - EXPECT_LINK_INFO="static"
- - name: "Go 1.14 OSX bundled librdkafka"
-   go: "1.14"
-   os: osx
-   env:
-    - EXPECT_LINK_INFO="static"
  - name: "Go 1.16 Linux bundled librdkafka"
    go: "1.16"
    os: linux
    env:
     - EXPECT_LINK_INFO="static"
- - name: "Go 1.14 Linux bundled librdkafka"
-   go: "1.14"
-   os: linux
-   env:
-    - EXPECT_LINK_INFO="static"
- - name: "Go 1.14 OSX dynamic librdkafka"
-   go: "1.14"
+ - name: "Go 1.16 OSX dynamic librdkafka"
+   if: tag is present
+   go: "1.16"
    os: osx
    env:
    - EXPECT_LINK_INFO="dynamic"
@@ -37,8 +28,9 @@ jobs:
    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
    - LIBRDKAFKA_VERSION=master
- - name: "Go 1.14 Linux dynamic librdkafka"
-   go: "1.14"
+ - name: "Go 1.16 Linux dynamic librdkafka"
+   if: tag is present
+   go: "1.16"
    os: linux
    env:
    - EXPECT_LINK_INFO="dynamic"
@@ -49,11 +41,6 @@ jobs:
    - LIBRDKAFKA_VERSION=master
  - name: "Go 1.16 Windows bundled librdkafka"
    go: "1.16"
-   os: windows
-   env:
-    - EXPECT_LINK_INFO="static"
- - name: "Go 1.14 Windows bundled librdkafka"
-   go: "1.14"
    os: windows
    env:
     - EXPECT_LINK_INFO="static"
