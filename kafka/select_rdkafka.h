@@ -24,6 +24,8 @@
 
 #ifdef USE_VENDORED_LIBRDKAFKA
 #include "librdkafka_vendor/rdkafka.h"
+#include "librdkafka_vendor/rdkafka_mock.h"
 #else
 #include <librdkafka/rdkafka.h>
+#include <librdkafka/rdkafka_mock.h>
 #endif
