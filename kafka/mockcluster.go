@@ -11,10 +11,34 @@ import "unsafe"
 import "C"
 
 type MockCluster struct {
-	handle handle
+	handle   handle
 	mcluster *C.struct_rd_kafka_mock_cluster_s
 }
 
+/*NewMockCluster provides a mock Kafka cluster with a configurable
+ *number of brokers that support a reasonable subset of Kafka protocol
+ *operations, error injection, etc.
+ *
+ *Mock clusters provide localhost listeners that can be used as the bootstrap
+ *servers by multiple rd_kafka_t instances.
+ *
+ * Currently supported functionality:
+ *  - Producer
+ *  - Idempotent Producer
+ *  - Transactional Producer
+ *  - Low-level consumer
+ *  - High-level balanced consumer groups with offset commits
+ *  - Topic Metadata and auto creation
+ *
+ * @remark High-level consumers making use of the balanced consumer groups
+ *         are not supported.
+ *
+ * @remark This is an experimental public API that is NOT covered by the
+ *         librdkafka API or ABI stability guarantees.
+ *
+ *
+ * @warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
+ */
 func NewMockCluster(count int) (*MockCluster, error) {
 
 	mc := &MockCluster{}
@@ -22,9 +46,7 @@ func NewMockCluster(count int) (*MockCluster, error) {
 	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
 	defer C.free(unsafe.Pointer(cErrstr))
 
-	cConf := C.rd_kafka_conf_new();
-
-	//https://github.com/edenhill/librdkafka/issues/2693
+	cConf := C.rd_kafka_conf_new()
 
 	mc.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if mc.handle.rk == nil {
@@ -39,11 +61,13 @@ func NewMockCluster(count int) (*MockCluster, error) {
 	return mc, nil
 }
 
+//Bootstrapservers returns the bootstrap.servers property for this MockCluster
 func (mc *MockCluster) Bootstrapservers() string {
 	return C.GoString(C.rd_kafka_mock_cluster_bootstraps(mc.mcluster))
 }
 
+//Closes this MockCluster
 func (mc *MockCluster) Close() {
-	C.rd_kafka_mock_cluster_destroy(mc.mcluster);
-	C.rd_kafka_destroy(mc.handle.rk);
+	C.rd_kafka_mock_cluster_destroy(mc.mcluster)
+	C.rd_kafka_destroy(mc.handle.rk)
 }
