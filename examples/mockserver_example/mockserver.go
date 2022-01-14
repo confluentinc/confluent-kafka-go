@@ -1,0 +1,84 @@
+package main
+
+import (
+	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"os"
+)
+
+func main() {
+
+	mockCluster, err := kafka.NewMockCluster(1)
+	if err != nil {
+		fmt.Printf("Failed to create mockserver: %s\n", err)
+		os.Exit(1)
+	}
+	defer mockCluster.Close()
+
+	broker := mockCluster.Bootstrapservers()
+
+	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
+
+	if err != nil {
+		fmt.Printf("Failed to create producer: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Created Producer %v\n", p)
+	deliveryChan := make(chan kafka.Event)
+
+	topic := "Test"
+	value := "Hello Go!"
+	err = p.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          []byte(value),
+		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+	}, deliveryChan)
+
+	e := <-deliveryChan
+	m := e.(*kafka.Message)
+
+	if m.TopicPartition.Error != nil {
+		fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
+	} else {
+		fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
+			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+	}
+
+	close(deliveryChan)
+
+	c, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers": broker,
+		// Avoid connecting to IPv6 brokers:
+		// This is needed for the ErrAllBrokersDown show-case below
+		// when using localhost brokers on OSX, since the OSX resolver
+		// will return the IPv6 addresses first.
+		// You typically don't need to specify this configuration property.
+		"broker.address.family": "v4",
+		"group.id":              "group",
+		"session.timeout.ms":    6000,
+		"auto.offset.reset":     "earliest"})
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
+		os.Exit(1)
+	}
+	defer c.Close()
+
+	fmt.Printf("Created Consumer %v\n", c)
+
+	err = c.SubscribeTopics([]string{topic}, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to consumer: %s\n", err)
+		os.Exit(1)
+	}
+
+	msg, err := c.ReadMessage(-1)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read message: %s\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("received message: ", string(msg.Value))
+
+}
