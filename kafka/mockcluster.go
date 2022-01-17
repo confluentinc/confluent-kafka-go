@@ -32,26 +32,25 @@ type MockCluster struct {
 	cConf    *C.rd_kafka_conf_t
 }
 
-/*	NewMockCluster provides a mock Kafka cluster with a configurable
- *	number of brokers that support a reasonable subset of Kafka protocol
- *	operations, error injection, etc.
+/* NewMockCluster provides a mock Kafka cluster with a configurable
+ * number of brokers that support a reasonable subset of Kafka protocol
+ * operations, error injection, etc.
  *
- *	Mock clusters provide localhost listeners that can be used as the bootstrap
- *	servers by multiple rd_kafka_t instances.
+ * Mock clusters provide localhost listeners that can be used as the bootstrap
+ * servers by multiple rd_kafka_t instances.
  *
- *	Currently supported functionality:
- *	 - Producer
- *	 - Idempotent Producer
- *	 - Transactional Producer
- *	 - Low-level consumer
- *	 - High-level balanced consumer groups with offset commits
- *	 - Topic Metadata and auto creation
+ * Currently supported functionality:
+ * - Producer
+ * - Idempotent Producer
+ * - Transactional Producer
+ * - Low-level consumer
+ * - High-level balanced consumer groups with offset commits
+ * - Topic Metadata and auto creation
  *
- *	@remark This is an experimental public API that is NOT covered by the
- *	        librdkafka API or ABI stability guarantees.
+ * @remark This is an experimental public API that is NOT covered by the
+ *         librdkafka API or ABI stability guarantees.
  *
- *
- *	@warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
+ * @warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
  */
 func NewMockCluster(brokerCount int) (*MockCluster, error) {
 
