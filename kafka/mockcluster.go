@@ -1,3 +1,19 @@
+/**
+ * Copyright 2022 Confluent Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package kafka
 
 import "C"
@@ -15,26 +31,26 @@ type MockCluster struct {
 	mcluster *C.struct_rd_kafka_mock_cluster_s
 }
 
-/*NewMockCluster provides a mock Kafka cluster with a configurable
- *number of brokers that support a reasonable subset of Kafka protocol
- *operations, error injection, etc.
+/*	NewMockCluster provides a mock Kafka cluster with a configurable
+ *	number of brokers that support a reasonable subset of Kafka protocol
+ *	operations, error injection, etc.
  *
- *Mock clusters provide localhost listeners that can be used as the bootstrap
- *servers by multiple rd_kafka_t instances.
+ *	Mock clusters provide localhost listeners that can be used as the bootstrap
+ *	servers by multiple rd_kafka_t instances.
  *
- * Currently supported functionality:
- *  - Producer
- *  - Idempotent Producer
- *  - Transactional Producer
- *  - Low-level consumer
- *  - High-level balanced consumer groups with offset commits
- *  - Topic Metadata and auto creation
+ *	Currently supported functionality:
+ *	 - Producer
+ *	 - Idempotent Producer
+ *	 - Transactional Producer
+ *	 - Low-level consumer
+ *	 - High-level balanced consumer groups with offset commits
+ *	 - Topic Metadata and auto creation
  *
- * @remark This is an experimental public API that is NOT covered by the
- *         librdkafka API or ABI stability guarantees.
+ *	@remark This is an experimental public API that is NOT covered by the
+ *	        librdkafka API or ABI stability guarantees.
  *
  *
- * @warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
+ *	@warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
  */
 func NewMockCluster(brokerCount int) (*MockCluster, error) {
 
@@ -44,13 +60,15 @@ func NewMockCluster(brokerCount int) (*MockCluster, error) {
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	cConf := C.rd_kafka_conf_new()
+	defer C.rd_kafka_conf_destroy(cConf)
 
 	mc.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if mc.handle.rk == nil {
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
+	defer C.rd_kafka_destroy(mc.handle.rk)
 
-	mc.mcluster = C.rd_kafka_mock_cluster_new(mc.handle.rk, C.int(count))
+	mc.mcluster = C.rd_kafka_mock_cluster_new(mc.handle.rk, C.int(brokerCount))
 	if mc.mcluster == nil {
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
