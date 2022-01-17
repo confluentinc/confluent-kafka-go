@@ -30,9 +30,6 @@ type MockCluster struct {
  *  - High-level balanced consumer groups with offset commits
  *  - Topic Metadata and auto creation
  *
- * @remark High-level consumers making use of the balanced consumer groups
- *         are not supported.
- *
  * @remark This is an experimental public API that is NOT covered by the
  *         librdkafka API or ABI stability guarantees.
  *
