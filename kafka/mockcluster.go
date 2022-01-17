@@ -61,7 +61,7 @@ func NewMockCluster(count int) (*MockCluster, error) {
 	return mc, nil
 }
 
-//Bootstrapservers returns the bootstrap.servers property for this MockCluster
+// Bootstrapservers returns the bootstrap.servers property for this MockCluster
 func (mc *MockCluster) Bootstrapservers() string {
 	return C.GoString(C.rd_kafka_mock_cluster_bootstraps(mc.mcluster))
 }
