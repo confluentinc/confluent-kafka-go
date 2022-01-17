@@ -63,7 +63,7 @@ func (mc *MockCluster) Bootstrapservers() string {
 	return C.GoString(C.rd_kafka_mock_cluster_bootstraps(mc.mcluster))
 }
 
-//Closes this MockCluster
+// Close and destroy the MockCluster
 func (mc *MockCluster) Close() {
 	C.rd_kafka_mock_cluster_destroy(mc.mcluster)
 	C.rd_kafka_destroy(mc.handle.rk)
