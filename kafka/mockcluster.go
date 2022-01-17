@@ -27,8 +27,9 @@ import "unsafe"
 import "C"
 
 type MockCluster struct {
-	handle   handle
+	rk       *C.rd_kafka_t
 	mcluster *C.struct_rd_kafka_mock_cluster_s
+	cConf    *C.rd_kafka_conf_t
 }
 
 /*	NewMockCluster provides a mock Kafka cluster with a configurable
@@ -59,16 +60,18 @@ func NewMockCluster(brokerCount int) (*MockCluster, error) {
 	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
 	defer C.free(unsafe.Pointer(cErrstr))
 
-	cConf := C.rd_kafka_conf_new()
-	defer C.free(unsafe.Pointer(cConf))
+	mc.cConf = C.rd_kafka_conf_new()
 
-	mc.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
-	if mc.handle.rk == nil {
+	mc.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, mc.cConf, cErrstr, 256)
+	if mc.rk == nil {
+		C.rd_kafka_conf_destroy(mc.cConf)
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
-	mc.mcluster = C.rd_kafka_mock_cluster_new(mc.handle.rk, C.int(brokerCount))
+	mc.mcluster = C.rd_kafka_mock_cluster_new(mc.rk, C.int(brokerCount))
 	if mc.mcluster == nil {
+		C.rd_kafka_destroy(mc.rk)
+		C.rd_kafka_conf_destroy(mc.cConf)
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
@@ -83,5 +86,6 @@ func (mc *MockCluster) Bootstrapservers() string {
 // Close and destroy the MockCluster
 func (mc *MockCluster) Close() {
 	C.rd_kafka_mock_cluster_destroy(mc.mcluster)
-	C.rd_kafka_destroy(mc.handle.rk)
+	C.rd_kafka_destroy(mc.rk)
+	C.rd_kafka_conf_destroy(mc.cConf)
 }
