@@ -36,7 +36,7 @@ type MockCluster struct {
  *
  * @warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
  */
-func NewMockCluster(count int) (*MockCluster, error) {
+func NewMockCluster(brokerCount int) (*MockCluster, error) {
 
 	mc := &MockCluster{}
 
