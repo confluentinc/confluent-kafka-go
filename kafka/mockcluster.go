@@ -60,13 +60,12 @@ func NewMockCluster(brokerCount int) (*MockCluster, error) {
 	defer C.free(unsafe.Pointer(cErrstr))
 
 	cConf := C.rd_kafka_conf_new()
-	defer C.rd_kafka_conf_destroy(cConf)
+	defer C.free(unsafe.Pointer(cConf))
 
 	mc.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if mc.handle.rk == nil {
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
-	defer C.rd_kafka_destroy(mc.handle.rk)
 
 	mc.mcluster = C.rd_kafka_mock_cluster_new(mc.handle.rk, C.int(brokerCount))
 	if mc.mcluster == nil {
