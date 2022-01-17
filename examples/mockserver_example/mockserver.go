@@ -10,7 +10,7 @@ func main() {
 
 	mockCluster, err := kafka.NewMockCluster(1)
 	if err != nil {
-		fmt.Printf("Failed to create mockserver: %s\n", err)
+		fmt.Printf("Failed to create MockCluster: %s\n", err)
 		os.Exit(1)
 	}
 	defer mockCluster.Close()
