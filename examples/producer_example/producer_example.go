@@ -45,7 +45,7 @@ func main() {
 
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
-	deliveryChan := make(chan kafka.Event)
+	deliveryChan := make(chan kafka.Event, 1)
 
 	value := "Hello Go!"
 	err = p.Produce(&kafka.Message{
