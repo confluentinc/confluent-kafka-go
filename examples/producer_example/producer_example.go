@@ -53,6 +53,9 @@ func main() {
 		Value:          []byte(value),
 		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 	}, deliveryChan)
+	if err != nil {
+		fmt.Printf("Failed to produce the message: %s\n", err.Error())
+	}
 
 	e := <-deliveryChan
 	m := e.(*kafka.Message)
