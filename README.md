@@ -30,6 +30,9 @@ for the balanced consumer groups of Apache Kafka 0.9 and above.
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-go/index.html) for more information.
 
+For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Golang](https://developer.confluent.io/get-started/go/).
+
+
 
 Examples
 ========
@@ -319,3 +322,8 @@ See [kafka/README](kafka/README.md)
 Contributions to the code, examples, documentation, et.al, are very much appreciated.
 
 Make your changes, run `gofmt`, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).
+
+Confluent Cloud
+===============
+
+For a step-by-step guide on using the Golang client with Confluent Cloud see [Getting Started with Apache Kafka and Golang](https://developer.confluent.io/get-started/go/) on [Confluent Developer](https://developer.confluent.io/). 
