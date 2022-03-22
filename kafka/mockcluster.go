@@ -47,9 +47,6 @@ type MockCluster struct {
 // - High-level balanced consumer groups with offset commits
 // - Topic Metadata and auto creation
 //
-// @remark This is an experimental public API that is NOT covered by the
-//         librdkafka API or ABI stability guarantees.
-//
 // Warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewMockCluster(brokerCount int) (*MockCluster, error) {
 
