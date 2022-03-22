@@ -26,6 +26,8 @@ import "unsafe"
 */
 import "C"
 
+// MockCluster represents a Kafka mock cluster instance which can be used
+// for testing.
 type MockCluster struct {
 	rk       *C.rd_kafka_t
 	mcluster *C.struct_rd_kafka_mock_cluster_s
