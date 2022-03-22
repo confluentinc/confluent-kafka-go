@@ -64,12 +64,7 @@ func main() {
 	close(deliveryChan)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
-		// Avoid connecting to IPv6 brokers:
-		// This is needed for the ErrAllBrokersDown show-case below
-		// when using localhost brokers on OSX, since the OSX resolver
-		// will return the IPv6 addresses first.
-		// You typically don't need to specify this configuration property.
+		"bootstrap.servers":     broker,
 		"broker.address.family": "v4",
 		"group.id":              "group",
 		"session.timeout.ms":    6000,
