@@ -29,7 +29,7 @@ import "C"
 // for testing.
 type MockCluster struct {
 	rk       *C.rd_kafka_t
-	mcluster *C.struct_rd_kafka_mock_cluster_s
+	mcluster *C.rd_kafka_mock_cluster_t
 }
 
 // NewMockCluster provides a mock Kafka cluster with a configurable
