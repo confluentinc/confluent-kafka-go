@@ -16,7 +16,6 @@ package kafka
  * limitations under the License.
  */
 
-import "C"
 import "unsafe"
 
 /*
