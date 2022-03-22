@@ -38,7 +38,7 @@ type MockCluster struct {
 // operations, error injection, etc.
 //
 // Mock clusters provide localhost listeners that can be used as the bootstrap
-// servers by multiple rd_kafka_t instances.
+// servers by multiple Kafka client instances.
 //
 // Currently supported functionality:
 // - Producer
