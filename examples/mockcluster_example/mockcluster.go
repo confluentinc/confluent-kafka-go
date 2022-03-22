@@ -31,7 +31,7 @@ func main() {
 	}
 	defer mockCluster.Close()
 
-	broker := mockCluster.Bootstrapservers()
+	broker := mockCluster.BootstrapServers()
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
 

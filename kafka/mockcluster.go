@@ -31,7 +31,6 @@ import "C"
 type MockCluster struct {
 	rk       *C.rd_kafka_t
 	mcluster *C.struct_rd_kafka_mock_cluster_s
-	cConf    *C.rd_kafka_conf_t
 }
 
 // NewMockCluster provides a mock Kafka cluster with a configurable
@@ -52,34 +51,33 @@ type MockCluster struct {
 // @remark This is an experimental public API that is NOT covered by the
 //         librdkafka API or ABI stability guarantees.
 //
-// @warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
+// Warning THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewMockCluster(brokerCount int) (*MockCluster, error) {
 
 	mc := &MockCluster{}
 
-	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
+	cErrstr := (*C.char)(C.malloc(C.size_t(512)))
 	defer C.free(unsafe.Pointer(cErrstr))
 
-	mc.cConf = C.rd_kafka_conf_new()
+	cConf := C.rd_kafka_conf_new()
 
-	mc.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, mc.cConf, cErrstr, 256)
+	mc.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if mc.rk == nil {
-		C.rd_kafka_conf_destroy(mc.cConf)
+		C.rd_kafka_conf_destroy(cConf)
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
 	mc.mcluster = C.rd_kafka_mock_cluster_new(mc.rk, C.int(brokerCount))
 	if mc.mcluster == nil {
 		C.rd_kafka_destroy(mc.rk)
-		C.rd_kafka_conf_destroy(mc.cConf)
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
 
 	return mc, nil
 }
 
-// Bootstrapservers returns the bootstrap.servers property for this MockCluster
-func (mc *MockCluster) Bootstrapservers() string {
+// BootstrapServers returns the bootstrap.servers property for this MockCluster
+func (mc *MockCluster) BootstrapServers() string {
 	return C.GoString(C.rd_kafka_mock_cluster_bootstraps(mc.mcluster))
 }
 
