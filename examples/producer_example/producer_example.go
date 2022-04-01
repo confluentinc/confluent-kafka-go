@@ -55,6 +55,7 @@ func main() {
 	}, deliveryChan)
 	if err != nil {
 		fmt.Printf("Failed to produce the message: %s\n", err.Error())
+		return
 	}
 
 	e := <-deliveryChan
