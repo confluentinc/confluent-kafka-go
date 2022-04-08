@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,8 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package kafka
 
 import (
 	"fmt"
@@ -70,7 +70,7 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 		"queue.buffering.max.messages": msgcnt,
 		"api.version.request":          "true",
 		"broker.version.fallback":      "0.9.0.1",
-		"acks": 1}
+		"acks":                         1}
 
 	conf.updateFromTestconf()
 
