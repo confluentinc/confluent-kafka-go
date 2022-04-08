@@ -1,5 +1,20 @@
 # Confluent's Golang client for Apache Kafka
 
+## v1.9.0
+
+This is a feature release:
+
+ * OAUTHBEARER OIDC support
+ * Added MockCluster for functional testing of applications without the need
+   for a real Kafka cluster (by @SourceFellows and @kkoehler, #729).
+   See [examples/mock_cluster](examples/mock_cluster).
+
+
+confluent-kafka-go is based on librdkafka FUTUREFIXME, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.8.2
 
 This is a maintenance release:
