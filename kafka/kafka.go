@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -20,7 +22,7 @@
 //
 // High-level Consumer
 //
-// * Decide if you want to read messages and events by calling `.Poll()` or 
+// * Decide if you want to read messages and events by calling `.Poll()` or
 // the deprecated option of using the `.Events()` channel. (If you want to use
 // `.Events()` channel then set `"go.events.channel.enable": true`).
 //
@@ -249,7 +251,6 @@
 // possible complications with blocking Poll() calls.
 //
 // Note: The Confluent Kafka Go client is safe for concurrent use.
-package kafka
 
 import (
 	"fmt"
