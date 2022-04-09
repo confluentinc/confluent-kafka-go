@@ -25,7 +25,7 @@ import (
 /*
 #include <string.h>
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 
 void setup_rkmessage (rd_kafka_message_t *rkmessage,
@@ -100,30 +100,37 @@ func (h *handle) getRktFromMessage(msg *Message) (crkt *C.rd_kafka_topic_t) {
 	return h.getRkt(*msg.TopicPartition.Topic)
 }
 
-func (h *handle) newMessageFromFcMsg(fcMsg *C.fetched_c_msg_t) (msg *Message) {
+// setupHeadersFromGlueMsg converts the C tmp headers in gMsg to
+// Go Headers in msg.
+// gMsg.tmphdrs will be freed.
+func setupHeadersFromGlueMsg(msg *Message, gMsg *C.glue_msg_t) {
+	msg.Headers = make([]Header, gMsg.tmphdrsCnt)
+	for n := range msg.Headers {
+		tmphdr := (*[1 << 30]C.tmphdr_t)(unsafe.Pointer(gMsg.tmphdrs))[n]
+		msg.Headers[n].Key = C.GoString(tmphdr.key)
+		if tmphdr.val != nil {
+			msg.Headers[n].Value = C.GoBytes(unsafe.Pointer(tmphdr.val), C.int(tmphdr.size))
+		} else {
+			msg.Headers[n].Value = nil
+		}
+	}
+	C.free(unsafe.Pointer(gMsg.tmphdrs))
+}
+
+func (h *handle) newMessageFromGlueMsg(gMsg *C.glue_msg_t) (msg *Message) {
 	msg = &Message{}
 
-	if fcMsg.ts != -1 {
-		ts := int64(fcMsg.ts)
-		msg.TimestampType = TimestampType(fcMsg.tstype)
+	if gMsg.ts != -1 {
+		ts := int64(gMsg.ts)
+		msg.TimestampType = TimestampType(gMsg.tstype)
 		msg.Timestamp = time.Unix(ts/1000, (ts%1000)*1000000)
 	}
 
-	if fcMsg.tmphdrsCnt > 0 {
-		msg.Headers = make([]Header, fcMsg.tmphdrsCnt)
-		for n := range msg.Headers {
-			tmphdr := (*[1 << 30]C.tmphdr_t)(unsafe.Pointer(fcMsg.tmphdrs))[n]
-			msg.Headers[n].Key = C.GoString(tmphdr.key)
-			if tmphdr.val != nil {
-				msg.Headers[n].Value = C.GoBytes(unsafe.Pointer(tmphdr.val), C.int(tmphdr.size))
-			} else {
-				msg.Headers[n].Value = nil
-			}
-		}
-		C.free(unsafe.Pointer(fcMsg.tmphdrs))
+	if gMsg.tmphdrsCnt > 0 {
+		setupHeadersFromGlueMsg(msg, gMsg)
 	}
 
-	h.setupMessageFromC(msg, fcMsg.msg)
+	h.setupMessageFromC(msg, gMsg.msg)
 
 	return msg
 }
@@ -135,11 +142,20 @@ func (h *handle) setupMessageFromC(msg *Message, cmsg *C.rd_kafka_message_t) {
 		msg.TopicPartition.Topic = &topic
 	}
 	msg.TopicPartition.Partition = int32(cmsg.partition)
-	if cmsg.payload != nil {
+	if cmsg.payload != nil && h.msgFields.Value {
 		msg.Value = C.GoBytes(unsafe.Pointer(cmsg.payload), C.int(cmsg.len))
 	}
-	if cmsg.key != nil {
+	if cmsg.key != nil && h.msgFields.Key {
 		msg.Key = C.GoBytes(unsafe.Pointer(cmsg.key), C.int(cmsg.key_len))
+	}
+	if h.msgFields.Headers {
+		var gMsg C.glue_msg_t
+		gMsg.msg = cmsg
+		gMsg.want_hdrs = C.int8_t(1)
+		chdrsToTmphdrs(&gMsg)
+		if gMsg.tmphdrsCnt > 0 {
+			setupHeadersFromGlueMsg(msg, &gMsg)
+		}
 	}
 	msg.TopicPartition.Offset = Offset(cmsg.offset)
 	if cmsg.err != 0 {

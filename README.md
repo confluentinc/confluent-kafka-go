@@ -30,7 +30,8 @@ for the balanced consumer groups of Apache Kafka 0.9 and above.
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-go/index.html) for more information.
 
-**License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
+For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Golang](https://developer.confluent.io/get-started/go/).
+
 
 
 Examples
@@ -125,7 +126,7 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.11+ and librdkafka 1.4.0+.
+Supports Go 1.11+ and librdkafka 1.6.0+.
 
 Using Go Modules
 ----------------
@@ -154,13 +155,11 @@ go build -tags musl ./...
 A dependency to the latest stable version of confluent-kafka-go should be automatically added to
 your `go.mod` file.
 
-
-
 Install the client
 ------------------
 
 If Go modules can't be used we recommend that you version pin the
-confluent-kafka-go import to v1 using gopkg.in:
+confluent-kafka-go import to `v1` using gopkg.in:
 
 Manual install:
 ```bash
@@ -186,14 +185,12 @@ The following platforms are supported by the prebuilt librdkafka binaries:
 When building your application for Alpine Linux (musl libc) you must pass
 `-tags musl` to `go get`, `go build`, etc.
 
-`CGO_ENABLED` must NOT be set to 0 since the Go client is based on the
+`CGO_ENABLED` must NOT be set to `0` since the Go client is based on the
 C library librdkafka.
 
 If GSSAPI/Kerberos authentication support is required you will need
 to install librdkafka separately, see the **Installing librdkafka** chapter
 below, and then build your Go application with `-tags dynamic`.
-
-
 
 Installing librdkafka
 ---------------------
@@ -218,26 +215,24 @@ Build from source:
     make
     sudo make install
 
-
 After installing librdkafka you will need to build your Go application
 with `-tags dynamic`.
 
-**Note:** If you use the master branch of the Go client, then you need to use
-          the master branch of librdkafka.
+**Note:** If you use the `master` branch of the Go client, then you need to use
+          the `master` branch of librdkafka.
 
-**confluent-kafka-go requires librdkafka v1.4.0 or later.**
-
+**confluent-kafka-go requires librdkafka v1.6.0 or later.**
 
 
 API Strands
 ===========
 
-There are two main API strands: function and channel based.
+There are two main API strands: function and channel-based.
 
-Function Based Consumer
+Function-Based Consumer
 -----------------------
 
-Messages, errors and events are polled through the consumer.Poll() function.
+Messages, errors and events are polled through the `consumer.Poll()` function.
 
 Pros:
 
@@ -246,19 +241,18 @@ Pros:
 Cons:
 
  * Makes it harder to read from multiple channels, but a go-routine easily
-   solves that (see Cons in channel based consumer above about outdated events).
+   solves that (see Cons in channel-based consumer below about outdated events).
  * Slower than the channel consumer.
 
 See [examples/consumer_example](examples/consumer_example)
 
-
-Channel Based Consumer (deprecated)
+Channel-Based Consumer (deprecated)
 -----------------------------------
 
-*Deprecated*: The channel based consumer is deprecated due to the channel issues
-              mentioned below. Use the function based consumer.
+*Deprecated*: The channel-based consumer is deprecated due to the channel issues
+              mentioned below. Use the function-based consumer.
 
-Messages, errors and events are posted on the consumer.Events channel
+Messages, errors and events are posted on the `consumer.Events()` channel
 for the application to read.
 
 Pros:
@@ -275,16 +269,11 @@ Cons:
 
 See [examples/consumer_channel_example](examples/consumer_channel_example)
 
-
-
-
-
-
-Channel Based Producer
+Channel-Based Producer
 ----------------------
 
-Application writes messages to the producer.ProducerChannel.
-Delivery reports are emitted on the producer.Events or specified private channel.
+Application writes messages to the `producer.ProducerChannel()`.
+Delivery reports are emitted on the `producer.Events()` or specified private channel.
 
 Pros:
 
@@ -298,12 +287,11 @@ Cons:
 
 See [examples/producer_channel_example](examples/producer_channel_example)
 
-
-Function Based Producer
+Function-Based Producer
 -----------------------
 
-Application calls producer.Produce() to produce messages.
-Delivery reports are emitted on the producer.Events or specified private channel.
+Application calls `producer.Produce()` to produce messages.
+Delivery reports are emitted on the `producer.Events()` or specified private channel.
 
 Pros:
 
@@ -311,20 +299,31 @@ Pros:
 
 Cons:
 
- * Produce() is a non-blocking call, if the internal librdkafka queue is full
+ * `Produce()` is a non-blocking call, if the internal librdkafka queue is full
    the call will fail.
  * Somewhat slower than the channel producer.
 
 See [examples/producer_example](examples/producer_example)
 
+License
+=======
 
-Tests
-=====
+[Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
+by confluent-kafka-go. confluent-kafka-go has no affiliation with and is not endorsed by The Apache
+Software Foundation.
+
+Developer Notes
+===============
 
 See [kafka/README](kafka/README.md)
 
-Contributing
-------------
 Contributions to the code, examples, documentation, et.al, are very much appreciated.
 
-Make your changes, run gofmt, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).
+Make your changes, run `gofmt`, tests, etc, push your branch, create a PR, and [sign the CLA](http://clabot.confluent.io/cla).
+
+Confluent Cloud
+===============
+
+For a step-by-step guide on using the Golang client with Confluent Cloud see [Getting Started with Apache Kafka and Golang](https://developer.confluent.io/get-started/go/) on [Confluent Developer](https://developer.confluent.io/). 

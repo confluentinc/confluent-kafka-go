@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2017 Confluent Inc.
  *
@@ -14,8 +16,6 @@
  * limitations under the License.
  */
 
-package kafka
-
 import (
 	"fmt"
 	"strconv"
@@ -23,7 +23,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 
 static int64_t _c_rdkafka_offset_tail(int64_t rel) {
    return RD_KAFKA_OFFSET_TAIL(rel);

@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2018 Confluent Inc.
  *
@@ -14,8 +16,6 @@
  * limitations under the License.
  */
 
-package kafka
-
 import (
 	"context"
 	"fmt"
@@ -25,7 +25,7 @@ import (
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include <stdlib.h>
 
 static const rd_kafka_topic_result_t *
@@ -514,10 +514,6 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecificat
 				return nil, newErrorFromString(ErrInvalidArg,
 					"TopicSpecification.ReplicaAssignment must contain exactly TopicSpecification.NumPartitions partitions")
 			}
-
-		} else if cReplicationFactor == -1 {
-			return nil, newErrorFromString(ErrInvalidArg,
-				"TopicSpecification.ReplicationFactor or TopicSpecification.ReplicaAssignment must be specified")
 		}
 
 		cTopics[i] = C.rd_kafka_NewTopic_new(

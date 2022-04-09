@@ -24,28 +24,36 @@ import (
 
 /*
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 
 
-#ifdef RD_KAFKA_V_HEADERS
-void chdrs_to_tmphdrs (rd_kafka_headers_t *chdrs, tmphdr_t *tmphdrs) {
-   size_t i = 0;
-   const char *name;
-   const void *val;
-   size_t size;
+void chdrs_to_tmphdrs (glue_msg_t *gMsg) {
+    size_t i = 0;
+    const char *name;
+    const void *val;
+    size_t size;
+    rd_kafka_headers_t *chdrs;
 
-   while (!rd_kafka_header_get_all(chdrs, i,
-                                   &tmphdrs[i].key,
-                                   &tmphdrs[i].val,
-                                   (size_t *)&tmphdrs[i].size))
-     i++;
+    if (rd_kafka_message_headers(gMsg->msg, &chdrs)) {
+        gMsg->tmphdrs = NULL;
+        gMsg->tmphdrsCnt = 0;
+        return;
+    }
+
+    gMsg->tmphdrsCnt = rd_kafka_header_cnt(chdrs);
+    gMsg->tmphdrs = malloc(sizeof(*gMsg->tmphdrs) * gMsg->tmphdrsCnt);
+
+    while (!rd_kafka_header_get_all(chdrs, i,
+                                    &gMsg->tmphdrs[i].key,
+                                    &gMsg->tmphdrs[i].val,
+                                    (size_t *)&gMsg->tmphdrs[i].size))
+        i++;
 }
-#endif
 
 rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
                                   rd_kafka_event_type_t *evtype,
-                                  fetched_c_msg_t *fcMsg,
+                                  glue_msg_t *gMsg,
                                   rd_kafka_event_t *prev_rkev) {
     rd_kafka_event_t *rkev;
 
@@ -56,30 +64,21 @@ rd_kafka_event_t *_rk_queue_poll (rd_kafka_queue_t *rkq, int timeoutMs,
     *evtype = rd_kafka_event_type(rkev);
 
     if (*evtype == RD_KAFKA_EVENT_FETCH) {
-#ifdef RD_KAFKA_V_HEADERS
-        rd_kafka_headers_t *hdrs;
-#endif
+        gMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
+        gMsg->ts = rd_kafka_message_timestamp(gMsg->msg, &gMsg->tstype);
 
-        fcMsg->msg = (rd_kafka_message_t *)rd_kafka_event_message_next(rkev);
-        fcMsg->ts = rd_kafka_message_timestamp(fcMsg->msg, &fcMsg->tstype);
-
-#ifdef RD_KAFKA_V_HEADERS
-        if (!rd_kafka_message_headers(fcMsg->msg, &hdrs)) {
-           fcMsg->tmphdrsCnt = rd_kafka_header_cnt(hdrs);
-           fcMsg->tmphdrs = malloc(sizeof(*fcMsg->tmphdrs) * fcMsg->tmphdrsCnt);
-           chdrs_to_tmphdrs(hdrs, fcMsg->tmphdrs);
-        } else {
-#else
-        if (1) {
-#endif
-           fcMsg->tmphdrs = NULL;
-           fcMsg->tmphdrsCnt = 0;
-        }
+        if (gMsg->want_hdrs)
+            chdrs_to_tmphdrs(gMsg);
     }
+
     return rkev;
 }
 */
 import "C"
+
+func chdrsToTmphdrs(gMsg *C.glue_msg_t) {
+	C.chdrs_to_tmphdrs(gMsg)
+}
 
 // Event generic interface
 type Event interface {
@@ -164,8 +163,9 @@ func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, ter
 out:
 	for evcnt := 0; evcnt < maxEvents; evcnt++ {
 		var evtype C.rd_kafka_event_type_t
-		var fcMsg C.fetched_c_msg_t
-		rkev := C._rk_queue_poll(h.rkq, C.int(timeoutMs), &evtype, &fcMsg, prevRkev)
+		var gMsg C.glue_msg_t
+		gMsg.want_hdrs = C.int8_t(bool2cint(h.msgFields.Headers))
+		rkev := C._rk_queue_poll(h.rkq, C.int(timeoutMs), &evtype, &gMsg, prevRkev)
 		prevRkev = rkev
 		timeoutMs = 0
 
@@ -174,57 +174,12 @@ out:
 		switch evtype {
 		case C.RD_KAFKA_EVENT_FETCH:
 			// Consumer fetch event, new message.
-			// Extracted into temporary fcMsg for optimization
-			retval = h.newMessageFromFcMsg(&fcMsg)
+			// Extracted into temporary gMsg for optimization
+			retval = h.newMessageFromGlueMsg(&gMsg)
 
 		case C.RD_KAFKA_EVENT_REBALANCE:
 			// Consumer rebalance event
-			// If the app provided a RebalanceCb to Subscribe*() or
-			// has go.application.rebalance.enable=true we create an event
-			// and forward it to the application thru the RebalanceCb or the
-			// Events channel respectively.
-			// Since librdkafka requires the rebalance event to be "acked" by
-			// the application to synchronize state we keep track of if the
-			// application performed Assign() or Unassign(), but this only works for
-			// the non-channel case. For the channel case we assume the application
-			// calls Assign() / Unassign().
-			// Failure to do so will "hang" the consumer, e.g., it wont start consuming
-			// and it wont close cleanly, so this error case should be visible
-			// immediately to the application developer.
-			appReassigned := false
-			if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
-				if h.currAppRebalanceEnable {
-					// Application must perform Assign() call
-					var ev AssignedPartitions
-					ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
-					if channel != nil || h.c.rebalanceCb == nil {
-						retval = ev
-						appReassigned = true
-					} else {
-						appReassigned = h.c.rebalance(ev)
-					}
-				}
-
-				if !appReassigned {
-					C.rd_kafka_assign(h.rk, C.rd_kafka_event_topic_partition_list(rkev))
-				}
-			} else {
-				if h.currAppRebalanceEnable {
-					// Application must perform Unassign() call
-					var ev RevokedPartitions
-					ev.Partitions = newTopicPartitionsFromCparts(C.rd_kafka_event_topic_partition_list(rkev))
-					if channel != nil || h.c.rebalanceCb == nil {
-						retval = ev
-						appReassigned = true
-					} else {
-						appReassigned = h.c.rebalance(ev)
-					}
-				}
-
-				if !appReassigned {
-					C.rd_kafka_assign(h.rk, nil)
-				}
-			}
+			retval = h.c.handleRebalanceEvent(channel, rkev)
 
 		case C.RD_KAFKA_EVENT_ERROR:
 			// Error event
@@ -296,6 +251,8 @@ out:
 					select {
 					case *ch <- msg:
 					case <-termChan:
+						retval = nil
+						term = true
 						break out
 					}
 
