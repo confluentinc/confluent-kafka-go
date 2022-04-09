@@ -22,7 +22,7 @@ package kafka
 
 /*
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 
 static const char *errdesc_to_string (const struct rd_kafka_err_desc *ed, int idx) {
    return ed[idx].name;
@@ -69,7 +69,7 @@ func WriteErrorCodes(f *os.File) {
 
 	f.WriteString(`
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 */
 import "C"
 

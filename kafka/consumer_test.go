@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -13,8 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package kafka
 
 import (
 	"fmt"
@@ -85,6 +85,16 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("StoreOffsets(empty) failed: %s", err)
 	}
 
+	// test StoreMessage doesn't fail either
+	stored, err = c.StoreMessage(&Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0, Offset: 1}})
+	if err != nil && err.(Error).Code() != ErrUnknownPartition {
+		t.Errorf("StoreMessage() failed: %s", err)
+		toppar := stored[0]
+		if toppar.Error != nil && toppar.Error.(Error).Code() == ErrUnknownPartition {
+			t.Errorf("StoreMessage() TopicPartition error: %s", toppar.Error)
+		}
+	}
+
 	topic1 := "gotest1"
 	topic2 := "gotest2"
 	err = c.Assign([]TopicPartition{{Topic: &topic1, Partition: 2},
@@ -113,6 +123,38 @@ func TestConsumerAPIs(t *testing.T) {
 	err = c.Unassign()
 	if err != nil {
 		t.Errorf("Unassign failed: %s", err)
+	}
+
+	// Incremental Assign & Unassign
+	err = c.IncrementalAssign([]TopicPartition{
+		{Topic: &topic1, Partition: 9, Offset: 1},
+		{Topic: &topic2, Partition: 40, Offset: OffsetEnd},
+		{Topic: &topic1, Partition: 10, Offset: OffsetInvalid},
+		{Topic: &topic2, Partition: 30},
+	})
+	if err != nil {
+		t.Errorf("IncrementalAssign failed: %s", err)
+	}
+
+	err = c.IncrementalUnassign([]TopicPartition{
+		{Topic: &topic2, Partition: 30},
+		{Topic: &topic2, Partition: 40},
+		{Topic: &topic1, Partition: 10},
+	})
+	if err != nil {
+		t.Errorf("IncrementalUnassign failed: %s", err)
+	}
+
+	assignment, err := c.Assignment()
+	if err != nil {
+		t.Errorf("Assignment (after incremental) failed: %s", err)
+	}
+
+	t.Logf("(Incremental) Assignment: %s\n", assignment)
+	if len(assignment) != 1 ||
+		*assignment[0].Topic != topic1 ||
+		assignment[0].Partition != 9 {
+		t.Errorf("(Incremental) Assignment mismatch: %v", assignment)
 	}
 
 	// ConsumerGroupMetadata

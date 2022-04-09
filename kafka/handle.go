@@ -18,13 +18,14 @@ package kafka
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include <stdlib.h>
 */
 import "C"
@@ -113,13 +114,13 @@ type handle struct {
 	// Forward delivery reports on Producer.Events channel
 	fwdDr bool
 
+	// Enabled message fields for delivery reports and consumed messages.
+	msgFields *messageFields
+
 	//
 	// consumer
 	//
 	c *Consumer
-
-	// Forward rebalancing ack responsibility to application (current setting)
-	currAppRebalanceEnable bool
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
@@ -134,6 +135,9 @@ func (h *handle) setup() {
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
 	h.cgomap = make(map[int]cgoif)
 	h.name = C.GoString(C.rd_kafka_name(h.rk))
+	if h.msgFields == nil {
+		h.msgFields = newMessageFields()
+	}
 }
 
 func (h *handle) cleanup() {
@@ -322,4 +326,54 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 		return nil
 	}
 	return newError(cErr)
+}
+
+// messageFields controls which fields are made available for producer delivery reports & consumed messages.
+// true values indicate that the field should be included
+type messageFields struct {
+	Key     bool
+	Value   bool
+	Headers bool
+}
+
+// disableAll disable all fields
+func (mf *messageFields) disableAll() {
+	mf.Key = false
+	mf.Value = false
+	mf.Headers = false
+}
+
+// newMessageFields returns a new messageFields with all fields enabled
+func newMessageFields() *messageFields {
+	return &messageFields{
+		Key:     true,
+		Value:   true,
+		Headers: true,
+	}
+}
+
+// newMessageFieldsFrom constructs a new messageFields from the given configuration value
+func newMessageFieldsFrom(v ConfigValue) (*messageFields, error) {
+	msgFields := newMessageFields()
+	switch v {
+	case "all":
+		// nothing to do
+	case "", "none":
+		msgFields.disableAll()
+	default:
+		msgFields.disableAll()
+		for _, value := range strings.Split(v.(string), ",") {
+			switch value {
+			case "key":
+				msgFields.Key = true
+			case "value":
+				msgFields.Value = true
+			case "headers":
+				msgFields.Headers = true
+			default:
+				return nil, fmt.Errorf("unknown message field: %s", value)
+			}
+		}
+	}
+	return msgFields, nil
 }
