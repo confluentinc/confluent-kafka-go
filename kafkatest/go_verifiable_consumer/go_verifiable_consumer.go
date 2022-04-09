@@ -20,7 +20,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
