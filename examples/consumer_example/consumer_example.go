@@ -22,7 +22,7 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"syscall"
@@ -65,7 +65,7 @@ func main() {
 
 	run := true
 
-	for run == true {
+	for run {
 		select {
 		case sig := <-sigchan:
 			fmt.Printf("Caught signal %v: terminating\n", sig)

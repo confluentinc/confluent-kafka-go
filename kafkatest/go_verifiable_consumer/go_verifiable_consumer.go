@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"strings"

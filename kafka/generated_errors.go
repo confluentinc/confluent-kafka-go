@@ -1,9 +1,9 @@
 package kafka
-// Copyright 2016-2020 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2020-04-08 13:17:23.310983 +0200 CEST m=+0.001902312 USING librdkafka 1.4.0
+// Copyright 2016-2021 Confluent Inc.
+// AUTOMATICALLY GENERATED ON 2021-12-08 12:44:39.243338672 +0100 CET m=+0.000248284 USING librdkafka 1.8.2
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 */
 import "C"
 
@@ -130,6 +130,12 @@ const (
     ErrFenced ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__FENCED)
     // ErrApplication Local: Application generated error
     ErrApplication ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__APPLICATION)
+    // ErrAssignmentLost Local: Group partition assignment lost
+    ErrAssignmentLost ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__ASSIGNMENT_LOST)
+    // ErrNoop Local: No operation performed
+    ErrNoop ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__NOOP)
+    // ErrAutoOffsetReset Local: No offset to automatically reset to
+    ErrAutoOffsetReset ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET)
     // ErrUnknown Unknown broker error
     ErrUnknown ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNKNOWN)
     // ErrNoError Success
@@ -298,4 +304,34 @@ const (
     ErrGroupMaxSizeReached ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_GROUP_MAX_SIZE_REACHED)
     // ErrFencedInstanceID Broker: Static consumer fenced by other consumer with same group.instance.id
     ErrFencedInstanceID ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_FENCED_INSTANCE_ID)
+    // ErrEligibleLeadersNotAvailable Broker: Eligible partition leaders are not available
+    ErrEligibleLeadersNotAvailable ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_ELIGIBLE_LEADERS_NOT_AVAILABLE)
+    // ErrElectionNotNeeded Broker: Leader election not needed for topic partition
+    ErrElectionNotNeeded ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_ELECTION_NOT_NEEDED)
+    // ErrNoReassignmentInProgress Broker: No partition reassignment is in progress
+    ErrNoReassignmentInProgress ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_NO_REASSIGNMENT_IN_PROGRESS)
+    // ErrGroupSubscribedToTopic Broker: Deleting offsets of a topic while the consumer group is subscribed to it
+    ErrGroupSubscribedToTopic ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_GROUP_SUBSCRIBED_TO_TOPIC)
+    // ErrInvalidRecord Broker: Broker failed to validate record
+    ErrInvalidRecord ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INVALID_RECORD)
+    // ErrUnstableOffsetCommit Broker: There are unstable offsets that need to be cleared
+    ErrUnstableOffsetCommit ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT)
+    // ErrThrottlingQuotaExceeded Broker: Throttling quota has been exceeded
+    ErrThrottlingQuotaExceeded ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_THROTTLING_QUOTA_EXCEEDED)
+    // ErrProducerFenced Broker: There is a newer producer with the same transactionalId which fences the current one
+    ErrProducerFenced ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_PRODUCER_FENCED)
+    // ErrResourceNotFound Broker: Request illegally referred to resource that does not exist
+    ErrResourceNotFound ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_RESOURCE_NOT_FOUND)
+    // ErrDuplicateResource Broker: Request illegally referred to the same resource twice
+    ErrDuplicateResource ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_DUPLICATE_RESOURCE)
+    // ErrUnacceptableCredential Broker: Requested credential would not meet criteria for acceptability
+    ErrUnacceptableCredential ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNACCEPTABLE_CREDENTIAL)
+    // ErrInconsistentVoterSet Broker: Indicates that the either the sender or recipient of a voter-only request is not one of the expected voters
+    ErrInconsistentVoterSet ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INCONSISTENT_VOTER_SET)
+    // ErrInvalidUpdateVersion Broker: Invalid update version
+    ErrInvalidUpdateVersion ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_INVALID_UPDATE_VERSION)
+    // ErrFeatureUpdateFailed Broker: Unable to update finalized features due to server error
+    ErrFeatureUpdateFailed ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_FEATURE_UPDATE_FAILED)
+    // ErrPrincipalDeserializationFailure Broker: Request principal deserialization failed during forwarding
+    ErrPrincipalDeserializationFailure ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE)
 )

@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2018 Confluent Inc.
  *
@@ -14,8 +16,6 @@
  * limitations under the License.
  */
 
-package kafka
-
 import (
 	"fmt"
 	"time"
@@ -23,7 +23,7 @@ import (
 )
 
 /*
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include <stdlib.h>
 */
 import "C"

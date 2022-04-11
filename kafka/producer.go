@@ -1,3 +1,5 @@
+package kafka
+
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -14,8 +16,6 @@
  * limitations under the License.
  */
 
-package kafka
-
 import (
 	"context"
 	"fmt"
@@ -26,7 +26,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include <librdkafka/rdkafka.h>
+#include "select_rdkafka.h"
 #include "glue_rdkafka.h"
 
 
@@ -417,12 +417,15 @@ func (p *Producer) Purge(flags int) error {
 //
 // conf is a *ConfigMap with standard librdkafka configuration properties.
 //
-// Supported special configuration properties:
+// Supported special configuration properties (type, default):
 //   go.batch.producer (bool, false) - EXPERIMENTAL: Enable batch producer (for increased performance).
 //                                     These batches do not relate to Kafka message batches in any way.
 //                                     Note: timestamps and headers are not supported with this interface.
 //   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
 //                                      Events() channel.
+//   go.delivery.report.fields (string, "key,value") - Comma separated list of fields to enable for delivery reports.
+//                                       Allowed values: all, none (or empty string), key, value, headers
+//                                       Warning: There is a performance penalty to include headers in the delivery report.
 //   go.events.channel.size (int, 1000000) - Events().
 //   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
@@ -460,6 +463,16 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		return nil, err
 	}
 	p.handle.fwdDr = v.(bool)
+
+	v, err = confCopy.extract("go.delivery.report.fields", "key,value")
+	if err != nil {
+		return nil, err
+	}
+
+	p.handle.msgFields, err = newMessageFieldsFrom(v)
+	if err != nil {
+		return nil, err
+	}
 
 	v, err = confCopy.extract("go.events.channel.size", 1000000)
 	if err != nil {
