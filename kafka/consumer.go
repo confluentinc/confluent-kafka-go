@@ -210,7 +210,7 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 // an error and a list of offsets is returned. Each offset can be checked for
 // specific errors via its `.Error` member.
 //
-// The stored offset should be the next message your application will consume,
+// Similar to the `CommitOffsets` method, the stored offset should be the next message your application will consume,
 // i.e. lastProcessedMessageOffset + 1.
 func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []TopicPartition, err error) {
 	coffsets := newCPartsFromTopicPartitions(offsets)
