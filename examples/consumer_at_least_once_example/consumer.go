@@ -112,11 +112,7 @@ func main() {
 				// In this example we store the next offset that will be committed
 				// to the offset store according to `auto.commit.interval.ms` or manual
 				// offset-less Commit().
-				// In this example we choose to terminate
-				// the application if the offset can't be stored.
-				offsets := []kafka.TopicPartition{e.TopicPartition}
-				offsets[0].Offset++
-				if _, err = c.StoreOffsets(offsets); err != nil {
+				if _, err = c.StoreMessage(e); err != nil {
 					fmt.Fprintf(os.Stderr, "%% Error: %v\n", err)
 					run = false
 				}
