@@ -158,17 +158,14 @@ your `go.mod` file.
 Install the client
 ------------------
 
-If Go modules can't be used we recommend that you version pin the
-confluent-kafka-go import to `v1` using gopkg.in:
-
 Manual install:
 ```bash
-go get -u gopkg.in/confluentinc/confluent-kafka-go.v1/kafka
+go get -u github.com/confluentinc/confluent-kafka-go/kafka
 ```
 
 Golang import:
 ```golang
-import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+import "github.com/confluentinc/confluent-kafka-go/kafka"
 ```
 
 librdkafka
