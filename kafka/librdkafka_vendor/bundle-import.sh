@@ -61,6 +61,13 @@ setup_build() {
 
     echo "Generating $gpath (extra build tag: $build_tag)"
 
+    local ldflags="// #cgo LDFLAGS: \${SRCDIR}/librdkafka_vendor/${dpath} $dynlibs"
+    local framework_darwin=" -framework CoreFoundation -framework SystemConfiguration"
+
+    if [[ $btype == "darwin" ]]; then
+        ldflags+=$framework_darwin
+    fi
+
     cat >$gpath <<EOF
 // +build !dynamic
 $build_tag
@@ -70,7 +77,7 @@ $build_tag
 package kafka
 
 // #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB
-// #cgo LDFLAGS: \${SRCDIR}/librdkafka_vendor/${dpath} $dynlibs
+${ldflags}
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
