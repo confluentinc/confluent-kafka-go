@@ -14,26 +14,28 @@ usage() {
 }
 
 
+# Parse dynamic libraries from linker command line.
+# Will print a list matching -lfoo and -framework X..
 parse_dynlibs() {
-    # Parse dynamic libraries from pkg-config file,
-    # both the ones specified with Libs: but also through Requires:
-    local pc=$1
     local libs=
-    local req=
-    local n=
-    for req in $(grep ^Requires: $pc | sed -e 's/^Requires://'); do
-        n=$(pkg-config --libs $req)
-        if [[ $n == -l* ]]; then
-            libs="${libs} $n"
+    while [[ $# -gt 0 ]]; do
+        if [[ $1 == -l* ]]; then
+            libs="${libs} $1"
+        elif [[ $1 == -framework ]]; then
+            libs="${libs} $1 $2"
+            shift # remove one (extra) arg
         fi
-    done
-    for n in $(grep ^Libs: $pc); do
-        if [[ $n == -l* ]]; then
-            libs="${libs} $n"
-        fi
+        shift # remove one arg
     done
 
     echo "$libs"
+}
+
+# Parse dynamic library dependecies from pkg-config file and print
+# them to stdout.
+parse_pc_dynlibs() {
+    local pc=$1
+    parse_dynlibs $(sed -n 's/^Libs: \(..*\)/\1/p' "$pc")
 }
 
 setup_build() {
@@ -54,7 +56,7 @@ setup_build() {
         build_tag="// +build musl"
     fi
 
-    local dynlibs=$(parse_dynlibs $pc)
+    local dynlibs=$(parse_pc_dynlibs $pc)
 
     echo "Copying $apath to $dpath"
     cp "$apath" "$dpath"
