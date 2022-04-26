@@ -51,12 +51,15 @@ fi
 curr_branch=$(git symbolic-ref HEAD 2>/dev/null | cut -d"/" -f 3-)
 uncommitted=$(git status --untracked-files=no --porcelain)
 
-if [[ $devel != 1 ]] && ( [[ $curr_branch != master ]] || [[ ! -z $uncommitted ]] ); then
+if [[ ! -z $uncommitted ]]; then
+    echo "Error: This script must be run on a clean branch with no uncommitted changes"
+    echo "Uncommitted files:"
+    echo "$uncommitted"
+    exit 1
+fi
+
+if [[ $devel != 1 ]] && [[ $curr_branch != master ]] ; then
     echo "Error: This script must be run on an up-to-date, clean, master branch"
-    if [[ ! -z $uncommitted ]]; then
-        echo "Uncommitted files:"
-        echo "$uncommitted"
-    fi
     exit 1
 fi
 
