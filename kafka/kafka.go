@@ -1,5 +1,3 @@
-package kafka
-
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -251,6 +249,7 @@ package kafka
 // possible complications with blocking Poll() calls.
 //
 // Note: The Confluent Kafka Go client is safe for concurrent use.
+package kafka
 
 import (
 	"fmt"
