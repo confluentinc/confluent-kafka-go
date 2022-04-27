@@ -47,6 +47,7 @@ type Consumer struct {
 	rebalanceCb        RebalanceCb
 	appReassigned      bool
 	appRebalanceEnable bool // Config setting
+	staticMember       bool
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -424,20 +425,25 @@ func (c *Consumer) Close() (err error) {
 		close(c.events)
 	}
 
-	// librdkafka's rd_kafka_consumer_close() will block
-	// and trigger the rebalance_cb() if one is set, if not, which is the
-	// case with the Go client since it registers EVENTs rather than callbacks,
-	// librdkafka will shortcut the rebalance_cb and do a forced unassign.
-	// But we can't have that since the application might need the final RevokePartitions
-	// before shutting down. So we trigger an Unsubscribe() first, wait for that to
-	// propagate (in the Poll loop below), and then close the consumer.
-	c.Unsubscribe()
+	// If this consumer is configured for static membership, do not explicitly unsubscribe from
+	// the group. Note that static members will _not_ receive a final RevokePartitions when they
+	// shutdown.
+	if !c.staticMember {
+		// librdkafka's rd_kafka_consumer_close() will block
+		// and trigger the rebalance_cb() if one is set, if not, which is the
+		// case with the Go client since it registers EVENTs rather than callbacks,
+		// librdkafka will shortcut the rebalance_cb and do a forced unassign.
+		// But we can't have that since the application might need the final RevokePartitions
+		// before shutting down. So we trigger an Unsubscribe() first, wait for that to
+		// propagate (in the Poll loop below), and then close the consumer.
+		c.Unsubscribe()
 
-	// Poll for rebalance events
-	for {
-		c.Poll(10 * 1000)
-		if int(C.rd_kafka_queue_length(c.handle.rkq)) == 0 {
-			break
+		// Poll for rebalance events
+		for {
+			c.Poll(10 * 1000)
+			if int(C.rd_kafka_queue_length(c.handle.rkq)) == 0 {
+				break
+			}
 		}
 	}
 
@@ -496,7 +502,13 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	c := &Consumer{}
 
-	v, err := confCopy.extract("go.application.rebalance.enable", false)
+	v, err := confCopy.extract("group.instance.id", "")
+	if err != nil {
+		return nil, err
+	}
+	c.staticMember = (v.(string) != "")
+
+	v, err = confCopy.extract("go.application.rebalance.enable", false)
 	if err != nil {
 		return nil, err
 	}
