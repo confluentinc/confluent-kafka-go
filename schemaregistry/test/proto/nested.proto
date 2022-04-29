@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+import "google/protobuf/timestamp.proto";
+
+message UserId {
+    oneof user_id {
+        string kafka_user_id = 1;
+        int32 other_user_id = 2;
+        MessageId another_id = 3;
+    }
+}
+
+message MessageId {
+    string id = 1;
+}
+
+enum Status {
+    ACTIVE = 0;
+    INACTIVE = 1;
+}
+
+message ComplexType {
+    oneof some_val {
+        string one_id = 1;
+        int32 other_id = 2;
+    }
+    bool is_active = 3;
+}
+
+/*
+ * Complex message using nested protos and repeated fields
+ */
+message NestedMessage {
+    UserId user_id = 1;
+    bool is_active = 2;
+    repeated string experiments_active = 3;
+    google.protobuf.Timestamp updated_at = 4;
+    Status status = 5;
+    ComplexType complex_type = 6;
+    map<string, string> map_type = 7;
+    InnerMessage inner = 8;
+
+    message InnerMessage {
+        string id = 1 [json_name="id"];
+        repeated int32 ids = 2 [packed=true];
+    }
+
+    enum InnerEnum {
+        option allow_alias = true;
+        ZERO = 0;
+        ALSO_ZERO = 0;
+    }
+
+    reserved 14, 15, 9 to 11;
+    reserved "foo", "bar";
+}

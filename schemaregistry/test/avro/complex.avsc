@@ -1,0 +1,61 @@
+{
+    "name": "advanced",
+    "type": "record",
+    "doc": "advanced schema for tests",
+    "namespace": "python.test.advanced",
+    "fields": [
+        {
+            "name": "number",
+            "doc": "age",
+            "type": [
+                "long",
+                "null"
+            ]
+        },
+        {
+            "name": "name",
+            "doc": "a name",
+            "type": [
+                "string"
+            ]
+        },
+        {
+            "name": "friends",
+            "doc": "friends",
+            "type" : {
+                "type": "map",
+                "values" : {
+                    "name": "basicPerson",
+                    "type": "record",
+                    "namespace": "python.test.advanced",
+                    "fields": [
+                        {
+                            "name": "number",
+                            "doc": "friend age",
+                            "type": [
+                                "long",
+                                "null"
+                            ]
+                        },
+                        {
+                            "name": "name",
+                            "doc": "friend name",
+                            "type": [
+                                "string"
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name" : "family",
+            "doc" : "family",
+            "type" : {
+                "namespace" : "python.test.advanced",
+                "type" : "map",
+                "values" : "basicPerson"
+            }
+        }
+    ]
+}

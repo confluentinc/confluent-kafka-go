@@ -1,0 +1,12 @@
+{
+	"type": "record",
+	"name": "DemoSchema",
+	"fields": [
+		{"name": "IntField", "type": "int"},
+		{"name": "DoubleField", "type": "double"},
+		{"name": "StringField", "type": "string"},
+		{"name": "BoolField", "type": "boolean"},
+		{"name": "BytesField", "type": "bytes"}
+	]
+
+}

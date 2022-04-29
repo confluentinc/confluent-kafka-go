@@ -1,0 +1,10 @@
+{
+  "name" : "MyRecord",
+  "type" : "record",
+  "fields" : [
+    {
+      "name" : "productName",
+      "type" : "string"
+    }
+  ]
+}
