@@ -75,6 +75,11 @@ func main() {
 
 	fmt.Printf("Created deserializer\n")
 
+	// Register the Protobuf type so that Deserialize can be called.
+	// An alternative is to pass a pointer to an instance of the Protobuf type
+	// to the DeserializeInto method.
+	deser.ProtoRegistry.RegisterMessage((&MyRecord{}).ProtoReflect().Type())
+
 	err = c.SubscribeTopics(topics, nil)
 
 	run := true
@@ -92,8 +97,7 @@ func main() {
 
 			switch e := ev.(type) {
 			case *kafka.Message:
-				value := MyRecord{}
-				err := deser.DeserializeInto(*e.TopicPartition.Topic, e.Value, &value)
+				value, err := deser.Deserialize(*e.TopicPartition.Topic, e.Value)
 				if err != nil {
 					fmt.Printf("Failed to deserialize payload: %s\n", err)
 				} else {
