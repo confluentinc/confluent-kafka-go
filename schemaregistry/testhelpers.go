@@ -9,11 +9,6 @@ import (
 	"testing"
 )
 
-/*
-#include <librdkafka/rdkafka.h>
-*/
-import "C"
-
 type testConf map[string]interface{}
 type failFunc func(string, ...error)
 
