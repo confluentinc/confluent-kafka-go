@@ -90,6 +90,7 @@ func main() {
 	close(deliveryChan)
 }
 
+// MyRecord is a simple record example
 type MyRecord struct {
 	ProductName string `json:"ProductName"`
 }

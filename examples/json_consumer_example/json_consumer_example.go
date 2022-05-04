@@ -122,6 +122,7 @@ func main() {
 	c.Close()
 }
 
+// MyRecord is a simple record example
 type MyRecord struct {
 	ProductName string `json:"ProductName"`
 }
