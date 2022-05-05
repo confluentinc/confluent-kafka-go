@@ -273,6 +273,7 @@ func toMessageIndexBytes(descriptor protoreflect.Descriptor) []byte {
 	if descriptor.Index() == 0 {
 		switch descriptor.Parent().(type) {
 		case protoreflect.FileDescriptor:
+			// This is an optimization for the first message in the schema
 			return []byte{0}
 		}
 	}
@@ -405,6 +406,7 @@ func readMessageIndexes(payload []byte) (int, []int, error) {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
 	}
 	if arrayLen == 0 {
+		// Handle the optimization for the first message in the schema
 		return bytesRead, []int{0}, nil
 	}
 	msgIndexes := make([]int, arrayLen)
