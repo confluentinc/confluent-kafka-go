@@ -1,4 +1,4 @@
-// Example function-based Apache Kafka producer
+// Example function-based Apache Kafka producer with a custom delivery channel
 package main
 
 /**
@@ -45,32 +45,13 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	// Listen to all the events on the default events channel
+	// Listen to all the client instance-level errors.
+	// It's important to read these errors too otherwise the events channel will eventually fill up
 	doneEventsChan := make(chan bool)
-	producerQueueFree := make(chan bool)
 	go func() {
 		defer close(doneEventsChan)
-		defer close(producerQueueFree)
-		msgcnt := 0
 		for e := range p.Events() {
 			switch ev := e.(type) {
-			case *kafka.Message:
-				m := ev
-				if m.TopicPartition.Error != nil {
-					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
-				} else {
-					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
-						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
-				}
-				msgcnt++
-				// Signals (non-blocking) that the producer queue has been freed
-				select {
-				case producerQueueFree <- true:
-				default:
-				}
-				if msgcnt == totalMsgcnt {
-					return
-				}
 			case kafka.Error:
 				// Generic client instance-level errors, such as
 				// broker connection failures, authentication issues, etc.
@@ -86,6 +67,41 @@ func main() {
 		}
 	}()
 
+	// Optional delivery channel, if not specified the Producer object's
+	// .Events channel is used.
+	deliveryChan := make(chan kafka.Event)
+	doneDeliveryChan := make(chan bool)
+	producerQueueFree := make(chan bool)
+	go func() {
+		msgcnt := 0
+		defer close(doneDeliveryChan)
+		defer close(producerQueueFree)
+		for e := range deliveryChan {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				m := ev
+				if m.TopicPartition.Error != nil {
+					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
+				} else {
+					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
+						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+				}
+				// Signals (non-blocking) that the producer queue has been freed
+				select {
+				case producerQueueFree <- true:
+				default:
+				}
+				msgcnt++
+				if msgcnt == totalMsgcnt {
+					return
+				}
+
+			default:
+				fmt.Printf("Ignored event: %s\n", ev)
+			}
+		}
+	}()
+
 	msgcnt := 0
 	for msgcnt < totalMsgcnt {
 		value := fmt.Sprintf("Producer example, message #%d", msgcnt)
@@ -94,7 +110,7 @@ func main() {
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Value:          []byte(value),
 			Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
-		}, nil)
+		}, deliveryChan)
 
 		if err != nil {
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
@@ -103,18 +119,26 @@ func main() {
 				continue
 			}
 			fmt.Printf("Failed to produce message: %v\n", err)
+			// Close the custom delivery channel as no delivery messages will be sent
+			close(deliveryChan)
 			// Close the producer and the events channel
 			p.Close()
-			// Wait for the goroutine receiving all the messages
+			// Wait for the goroutine receiving client errors
 			_ = <-doneEventsChan
 			os.Exit(1)
 		}
 		msgcnt++
 	}
 
-	// Wait for the goroutine receiving all the messages
-	_ = <-doneEventsChan
+	// Wait for delivery report goroutine with custom channel to finish
+	_ = <-doneDeliveryChan
+
+	// Close the custom delivery channel as all the delivery report messages have been sent
+	close(deliveryChan)
 
 	// Close the producer and the events channel
 	p.Close()
+
+	// Wait for the goroutine receiving client errors
+	_ = <-doneEventsChan
 }

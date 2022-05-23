@@ -1,21 +1,43 @@
 
-Examples:
+Examples
+--------
 
-  consumer_channel_example - Channel based consumer
-  consumer_example - Function & callback based consumer
-  consumer_offset_metadata - Commit offset with metadata
+  [admin_create_topic](admin_create_topic) - Create a topic
 
-  producer_channel_example - Channel based producer
-  producer_example - Function based producer
+  [admin_delete_topics](admin_delete_topics) - Delete some topics
+  
+  [admin_describe_config](admin_describe_config) - Describe broker, topic or group configs
 
-  transactions_example - Showcasing a transactional consume-process-produce application
+  [confluent_cloud_example](confluent_cloud_example) - Usage example with Confluent Cloud
 
-  go-kafkacat - Channel based kafkacat Go clone
+  [consumer_example](consumer_example) - Function & callback based consumer
 
-  oauthbearer_example - Provides unsecured SASL/OAUTHBEARER example
+  [consumer_offset_metadata](consumer_offset_metadata) - Commit offset with metadata
+  
+  [cooperative_consumer_example](cooperative_consumer_example) - Using the cooperative incremental rebalancing protocol
 
+  [go_kafkacat](go_kafkacat) - Channel based kafkacat Go clone
 
-Usage example:
+  [idempotent_producer_example](idempotent_producer_example) - Idempotent producer
+  
+  [legacy](legacy) - Legacy examples
+
+  [library_version](library_version) - Show the library version
+
+  [mockcluster_example](mockcluster_example) - Use a mock cluster for testing
+
+  [oauthbearer_example](oauthbearer_example) - Provides unsecured SASL/OAUTHBEARER example
+
+  [producer_custom_channel_example](producer_custom_channel_example) - Function based producer with a custom delivery channel
+
+  [producer_example](producer_example) - Function based producer
+  
+  [stats_example](stats_example) - Receiving stats events
+
+  [transactions_example](transactions_example) - Showcasing a transactional consume-process-produce application
+
+Usage example
+-------------
 
     $ cd consumer_example
     $ go build   (or 'go install')
