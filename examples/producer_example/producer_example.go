@@ -46,12 +46,9 @@ func main() {
 	fmt.Printf("Created Producer %v\n", p)
 
 	// Listen to all the events on the default events channel
-	doneEventsChan := make(chan bool)
 	producerQueueFree := make(chan bool)
 	go func() {
-		defer close(doneEventsChan)
 		defer close(producerQueueFree)
-		msgcnt := 0
 		for e := range p.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:
@@ -62,14 +59,10 @@ func main() {
 					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
 						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 				}
-				msgcnt++
 				// Signals (non-blocking) that the producer queue has been freed
 				select {
 				case producerQueueFree <- true:
 				default:
-				}
-				if msgcnt == totalMsgcnt {
-					return
 				}
 			case kafka.Error:
 				// Generic client instance-level errors, such as
@@ -98,23 +91,24 @@ func main() {
 
 		if err != nil {
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
-				// Producer queue is full, waits for the it to be freed
+				// Producer queue is full, waits for it to be freed
 				_ = <-producerQueueFree
 				continue
 			}
 			fmt.Printf("Failed to produce message: %v\n", err)
-			// Close the producer and the events channel
+			// Flush and close the producer and the events channel
+			for p.Flush(1000) > 0 {
+				fmt.Print("Still waiting to flush outstanding messages\n", err)
+			}
 			p.Close()
-			// Wait for the goroutine receiving all the messages
-			_ = <-doneEventsChan
 			os.Exit(1)
 		}
 		msgcnt++
 	}
 
-	// Wait for the goroutine receiving all the messages
-	_ = <-doneEventsChan
-
-	// Close the producer and the events channel
+	// Flush and close the producer and the events channel
+	for p.Flush(1000) > 0 {
+		fmt.Print("Still waiting to flush outstanding messages\n", err)
+	}
 	p.Close()
 }

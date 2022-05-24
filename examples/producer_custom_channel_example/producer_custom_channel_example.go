@@ -47,9 +47,7 @@ func main() {
 
 	// Listen to all the client instance-level errors.
 	// It's important to read these errors too otherwise the events channel will eventually fill up
-	doneEventsChan := make(chan bool)
 	go func() {
-		defer close(doneEventsChan)
 		for e := range p.Events() {
 			switch ev := e.(type) {
 			case kafka.Error:
@@ -70,11 +68,8 @@ func main() {
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
 	deliveryChan := make(chan kafka.Event)
-	doneDeliveryChan := make(chan bool)
 	producerQueueFree := make(chan bool)
 	go func() {
-		msgcnt := 0
-		defer close(doneDeliveryChan)
 		defer close(producerQueueFree)
 		for e := range deliveryChan {
 			switch ev := e.(type) {
@@ -90,10 +85,6 @@ func main() {
 				select {
 				case producerQueueFree <- true:
 				default:
-				}
-				msgcnt++
-				if msgcnt == totalMsgcnt {
-					return
 				}
 
 			default:
@@ -114,31 +105,24 @@ func main() {
 
 		if err != nil {
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
-				// Producer queue is full, waits for the it to be freed
+				// Producer queue is full, waits for it to be freed
 				_ = <-producerQueueFree
 				continue
 			}
 			fmt.Printf("Failed to produce message: %v\n", err)
-			// Close the custom delivery channel as no delivery messages will be sent
-			close(deliveryChan)
-			// Close the producer and the events channel
+			// Flush and close the producer and the events channel
+			for p.Flush(1000) > 0 {
+				fmt.Print("Still waiting to flush outstanding messages\n", err)
+			}
 			p.Close()
-			// Wait for the goroutine receiving client errors
-			_ = <-doneEventsChan
 			os.Exit(1)
 		}
 		msgcnt++
 	}
 
-	// Wait for delivery report goroutine with custom channel to finish
-	_ = <-doneDeliveryChan
-
-	// Close the custom delivery channel as all the delivery report messages have been sent
-	close(deliveryChan)
-
-	// Close the producer and the events channel
+	// Flush and close the producer and the events channel
+	for p.Flush(1000) > 0 {
+		fmt.Print("Still waiting to flush outstanding messages\n", err)
+	}
 	p.Close()
-
-	// Wait for the goroutine receiving client errors
-	_ = <-doneEventsChan
 }
