@@ -16,13 +16,13 @@ Examples
   
   [cooperative_consumer_example](cooperative_consumer_example) - Using the cooperative incremental rebalancing protocol
 
-  [go_kafkacat](go_kafkacat) - Channel based kafkacat Go clone
+  [go-kafkacat](go-kafkacat) - Channel based kafkacat Go clone
 
   [idempotent_producer_example](idempotent_producer_example) - Idempotent producer
   
   [legacy](legacy) - Legacy examples
 
-  [library_version](library_version) - Show the library version
+  [library-version](library-version) - Show the library version
 
   [mockcluster_example](mockcluster_example) - Use a mock cluster for testing
 
