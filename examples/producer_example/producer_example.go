@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
@@ -46,9 +47,7 @@ func main() {
 	fmt.Printf("Created Producer %v\n", p)
 
 	// Listen to all the events on the default events channel
-	producerQueueFree := make(chan bool)
 	go func() {
-		defer close(producerQueueFree)
 		for e := range p.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:
@@ -58,11 +57,6 @@ func main() {
 				} else {
 					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
 						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
-				}
-				// Signals (non-blocking) that the producer queue has been freed
-				select {
-				case producerQueueFree <- true:
-				default:
 				}
 			case kafka.Error:
 				// Generic client instance-level errors, such as
@@ -92,7 +86,7 @@ func main() {
 		if err != nil {
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
 				// Producer queue is full, waits for it to be freed
-				_ = <-producerQueueFree
+				time.Sleep(time.Second)
 				continue
 			}
 			fmt.Printf("Failed to produce message: %v\n", err)
