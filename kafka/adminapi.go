@@ -312,6 +312,102 @@ func (c ConfigResourceResult) String() string {
 	return fmt.Sprintf("ResourceResult(%s, %s, %d config(s))", c.Type, c.Name, len(c.Config))
 }
 
+// Enumerates the different types of Kafka resource patterns.
+type ResourcePatternType int
+
+const (
+	// Resource pattern type is not known or not set.
+	ResourcePatternTypeUnknown = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_UNKNOWN)
+	// Match any resource, used for lookups.
+	ResourcePatternTypeAny = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_ANY)
+	// Match: will perform pattern matching
+	ResourcePatternTypeMatch = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_MATCH)
+	// Literal: A literal resource name
+	ResourcePatternTypeLiteral = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_LITERAL)
+	// Prefixed: A prefixed resource name
+	ResourcePatternTypePrefixed = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_PREFIXED)
+)
+
+// Enumerates the different types of ACL operation.
+type AclOperation int
+
+const (
+	// Unknown
+	AclOperationUnknown = AclOperation(C.RD_KAFKA_ACL_OPERATION_UNKNOWN)
+	// In a filter, matches any AclOperation
+	AclOperationAny = AclOperation(C.RD_KAFKA_ACL_OPERATION_ANY)
+	// ALL the operations
+	AclOperationAll = AclOperation(C.RD_KAFKA_ACL_OPERATION_ALL)
+	// READ operation
+	AclOperationRead = AclOperation(C.RD_KAFKA_ACL_OPERATION_READ)
+	// WRITE operation
+	AclOperationWrite = AclOperation(C.RD_KAFKA_ACL_OPERATION_WRITE)
+	// CREATE operation
+	AclOperationCreate = AclOperation(C.RD_KAFKA_ACL_OPERATION_CREATE)
+	// DELETE operation
+	AclOperationDelete = AclOperation(C.RD_KAFKA_ACL_OPERATION_DELETE)
+	// ALTER operation
+	AclOperationAlter = AclOperation(C.RD_KAFKA_ACL_OPERATION_ALTER)
+	// DESCRIBE operation
+	AclOperationDescribe = AclOperation(C.RD_KAFKA_ACL_OPERATION_DESCRIBE)
+	// CLUSTER_ACTION operation
+	AclOperationClusterAction = AclOperation(C.RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION)
+	// DESCRIBE_CONFIGS operation
+	AclOperationDescribeConfigs = AclOperation(C.RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS)
+	// ALTER_CONFIGS operation
+	AclOperationAlterConfigs = AclOperation(C.RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS)
+	// IDEMPOTENT_WRITE operation
+	AclOperationIdempotentWrite = AclOperation(C.RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE)
+)
+
+// Enumerates the different types of ACL permission types.
+type AclPermissionType int
+
+const (
+	// Unknown
+	AclPermissionTypeUnknown = AclPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN)
+	// In a filter, matches any AclPermissionType
+	AclPermissionTypeAny = AclPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ANY)
+	// Disallows access
+	AclPermissionTypeDeny = AclPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_DENY)
+	// Grants access
+	AclPermissionTypeAllow = AclPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW)
+)
+
+// Represents an ACL binding that specify the operation and permission type for a specific principal
+// over one or more resources of the same type. Used by `AdminClient.CreateAcls`,
+// returned by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
+type AclBinding struct {
+	Type                ResourceType
+	Name                string
+	ResourcePatternType ResourcePatternType
+	Principal           string
+	Host                string
+	Operation           AclOperation
+	PermissionType      AclPermissionType
+}
+
+// Represents an ACL binding filter used to return a list of ACL bindings matching some or all of its attributes.
+// Used by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
+type AclBindingFilter AclBinding
+
+// CreateAclResult provides create ACL error information.
+type CreateAclResult struct {
+	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
+	Error Error
+}
+
+// Provides describe ACLs result or error information.
+type DescribeAclsResult struct {
+	// List of ACL bindings matching the provided filter
+	AclBindings []AclBinding
+	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
+	Error Error
+}
+
+// Provides delete ACLs result or error information.
+type DeleteAclsResult DescribeAclsResult
+
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -948,6 +1044,58 @@ func (a *AdminClient) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) err
 // authentication mechanism.
 func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 	return a.handle.setOAuthBearerTokenFailure(errstr)
+}
+
+// Create one or more ACL bindings.
+// TODO: review
+//
+// Parameters:
+//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//  * `aclBindings` - A list of ACL binding specifications to create.
+//  * `options` - Create ACLs options
+//
+// Returns a list of AclResult with a nil Error when the operation was successful
+// plus an error that is not nil for client level errors
+func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, options ...CreateAclsAdminOption) (result []CreateAclResult, err error) {
+	return []CreateAclResult{}, nil
+}
+
+// Match ACL bindings by filter.
+// TODO: review
+//
+// Parameters:
+//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//  * `aclBindingFilter` - A filter with attributes that must match.
+//     string attributes match exact values or any string if set to nil.
+//     Enum attributes match exact values or any value if ending with `_ANY`.
+//     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
+//     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
+//     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
+//  * `options` - Describe ACLs options
+//
+// Returns a list of AclBinding when the operation was successful
+// plus an error that is not `nil` for client level errors
+func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBindingFilter, options ...DescribeAclsAdminOption) (result DescribeAclsResult, err error) {
+	return DescribeAclsResult{}, nil
+}
+
+// Delete ACL bindings matching one or more ACL binding filters.
+// TODO: review
+//
+// Parameters:
+//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//  * `aclBindingFilters` - a list of ACL binding filters to match ACLs to delete.
+//     string attributes match exact values or any string if set to nil.
+//     Enum attributes match exact values or any value if ending with `_ANY`.
+//     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
+//     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
+//     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
+//  * `options` - Delete ACLs options
+//
+// Returns a list of AclBinding for each filter when the operation was successful
+// plus an error that is not `nil` for client level errors
+func (a *AdminClient) DeleteAcls(ctx context.Context, aclBindingFilters []AclBindingFilter, options ...DeleteAclsAdminOption) (result []DeleteAclsResult, err error) {
+	return []DeleteAclsResult{}, nil
 }
 
 // Close an AdminClient instance.

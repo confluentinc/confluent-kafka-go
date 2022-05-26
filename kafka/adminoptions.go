@@ -240,6 +240,30 @@ type DescribeConfigsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
+// CreateAclsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout
+type CreateAclsAdminOption interface {
+	supportsCreateAcls()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DescribeAclsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout
+type DescribeAclsAdminOption interface {
+	supportsDescribeAcls()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DeleteAclsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout
+type DeleteAclsAdminOption interface {
+	supportsDeleteAcls()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
 // AdminOption is a generic type not to be used directly.
 //
 // See CreateTopicsAdminOption et.al.
