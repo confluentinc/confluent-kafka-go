@@ -132,7 +132,7 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 	}
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, subject),
+		URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, url.QueryEscape(subject)),
 		Err: errors.New("Subject Not Found"),
 	}
 	return SchemaInfo{}, &posErr
@@ -157,7 +157,7 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(subjects, subject),
+		URL: c.url.String() + fmt.Sprintf(subjects, url.PathEscape(subject)),
 		Err: errors.New("Subject Not found"),
 	}
 	return -1, &posErr
@@ -170,7 +170,7 @@ func (c *mockclient) GetLatestSchemaMetadata(subject string) (result SchemaMetad
 	if version < 0 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(versions, subject, "latest"),
+			URL: c.url.String() + fmt.Sprintf(versions, url.PathEscape(subject), "latest"),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -193,7 +193,7 @@ func (c *mockclient) GetSchemaMetadata(subject string, version int) (result Sche
 	if json == "" {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(versions, subject, version),
+			URL: c.url.String() + fmt.Sprintf(versions, url.PathEscape(subject), version),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -216,7 +216,7 @@ func (c *mockclient) GetSchemaMetadata(subject string, version int) (result Sche
 	if id == -1 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(versions, subject, version),
+			URL: c.url.String() + fmt.Sprintf(versions, url.PathEscape(subject), version),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -237,7 +237,7 @@ func (c *mockclient) GetAllVersions(subject string) (results []int, err error) {
 	if len(results) == 0 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(version, subject),
+			URL: c.url.String() + fmt.Sprintf(version, url.PathEscape(subject)),
 			Err: errors.New("Subject Not Found"),
 		}
 		return nil, &posErr
@@ -285,7 +285,7 @@ func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize boo
 	}
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(subjects, subject),
+		URL: c.url.String() + fmt.Sprintf(subjects, url.PathEscape(subject)),
 		Err: errors.New("Subject Not Found"),
 	}
 	return -1, &posErr
@@ -357,7 +357,7 @@ func (c *mockclient) GetCompatibility(subject string) (compatibility Compatibili
 	if !ok {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(subjectConfig, subject),
+			URL: c.url.String() + fmt.Sprintf(subjectConfig, url.PathEscape(subject)),
 			Err: errors.New("Subject Not Found"),
 		}
 		return compatibility, &posErr

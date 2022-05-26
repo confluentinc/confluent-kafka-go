@@ -246,7 +246,7 @@ func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, subject, normalize), &metadata)
+	err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 	if err != nil {
 		return -1, err
 	}
@@ -274,7 +274,7 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 		SchemaInfo: schema,
 	}
 	if len(subject) > 0 {
-		err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, subject), &metadata)
+		err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
 	} else {
 		err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &metadata)
 	}
@@ -312,7 +312,7 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 		SchemaInfo: schema,
 	}
 
-	err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, subject, normalize), &metadata)
+	err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 	if err != nil {
 		return -1, err
 	}
@@ -325,7 +325,7 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
 // Returns SchemaMetadata object
 func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, subject, "latest"), &result)
+	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), "latest"), &result)
 
 	return result, err
 }
@@ -333,7 +333,7 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, subject, version), &result)
+	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
 
 	return result, err
 }
@@ -342,7 +342,7 @@ func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMe
 // Returns integer slice on success
 func (c *client) GetAllVersions(subject string) (results []int, err error) {
 	var result []int
-	err = c.restService.handleRequest(newRequest("GET", version, nil, subject), &result)
+	err = c.restService.handleRequest(newRequest("GET", version, nil, url.PathEscape(subject)), &result)
 
 	return result, err
 }
@@ -368,7 +368,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 		SchemaInfo: schema,
 	}
 
-	err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, subject, normalize), &metadata)
+	err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 	if err != nil {
 		return -1, err
 	}
@@ -391,7 +391,7 @@ func (c *client) GetAllSubjects() ([]string, error) {
 // Returns integer slice of versions removed by delete
 func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
 	var result []int
-	err = c.restService.handleRequest(newRequest("DELETE", subjects, nil, subject), &result)
+	err = c.restService.handleRequest(newRequest("DELETE", subjects, nil, url.PathEscape(subject)), &result)
 
 	return result, err
 }
@@ -400,7 +400,7 @@ func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
 // Returns integer id for the deleted version
 func (c *client) DeleteSubjectVersion(subject string, delete int) (deleted int, err error) {
 	var result int
-	err = c.restService.handleRequest(newRequest("DELETE", versions, nil, subject, delete), &result)
+	err = c.restService.handleRequest(newRequest("DELETE", versions, nil, url.PathEscape(subject), delete), &result)
 
 	return result, err
 
@@ -479,7 +479,7 @@ func (c *Compatibility) ParseString(val string) error {
 // Returns compatibility level string upon success
 func (c *client) GetCompatibility(subject string) (compatibility Compatibility, err error) {
 	var result compatibilityLevel
-	err = c.restService.handleRequest(newRequest("GET", subjectConfig, nil, subject), &result)
+	err = c.restService.handleRequest(newRequest("GET", subjectConfig, nil, url.PathEscape(subject)), &result)
 
 	return result.Compatibility, err
 }
@@ -490,7 +490,7 @@ func (c *client) UpdateCompatibility(subject string, update Compatibility) (comp
 	result := compatibilityLevel{
 		CompatibilityUpdate: update,
 	}
-	err = c.restService.handleRequest(newRequest("PUT", subjectConfig, &result, subject), &result)
+	err = c.restService.handleRequest(newRequest("PUT", subjectConfig, &result, url.PathEscape(subject)), &result)
 
 	return result.CompatibilityUpdate, err
 }
@@ -503,7 +503,7 @@ func (c *client) TestCompatibility(subject string, version int, schema SchemaInf
 		SchemaInfo: schema,
 	}
 
-	err = c.restService.handleRequest(newRequest("POST", compatibility, &candidate, subject, version), &result)
+	err = c.restService.handleRequest(newRequest("POST", compatibility, &candidate, url.PathEscape(subject), version), &result)
 
 	return result.Compatible, err
 }
