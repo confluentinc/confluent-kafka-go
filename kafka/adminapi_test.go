@@ -76,6 +76,129 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 	adminClient.Close()
 }
 
+func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
+	var res []CreateAclResult
+	var err error
+	var ctx context.Context
+	var cancel context.CancelFunc
+	var expDuration time.Duration
+	var expDurationLonger time.Duration
+	var invalidAclBindingsTests [][]AclBinding
+
+	checkFail := func(res []CreateAclResult, err error) {
+		if res != nil || err == nil {
+			t.Fatalf("Expected CreateAcls to fail, but got result: %v, err: %v", res, err)
+		}
+	}
+
+	aclBindings := []AclBinding{
+		{
+			Type:                ResourceTopic,
+			Name:                "mytopic",
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:myuser",
+			Host:                "*",
+			Operation:           AclOperationAll,
+			PermissionType:      AclPermissionTypeAllow,
+		},
+	}
+
+	copyAclBindings := func() []AclBinding {
+		return append([]AclBinding{}, aclBindings...)
+	}
+
+	t.Logf("AdminClient API - ACLs testing on %s: %s", a, what)
+	expDuration, err = time.ParseDuration("0.1s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// nil aclBindings
+	res, err = a.CreateAcls(ctx, nil)
+	checkFail(res, err)
+	if err.Error() != "Expected non-nil slice of AclBinding structs" {
+		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	}
+
+	// empty aclBindings
+	res, err = a.CreateAcls(ctx, []AclBinding{})
+	checkFail(res, err)
+	if err.Error() != "Expected non-empty slice of AclBinding structs" {
+		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	}
+
+	// Correct input, fail with timeout
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+
+	res, err = a.CreateAcls(ctx, aclBindings)
+	checkFail(res, err)
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
+	}
+
+	// request timeout comes before context deadline
+	expDurationLonger, err = time.ParseDuration("1s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDurationLonger)
+	defer cancel()
+
+	res, err = a.CreateAcls(ctx, aclBindings, SetAdminRequestTimeout(expDuration))
+	checkFail(res, err)
+	if err.Error() != "Failed while waiting for controller: Local: Timed out" {
+		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	}
+
+	// Invalid ACL bindings
+	invalidAclBindingsTests = [][]AclBinding{copyAclBindings(), copyAclBindings()}
+	invalidAclBindingsTests[0][0].Type = ResourceUnknown
+	invalidAclBindingsTests[1][0].Type = ResourceAny
+	for _, invalidAclBindings := range invalidAclBindingsTests {
+		res, err = a.CreateAcls(ctx, invalidAclBindings)
+		checkFail(res, err)
+		if !strings.HasSuffix(err.Error(), ": Invalid resource type") {
+			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+		}
+	}
+
+	invalidAclBindingsTests = [][]AclBinding{copyAclBindings(), copyAclBindings(), copyAclBindings()}
+	invalidAclBindingsTests[0][0].ResourcePatternType = ResourcePatternTypeUnknown
+	invalidAclBindingsTests[1][0].ResourcePatternType = ResourcePatternTypeMatch
+	invalidAclBindingsTests[2][0].ResourcePatternType = ResourcePatternTypeAny
+	for _, invalidAclBindings := range invalidAclBindingsTests {
+		res, err = a.CreateAcls(ctx, invalidAclBindings)
+		checkFail(res, err)
+		if !strings.HasSuffix(err.Error(), ": Invalid resource pattern type") {
+			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+		}
+	}
+
+	invalidAclBindingsTests = [][]AclBinding{copyAclBindings(), copyAclBindings()}
+	invalidAclBindingsTests[0][0].Operation = AclOperationUnknown
+	invalidAclBindingsTests[1][0].Operation = AclOperationAny
+	for _, invalidAclBindings := range invalidAclBindingsTests {
+		res, err = a.CreateAcls(ctx, invalidAclBindings)
+		checkFail(res, err)
+		if !strings.HasSuffix(err.Error(), ": Invalid operation") {
+			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+		}
+	}
+
+	invalidAclBindingsTests = [][]AclBinding{copyAclBindings(), copyAclBindings()}
+	invalidAclBindingsTests[0][0].PermissionType = AclPermissionTypeUnknown
+	invalidAclBindingsTests[1][0].PermissionType = AclPermissionTypeAny
+	for _, invalidAclBindings := range invalidAclBindingsTests {
+		res, err = a.CreateAcls(ctx, invalidAclBindings)
+		checkFail(res, err)
+		if !strings.HasSuffix(err.Error(), ": Invalid permission type") {
+			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+		}
+	}
+}
+
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 
@@ -301,6 +424,8 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	if ctx.Err() != context.DeadlineExceeded || err != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
+
+	testAdminAPIsCreateAcls(what, a, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.

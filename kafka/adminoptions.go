@@ -166,6 +166,15 @@ func (ao AdminOptionValidateOnly) supportsCreatePartitions() {
 func (ao AdminOptionValidateOnly) supportsAlterConfigs() {
 }
 
+func (ao AdminOptionRequestTimeout) supportsCreateAcls() {
+}
+
+func (ao AdminOptionRequestTimeout) supportsDescribeAcls() {
+}
+
+func (ao AdminOptionRequestTimeout) supportsDeleteAcls() {
+}
+
 func (ao AdminOptionValidateOnly) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
 		return nil

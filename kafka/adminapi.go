@@ -48,6 +48,13 @@ ConfigEntry_by_idx (const rd_kafka_ConfigEntry_t **entries, size_t cnt, size_t i
       return NULL;
     return entries[idx];
 }
+
+static const rd_kafka_acl_result_t *
+acl_result_by_idx (const rd_kafka_acl_result_t **acl_results, size_t cnt, size_t idx) {
+    if (idx >= cnt)
+      return NULL;
+    return acl_results[idx];
+}
 */
 import "C"
 
@@ -1046,6 +1053,41 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 	return a.handle.setOAuthBearerTokenFailure(errstr)
 }
 
+// aclBindingToC converts a Go AclBinding struct to a C rd_kafka_AclBinding_t
+func (a *AdminClient) aclBindingToC(aclBinding *AclBinding, cErrstr *C.char, cErrstrSize C.size_t) (result *C.rd_kafka_AclBinding_t, err error) {
+	result = C.rd_kafka_AclBinding_new(
+		C.rd_kafka_ResourceType_t(aclBinding.Type),
+		C.CString(aclBinding.Name),
+		C.rd_kafka_ResourcePatternType_t(aclBinding.ResourcePatternType),
+		C.CString(aclBinding.Principal),
+		C.CString(aclBinding.Host),
+		C.rd_kafka_AclOperation_t(aclBinding.Operation),
+		C.rd_kafka_AclPermissionType_t(aclBinding.PermissionType),
+		cErrstr,
+		cErrstrSize,
+	)
+	if result == nil {
+		err = newErrorFromString(ErrInvalidArg,
+			fmt.Sprintf("Invalid arguments for ACL binding %v: %v", aclBinding, C.GoString(cErrstr)))
+	}
+	return
+}
+
+// cToCreateAclResults converts a C acl_result_t array to Go CreateAclResult list.
+func (a *AdminClient) cToCreateAclResults(cCreateAclsRes **C.rd_kafka_acl_result_t, aclCnt C.size_t) (result []CreateAclResult, err error) {
+	result = make([]CreateAclResult, int(aclCnt))
+
+	for i := 0; i < int(aclCnt); i++ {
+		cCreateAclRes := C.acl_result_by_idx(cCreateAclsRes, aclCnt, C.size_t(i))
+		if cCreateAclRes != nil {
+			cCreateAclError := C.rd_kafka_acl_result_error(cCreateAclRes)
+			result[i].Error = newErrorFromCErrorDestroy(cCreateAclError)
+		}
+	}
+
+	return result, nil
+}
+
 // Create one or more ACL bindings.
 // TODO: review
 //
@@ -1057,7 +1099,63 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 // Returns a list of AclResult with a nil Error when the operation was successful
 // plus an error that is not nil for client level errors
 func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, options ...CreateAclsAdminOption) (result []CreateAclResult, err error) {
-	return []CreateAclResult{}, nil
+	if aclBindings == nil {
+		return nil, newErrorFromString(ErrInvalidArg,
+			"Expected non-nil slice of AclBinding structs")
+	}
+	if len(aclBindings) == 0 {
+		return nil, newErrorFromString(ErrInvalidArg,
+			"Expected non-empty slice of AclBinding structs")
+	}
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cAclBindings := make([]*C.rd_kafka_AclBinding_t, len(aclBindings))
+
+	for i, aclBinding := range aclBindings {
+		cAclBindings[i], err = a.aclBindingToC(&aclBinding, cErrstr, cErrstrSize)
+		if err != nil {
+			return
+		}
+		defer C.rd_kafka_AclBinding_destroy(cAclBindings[i])
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_CREATEACLS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_CreateAcls(
+		a.handle.rk,
+		(**C.rd_kafka_AclBinding_t)(&cAclBindings[0]),
+		C.size_t(len(cAclBindings)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_CREATEACLS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	var cResultCnt C.size_t
+	cResult := C.rd_kafka_event_CreateAcls_result(rkev)
+	aclResults := C.rd_kafka_CreateAcls_result_acls(cResult, &cResultCnt)
+	result, err = a.cToCreateAclResults(aclResults, cResultCnt)
+	return
 }
 
 // Match ACL bindings by filter.
