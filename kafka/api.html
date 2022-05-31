@@ -14,7 +14,7 @@
   <script defer="" src="//golang.org/lib/godoc/jquery.js">
   </script>
   <script>
-   var goVersion = "go1.16.4";
+   var goVersion = "go1.18.2";
   </script>
   <script defer="" src="//golang.org/lib/godoc/godocs.js">
   </script>
@@ -388,6 +388,46 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#AclBinding">
+          type AclBinding
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclBindingFilter">
+          type AclBindingFilter
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclOperation">
+          type AclOperation
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclOperationFromString">
+          func AclOperationFromString(aclOperationString string) (AclOperation, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclOperation.String">
+          func (o AclOperation) String() string
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclPermissionType">
+          type AclPermissionType
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclPermissionTypeFromString">
+          func AclPermissionTypeFromString(aclPermissionTypeString string) (AclPermissionType, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#AclPermissionType.String">
+          func (o AclPermissionType) String() string
+         </a>
+        </dd>
+        <dd>
          <a href="#AdminClient">
           type AdminClient
          </a>
@@ -428,6 +468,11 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#AdminClient.CreateAcls">
+          func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, options ...CreateAclsAdminOption) (result []CreateAclResult, err error)
+         </a>
+        </dd>
+        <dd>
          <a href="#AdminClient.CreatePartitions">
           func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []PartitionsSpecification, options ...CreatePartitionsAdminOption) (result []TopicResult, err error)
          </a>
@@ -438,8 +483,18 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#AdminClient.DeleteAcls">
+          func (a *AdminClient) DeleteAcls(ctx context.Context, aclBindingFilters []AclBindingFilter, options ...DeleteAclsAdminOption) (result []DeleteAclsResult, err error)
+         </a>
+        </dd>
+        <dd>
          <a href="#AdminClient.DeleteTopics">
           func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options ...DeleteTopicsAdminOption) (result []TopicResult, err error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#AdminClient.DescribeAcls">
+          func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBindingFilter, options ...DescribeAclsAdminOption) (result DescribeAclsResult, err error)
          </a>
         </dd>
         <dd>
@@ -803,6 +858,16 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#CreateAclResult">
+          type CreateAclResult
+         </a>
+        </dd>
+        <dd>
+         <a href="#CreateAclsAdminOption">
+          type CreateAclsAdminOption
+         </a>
+        </dd>
+        <dd>
          <a href="#CreatePartitionsAdminOption">
           type CreatePartitionsAdminOption
          </a>
@@ -813,8 +878,28 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#DeleteAclsAdminOption">
+          type DeleteAclsAdminOption
+         </a>
+        </dd>
+        <dd>
+         <a href="#DeleteAclsResult">
+          type DeleteAclsResult
+         </a>
+        </dd>
+        <dd>
          <a href="#DeleteTopicsAdminOption">
           type DeleteTopicsAdminOption
+         </a>
+        </dd>
+        <dd>
+         <a href="#DescribeAclsAdminOption">
+          type DescribeAclsAdminOption
+         </a>
+        </dd>
+        <dd>
+         <a href="#DescribeAclsResult">
+          type DescribeAclsResult
          </a>
         </dd>
         <dd>
@@ -1128,6 +1213,21 @@ possible complications with blocking Poll() calls.
          </a>
         </dd>
         <dd>
+         <a href="#ResourcePatternType">
+          type ResourcePatternType
+         </a>
+        </dd>
+        <dd>
+         <a href="#ResourcePatternTypeFromString">
+          func ResourcePatternTypeFromString(patternTypeString string) (ResourcePatternType, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#ResourcePatternType.String">
+          func (t ResourcePatternType) String() string
+         </a>
+        </dd>
+        <dd>
          <a href="#ResourceType">
           type ResourceType
          </a>
@@ -1239,8 +1339,8 @@ possible complications with blocking Poll() calls.
         <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go">
          adminoptions.go
         </a>
-        <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/build_darwin.go">
-         build_darwin.go
+        <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/build_glibc_linux.go">
+         build_glibc_linux.go
         </a>
         <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/config.go">
          config.go
@@ -1335,6 +1435,56 @@ possible complications with blocking Poll() calls.
     <span id="ConfigSourceDefault">ConfigSourceDefault</span> = <a href="#ConfigSource">ConfigSource</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG">RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG</a>)
 )</pre>
     <pre>const (
+    <span class="comment">// Resource pattern type is not known or not set.</span>
+    <span id="ResourcePatternTypeUnknown">ResourcePatternTypeUnknown</span> = <a href="#ResourcePatternType">ResourcePatternType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESOURCE_PATTERN_UNKNOWN">RD_KAFKA_RESOURCE_PATTERN_UNKNOWN</a>)
+    <span class="comment">// Match any resource, used for lookups.</span>
+    <span id="ResourcePatternTypeAny">ResourcePatternTypeAny</span> = <a href="#ResourcePatternType">ResourcePatternType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESOURCE_PATTERN_ANY">RD_KAFKA_RESOURCE_PATTERN_ANY</a>)
+    <span class="comment">// Match: will perform pattern matching</span>
+    <span id="ResourcePatternTypeMatch">ResourcePatternTypeMatch</span> = <a href="#ResourcePatternType">ResourcePatternType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESOURCE_PATTERN_MATCH">RD_KAFKA_RESOURCE_PATTERN_MATCH</a>)
+    <span class="comment">// Literal: A literal resource name</span>
+    <span id="ResourcePatternTypeLiteral">ResourcePatternTypeLiteral</span> = <a href="#ResourcePatternType">ResourcePatternType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESOURCE_PATTERN_LITERAL">RD_KAFKA_RESOURCE_PATTERN_LITERAL</a>)
+    <span class="comment">// Prefixed: A prefixed resource name</span>
+    <span id="ResourcePatternTypePrefixed">ResourcePatternTypePrefixed</span> = <a href="#ResourcePatternType">ResourcePatternType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_RESOURCE_PATTERN_PREFIXED">RD_KAFKA_RESOURCE_PATTERN_PREFIXED</a>)
+)</pre>
+    <pre>const (
+    <span class="comment">// Unknown</span>
+    <span id="AclOperationUnknown">AclOperationUnknown</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_UNKNOWN">RD_KAFKA_ACL_OPERATION_UNKNOWN</a>)
+    <span class="comment">// In a filter, matches any AclOperation</span>
+    <span id="AclOperationAny">AclOperationAny</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_ANY">RD_KAFKA_ACL_OPERATION_ANY</a>)
+    <span class="comment">// ALL the operations</span>
+    <span id="AclOperationAll">AclOperationAll</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_ALL">RD_KAFKA_ACL_OPERATION_ALL</a>)
+    <span class="comment">// READ operation</span>
+    <span id="AclOperationRead">AclOperationRead</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_READ">RD_KAFKA_ACL_OPERATION_READ</a>)
+    <span class="comment">// WRITE operation</span>
+    <span id="AclOperationWrite">AclOperationWrite</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_WRITE">RD_KAFKA_ACL_OPERATION_WRITE</a>)
+    <span class="comment">// CREATE operation</span>
+    <span id="AclOperationCreate">AclOperationCreate</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_CREATE">RD_KAFKA_ACL_OPERATION_CREATE</a>)
+    <span class="comment">// DELETE operation</span>
+    <span id="AclOperationDelete">AclOperationDelete</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_DELETE">RD_KAFKA_ACL_OPERATION_DELETE</a>)
+    <span class="comment">// ALTER operation</span>
+    <span id="AclOperationAlter">AclOperationAlter</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_ALTER">RD_KAFKA_ACL_OPERATION_ALTER</a>)
+    <span class="comment">// DESCRIBE operation</span>
+    <span id="AclOperationDescribe">AclOperationDescribe</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_DESCRIBE">RD_KAFKA_ACL_OPERATION_DESCRIBE</a>)
+    <span class="comment">// CLUSTER_ACTION operation</span>
+    <span id="AclOperationClusterAction">AclOperationClusterAction</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION">RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION</a>)
+    <span class="comment">// DESCRIBE_CONFIGS operation</span>
+    <span id="AclOperationDescribeConfigs">AclOperationDescribeConfigs</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS">RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS</a>)
+    <span class="comment">// ALTER_CONFIGS operation</span>
+    <span id="AclOperationAlterConfigs">AclOperationAlterConfigs</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS">RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS</a>)
+    <span class="comment">// IDEMPOTENT_WRITE operation</span>
+    <span id="AclOperationIdempotentWrite">AclOperationIdempotentWrite</span> = <a href="#AclOperation">AclOperation</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE">RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE</a>)
+)</pre>
+    <pre>const (
+    <span class="comment">// Unknown</span>
+    <span id="AclPermissionTypeUnknown">AclPermissionTypeUnknown</span> = <a href="#AclPermissionType">AclPermissionType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN">RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN</a>)
+    <span class="comment">// In a filter, matches any AclPermissionType</span>
+    <span id="AclPermissionTypeAny">AclPermissionTypeAny</span> = <a href="#AclPermissionType">AclPermissionType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_PERMISSION_TYPE_ANY">RD_KAFKA_ACL_PERMISSION_TYPE_ANY</a>)
+    <span class="comment">// Disallows access</span>
+    <span id="AclPermissionTypeDeny">AclPermissionTypeDeny</span> = <a href="#AclPermissionType">AclPermissionType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_PERMISSION_TYPE_DENY">RD_KAFKA_ACL_PERMISSION_TYPE_DENY</a>)
+    <span class="comment">// Grants access</span>
+    <span id="AclPermissionTypeAllow">AclPermissionTypeAllow</span> = <a href="#AclPermissionType">AclPermissionType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW">RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW</a>)
+)</pre>
+    <pre>const (
     <span class="comment">// TimestampNotAvailable indicates no timestamp was set, or not available due to lacking broker support</span>
     <span id="TimestampNotAvailable">TimestampNotAvailable</span> = <a href="#TimestampType">TimestampType</a>(<a href="//golang.org/pkg/C/">C</a>.<a href="//golang.org/pkg/C/#RD_KAFKA_TIMESTAMP_NOT_AVAILABLE">RD_KAFKA_TIMESTAMP_NOT_AVAILABLE</a>)
     <span class="comment">// TimestampCreateTime indicates timestamp set by producer (source time)</span>
@@ -1363,7 +1513,7 @@ possible complications with blocking Poll() calls.
     <p>
      LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
     </p>
-    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin from librdkafka-static-bundle-v1.9.0-RC5.tgz"</pre>
+    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static glibc_linux from librdkafka-static-bundle-v1.9.0-RC5.tgz"</pre>
     <p>
      OffsetBeginning represents the earliest offset (logical)
     </p>
@@ -1414,9 +1564,127 @@ or unspecified value (for all other cases)
 librdkafka error codes.
 This function is not intended for public use.
     </p>
+    <h2 id="AclBinding">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=16504:16762#L457">
+      AclBinding
+     </a>
+     <a class="permalink" href="#AclBinding">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Represents an ACL binding that specify the operation and permission type for a specific principal
+over one or more resources of the same type. Used by `AdminClient.CreateAcls`,
+returned by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
+    </p>
+    <pre>type AclBinding struct {
+<span id="AclBinding.Type"></span>    Type                <a href="#ResourceType">ResourceType</a>
+<span id="AclBinding.Name"></span>    Name                <a href="//golang.org/pkg/builtin/#string">string</a>
+<span id="AclBinding.ResourcePatternType"></span>    ResourcePatternType <a href="#ResourcePatternType">ResourcePatternType</a>
+<span id="AclBinding.Principal"></span>    Principal           <a href="//golang.org/pkg/builtin/#string">string</a>
+<span id="AclBinding.Host"></span>    Host                <a href="//golang.org/pkg/builtin/#string">string</a>
+<span id="AclBinding.Operation"></span>    Operation           <a href="#AclOperation">AclOperation</a>
+<span id="AclBinding.PermissionType"></span>    PermissionType      <a href="#AclPermissionType">AclPermissionType</a>
+}
+</pre>
+    <h2 id="AclBindingFilter">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=16946:16978#L469">
+      AclBindingFilter
+     </a>
+     <a class="permalink" href="#AclBindingFilter">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Represents an ACL binding filter used to return a list of ACL bindings matching some or all of its attributes.
+Used by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
+    </p>
+    <pre>type AclBindingFilter <a href="#AclBinding">AclBinding</a></pre>
+    <h2 id="AclOperation">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=12570:12591#L351">
+      AclOperation
+     </a>
+     <a class="permalink" href="#AclOperation">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Enumerates the different types of ACL operation.
+    </p>
+    <pre>type AclOperation <a href="//golang.org/pkg/builtin/#int">int</a></pre>
+    <h3 id="AclOperationFromString">
+     func
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=14139:14215#L389">
+      AclOperationFromString
+     </a>
+     <a class="permalink" href="#AclOperationFromString">
+      ¶
+     </a>
+    </h3>
+    <pre>func AclOperationFromString(aclOperationString <a href="//golang.org/pkg/builtin/#string">string</a>) (<a href="#AclOperation">AclOperation</a>, <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     AclOperationFromString translates a ACL operation name to
+a AclOperation value.
+    </p>
+    <h3 id="AclOperation.String">
+     func (AclOperation)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=13931:13968#L383">
+      String
+     </a>
+     <a class="permalink" href="#AclOperation.String">
+      ¶
+     </a>
+    </h3>
+    <pre>func (o <a href="#AclOperation">AclOperation</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
+    <p>
+     String returns the human-readable representation of an AclOperation
+    </p>
+    <h2 id="AclPermissionType">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=15063:15089#L421">
+      AclPermissionType
+     </a>
+     <a class="permalink" href="#AclPermissionType">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Enumerates the different types of ACL permission types.
+    </p>
+    <pre>type AclPermissionType <a href="//golang.org/pkg/builtin/#int">int</a></pre>
+    <h3 id="AclPermissionTypeFromString">
+     func
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=15841:15932#L441">
+      AclPermissionTypeFromString
+     </a>
+     <a class="permalink" href="#AclPermissionTypeFromString">
+      ¶
+     </a>
+    </h3>
+    <pre>func AclPermissionTypeFromString(aclPermissionTypeString <a href="//golang.org/pkg/builtin/#string">string</a>) (<a href="#AclPermissionType">AclPermissionType</a>, <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     AclPermissionTypeFromString translates a ACL permission type name to
+a AclPermissionType value.
+    </p>
+    <h3 id="AclPermissionType.String">
+     func (AclPermissionType)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=15602:15644#L435">
+      String
+     </a>
+     <a class="permalink" href="#AclPermissionType.String">
+      ¶
+     </a>
+    </h3>
+    <pre>func (o <a href="#AclPermissionType">AclPermissionType</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
+    <p>
+     String returns the human-readable representation of an AclPermissionType
+    </p>
     <h2 id="AdminClient">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1375:1476#L45">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1571:1672#L52">
       AdminClient
      </a>
      <a class="permalink" href="#AdminClient">
@@ -1432,7 +1700,7 @@ This function is not intended for public use.
 </pre>
     <h3 id="NewAdminClient">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32498:32556#L957">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=44857:44915#L1282">
       NewAdminClient
      </a>
      <a class="permalink" href="#NewAdminClient">
@@ -1445,7 +1713,7 @@ This function is not intended for public use.
     </p>
     <h3 id="NewAdminClientFromConsumer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=34021:34093#L1006">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=46380:46452#L1331">
       NewAdminClientFromConsumer
      </a>
      <a class="permalink" href="#NewAdminClientFromConsumer">
@@ -1459,7 +1727,7 @@ The AdminClient will use the same configuration and connections as the parent in
     </p>
     <h3 id="NewAdminClientFromProducer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=33557:33629#L993">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=45916:45988#L1318">
       NewAdminClientFromProducer
      </a>
      <a class="permalink" href="#NewAdminClientFromProducer">
@@ -1473,7 +1741,7 @@ The AdminClient will use the same configuration and connections as the parent in
     </p>
     <h3 id="AdminClient.AlterConfigs">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=25073:25235#L743">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=31798:31960#L926">
       AlterConfigs
      </a>
      <a class="permalink" href="#AdminClient.AlterConfigs">
@@ -1506,7 +1774,7 @@ resource requests must be sent to the broker specified in the resource.
     </p>
     <h3 id="AdminClient.Close">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32222:32251#L944">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=44581:44610#L1269">
       Close
      </a>
      <a class="permalink" href="#AdminClient.Close">
@@ -1519,7 +1787,7 @@ resource requests must be sent to the broker specified in the resource.
     </p>
     <h3 id="AdminClient.ClusterID">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=14520:14602#L420">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=21245:21327#L603">
       ClusterID
      </a>
      <a class="permalink" href="#AdminClient.ClusterID">
@@ -1540,7 +1808,7 @@ cancelling the context will block until the C function call returns.
     </p>
     <h3 id="AdminClient.ControllerID">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=15512:15599#L452">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=22237:22324#L635">
       ControllerID
      </a>
      <a class="permalink" href="#AdminClient.ControllerID">
@@ -1560,9 +1828,33 @@ cancelling the context will block until the C function call returns.
     <p>
      Requires broker version &gt;= 0.10.0.
     </p>
+    <h3 id="AdminClient.CreateAcls">
+     func (*AdminClient)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=40687:40838#L1170">
+      CreateAcls
+     </a>
+     <a class="permalink" href="#AdminClient.CreateAcls">
+      ¶
+     </a>
+    </h3>
+    <pre>func (a *<a href="#AdminClient">AdminClient</a>) CreateAcls(ctx <a href="//golang.org/pkg/context/">context</a>.<a href="//golang.org/pkg/context/#Context">Context</a>, aclBindings []<a href="#AclBinding">AclBinding</a>, options ...<a href="#CreateAclsAdminOption">CreateAclsAdminOption</a>) (result []<a href="#CreateAclResult">CreateAclResult</a>, err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     CreateAcls creates one or more ACL bindings.
+    </p>
+    <p>
+     Parameters:
+    </p>
+    <pre>* `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+* `aclBindings` - A slice of ACL binding specifications to create.
+* `options` - Create ACLs options
+</pre>
+    <p>
+     Returns a slice of CreateAclResult with a ErrNoError ErrorCode when the operation was successful
+plus an error that is not nil for client level errors
+    </p>
     <h3 id="AdminClient.CreatePartitions">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=21853:22024#L653">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=28578:28749#L836">
       CreatePartitions
      </a>
      <a class="permalink" href="#AdminClient.CreatePartitions">
@@ -1575,7 +1867,7 @@ cancelling the context will block until the C function call returns.
     </p>
     <h3 id="AdminClient.CreateTopics">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=16342:16496#L481">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=23067:23221#L664">
       CreateTopics
      </a>
      <a class="permalink" href="#AdminClient.CreateTopics">
@@ -1596,9 +1888,39 @@ make sure to check the result for topic-specific errors.
     <p>
      Note: TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
     </p>
+    <h3 id="AdminClient.DeleteAcls">
+     func (*AdminClient)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=44343:44507#L1264">
+      DeleteAcls
+     </a>
+     <a class="permalink" href="#AdminClient.DeleteAcls">
+      ¶
+     </a>
+    </h3>
+    <pre>func (a *<a href="#AdminClient">AdminClient</a>) DeleteAcls(ctx <a href="//golang.org/pkg/context/">context</a>.<a href="//golang.org/pkg/context/#Context">Context</a>, aclBindingFilters []<a href="#AclBindingFilter">AclBindingFilter</a>, options ...<a href="#DeleteAclsAdminOption">DeleteAclsAdminOption</a>) (result []<a href="#DeleteAclsResult">DeleteAclsResult</a>, err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     Delete ACL bindings matching one or more ACL binding filters.
+TODO: review
+    </p>
+    <p>
+     Parameters:
+    </p>
+    <pre>* `ctx` - The maximum amount of time to block, or nil for indefinite.
+* `aclBindingFilters` - a list of ACL binding filters to match ACLs to delete.
+   string attributes match exact values or any string if set to nil.
+   Enum attributes match exact values or any value if ending with `_ANY`.
+   If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
+   the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
+   or `ResourcePatternTypePrefixed` pattern type that match the resource name.
+* `options` - Delete ACLs options
+</pre>
+    <p>
+     Returns a list of AclBinding for each filter when the operation was successful
+plus an error that is not `nil` for client level errors
+    </p>
     <h3 id="AdminClient.DeleteTopics">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=20080:20222#L595">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=26805:26947#L778">
       DeleteTopics
      </a>
      <a class="permalink" href="#AdminClient.DeleteTopics">
@@ -1619,9 +1941,39 @@ topic metadata and configuration may continue to return information about delete
     <p>
      Requires broker version &gt;= 0.10.1.0
     </p>
+    <h3 id="AdminClient.DescribeAcls">
+     func (*AdminClient)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=43296:43461#L1245">
+      DescribeAcls
+     </a>
+     <a class="permalink" href="#AdminClient.DescribeAcls">
+      ¶
+     </a>
+    </h3>
+    <pre>func (a *<a href="#AdminClient">AdminClient</a>) DescribeAcls(ctx <a href="//golang.org/pkg/context/">context</a>.<a href="//golang.org/pkg/context/#Context">Context</a>, aclBindingFilter <a href="#AclBindingFilter">AclBindingFilter</a>, options ...<a href="#DescribeAclsAdminOption">DescribeAclsAdminOption</a>) (result <a href="#DescribeAclsResult">DescribeAclsResult</a>, err <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     Match ACL bindings by filter.
+TODO: review
+    </p>
+    <p>
+     Parameters:
+    </p>
+    <pre>* `ctx` - The maximum amount of time to block, or nil for indefinite.
+* `aclBindingFilter` - A filter with attributes that must match.
+   string attributes match exact values or any string if set to nil.
+   Enum attributes match exact values or any value if ending with `_ANY`.
+   If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
+   the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
+   or `ResourcePatternTypePrefixed` pattern type that match the resource name.
+* `options` - Describe ACLs options
+</pre>
+    <p>
+     Returns a list of AclBinding when the operation was successful
+plus an error that is not `nil` for client level errors
+    </p>
     <h3 id="AdminClient.DescribeConfigs">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=28275:28443#L841">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=35000:35168#L1024">
       DescribeConfigs
      </a>
      <a class="permalink" href="#AdminClient.DescribeConfigs">
@@ -1661,7 +2013,7 @@ in the resource.
     </p>
     <h3 id="AdminClient.GetMetadata">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30456:30554#L904">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=37181:37279#L1087">
       GetMetadata
      </a>
      <a class="permalink" href="#AdminClient.GetMetadata">
@@ -1678,7 +2030,7 @@ GetMetadata is equivalent to listTopics, describeTopics and describeCluster in t
     </p>
     <h3 id="AdminClient.SetOAuthBearerToken">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=31480:31562#L928">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=38205:38287#L1111">
       SetOAuthBearerToken
      </a>
      <a class="permalink" href="#AdminClient.SetOAuthBearerToken">
@@ -1703,7 +2055,7 @@ authentication mechanism.
     </p>
     <h3 id="AdminClient.SetOAuthBearerTokenFailure">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=32061:32130#L939">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=38786:38855#L1122">
       SetOAuthBearerTokenFailure
      </a>
      <a class="permalink" href="#AdminClient.SetOAuthBearerTokenFailure">
@@ -1722,7 +2074,7 @@ authentication mechanism.
     </p>
     <h3 id="AdminClient.String">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=30680:30717#L909">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=37405:37442#L1092">
       String
      </a>
      <a class="permalink" href="#AdminClient.String">
@@ -1735,7 +2087,7 @@ authentication mechanism.
     </p>
     <h2 id="AdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6791:6871#L236">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=7543:7623#L269">
       AdminOption
      </a>
      <a class="permalink" href="#AdminOption">
@@ -1876,7 +2228,7 @@ without performing the requested operation (create topics, etc).
 </pre>
     <h3 id="SetAdminValidateOnly">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5406:5479#L187">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5594:5667#L196">
       SetAdminValidateOnly
      </a>
      <a class="permalink" href="#SetAdminValidateOnly">
@@ -1896,7 +2248,7 @@ without performing the requested operation (create topics, etc).
     </p>
     <h2 id="AlterConfigsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6371:6487#L220">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6559:6675#L229">
       AlterConfigsAdminOption
      </a>
      <a class="permalink" href="#AlterConfigsAdminOption">
@@ -1914,7 +2266,7 @@ without performing the requested operation (create topics, etc).
 }</pre>
     <h2 id="AlterOperation">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6820:6843#L188">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7016:7039#L195">
       AlterOperation
      </a>
      <a class="permalink" href="#AlterOperation">
@@ -1928,7 +2280,7 @@ Currently only AlterOperationSet.
     <pre>type AlterOperation <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="AlterOperation.String">
      func (AlterOperation)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7020:7059#L196">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7216:7255#L203">
       String
      </a>
      <a class="permalink" href="#AlterOperation.String">
@@ -1985,7 +2337,7 @@ Currently only AlterOperationSet.
 </pre>
     <h2 id="ConfigEntry">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7246:7473#L206">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7442:7669#L213">
       ConfigEntry
      </a>
      <a class="permalink" href="#ConfigEntry">
@@ -2006,7 +2358,7 @@ Currently only AlterOperationSet.
 </pre>
     <h3 id="StringMapToConfigEntries">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7626:7724#L217">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7822:7920#L224">
       StringMapToConfigEntries
      </a>
      <a class="permalink" href="#StringMapToConfigEntries">
@@ -2020,7 +2372,7 @@ provided string map. The AlterOperation is set on each created entry.
     </p>
     <h3 id="ConfigEntry.String">
      func (ConfigEntry)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=7955:7991#L228">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8151:8187#L235">
       String
      </a>
      <a class="permalink" href="#ConfigEntry.String">
@@ -2033,7 +2385,7 @@ provided string map. The AlterOperation is set on each created entry.
     </p>
     <h2 id="ConfigEntryResult">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8171:8904#L234">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8367:9100#L241">
       ConfigEntryResult
      </a>
      <a class="permalink" href="#ConfigEntryResult">
@@ -2063,7 +2415,7 @@ DescribeConfigs request.
 </pre>
     <h3 id="ConfigEntryResult.String">
      func (ConfigEntryResult)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=8980:9022#L252">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=9176:9218#L259">
       String
      </a>
      <a class="permalink" href="#ConfigEntryResult.String">
@@ -2149,7 +2501,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
     </p>
     <h2 id="ConfigResource">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6142:6537#L169">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6338:6733#L176">
       ConfigResource
      </a>
      <a class="permalink" href="#ConfigResource">
@@ -2173,7 +2525,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
 </pre>
     <h3 id="ConfigResource.String">
      func (ConfigResource)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6609:6648#L182">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6805:6844#L189">
       String
      </a>
      <a class="permalink" href="#ConfigResource.String">
@@ -2186,7 +2538,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
     </p>
     <h2 id="ConfigResourceResult">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10150:10449#L285">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10346:10645#L292">
       ConfigResourceResult
      </a>
      <a class="permalink" href="#ConfigResourceResult">
@@ -2210,7 +2562,7 @@ DescribeConfigs request.
 </pre>
     <h3 id="ConfigResourceResult.String">
      func (ConfigResourceResult)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10528:10573#L297">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=10724:10769#L304">
       String
      </a>
      <a class="permalink" href="#ConfigResourceResult.String">
@@ -2223,7 +2575,7 @@ DescribeConfigs request.
     </p>
     <h2 id="ConfigSource">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4717:4738#L146">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4913:4934#L153">
       ConfigSource
      </a>
      <a class="permalink" href="#ConfigSource">
@@ -2236,7 +2588,7 @@ DescribeConfigs request.
     <pre>type ConfigSource <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="ConfigSource.String">
      func (ConfigSource)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=5933:5970#L164">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=6129:6166#L171">
       String
      </a>
      <a class="permalink" href="#ConfigSource.String">
@@ -2943,9 +3295,44 @@ This replaces the current subscription.
 mainly for testing use.
 Use GetConsumerGroupMetadata() to retrieve the real metadata.
     </p>
+    <h2 id="CreateAclResult">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=17038:17153#L472">
+      CreateAclResult
+     </a>
+     <a class="permalink" href="#CreateAclResult">
+      ¶
+     </a>
+    </h2>
+    <p>
+     CreateAclResult provides create ACL error information.
+    </p>
+    <pre>type CreateAclResult struct {
+<span id="CreateAclResult.Error"></span>    <span class="comment">// Error, if any, of result. Check with `Error.Code() != ErrNoError`.</span>
+    Error <a href="#Error">Error</a>
+}
+</pre>
+    <h2 id="CreateAclsAdminOption">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6952:7064#L245">
+      CreateAclsAdminOption
+     </a>
+     <a class="permalink" href="#CreateAclsAdminOption">
+      ¶
+     </a>
+    </h2>
+    <p>
+     CreateAclsAdminOption - see setter.
+    </p>
+    <p>
+     See SetAdminRequestTimeout
+    </p>
+    <pre>type CreateAclsAdminOption interface {
+    <span class="comment">// contains filtered or unexported methods</span>
+}</pre>
     <h2 id="CreatePartitionsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6126:6250#L212">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6314:6438#L221">
       CreatePartitionsAdminOption
      </a>
      <a class="permalink" href="#CreatePartitionsAdminOption">
@@ -2963,7 +3350,7 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
 }</pre>
     <h2 id="CreateTopicsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5660:5776#L196">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5848:5964#L205">
       CreateTopicsAdminOption
      </a>
      <a class="permalink" href="#CreateTopicsAdminOption">
@@ -2979,9 +3366,40 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
     <pre>type CreateTopicsAdminOption interface {
     <span class="comment">// contains filtered or unexported methods</span>
 }</pre>
+    <h2 id="DeleteAclsAdminOption">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=7330:7442#L261">
+      DeleteAclsAdminOption
+     </a>
+     <a class="permalink" href="#DeleteAclsAdminOption">
+      ¶
+     </a>
+    </h2>
+    <p>
+     DeleteAclsAdminOption - see setter.
+    </p>
+    <p>
+     See SetAdminRequestTimeout
+    </p>
+    <pre>type DeleteAclsAdminOption interface {
+    <span class="comment">// contains filtered or unexported methods</span>
+}</pre>
+    <h2 id="DeleteAclsResult">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=17463:17503#L486">
+      DeleteAclsResult
+     </a>
+     <a class="permalink" href="#DeleteAclsResult">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Provides delete ACLs result or error information.
+    </p>
+    <pre>type DeleteAclsResult <a href="#DescribeAclsResult">DescribeAclsResult</a></pre>
     <h2 id="DeleteTopicsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=5880:5996#L204">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6068:6184#L213">
       DeleteTopicsAdminOption
      </a>
      <a class="permalink" href="#DeleteTopicsAdminOption">
@@ -2997,9 +3415,46 @@ Use GetConsumerGroupMetadata() to retrieve the real metadata.
     <pre>type DeleteTopicsAdminOption interface {
     <span class="comment">// contains filtered or unexported methods</span>
 }</pre>
+    <h2 id="DescribeAclsAdminOption">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=7140:7256#L253">
+      DescribeAclsAdminOption
+     </a>
+     <a class="permalink" href="#DescribeAclsAdminOption">
+      ¶
+     </a>
+    </h2>
+    <p>
+     DescribeAclsAdminOption - see setter.
+    </p>
+    <p>
+     See SetAdminRequestTimeout
+    </p>
+    <pre>type DescribeAclsAdminOption interface {
+    <span class="comment">// contains filtered or unexported methods</span>
+}</pre>
+    <h2 id="DescribeAclsResult">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=17210:17408#L478">
+      DescribeAclsResult
+     </a>
+     <a class="permalink" href="#DescribeAclsResult">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Provides describe ACLs result or error information.
+    </p>
+    <pre>type DescribeAclsResult struct {
+    <span class="comment">// List of ACL bindings matching the provided filter</span>
+<span id="DescribeAclsResult.AclBindings"></span>    AclBindings []<a href="#AclBinding">AclBinding</a>
+<span id="DescribeAclsResult.Error"></span>    <span class="comment">// Error, if any, of result. Check with `Error.Code() != ErrNoError`.</span>
+    Error <a href="#Error">Error</a>
+}
+</pre>
     <h2 id="DescribeConfigsAdminOption">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6568:6690#L228">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminoptions.go?s=6756:6878#L237">
       DescribeConfigsAdminOption
      </a>
      <a class="permalink" href="#DescribeConfigsAdminOption">
@@ -3134,7 +3589,7 @@ This flag is only set by the Transactional producer API.
     </p>
     <h2 id="ErrorCode">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=283:301#L1">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=287:305#L1">
       ErrorCode
      </a>
      <a class="permalink" href="#ErrorCode">
@@ -3467,7 +3922,7 @@ This flag is only set by the Transactional producer API.
 )</pre>
     <h3 id="ErrorCode.String">
      func (ErrorCode)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=370:404#L4">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/generated_errors.go?s=374:408#L4">
       String
      </a>
      <a class="permalink" href="#ErrorCode.String">
@@ -3930,7 +4385,7 @@ configuration property to true.
 </pre>
     <h2 id="PartitionsSpecification">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2934:3448#L94">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=3130:3644#L101">
       PartitionsSpecification
      </a>
      <a class="permalink" href="#PartitionsSpecification">
@@ -4551,9 +5006,49 @@ This is to be used strictly for testing purposes.
 The passed Event will be either AssignedPartitions or RevokedPartitions
     </p>
     <pre>type RebalanceCb func(*<a href="#Consumer">Consumer</a>, <a href="#Event">Event</a>) <a href="//golang.org/pkg/builtin/#error">error</a></pre>
+    <h2 id="ResourcePatternType">
+     type
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=11038:11066#L313">
+      ResourcePatternType
+     </a>
+     <a class="permalink" href="#ResourcePatternType">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Enumerates the different types of Kafka resource patterns.
+    </p>
+    <pre>type ResourcePatternType <a href="//golang.org/pkg/builtin/#int">int</a></pre>
+    <h3 id="ResourcePatternTypeFromString">
+     func
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=12042:12131#L335">
+      ResourcePatternTypeFromString
+     </a>
+     <a class="permalink" href="#ResourcePatternTypeFromString">
+      ¶
+     </a>
+    </h3>
+    <pre>func ResourcePatternTypeFromString(patternTypeString <a href="//golang.org/pkg/builtin/#string">string</a>) (<a href="#ResourcePatternType">ResourcePatternType</a>, <a href="//golang.org/pkg/builtin/#error">error</a>)</pre>
+    <p>
+     ResourcePatternTypeFromString translates a resource pattern type name to
+a ResourcePatternType value.
+    </p>
+    <h3 id="ResourcePatternType.String">
+     func (ResourcePatternType)
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=11791:11835#L329">
+      String
+     </a>
+     <a class="permalink" href="#ResourcePatternType.String">
+      ¶
+     </a>
+    </h3>
+    <pre>func (t <a href="#ResourcePatternType">ResourcePatternType</a>) String() <a href="//golang.org/pkg/builtin/#string">string</a></pre>
+    <p>
+     String returns the human-readable representation of a ResourcePatternType
+    </p>
     <h2 id="ResourceType">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=3507:3528#L108">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=3703:3724#L115">
       ResourceType
      </a>
      <a class="permalink" href="#ResourceType">
@@ -4566,7 +5061,7 @@ The passed Event will be either AssignedPartitions or RevokedPartitions
     <pre>type ResourceType <a href="//golang.org/pkg/builtin/#int">int</a></pre>
     <h3 id="ResourceTypeFromString">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4283:4351#L130">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4479:4547#L137">
       ResourceTypeFromString
      </a>
      <a class="permalink" href="#ResourceTypeFromString">
@@ -4580,7 +5075,7 @@ a ResourceType value.
     </p>
     <h3 id="ResourceType.String">
      func (ResourceType)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4068:4105#L124">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=4264:4301#L131">
       String
      </a>
      <a class="permalink" href="#ResourceType.String">
@@ -4760,7 +5255,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Swap(i, j <a href="//golang.org/pkg/builtin/#int">int</a>)</pre>
     <h2 id="TopicResult">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1673:1813#L58">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1869:2009#L65">
       TopicResult
      </a>
      <a class="permalink" href="#TopicResult">
@@ -4779,7 +5274,7 @@ the sort interface
 </pre>
     <h3 id="TopicResult.String">
      func (TopicResult)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=1883:1919#L66">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2079:2115#L73">
       String
      </a>
      <a class="permalink" href="#TopicResult.String">
@@ -4792,7 +5287,7 @@ the sort interface
     </p>
     <h2 id="TopicSpecification">
      type
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2163:2754#L75">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=2359:2950#L82">
       TopicSpecification
      </a>
      <a class="permalink" href="#TopicSpecification">
@@ -4821,7 +5316,7 @@ TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 }
 </pre>
     <div id="footer">
-     Build version go1.16.4.
+     Build version go1.18.2.
      <br/>
      Except as
      <a href="https://developers.google.com/site-policies#restrictions">

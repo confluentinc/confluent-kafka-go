@@ -1172,10 +1172,10 @@ func (a *AdminClient) cToCreateAclResults(cCreateAclsRes **C.rd_kafka_acl_result
 //
 // Parameters:
 //  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `aclBindings` - A list of ACL binding specifications to create.
+//  * `aclBindings` - A slice of ACL binding specifications to create.
 //  * `options` - Create ACLs options
 //
-// Returns a list of AclResult with a ErrNoError when the operation was successful
+// Returns a slice of CreateAclResult with a ErrNoError ErrorCode when the operation was successful
 // plus an error that is not nil for client level errors
 func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, options ...CreateAclsAdminOption) (result []CreateAclResult, err error) {
 	if aclBindings == nil {
