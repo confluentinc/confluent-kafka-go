@@ -1654,3 +1654,105 @@ func TestAdminClient_ControllerID(t *testing.T) {
 
 	t.Logf("ControllerID: %d\n", controllerID)
 }
+
+func TestAdminAcls(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	rand.Seed(time.Now().Unix())
+	topic := testconf.Topic
+	group := testconf.GroupID
+
+	a := createAdminClient(t)
+	defer a.Close()
+
+	maxDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	requestTimeout, err := time.ParseDuration("20s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Create ACLs
+	t.Logf("Creating ACLs\n")
+	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	newAcls := []AclBinding{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:test-user-1",
+			Host:                "*",
+			Operation:           AclOperationRead,
+			PermissionType:      AclPermissionTypeAllow,
+		},
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Principal:           "User:test-user-2",
+			Host:                "*",
+			Operation:           AclOperationWrite,
+			PermissionType:      AclPermissionTypeDeny,
+		},
+		{
+			Type:                ResourceGroup,
+			Name:                group,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Principal:           "User:test-user-2",
+			Host:                "*",
+			Operation:           AclOperationAll,
+			PermissionType:      AclPermissionTypeAllow,
+		},
+	}
+	// aclBindingFilters := []AclBindingFilter{
+	// 	{
+	// 		Type:                ResourceAny,
+	// 		ResourcePatternType: ResourcePatternTypeAny,
+	// 		Operation:           AclOperationAny,
+	// 		PermissionType:      AclPermissionTypeAny,
+	// 	},
+	// 	{
+	// 		Type:                ResourceAny,
+	// 		ResourcePatternType: ResourcePatternTypePrefixed,
+	// 		Operation:           AclOperationAny,
+	// 		PermissionType:      AclPermissionTypeAny,
+	// 	},
+	// 	{
+	// 		Type:                ResourceTopic,
+	// 		ResourcePatternType: ResourcePatternTypeAny,
+	// 		Operation:           AclOperationAny,
+	// 		PermissionType:      AclPermissionTypeAny,
+	// 	},
+	// 	{
+	// 		Type:                ResourceGroup,
+	// 		ResourcePatternType: ResourcePatternTypeAny,
+	// 		Operation:           AclOperationAny,
+	// 		PermissionType:      AclPermissionTypeAny,
+	// 	},
+	// }
+
+	// CreateAcls should be idempotent
+	for n := 0; n < 2; n++ {
+		result, err := a.CreateAcls(ctx, newAcls, SetAdminRequestTimeout(requestTimeout))
+		if err != nil {
+			t.Fatalf("CreateAcls() failed: %s", err)
+		}
+
+		for i, res := range result {
+			if res.Error.Code() != ErrNoError {
+				t.Errorf("Result %d: expected ErrNoError, got \"%s\"",
+					i, res.Error.String())
+			}
+			if res.Error.String() != "Success" {
+				t.Errorf("Result %d: expected Success, got \"%s\"",
+					i, res.Error.String())
+			}
+		}
+	}
+}
