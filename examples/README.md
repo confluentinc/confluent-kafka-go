@@ -1,6 +1,7 @@
 
 Examples:
 
+  admin_create_acls - Create Access Control Lists
   consumer_channel_example - Channel based consumer
   consumer_example - Function & callback based consumer
   consumer_offset_metadata - Commit offset with metadata

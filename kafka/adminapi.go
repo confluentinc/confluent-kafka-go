@@ -335,6 +335,28 @@ const (
 	ResourcePatternTypePrefixed = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_PREFIXED)
 )
 
+// String returns the human-readable representation of a ResourcePatternType
+func (t ResourcePatternType) String() string {
+	return C.GoString(C.rd_kafka_ResourcePatternType_name(C.rd_kafka_ResourcePatternType_t(t)))
+}
+
+// ResourcePatternTypeFromString translates a resource pattern type name to
+// a ResourcePatternType value.
+func ResourcePatternTypeFromString(patternTypeString string) (ResourcePatternType, error) {
+	switch strings.ToUpper(patternTypeString) {
+	case "ANY":
+		return ResourcePatternTypeAny, nil
+	case "MATCH":
+		return ResourcePatternTypeMatch, nil
+	case "LITERAL":
+		return ResourcePatternTypeLiteral, nil
+	case "PREFIXED":
+		return ResourcePatternTypePrefixed, nil
+	default:
+		return ResourcePatternTypeUnknown, NewError(ErrInvalidArg, "Unknown resource pattern type", false)
+	}
+}
+
 // Enumerates the different types of ACL operation.
 type AclOperation int
 
@@ -367,6 +389,44 @@ const (
 	AclOperationIdempotentWrite = AclOperation(C.RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE)
 )
 
+// String returns the human-readable representation of an AclOperation
+func (o AclOperation) String() string {
+	return C.GoString(C.rd_kafka_AclOperation_name(C.rd_kafka_AclOperation_t(o)))
+}
+
+// AclOperationFromString translates a ACL operation name to
+// a AclOperation value.
+func AclOperationFromString(aclOperationString string) (AclOperation, error) {
+	switch strings.ToUpper(aclOperationString) {
+	case "ANY":
+		return AclOperationAny, nil
+	case "ALL":
+		return AclOperationAll, nil
+	case "READ":
+		return AclOperationRead, nil
+	case "WRITE":
+		return AclOperationWrite, nil
+	case "CREATE":
+		return AclOperationCreate, nil
+	case "DELETE":
+		return AclOperationDelete, nil
+	case "ALTER":
+		return AclOperationAlter, nil
+	case "DESCRIBE":
+		return AclOperationDescribe, nil
+	case "CLUSTER_ACTION":
+		return AclOperationClusterAction, nil
+	case "DESCRIBE_CONFIGS":
+		return AclOperationDescribeConfigs, nil
+	case "ALTER_CONFIGS":
+		return AclOperationAlterConfigs, nil
+	case "IDEMPOTENT_WRITE":
+		return AclOperationIdempotentWrite, nil
+	default:
+		return AclOperationUnknown, NewError(ErrInvalidArg, "Unknown ACL operation", false)
+	}
+}
+
 // Enumerates the different types of ACL permission types.
 type AclPermissionType int
 
@@ -380,6 +440,26 @@ const (
 	// Grants access
 	AclPermissionTypeAllow = AclPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW)
 )
+
+// String returns the human-readable representation of an AclPermissionType
+func (o AclPermissionType) String() string {
+	return C.GoString(C.rd_kafka_AclPermissionType_name(C.rd_kafka_AclPermissionType_t(o)))
+}
+
+// AclPermissionTypeFromString translates a ACL permission type name to
+// a AclPermissionType value.
+func AclPermissionTypeFromString(aclPermissionTypeString string) (AclPermissionType, error) {
+	switch strings.ToUpper(aclPermissionTypeString) {
+	case "ANY":
+		return AclPermissionTypeAny, nil
+	case "DENY":
+		return AclPermissionTypeDeny, nil
+	case "ALLOW":
+		return AclPermissionTypeAllow, nil
+	default:
+		return AclPermissionTypeUnknown, NewError(ErrInvalidArg, "Unknown ACL permission type", false)
+	}
+}
 
 // Represents an ACL binding that specify the operation and permission type for a specific principal
 // over one or more resources of the same type. Used by `AdminClient.CreateAcls`,
@@ -1088,15 +1168,14 @@ func (a *AdminClient) cToCreateAclResults(cCreateAclsRes **C.rd_kafka_acl_result
 	return result, nil
 }
 
-// Create one or more ACL bindings.
-// TODO: review
+// CreateAcls creates one or more ACL bindings.
 //
 // Parameters:
-//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //  * `aclBindings` - A list of ACL binding specifications to create.
 //  * `options` - Create ACLs options
 //
-// Returns a list of AclResult with a nil Error when the operation was successful
+// Returns a list of AclResult with a ErrNoError when the operation was successful
 // plus an error that is not nil for client level errors
 func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, options ...CreateAclsAdminOption) (result []CreateAclResult, err error) {
 	if aclBindings == nil {
