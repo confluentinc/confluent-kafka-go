@@ -1,4 +1,4 @@
-// Create ACLs
+// Describe ACLs
 package main
 
 /**
@@ -26,12 +26,12 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-// Parses a list of 7n arguments to a slice of n AclBinding
-func parseAclBindings(args []string) (aclBindings kafka.AclBindings, err error) {
-	nAclBindings := len(args) / 7
-	parsedAclBindings := make(kafka.AclBindings, nAclBindings)
+// Parses a list of 7n arguments to a slice of n AclBindingFilter
+func parseAclBindingFilters(args []string) (aclBindingFilters kafka.AclBindingFilters, err error) {
+	nAclBindingFilters := len(args) / 7
+	parsedAclBindingFilters := make(kafka.AclBindingFilters, nAclBindingFilters)
 
-	for i := 0; i < nAclBindings; i += 1 {
+	for i := 0; i < nAclBindingFilters; i += 1 {
 		start := i * 7
 		resourceTypeString := args[start]
 		name := args[start+1]
@@ -69,7 +69,7 @@ func parseAclBindings(args []string) (aclBindings kafka.AclBindings, err error) 
 			return
 		}
 
-		parsedAclBindings[i] = kafka.AclBinding{
+		parsedAclBindingFilters[i] = kafka.AclBindingFilter{
 			Type:                resourceType,
 			Name:                name,
 			ResourcePatternType: resourcePatternType,
@@ -79,25 +79,25 @@ func parseAclBindings(args []string) (aclBindings kafka.AclBindings, err error) 
 			PermissionType:      permissionType,
 		}
 	}
-	aclBindings = parsedAclBindings
+	aclBindingFilters = parsedAclBindingFilters
 	return
 }
 
 func main() {
 
-	// 2 + 7n arguments to create n ACL bindings
+	// 2 + 7 arguments to create an ACL binding filter
 	nArgs := len(os.Args)
-	aclBindingArgs := nArgs - 2
-	if aclBindingArgs <= 0 || aclBindingArgs%7 != 0 {
+	aclBindingFilterArgs := nArgs - 2
+	if aclBindingFilterArgs != 7 {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <broker> <resource-type1> <resource-name1> <resource-pattern-type1> "+
-				"<principal1> <host1> <operation1> <permission-type1> ...\n",
+			"Usage: %s <broker> <resource-type> <resource-name> <resource-pattern-type> "+
+				"<principal> <host> <operation> <permission-type> ...\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	broker := os.Args[1]
-	aclBindings, err := parseAclBindings(os.Args[2:])
+	aclBindingFilters, err := parseAclBindingFilters(os.Args[2:])
 	if err != nil {
 		os.Exit(1)
 	}
@@ -117,26 +117,24 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create ACLs on cluster.
+	// Describe ACLs on cluster.
 	// Set Admin options to wait for the request to finish (or at most 60s)
 	maxDur, err := time.ParseDuration("60s")
 	if err != nil {
 		panic("ParseDuration(60s)")
 	}
-	results, err := a.CreateAcls(
+	result, err := a.DescribeAcls(
 		ctx,
-		aclBindings,
+		aclBindingFilters[0],
 		kafka.SetAdminRequestTimeout(maxDur),
 	)
 	if err != nil {
-		fmt.Printf("Failed to create ACLs: %v\n", err)
+		fmt.Printf("Failed to describe ACLs: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Print results
-	for _, result := range results {
-		fmt.Printf("%+v\n", result)
-	}
+	// Print result
+	fmt.Printf("%+v\n", result)
 
 	a.Close()
 }

@@ -1,4 +1,4 @@
-// Create ACLs
+// Delete ACLs
 package main
 
 /**
@@ -27,9 +27,9 @@ import (
 )
 
 // Parses a list of 7n arguments to a slice of n AclBindingFilter
-func parseAclBindingFilters(args []string) (aclBindingFilters []kafka.AclBindingFilter, err error) {
+func parseAclBindingFilters(args []string) (aclBindingFilters kafka.AclBindingFilters, err error) {
 	nAclBindingFilters := len(args) / 7
-	parsedAclBindingFilters := make([]kafka.AclBindingFilter, nAclBindingFilters)
+	parsedAclBindingFilters := make(kafka.AclBindingFilters, nAclBindingFilters)
 
 	for i := 0; i < nAclBindingFilters; i += 1 {
 		start := i * 7
@@ -85,7 +85,7 @@ func parseAclBindingFilters(args []string) (aclBindingFilters []kafka.AclBinding
 
 func main() {
 
-	// 7n + 2 arguments to create n ACL binding filters
+	// 2 + 7n arguments to create n ACL binding filters
 	nArgs := len(os.Args)
 	aclBindingFilterArgs := nArgs - 2
 	if aclBindingFilterArgs <= 0 || aclBindingFilterArgs%7 != 0 {
@@ -129,7 +129,7 @@ func main() {
 		kafka.SetAdminRequestTimeout(maxDur),
 	)
 	if err != nil {
-		fmt.Printf("Failed to create ACLs: %v\n", err)
+		fmt.Printf("Failed to delete ACLs: %v\n", err)
 		os.Exit(1)
 	}
 

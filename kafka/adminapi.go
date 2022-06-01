@@ -490,7 +490,45 @@ type AclBinding struct {
 
 // Represents an ACL binding filter used to return a list of ACL bindings matching some or all of its attributes.
 // Used by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
-type AclBindingFilter AclBinding
+type AclBindingFilter = AclBinding
+
+// AclBindings is a slice of AclBinding that also implements
+// the sort interface
+type AclBindings []AclBinding
+type AclBindingFilters []AclBindingFilter
+
+func (a AclBindings) Len() int {
+	return len(a)
+}
+
+func (a AclBindings) Less(i, j int) bool {
+	if a[i].Type != a[j].Type {
+		return a[i].Type < a[j].Type
+	}
+	if a[i].Name != a[j].Name {
+		return a[i].Name < a[j].Name
+	}
+	if a[i].ResourcePatternType != a[j].ResourcePatternType {
+		return a[i].ResourcePatternType < a[j].ResourcePatternType
+	}
+	if a[i].Principal != a[j].Principal {
+		return a[i].Principal < a[j].Principal
+	}
+	if a[i].Host != a[j].Host {
+		return a[i].Host < a[j].Host
+	}
+	if a[i].Operation != a[j].Operation {
+		return a[i].Operation < a[j].Operation
+	}
+	if a[i].PermissionType != a[j].PermissionType {
+		return a[i].PermissionType < a[j].PermissionType
+	}
+	return true
+}
+
+func (a AclBindings) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
 
 // CreateAclResult provides create ACL error information.
 type CreateAclResult struct {
@@ -501,13 +539,13 @@ type CreateAclResult struct {
 // Provides describe ACLs result or error information.
 type DescribeAclsResult struct {
 	// Slice of ACL bindings matching the provided filter
-	AclBindings []AclBinding
+	AclBindings AclBindings
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
 }
 
 // Provides delete ACLs result or error information.
-type DeleteAclsResult DescribeAclsResult
+type DeleteAclsResult = DescribeAclsResult
 
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
@@ -1211,7 +1249,7 @@ func (a *AdminClient) aclBindingFilterToC(aclBindingFilter *AclBindingFilter, cE
 	return
 }
 
-// cToAclBinding converts a C rd_kafka_AclBinding_t to Go *AclBinding
+// cToAclBinding converts a C rd_kafka_AclBinding_t to Go AclBinding
 func (a *AdminClient) cToAclBinding(cAclBinding *C.rd_kafka_AclBinding_t) AclBinding {
 	return AclBinding{
 		ResourceType(C.rd_kafka_AclBinding_restype(cAclBinding)),
@@ -1222,6 +1260,19 @@ func (a *AdminClient) cToAclBinding(cAclBinding *C.rd_kafka_AclBinding_t) AclBin
 		AclOperation(C.rd_kafka_AclBinding_operation(cAclBinding)),
 		AclPermissionType(C.rd_kafka_AclBinding_permission_type(cAclBinding)),
 	}
+}
+
+// cToAclBindings converts a C rd_kafka_AclBinding_t list to Go AclBindings
+func (a *AdminClient) cToAclBindings(cAclBindings **C.rd_kafka_AclBinding_t, aclCnt C.size_t) (result AclBindings) {
+	result = make(AclBindings, aclCnt)
+	for i := uint(0); i < uint(aclCnt); i++ {
+		cAclBinding := C.AclBinding_by_idx(cAclBindings, aclCnt, C.size_t(i))
+		if cAclBinding == nil {
+			panic("AclBinding_by_idx must not return nil")
+		}
+		result[i] = a.cToAclBinding(cAclBinding)
+	}
+	return
 }
 
 // cToCreateAclResults converts a C acl_result_t array to Go CreateAclResult list.
@@ -1239,6 +1290,26 @@ func (a *AdminClient) cToCreateAclResults(cCreateAclsRes **C.rd_kafka_acl_result
 	return result, nil
 }
 
+// cToDescribeAclsResult converts a C rd_kafka_event_t to a Go DescribeAclsResult struct.
+func (a *AdminClient) cToDescribeAclsResult(rkev *C.rd_kafka_event_t) (result *DescribeAclsResult) {
+	result = &DescribeAclsResult{}
+	err := C.rd_kafka_event_error(rkev)
+	errCode := ErrorCode(err)
+	errStr := C.rd_kafka_event_error_string(rkev)
+
+	var cResultAclsCount C.size_t
+	cResult := C.rd_kafka_event_DescribeAcls_result(rkev)
+	cResultAcls := C.rd_kafka_DescribeAcls_result_acls(cResult, &cResultAclsCount)
+	if errCode != ErrNoError {
+		result.Error = Error{
+			code: ErrorCode(err),
+			str:  C.GoString(errStr),
+		}
+	}
+	result.AclBindings = a.cToAclBindings(cResultAcls, cResultAclsCount)
+	return
+}
+
 // cToDeleteAclsResults converts a C rd_kafka_DeleteAcls_result_response_t array to Go DeleteAclsResult slice.
 func (a *AdminClient) cToDeleteAclsResults(cDeleteAclsResResponse **C.rd_kafka_DeleteAcls_result_response_t, resResponseCnt C.size_t) (result []DeleteAclsResult) {
 	result = make([]DeleteAclsResult, uint(resResponseCnt))
@@ -1246,7 +1317,7 @@ func (a *AdminClient) cToDeleteAclsResults(cDeleteAclsResResponse **C.rd_kafka_D
 	for i := uint(0); i < uint(resResponseCnt); i++ {
 		cDeleteAclsResResponse := C.DeleteAcls_result_response_by_idx(cDeleteAclsResResponse, resResponseCnt, C.size_t(i))
 		if cDeleteAclsResResponse == nil {
-			panic("DeleteAcls_result_response_by_idx must not return NULL")
+			panic("DeleteAcls_result_response_by_idx must not return nil")
 		}
 
 		cDeleteAclsError := C.rd_kafka_DeleteAcls_result_response_error(cDeleteAclsResResponse)
@@ -1256,15 +1327,7 @@ func (a *AdminClient) cToDeleteAclsResults(cDeleteAclsResResponse **C.rd_kafka_D
 		cMatchingAcls := C.rd_kafka_DeleteAcls_result_response_matching_acls(
 			cDeleteAclsResResponse, &cMatchingAclsCount)
 
-		result[i].AclBindings = make([]AclBinding, cMatchingAclsCount)
-
-		for j := uint(0); j < uint(cMatchingAclsCount); j++ {
-			cAclBinding := C.AclBinding_by_idx(cMatchingAcls, cMatchingAclsCount, C.size_t(j))
-			if cAclBinding == nil {
-				panic("AclBinding_by_idx must not return NULL")
-			}
-			result[i].AclBindings[j] = a.cToAclBinding(cAclBinding)
-		}
+		result[i].AclBindings = a.cToAclBindings(cMatchingAcls, cMatchingAclsCount)
 	}
 	return
 }
@@ -1278,7 +1341,7 @@ func (a *AdminClient) cToDeleteAclsResults(cDeleteAclsResResponse **C.rd_kafka_D
 //
 // Returns a slice of CreateAclResult with a ErrNoError ErrorCode when the operation was successful
 // plus an error that is not nil for client level errors
-func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, options ...CreateAclsAdminOption) (result []CreateAclResult, err error) {
+func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings AclBindings, options ...CreateAclsAdminOption) (result []CreateAclResult, err error) {
 	if aclBindings == nil {
 		return nil, newErrorFromString(ErrInvalidArg,
 			"Expected non-nil slice of AclBinding structs")
@@ -1338,11 +1401,10 @@ func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, 
 	return
 }
 
-// Match ACL bindings by filter.
-// TODO: review
+// DescribeAcls matches ACL bindings by filter.
 //
 // Parameters:
-//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //  * `aclBindingFilter` - A filter with attributes that must match.
 //     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `_ANY`.
@@ -1351,10 +1413,47 @@ func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, 
 //     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
 //  * `options` - Describe ACLs options
 //
-// Returns a list of AclBinding when the operation was successful
+// Returns a slice of AclBindings when the operation was successful
 // plus an error that is not `nil` for client level errors
-func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBindingFilter, options ...DescribeAclsAdminOption) (result DescribeAclsResult, err error) {
-	return DescribeAclsResult{}, nil
+func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBindingFilter, options ...DescribeAclsAdminOption) (result *DescribeAclsResult, err error) {
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cAclBindingFilter, err := a.aclBindingFilterToC(&aclBindingFilter, cErrstr, cErrstrSize)
+	if err != nil {
+		return
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBEACLS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_DescribeAcls(
+		a.handle.rk,
+		cAclBindingFilter,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBEACLS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+	result = a.cToDescribeAclsResult(rkev)
+	return
 }
 
 // DeleteAcls deletes ACL bindings matching one or more ACL binding filters.
@@ -1371,7 +1470,7 @@ func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBind
 //
 // Returns a slice of AclBinding for each filter when the operation was successful
 // plus an error that is not `nil` for client level errors
-func (a *AdminClient) DeleteAcls(ctx context.Context, aclBindingFilters []AclBindingFilter, options ...DeleteAclsAdminOption) (result []DeleteAclsResult, err error) {
+func (a *AdminClient) DeleteAcls(ctx context.Context, aclBindingFilters AclBindingFilters, options ...DeleteAclsAdminOption) (result []DeleteAclsResult, err error) {
 	if aclBindingFilters == nil {
 		return nil, newErrorFromString(ErrInvalidArg,
 			"Expected non-nil slice of AclBindingFilter structs")

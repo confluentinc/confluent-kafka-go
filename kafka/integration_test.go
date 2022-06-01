@@ -24,6 +24,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 )
@@ -1663,9 +1664,9 @@ func TestAdminAcls(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	topic := testconf.Topic
 	group := testconf.GroupID
-	noError := Error{
-		code: ErrNoError,
-	}
+	noError := NewError(ErrNoError, "", false)
+	var expectedCreateAcls []CreateAclResult
+	var expectedDescribeAcls DescribeAclsResult
 	var expectedDeleteAcls []DeleteAclsResult
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -1682,9 +1683,15 @@ func TestAdminAcls(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 
+	checkExpectedResult := func(expected interface{}, result interface{}) {
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected result to deep equal to %v, but found %v", expected, result)
+		}
+	}
+
 	// Create ACLs
 	t.Logf("Creating ACLs\n")
-	newAcls := []AclBinding{
+	newAcls := AclBindings{
 		{
 			Type:                ResourceTopic,
 			Name:                topic,
@@ -1713,7 +1720,7 @@ func TestAdminAcls(t *testing.T) {
 			PermissionType:      AclPermissionTypeAllow,
 		},
 	}
-	aclBindingFilters := []AclBindingFilter{
+	aclBindingFilters := AclBindingFilters{
 		{
 			Type:                ResourceAny,
 			ResourcePatternType: ResourcePatternTypeAny,
@@ -1749,18 +1756,23 @@ func TestAdminAcls(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateAcls() failed: %s", err)
 		}
-
-		for i, res := range resultCreateAcls {
-			if res.Error.Code() != ErrNoError {
-				t.Errorf("Result %d: expected ErrNoError, got \"%s\"",
-					i, res.Error.String())
-			}
-			if res.Error.String() != "Success" {
-				t.Errorf("Result %d: expected Success, got \"%s\"",
-					i, res.Error.String())
-			}
-		}
+		expectedCreateAcls = []CreateAclResult{{Error: noError}, {Error: noError}, {Error: noError}}
+		checkExpectedResult(expectedCreateAcls, resultCreateAcls)
 	}
+
+	// DescribeAcls must return the three ACLs
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDescribeAcls, err := a.DescribeAcls(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
+	expectedDescribeAcls = DescribeAclsResult{
+		Error:       noError,
+		AclBindings: newAcls,
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	sort.Sort(&resultDescribeAcls.AclBindings)
+	checkExpectedResult(expectedDescribeAcls, *resultDescribeAcls)
 
 	// Delete the ACLs with ResourcePatternTypePrefixed
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
@@ -1775,9 +1787,7 @@ func TestAdminAcls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	if !reflect.DeepEqual(resultDeleteAcls, expectedDeleteAcls) {
-		t.Fatalf("Expected deleted ACL bindings to deep equal to %+v, but found %+v", expectedDeleteAcls, resultDeleteAcls)
-	}
+	checkExpectedResult(expectedDeleteAcls, resultDeleteAcls)
 
 	// Delete the ACLs with ResourceTopic and ResourceGroup
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
@@ -1790,13 +1800,24 @@ func TestAdminAcls(t *testing.T) {
 		},
 		{
 			Error:       noError,
-			AclBindings: []AclBinding{},
+			AclBindings: AclBindings{},
 		},
 	}
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	if !reflect.DeepEqual(resultDeleteAcls, expectedDeleteAcls) {
-		t.Fatalf("Expected deleted ACL bindings to deep equal to %v, but found %v", expectedDeleteAcls, resultDeleteAcls)
+	checkExpectedResult(expectedDeleteAcls, resultDeleteAcls)
+
+	// All the ACLs should have been deleted
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDescribeAcls, err = a.DescribeAcls(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
+	expectedDescribeAcls = DescribeAclsResult{
+		Error:       noError,
+		AclBindings: AclBindings{},
 	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	checkExpectedResult(expectedDescribeAcls, *resultDescribeAcls)
 }

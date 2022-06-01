@@ -8,5 +8,6 @@ admin_describe_config/admin_describe_config
 admin_delete_topics/admin_delete_topics
 admin_create_topic/admin_create_topic
 admin_create_acls/admin_create_acls
+admin_describe_acls/admin_describe_acls
 admin_delete_acls/admin_delete_acls
 stats_example/stats_example
