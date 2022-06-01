@@ -1663,6 +1663,12 @@ func TestAdminAcls(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	topic := testconf.Topic
 	group := testconf.GroupID
+	noError := Error{
+		code: ErrNoError,
+	}
+	var expectedDeleteAcls []DeleteAclsResult
+	var ctx context.Context
+	var cancel context.CancelFunc
 
 	a := createAdminClient(t)
 	defer a.Close()
@@ -1678,9 +1684,6 @@ func TestAdminAcls(t *testing.T) {
 
 	// Create ACLs
 	t.Logf("Creating ACLs\n")
-	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
-
 	newAcls := []AclBinding{
 		{
 			Type:                ResourceTopic,
@@ -1710,41 +1713,44 @@ func TestAdminAcls(t *testing.T) {
 			PermissionType:      AclPermissionTypeAllow,
 		},
 	}
-	// aclBindingFilters := []AclBindingFilter{
-	// 	{
-	// 		Type:                ResourceAny,
-	// 		ResourcePatternType: ResourcePatternTypeAny,
-	// 		Operation:           AclOperationAny,
-	// 		PermissionType:      AclPermissionTypeAny,
-	// 	},
-	// 	{
-	// 		Type:                ResourceAny,
-	// 		ResourcePatternType: ResourcePatternTypePrefixed,
-	// 		Operation:           AclOperationAny,
-	// 		PermissionType:      AclPermissionTypeAny,
-	// 	},
-	// 	{
-	// 		Type:                ResourceTopic,
-	// 		ResourcePatternType: ResourcePatternTypeAny,
-	// 		Operation:           AclOperationAny,
-	// 		PermissionType:      AclPermissionTypeAny,
-	// 	},
-	// 	{
-	// 		Type:                ResourceGroup,
-	// 		ResourcePatternType: ResourcePatternTypeAny,
-	// 		Operation:           AclOperationAny,
-	// 		PermissionType:      AclPermissionTypeAny,
-	// 	},
-	// }
+	aclBindingFilters := []AclBindingFilter{
+		{
+			Type:                ResourceAny,
+			ResourcePatternType: ResourcePatternTypeAny,
+			Operation:           AclOperationAny,
+			PermissionType:      AclPermissionTypeAny,
+		},
+		{
+			Type:                ResourceAny,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Operation:           AclOperationAny,
+			PermissionType:      AclPermissionTypeAny,
+		},
+		{
+			Type:                ResourceTopic,
+			ResourcePatternType: ResourcePatternTypeAny,
+			Operation:           AclOperationAny,
+			PermissionType:      AclPermissionTypeAny,
+		},
+		{
+			Type:                ResourceGroup,
+			ResourcePatternType: ResourcePatternTypeAny,
+			Operation:           AclOperationAny,
+			PermissionType:      AclPermissionTypeAny,
+		},
+	}
 
 	// CreateAcls should be idempotent
 	for n := 0; n < 2; n++ {
-		result, err := a.CreateAcls(ctx, newAcls, SetAdminRequestTimeout(requestTimeout))
+		ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+		defer cancel()
+
+		resultCreateAcls, err := a.CreateAcls(ctx, newAcls, SetAdminRequestTimeout(requestTimeout))
 		if err != nil {
 			t.Fatalf("CreateAcls() failed: %s", err)
 		}
 
-		for i, res := range result {
+		for i, res := range resultCreateAcls {
 			if res.Error.Code() != ErrNoError {
 				t.Errorf("Result %d: expected ErrNoError, got \"%s\"",
 					i, res.Error.String())
@@ -1754,5 +1760,43 @@ func TestAdminAcls(t *testing.T) {
 					i, res.Error.String())
 			}
 		}
+	}
+
+	// Delete the ACLs with ResourcePatternTypePrefixed
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDeleteAcls, err := a.DeleteAcls(ctx, aclBindingFilters[1:2], SetAdminRequestTimeout(requestTimeout))
+	expectedDeleteAcls = []DeleteAclsResult{
+		{
+			Error:       noError,
+			AclBindings: newAcls[1:3],
+		},
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if !reflect.DeepEqual(resultDeleteAcls, expectedDeleteAcls) {
+		t.Fatalf("Expected deleted ACL bindings to deep equal to %+v, but found %+v", expectedDeleteAcls, resultDeleteAcls)
+	}
+
+	// Delete the ACLs with ResourceTopic and ResourceGroup
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDeleteAcls, err = a.DeleteAcls(ctx, aclBindingFilters[2:4], SetAdminRequestTimeout(requestTimeout))
+	expectedDeleteAcls = []DeleteAclsResult{
+		{
+			Error:       noError,
+			AclBindings: newAcls[0:1],
+		},
+		{
+			Error:       noError,
+			AclBindings: []AclBinding{},
+		},
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	if !reflect.DeepEqual(resultDeleteAcls, expectedDeleteAcls) {
+		t.Fatalf("Expected deleted ACL bindings to deep equal to %v, but found %v", expectedDeleteAcls, resultDeleteAcls)
 	}
 }

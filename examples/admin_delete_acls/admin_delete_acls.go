@@ -26,12 +26,12 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-// Parses a list of 7n arguments to a slice of n AclBinding
-func parseAclBindings(args []string) (aclBindings []kafka.AclBinding, err error) {
-	nAclBindings := len(args) / 7
-	parsedAclBindings := make([]kafka.AclBinding, nAclBindings)
+// Parses a list of 7n arguments to a slice of n AclBindingFilter
+func parseAclBindingFilters(args []string) (aclBindingFilters []kafka.AclBindingFilter, err error) {
+	nAclBindingFilters := len(args) / 7
+	parsedAclBindingFilters := make([]kafka.AclBindingFilter, nAclBindingFilters)
 
-	for i := 0; i < nAclBindings; i += 1 {
+	for i := 0; i < nAclBindingFilters; i += 1 {
 		start := i * 7
 		resourceTypeString := args[start]
 		name := args[start+1]
@@ -69,7 +69,7 @@ func parseAclBindings(args []string) (aclBindings []kafka.AclBinding, err error)
 			return
 		}
 
-		parsedAclBindings[i] = kafka.AclBinding{
+		parsedAclBindingFilters[i] = kafka.AclBindingFilter{
 			Type:                resourceType,
 			Name:                name,
 			ResourcePatternType: resourcePatternType,
@@ -79,16 +79,16 @@ func parseAclBindings(args []string) (aclBindings []kafka.AclBinding, err error)
 			PermissionType:      permissionType,
 		}
 	}
-	aclBindings = parsedAclBindings
+	aclBindingFilters = parsedAclBindingFilters
 	return
 }
 
 func main() {
 
-	// 7n + 2 arguments to create n ACL bindings
+	// 7n + 2 arguments to create n ACL binding filters
 	nArgs := len(os.Args)
-	aclBindingArgs := nArgs - 2
-	if aclBindingArgs <= 0 || aclBindingArgs%7 != 0 {
+	aclBindingFilterArgs := nArgs - 2
+	if aclBindingFilterArgs <= 0 || aclBindingFilterArgs%7 != 0 {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s <broker> <resource-type1> <resource-name1> <resource-pattern-type1> "+
 				"<principal1> <host1> <operation1> <permission-type1> ...\n",
@@ -97,7 +97,7 @@ func main() {
 	}
 
 	broker := os.Args[1]
-	aclBindings, err := parseAclBindings(os.Args[2:])
+	aclBindingFilters, err := parseAclBindingFilters(os.Args[2:])
 	if err != nil {
 		os.Exit(1)
 	}
@@ -123,9 +123,9 @@ func main() {
 	if err != nil {
 		panic("ParseDuration(60s)")
 	}
-	results, err := a.CreateAcls(
+	results, err := a.DeleteAcls(
 		ctx,
-		aclBindings,
+		aclBindingFilters,
 		kafka.SetAdminRequestTimeout(maxDur),
 	)
 	if err != nil {

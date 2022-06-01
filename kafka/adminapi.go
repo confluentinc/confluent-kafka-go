@@ -55,6 +55,20 @@ acl_result_by_idx (const rd_kafka_acl_result_t **acl_results, size_t cnt, size_t
       return NULL;
     return acl_results[idx];
 }
+
+static const rd_kafka_DeleteAcls_result_response_t *
+DeleteAcls_result_response_by_idx (const rd_kafka_DeleteAcls_result_response_t **delete_acls_result_responses, size_t cnt, size_t idx) {
+    if (idx >= cnt)
+      return NULL;
+    return delete_acls_result_responses[idx];
+}
+
+static const rd_kafka_AclBinding_t *
+AclBinding_by_idx (const rd_kafka_AclBinding_t **acl_bindings, size_t cnt, size_t idx) {
+    if (idx >= cnt)
+      return NULL;
+    return acl_bindings[idx];
+}
 */
 import "C"
 
@@ -486,7 +500,7 @@ type CreateAclResult struct {
 
 // Provides describe ACLs result or error information.
 type DescribeAclsResult struct {
-	// List of ACL bindings matching the provided filter
+	// Slice of ACL bindings matching the provided filter
 	AclBindings []AclBinding
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
@@ -1135,12 +1149,24 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 
 // aclBindingToC converts a Go AclBinding struct to a C rd_kafka_AclBinding_t
 func (a *AdminClient) aclBindingToC(aclBinding *AclBinding, cErrstr *C.char, cErrstrSize C.size_t) (result *C.rd_kafka_AclBinding_t, err error) {
+	var cName, cPrincipal, cHost *C.char
+	cName, cPrincipal, cHost = nil, nil, nil
+	if len(aclBinding.Name) > 0 {
+		cName = C.CString(aclBinding.Name)
+	}
+	if len(aclBinding.Principal) > 0 {
+		cPrincipal = C.CString(aclBinding.Principal)
+	}
+	if len(aclBinding.Host) > 0 {
+		cHost = C.CString(aclBinding.Host)
+	}
+
 	result = C.rd_kafka_AclBinding_new(
 		C.rd_kafka_ResourceType_t(aclBinding.Type),
-		C.CString(aclBinding.Name),
+		cName,
 		C.rd_kafka_ResourcePatternType_t(aclBinding.ResourcePatternType),
-		C.CString(aclBinding.Principal),
-		C.CString(aclBinding.Host),
+		cPrincipal,
+		cHost,
 		C.rd_kafka_AclOperation_t(aclBinding.Operation),
 		C.rd_kafka_AclPermissionType_t(aclBinding.PermissionType),
 		cErrstr,
@@ -1153,11 +1179,56 @@ func (a *AdminClient) aclBindingToC(aclBinding *AclBinding, cErrstr *C.char, cEr
 	return
 }
 
+// aclBindingFilterToC converts a Go AclBindingFilter struct to a C rd_kafka_AclBindingFilter_t
+func (a *AdminClient) aclBindingFilterToC(aclBindingFilter *AclBindingFilter, cErrstr *C.char, cErrstrSize C.size_t) (result *C.rd_kafka_AclBindingFilter_t, err error) {
+	var cName, cPrincipal, cHost *C.char
+	cName, cPrincipal, cHost = nil, nil, nil
+	if len(aclBindingFilter.Name) > 0 {
+		cName = C.CString(aclBindingFilter.Name)
+	}
+	if len(aclBindingFilter.Principal) > 0 {
+		cPrincipal = C.CString(aclBindingFilter.Principal)
+	}
+	if len(aclBindingFilter.Host) > 0 {
+		cHost = C.CString(aclBindingFilter.Host)
+	}
+
+	result = C.rd_kafka_AclBindingFilter_new(
+		C.rd_kafka_ResourceType_t(aclBindingFilter.Type),
+		cName,
+		C.rd_kafka_ResourcePatternType_t(aclBindingFilter.ResourcePatternType),
+		cPrincipal,
+		cHost,
+		C.rd_kafka_AclOperation_t(aclBindingFilter.Operation),
+		C.rd_kafka_AclPermissionType_t(aclBindingFilter.PermissionType),
+		cErrstr,
+		cErrstrSize,
+	)
+	if result == nil {
+		err = newErrorFromString(ErrInvalidArg,
+			fmt.Sprintf("Invalid arguments for ACL binding filter %v: %v", aclBindingFilter, C.GoString(cErrstr)))
+	}
+	return
+}
+
+// cToAclBinding converts a C rd_kafka_AclBinding_t to Go *AclBinding
+func (a *AdminClient) cToAclBinding(cAclBinding *C.rd_kafka_AclBinding_t) AclBinding {
+	return AclBinding{
+		ResourceType(C.rd_kafka_AclBinding_restype(cAclBinding)),
+		C.GoString(C.rd_kafka_AclBinding_name(cAclBinding)),
+		ResourcePatternType(C.rd_kafka_AclBinding_resource_pattern_type(cAclBinding)),
+		C.GoString(C.rd_kafka_AclBinding_principal(cAclBinding)),
+		C.GoString(C.rd_kafka_AclBinding_host(cAclBinding)),
+		AclOperation(C.rd_kafka_AclBinding_operation(cAclBinding)),
+		AclPermissionType(C.rd_kafka_AclBinding_permission_type(cAclBinding)),
+	}
+}
+
 // cToCreateAclResults converts a C acl_result_t array to Go CreateAclResult list.
 func (a *AdminClient) cToCreateAclResults(cCreateAclsRes **C.rd_kafka_acl_result_t, aclCnt C.size_t) (result []CreateAclResult, err error) {
-	result = make([]CreateAclResult, int(aclCnt))
+	result = make([]CreateAclResult, uint(aclCnt))
 
-	for i := 0; i < int(aclCnt); i++ {
+	for i := uint(0); i < uint(aclCnt); i++ {
 		cCreateAclRes := C.acl_result_by_idx(cCreateAclsRes, aclCnt, C.size_t(i))
 		if cCreateAclRes != nil {
 			cCreateAclError := C.rd_kafka_acl_result_error(cCreateAclRes)
@@ -1166,6 +1237,36 @@ func (a *AdminClient) cToCreateAclResults(cCreateAclsRes **C.rd_kafka_acl_result
 	}
 
 	return result, nil
+}
+
+// cToDeleteAclsResults converts a C rd_kafka_DeleteAcls_result_response_t array to Go DeleteAclsResult slice.
+func (a *AdminClient) cToDeleteAclsResults(cDeleteAclsResResponse **C.rd_kafka_DeleteAcls_result_response_t, resResponseCnt C.size_t) (result []DeleteAclsResult) {
+	result = make([]DeleteAclsResult, uint(resResponseCnt))
+
+	for i := uint(0); i < uint(resResponseCnt); i++ {
+		cDeleteAclsResResponse := C.DeleteAcls_result_response_by_idx(cDeleteAclsResResponse, resResponseCnt, C.size_t(i))
+		if cDeleteAclsResResponse == nil {
+			panic("DeleteAcls_result_response_by_idx must not return NULL")
+		}
+
+		cDeleteAclsError := C.rd_kafka_DeleteAcls_result_response_error(cDeleteAclsResResponse)
+		result[i].Error = newErrorFromCErrorDestroy(cDeleteAclsError)
+
+		var cMatchingAclsCount C.size_t
+		cMatchingAcls := C.rd_kafka_DeleteAcls_result_response_matching_acls(
+			cDeleteAclsResResponse, &cMatchingAclsCount)
+
+		result[i].AclBindings = make([]AclBinding, cMatchingAclsCount)
+
+		for j := uint(0); j < uint(cMatchingAclsCount); j++ {
+			cAclBinding := C.AclBinding_by_idx(cMatchingAcls, cMatchingAclsCount, C.size_t(j))
+			if cAclBinding == nil {
+				panic("AclBinding_by_idx must not return NULL")
+			}
+			result[i].AclBindings[j] = a.cToAclBinding(cAclBinding)
+		}
+	}
+	return
 }
 
 // CreateAcls creates one or more ACL bindings.
@@ -1243,7 +1344,7 @@ func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings []AclBinding, 
 // Parameters:
 //  * `ctx` - The maximum amount of time to block, or nil for indefinite.
 //  * `aclBindingFilter` - A filter with attributes that must match.
-//     string attributes match exact values or any string if set to nil.
+//     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `_ANY`.
 //     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
 //     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
@@ -1256,23 +1357,77 @@ func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBind
 	return DescribeAclsResult{}, nil
 }
 
-// Delete ACL bindings matching one or more ACL binding filters.
-// TODO: review
+// DeleteAcls deletes ACL bindings matching one or more ACL binding filters.
 //
 // Parameters:
-//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
-//  * `aclBindingFilters` - a list of ACL binding filters to match ACLs to delete.
-//     string attributes match exact values or any string if set to nil.
+//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//  * `aclBindingFilters` - a slice of ACL binding filters to match ACLs to delete.
+//     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `_ANY`.
 //     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
 //     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
 //     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
 //  * `options` - Delete ACLs options
 //
-// Returns a list of AclBinding for each filter when the operation was successful
+// Returns a slice of AclBinding for each filter when the operation was successful
 // plus an error that is not `nil` for client level errors
 func (a *AdminClient) DeleteAcls(ctx context.Context, aclBindingFilters []AclBindingFilter, options ...DeleteAclsAdminOption) (result []DeleteAclsResult, err error) {
-	return []DeleteAclsResult{}, nil
+	if aclBindingFilters == nil {
+		return nil, newErrorFromString(ErrInvalidArg,
+			"Expected non-nil slice of AclBindingFilter structs")
+	}
+	if len(aclBindingFilters) == 0 {
+		return nil, newErrorFromString(ErrInvalidArg,
+			"Expected non-empty slice of AclBindingFilter structs")
+	}
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cAclBindingFilters := make([]*C.rd_kafka_AclBindingFilter_t, len(aclBindingFilters))
+
+	for i, aclBindingFilter := range aclBindingFilters {
+		cAclBindingFilters[i], err = a.aclBindingFilterToC(&aclBindingFilter, cErrstr, cErrstrSize)
+		if err != nil {
+			return
+		}
+		defer C.rd_kafka_AclBinding_destroy(cAclBindingFilters[i])
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_DELETEACLS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_DeleteAcls(
+		a.handle.rk,
+		(**C.rd_kafka_AclBindingFilter_t)(&cAclBindingFilters[0]),
+		C.size_t(len(cAclBindingFilters)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEACLS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	var cResultResponsesCount C.size_t
+	cResult := C.rd_kafka_event_DeleteAcls_result(rkev)
+	cResultResponses := C.rd_kafka_DeleteAcls_result_responses(cResult, &cResultResponsesCount)
+	result = a.cToDeleteAclsResults(cResultResponses, cResultResponsesCount)
+	return
 }
 
 // Close an AdminClient instance.
