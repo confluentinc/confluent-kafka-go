@@ -1665,6 +1665,7 @@ func TestAdminAcls(t *testing.T) {
 	topic := testconf.Topic
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
+	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
 	var expectedCreateAcls []CreateAclResult
 	var expectedDescribeAcls DescribeAclsResult
 	var expectedDeleteAcls []DeleteAclsResult
@@ -1720,6 +1721,21 @@ func TestAdminAcls(t *testing.T) {
 			PermissionType:      AclPermissionTypeAllow,
 		},
 	}
+
+	invalidAcls := AclBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			// Principal must be in the form "{principalType}:{principalName}"
+			// Broker returns ErrUnknown in this case
+			Principal:      "wrong-principal",
+			Host:           "*",
+			Operation:      AclOperationRead,
+			PermissionType: AclPermissionTypeAllow,
+		},
+	}
+
 	aclBindingFilters := AclBindingFilters{
 		{
 			Type:                ResourceAny,
@@ -1759,6 +1775,17 @@ func TestAdminAcls(t *testing.T) {
 		expectedCreateAcls = []CreateAclResult{{Error: noError}, {Error: noError}, {Error: noError}}
 		checkExpectedResult(expectedCreateAcls, resultCreateAcls)
 	}
+
+	// CreateAcls with server side validation errors
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	resultCreateAcls, err := a.CreateAcls(ctx, invalidAcls, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateAcls() failed: %s", err)
+	}
+	expectedCreateAcls = []CreateAclResult{{Error: unknownError}}
+	checkExpectedResult(expectedCreateAcls, resultCreateAcls)
 
 	// DescribeAcls must return the three ACLs
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
