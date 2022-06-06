@@ -1191,12 +1191,15 @@ func (a *AdminClient) aclBindingToC(aclBinding *AclBinding, cErrstr *C.char, cEr
 	cName, cPrincipal, cHost = nil, nil, nil
 	if len(aclBinding.Name) > 0 {
 		cName = C.CString(aclBinding.Name)
+		defer C.free(unsafe.Pointer(cName))
 	}
 	if len(aclBinding.Principal) > 0 {
 		cPrincipal = C.CString(aclBinding.Principal)
+		defer C.free(unsafe.Pointer(cPrincipal))
 	}
 	if len(aclBinding.Host) > 0 {
 		cHost = C.CString(aclBinding.Host)
+		defer C.free(unsafe.Pointer(cHost))
 	}
 
 	result = C.rd_kafka_AclBinding_new(
@@ -1223,12 +1226,15 @@ func (a *AdminClient) aclBindingFilterToC(aclBindingFilter *AclBindingFilter, cE
 	cName, cPrincipal, cHost = nil, nil, nil
 	if len(aclBindingFilter.Name) > 0 {
 		cName = C.CString(aclBindingFilter.Name)
+		defer C.free(unsafe.Pointer(cName))
 	}
 	if len(aclBindingFilter.Principal) > 0 {
 		cPrincipal = C.CString(aclBindingFilter.Principal)
+		defer C.free(unsafe.Pointer(cPrincipal))
 	}
 	if len(aclBindingFilter.Host) > 0 {
 		cHost = C.CString(aclBindingFilter.Host)
+		defer C.free(unsafe.Pointer(cHost))
 	}
 
 	result = C.rd_kafka_AclBindingFilter_new(
