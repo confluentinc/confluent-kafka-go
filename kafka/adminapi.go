@@ -479,13 +479,15 @@ func AclPermissionTypeFromString(aclPermissionTypeString string) (AclPermissionT
 // over one or more resources of the same type. Used by `AdminClient.CreateAcls`,
 // returned by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
 type AclBinding struct {
-	Type                ResourceType
+	Type ResourceType // The resource type.
+	// The resource name, which depends on the resource type.
+	// For ResourceBroker the resource name is the broker id.
 	Name                string
-	ResourcePatternType ResourcePatternType
-	Principal           string
-	Host                string
-	Operation           AclOperation
-	PermissionType      AclPermissionType
+	ResourcePatternType ResourcePatternType // The resource pattern, relative to the name.
+	Principal           string              // The principal this AclBinding refers to.
+	Host                string              // The host that the call is allowed to come from.
+	Operation           AclOperation        // The operation/s specified by this binding.
+	PermissionType      AclPermissionType   // The permission type for the specified operation.
 }
 
 // Represents an ACL binding filter used to return a list of ACL bindings matching some or all of its attributes.
