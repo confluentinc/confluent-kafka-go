@@ -135,8 +135,13 @@ func main() {
 	}
 
 	// Print results
-	for _, result := range results {
-		fmt.Printf("%+v\n", result)
+	for i, result := range results {
+		if result.Error.Code() == kafka.ErrNoError {
+			fmt.Printf("CreateAcls %d successful\n", i)
+		} else {
+			fmt.Printf("CreateAcls %d failed, error code: %s, message: %s\n",
+				i, result.Error.Code(), result.Error.String())
+		}
 	}
 
 	a.Close()

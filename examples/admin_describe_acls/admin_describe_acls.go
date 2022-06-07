@@ -133,8 +133,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Print result
-	fmt.Printf("%+v\n", result)
+	// Print results
+	if result.Error.Code() == kafka.ErrNoError {
+		fmt.Printf("DescribeAcls successful, result: %+v\n", result.AclBindings)
+	} else {
+		fmt.Printf("DescribeAcls failed, error code: %s, message: %s\n",
+			result.Error.Code(), result.Error.String())
+	}
 
 	a.Close()
 }

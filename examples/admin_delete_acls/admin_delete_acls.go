@@ -134,8 +134,13 @@ func main() {
 	}
 
 	// Print results
-	for _, result := range results {
-		fmt.Printf("%+v\n", result)
+	for i, result := range results {
+		if result.Error.Code() == kafka.ErrNoError {
+			fmt.Printf("DeleteAcls %d successful, deleted: %+v\n", i, result.AclBindings)
+		} else {
+			fmt.Printf("DeleteAcls %d failed, error code: %s, message: %s\n",
+				i, result.Error.Code(), result.Error.String())
+		}
 	}
 
 	a.Close()

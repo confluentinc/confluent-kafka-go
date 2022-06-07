@@ -290,7 +290,7 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 		res, err = a.DescribeAcls(ctx, validAclBindingFilter)
 		checkFail(res, err)
 		if ctx.Err() != context.DeadlineExceeded {
-			t.Fatalf("Expected DeadlineExceeded1, not %v, %v", ctx.Err(), err)
+			t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
 		}
 	}
 }
@@ -404,7 +404,7 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 		res, err = a.DeleteAcls(ctx, validAclBindingFilters)
 		checkFail(res, err)
 		if ctx.Err() != context.DeadlineExceeded {
-			t.Fatalf("Expected DeadlineExceeded1, not %v, %v", ctx.Err(), err)
+			t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
 		}
 	}
 }
