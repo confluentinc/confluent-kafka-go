@@ -333,7 +333,7 @@ func (c ConfigResourceResult) String() string {
 	return fmt.Sprintf("ResourceResult(%s, %s, %d config(s))", c.Type, c.Name, len(c.Config))
 }
 
-// Enumerates the different types of Kafka resource patterns.
+// ResourcePatternType enumerates the different types of Kafka resource patterns.
 type ResourcePatternType int
 
 const (
@@ -371,7 +371,7 @@ func ResourcePatternTypeFromString(patternTypeString string) (ResourcePatternTyp
 	}
 }
 
-// Enumerates the different types of ACL operation.
+// AclOperation enumerates the different types of ACL operation.
 type AclOperation int
 
 const (
@@ -441,7 +441,7 @@ func AclOperationFromString(aclOperationString string) (AclOperation, error) {
 	}
 }
 
-// Enumerates the different types of ACL permission types.
+// AclPermissionType enumerates the different types of ACL permission types.
 type AclPermissionType int
 
 const (
@@ -475,7 +475,7 @@ func AclPermissionTypeFromString(aclPermissionTypeString string) (AclPermissionT
 	}
 }
 
-// Represents an ACL binding that specify the operation and permission type for a specific principal
+// AclBinding specifies the operation and permission type for a specific principal
 // over one or more resources of the same type. Used by `AdminClient.CreateAcls`,
 // returned by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
 type AclBinding struct {
@@ -490,7 +490,7 @@ type AclBinding struct {
 	PermissionType      AclPermissionType   // The permission type for the specified operation.
 }
 
-// Represents an ACL binding filter used to return a list of ACL bindings matching some or all of its attributes.
+// AclBindingFilter specifies a filter used to return a list of ACL bindings matching some or all of its attributes.
 // Used by `AdminClient.DescribeAcls` and `AdminClient.DeleteAcls`.
 type AclBindingFilter = AclBinding
 
@@ -538,7 +538,7 @@ type CreateAclResult struct {
 	Error Error
 }
 
-// Provides describe ACLs result or error information.
+// DescribeAclsResult provides describe ACLs result or error information.
 type DescribeAclsResult struct {
 	// Slice of ACL bindings matching the provided filter
 	AclBindings AclBindings
@@ -546,7 +546,7 @@ type DescribeAclsResult struct {
 	Error Error
 }
 
-// Provides delete ACLs result or error information.
+// DeleteAclsResult provides delete ACLs result or error information.
 type DeleteAclsResult = DescribeAclsResult
 
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
