@@ -2,7 +2,7 @@
 package main
 
 /**
- * Copyright 2018 Confluent Inc.
+ * Copyright 2022 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ func parseAclBindings(args []string) (aclBindings kafka.AclBindings, err error) 
 			fmt.Printf("Invalid resource type: %s: %v\n", resourceTypeString, err)
 			return
 		}
+
 		resourcePatternType, err = kafka.ResourcePatternTypeFromString(resourcePatternTypeString)
 		if err != nil {
 			fmt.Printf("Invalid resource pattern type: %s: %v\n", resourcePatternTypeString, err)
