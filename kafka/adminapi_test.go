@@ -83,6 +83,7 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	var cancel context.CancelFunc
 	var expDuration time.Duration
 	var expDurationLonger time.Duration
+	var expError string
 	var invalidTests []AclBindings
 
 	checkFail := func(res []CreateAclResult, err error) {
@@ -116,15 +117,17 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	// nil aclBindings
 	res, err = a.CreateAcls(ctx, nil)
 	checkFail(res, err)
-	if err.Error() != "Expected non-nil slice of AclBinding structs" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Expected non-nil slice of AclBinding structs"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// empty aclBindings
 	res, err = a.CreateAcls(ctx, AclBindings{})
 	checkFail(res, err)
-	if err.Error() != "Expected non-empty slice of AclBinding structs" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Expected non-empty slice of AclBinding structs"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// Correct input, fail with timeout
@@ -148,19 +151,21 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 
 	res, err = a.CreateAcls(ctx, aclBindings, SetAdminRequestTimeout(expDuration))
 	checkFail(res, err)
-	if err.Error() != "Failed while waiting for controller: Local: Timed out" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Failed while waiting for controller: Local: Timed out"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// Invalid ACL bindings
 	invalidTests = []AclBindings{copyAclBindings(), copyAclBindings()}
 	invalidTests[0][0].Type = ResourceUnknown
 	invalidTests[1][0].Type = ResourceAny
+	expError = ": Invalid resource type"
 	for _, invalidAclBindings := range invalidTests {
 		res, err = a.CreateAcls(ctx, invalidAclBindings)
 		checkFail(res, err)
-		if !strings.HasSuffix(err.Error(), ": Invalid resource type") {
-			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+		if !strings.HasSuffix(err.Error(), expError) {
+			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", expError, err.Error())
 		}
 	}
 
@@ -196,7 +201,7 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 		res, err = a.CreateAcls(ctx, invalidAclBindings)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), suffixes[i]) {
-			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", suffixes[i], err.Error())
 		}
 	}
 }
@@ -208,6 +213,7 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 	var cancel context.CancelFunc
 	var expDuration time.Duration
 	var expDurationLonger time.Duration
+	var expError string
 
 	checkFail := func(res *DescribeAclsResult, err error) {
 		if res != nil || err == nil {
@@ -249,8 +255,9 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 
 	res, err = a.DescribeAcls(ctx, aclBindingsFilter, SetAdminRequestTimeout(expDuration))
 	checkFail(res, err)
-	if err.Error() != "Failed while waiting for controller: Local: Timed out" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Failed while waiting for controller: Local: Timed out"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// Invalid ACL binding filters
@@ -272,7 +279,7 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 		res, err = a.DescribeAcls(ctx, invalidAclBindingFilter)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), suffixes[i]) {
-			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", suffixes[i], err.Error())
 		}
 	}
 
@@ -302,6 +309,7 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 	var cancel context.CancelFunc
 	var expDuration time.Duration
 	var expDurationLonger time.Duration
+	var expError string
 
 	checkFail := func(res []DeleteAclsResult, err error) {
 		if res != nil || err == nil {
@@ -331,15 +339,17 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 	// nil aclBindingFilters
 	res, err = a.DeleteAcls(ctx, nil)
 	checkFail(res, err)
-	if err.Error() != "Expected non-nil slice of AclBindingFilter structs" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Expected non-nil slice of AclBindingFilter structs"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// empty aclBindingFilters
 	res, err = a.DeleteAcls(ctx, AclBindingFilters{})
 	checkFail(res, err)
-	if err.Error() != "Expected non-empty slice of AclBindingFilter structs" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Expected non-empty slice of AclBindingFilter structs"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// Correct input, fail with timeout
@@ -363,8 +373,9 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 
 	res, err = a.DeleteAcls(ctx, aclBindingsFilters, SetAdminRequestTimeout(expDuration))
 	checkFail(res, err)
-	if err.Error() != "Failed while waiting for controller: Local: Timed out" {
-		t.Fatalf("Expected a different error than \"%v\"", err.Error())
+	expError = "Failed while waiting for controller: Local: Timed out"
+	if err.Error() != expError {
+		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// Invalid ACL binding filters
@@ -386,7 +397,7 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 		res, err = a.DeleteAcls(ctx, invalidAclBindingFilters)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), suffixes[i]) {
-			t.Fatalf("Expected a different error than \"%v\"", err.Error())
+			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", suffixes[i], err.Error())
 		}
 	}
 
