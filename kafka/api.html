@@ -1781,7 +1781,7 @@ a AclPermissionType value.
 </pre>
     <h3 id="NewAdminClient">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=53917:53975#L1544">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=53915:53973#L1544">
       NewAdminClient
      </a>
      <a class="permalink" href="#NewAdminClient">
@@ -1794,7 +1794,7 @@ a AclPermissionType value.
     </p>
     <h3 id="NewAdminClientFromConsumer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=55440:55512#L1593">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=55438:55510#L1593">
       NewAdminClientFromConsumer
      </a>
      <a class="permalink" href="#NewAdminClientFromConsumer">
@@ -1808,7 +1808,7 @@ The AdminClient will use the same configuration and connections as the parent in
     </p>
     <h3 id="NewAdminClientFromProducer">
      func
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=54976:55048#L1580">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=54974:55046#L1580">
       NewAdminClientFromProducer
      </a>
      <a class="permalink" href="#NewAdminClientFromProducer">
@@ -1855,7 +1855,7 @@ resource requests must be sent to the broker specified in the resource.
     </p>
     <h3 id="AdminClient.Close">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=53641:53670#L1531">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=53639:53668#L1531">
       Close
      </a>
      <a class="permalink" href="#AdminClient.Close">
@@ -1971,7 +1971,7 @@ make sure to check the result for topic-specific errors.
     </p>
     <h3 id="AdminClient.DeleteAcls">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=51627:51790#L1471">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=51625:51788#L1471">
       DeleteAcls
      </a>
      <a class="permalink" href="#AdminClient.DeleteAcls">
@@ -1988,7 +1988,7 @@ make sure to check the result for topic-specific errors.
     <pre>* `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 * `aclBindingFilters` - a slice of ACL binding filters to match ACLs to delete.
    string attributes match exact values or any string if set to empty string.
-   Enum attributes match exact values or any value if ending with `_ANY`.
+   Enum attributes match exact values or any value if ending with `Any`.
    If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
    the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
    or `ResourcePatternTypePrefixed` pattern type that match the resource name.
@@ -2023,7 +2023,7 @@ topic metadata and configuration may continue to return information about delete
     </p>
     <h3 id="AdminClient.DescribeAcls">
      func (*AdminClient)
-     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=49565:49731#L1416">
+     <a href="//golang.org/src/github.com/confluentinc/confluent-kafka-go/kafka/adminapi.go?s=49564:49730#L1416">
       DescribeAcls
      </a>
      <a class="permalink" href="#AdminClient.DescribeAcls">
@@ -2040,7 +2040,7 @@ topic metadata and configuration may continue to return information about delete
     <pre>* `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 * `aclBindingFilter` - A filter with attributes that must match.
    string attributes match exact values or any string if set to empty string.
-   Enum attributes match exact values or any value if ending with `_ANY`.
+   Enum attributes match exact values or any value if ending with `Any`.
    If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
    the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
    or `ResourcePatternTypePrefixed` pattern type that match the resource name.

@@ -1415,7 +1415,7 @@ func (a *AdminClient) CreateAcls(ctx context.Context, aclBindings AclBindings, o
 //  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //  * `aclBindingFilter` - A filter with attributes that must match.
 //     string attributes match exact values or any string if set to empty string.
-//     Enum attributes match exact values or any value if ending with `_ANY`.
+//     Enum attributes match exact values or any value if ending with `Any`.
 //     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
 //     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
 //     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
@@ -1470,7 +1470,7 @@ func (a *AdminClient) DescribeAcls(ctx context.Context, aclBindingFilter AclBind
 //  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //  * `aclBindingFilters` - a slice of ACL binding filters to match ACLs to delete.
 //     string attributes match exact values or any string if set to empty string.
-//     Enum attributes match exact values or any value if ending with `_ANY`.
+//     Enum attributes match exact values or any value if ending with `Any`.
 //     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
 //     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
 //     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
