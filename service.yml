@@ -8,4 +8,3 @@ github:
   repo_name: confluentinc/confluent-kafka-go
 semaphore:
   enable: true
-
