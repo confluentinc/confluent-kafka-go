@@ -1,12 +1,11 @@
 name: confluent-kafka-go
 lang: go
 lang_version: 1.18
-# Add the following 2 lines if you want the automatically generated .semaphore files
 git:
   enable: true
 github:
   enable: true
-  repo_name: confluentinc/confluent-kafka-go # for example, confluentinc/cc-new-service
+  repo_name: confluentinc/confluent-kafka-go
 semaphore:
   enable: true
 
