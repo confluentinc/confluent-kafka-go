@@ -166,13 +166,13 @@ func (ao AdminOptionValidateOnly) supportsCreatePartitions() {
 func (ao AdminOptionValidateOnly) supportsAlterConfigs() {
 }
 
-func (ao AdminOptionRequestTimeout) supportsCreateAcls() {
+func (ao AdminOptionRequestTimeout) supportsCreateACLs() {
 }
 
-func (ao AdminOptionRequestTimeout) supportsDescribeAcls() {
+func (ao AdminOptionRequestTimeout) supportsDescribeACLs() {
 }
 
-func (ao AdminOptionRequestTimeout) supportsDeleteAcls() {
+func (ao AdminOptionRequestTimeout) supportsDeleteACLs() {
 }
 
 func (ao AdminOptionValidateOnly) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
@@ -249,27 +249,27 @@ type DescribeConfigsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
-// CreateAclsAdminOption - see setter.
+// CreateACLsAdminOption - see setter.
 //
 // See SetAdminRequestTimeout
-type CreateAclsAdminOption interface {
-	supportsCreateAcls()
+type CreateACLsAdminOption interface {
+	supportsCreateACLs()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
-// DescribeAclsAdminOption - see setter.
+// DescribeACLsAdminOption - see setter.
 //
 // See SetAdminRequestTimeout
-type DescribeAclsAdminOption interface {
-	supportsDescribeAcls()
+type DescribeACLsAdminOption interface {
+	supportsDescribeACLs()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
-// DeleteAclsAdminOption - see setter.
+// DeleteACLsAdminOption - see setter.
 //
 // See SetAdminRequestTimeout
-type DeleteAclsAdminOption interface {
-	supportsDeleteAcls()
+type DeleteACLsAdminOption interface {
+	supportsDeleteACLs()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 

@@ -1656,7 +1656,7 @@ func TestAdminClient_ControllerID(t *testing.T) {
 	t.Logf("ControllerID: %d\n", controllerID)
 }
 
-func TestAdminAcls(t *testing.T) {
+func TestAdminACLs(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
 	}
@@ -1666,9 +1666,9 @@ func TestAdminAcls(t *testing.T) {
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
 	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
-	var expectedCreateAcls []CreateAclResult
-	var expectedDescribeAcls DescribeAclsResult
-	var expectedDeleteAcls []DeleteAclsResult
+	var expectedCreateACLs []CreateACLResult
+	var expectedDescribeACLs DescribeACLsResult
+	var expectedDeleteACLs []DeleteACLsResult
 	var ctx context.Context
 	var cancel context.CancelFunc
 
@@ -1692,15 +1692,15 @@ func TestAdminAcls(t *testing.T) {
 
 	// Create ACLs
 	t.Logf("Creating ACLs\n")
-	newAcls := AclBindings{
+	newACLs := ACLBindings{
 		{
 			Type:                ResourceTopic,
 			Name:                topic,
 			ResourcePatternType: ResourcePatternTypeLiteral,
 			Principal:           "User:test-user-1",
 			Host:                "*",
-			Operation:           AclOperationRead,
-			PermissionType:      AclPermissionTypeAllow,
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
 		},
 		{
 			Type:                ResourceTopic,
@@ -1708,8 +1708,8 @@ func TestAdminAcls(t *testing.T) {
 			ResourcePatternType: ResourcePatternTypePrefixed,
 			Principal:           "User:test-user-2",
 			Host:                "*",
-			Operation:           AclOperationWrite,
-			PermissionType:      AclPermissionTypeDeny,
+			Operation:           ACLOperationWrite,
+			PermissionType:      ACLPermissionTypeDeny,
 		},
 		{
 			Type:                ResourceGroup,
@@ -1717,12 +1717,12 @@ func TestAdminAcls(t *testing.T) {
 			ResourcePatternType: ResourcePatternTypePrefixed,
 			Principal:           "User:test-user-2",
 			Host:                "*",
-			Operation:           AclOperationAll,
-			PermissionType:      AclPermissionTypeAllow,
+			Operation:           ACLOperationAll,
+			PermissionType:      ACLPermissionTypeAllow,
 		},
 	}
 
-	invalidAcls := AclBindings{
+	invalidACLs := ACLBindings{
 		{
 			Type:                ResourceTopic,
 			Name:                topic,
@@ -1731,120 +1731,120 @@ func TestAdminAcls(t *testing.T) {
 			// Broker returns ErrUnknown in this case
 			Principal:      "wrong-principal",
 			Host:           "*",
-			Operation:      AclOperationRead,
-			PermissionType: AclPermissionTypeAllow,
+			Operation:      ACLOperationRead,
+			PermissionType: ACLPermissionTypeAllow,
 		},
 	}
 
-	aclBindingFilters := AclBindingFilters{
+	aclBindingFilters := ACLBindingFilters{
 		{
 			Type:                ResourceAny,
 			ResourcePatternType: ResourcePatternTypeAny,
-			Operation:           AclOperationAny,
-			PermissionType:      AclPermissionTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
 		},
 		{
 			Type:                ResourceAny,
 			ResourcePatternType: ResourcePatternTypePrefixed,
-			Operation:           AclOperationAny,
-			PermissionType:      AclPermissionTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
 		},
 		{
 			Type:                ResourceTopic,
 			ResourcePatternType: ResourcePatternTypeAny,
-			Operation:           AclOperationAny,
-			PermissionType:      AclPermissionTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
 		},
 		{
 			Type:                ResourceGroup,
 			ResourcePatternType: ResourcePatternTypeAny,
-			Operation:           AclOperationAny,
-			PermissionType:      AclPermissionTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
 		},
 	}
 
-	// CreateAcls should be idempotent
+	// CreateACLs should be idempotent
 	for n := 0; n < 2; n++ {
 		ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 		defer cancel()
 
-		resultCreateAcls, err := a.CreateAcls(ctx, newAcls, SetAdminRequestTimeout(requestTimeout))
+		resultCreateACLs, err := a.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
 		if err != nil {
-			t.Fatalf("CreateAcls() failed: %s", err)
+			t.Fatalf("CreateACLs() failed: %s", err)
 		}
-		expectedCreateAcls = []CreateAclResult{{Error: noError}, {Error: noError}, {Error: noError}}
-		checkExpectedResult(expectedCreateAcls, resultCreateAcls)
+		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}}
+		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 	}
 
-	// CreateAcls with server side validation errors
+	// CreateACLs with server side validation errors
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
 
-	resultCreateAcls, err := a.CreateAcls(ctx, invalidAcls, SetAdminRequestTimeout(requestTimeout))
+	resultCreateACLs, err := a.CreateACLs(ctx, invalidACLs, SetAdminRequestTimeout(requestTimeout))
 	if err != nil {
-		t.Fatalf("CreateAcls() failed: %s", err)
+		t.Fatalf("CreateACLs() failed: %s", err)
 	}
-	expectedCreateAcls = []CreateAclResult{{Error: unknownError}}
-	checkExpectedResult(expectedCreateAcls, resultCreateAcls)
+	expectedCreateACLs = []CreateACLResult{{Error: unknownError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 
-	// DescribeAcls must return the three ACLs
+	// DescribeACLs must return the three ACLs
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	resultDescribeAcls, err := a.DescribeAcls(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
-	expectedDescribeAcls = DescribeAclsResult{
+	resultDescribeACLs, err := a.DescribeACLs(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
+	expectedDescribeACLs = DescribeACLsResult{
 		Error:       noError,
-		AclBindings: newAcls,
+		ACLBindings: newACLs,
 	}
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	sort.Sort(&resultDescribeAcls.AclBindings)
-	checkExpectedResult(expectedDescribeAcls, *resultDescribeAcls)
+	sort.Sort(&resultDescribeACLs.ACLBindings)
+	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 
 	// Delete the ACLs with ResourcePatternTypePrefixed
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	resultDeleteAcls, err := a.DeleteAcls(ctx, aclBindingFilters[1:2], SetAdminRequestTimeout(requestTimeout))
-	expectedDeleteAcls = []DeleteAclsResult{
+	resultDeleteACLs, err := a.DeleteACLs(ctx, aclBindingFilters[1:2], SetAdminRequestTimeout(requestTimeout))
+	expectedDeleteACLs = []DeleteACLsResult{
 		{
 			Error:       noError,
-			AclBindings: newAcls[1:3],
+			ACLBindings: newACLs[1:3],
 		},
 	}
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	checkExpectedResult(expectedDeleteAcls, resultDeleteAcls)
+	checkExpectedResult(expectedDeleteACLs, resultDeleteACLs)
 
 	// Delete the ACLs with ResourceTopic and ResourceGroup
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	resultDeleteAcls, err = a.DeleteAcls(ctx, aclBindingFilters[2:4], SetAdminRequestTimeout(requestTimeout))
-	expectedDeleteAcls = []DeleteAclsResult{
+	resultDeleteACLs, err = a.DeleteACLs(ctx, aclBindingFilters[2:4], SetAdminRequestTimeout(requestTimeout))
+	expectedDeleteACLs = []DeleteACLsResult{
 		{
 			Error:       noError,
-			AclBindings: newAcls[0:1],
+			ACLBindings: newACLs[0:1],
 		},
 		{
 			Error:       noError,
-			AclBindings: AclBindings{},
+			ACLBindings: ACLBindings{},
 		},
 	}
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	checkExpectedResult(expectedDeleteAcls, resultDeleteAcls)
+	checkExpectedResult(expectedDeleteACLs, resultDeleteACLs)
 
 	// All the ACLs should have been deleted
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	resultDescribeAcls, err = a.DescribeAcls(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
-	expectedDescribeAcls = DescribeAclsResult{
+	resultDescribeACLs, err = a.DescribeACLs(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
+	expectedDescribeACLs = DescribeACLsResult{
 		Error:       noError,
-		AclBindings: AclBindings{},
+		ACLBindings: ACLBindings{},
 	}
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	checkExpectedResult(expectedDescribeAcls, *resultDescribeAcls)
+	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }

@@ -26,12 +26,12 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-// Parses a list of 7n arguments to a slice of n AclBindingFilter
-func parseAclBindingFilters(args []string) (aclBindingFilters kafka.AclBindingFilters, err error) {
-	nAclBindingFilters := len(args) / 7
-	parsedAclBindingFilters := make(kafka.AclBindingFilters, nAclBindingFilters)
+// Parses a list of 7n arguments to a slice of n ACLBindingFilter
+func parseACLBindingFilters(args []string) (aclBindingFilters kafka.ACLBindingFilters, err error) {
+	nACLBindingFilters := len(args) / 7
+	parsedACLBindingFilters := make(kafka.ACLBindingFilters, nACLBindingFilters)
 
-	for i := 0; i < nAclBindingFilters; i += 1 {
+	for i := 0; i < nACLBindingFilters; i++ {
 		start := i * 7
 		resourceTypeString := args[start]
 		name := args[start+1]
@@ -43,8 +43,8 @@ func parseAclBindingFilters(args []string) (aclBindingFilters kafka.AclBindingFi
 
 		var resourceType kafka.ResourceType
 		var resourcePatternType kafka.ResourcePatternType
-		var operation kafka.AclOperation
-		var permissionType kafka.AclPermissionType
+		var operation kafka.ACLOperation
+		var permissionType kafka.ACLPermissionType
 
 		resourceType, err = kafka.ResourceTypeFromString(resourceTypeString)
 		if err != nil {
@@ -57,19 +57,19 @@ func parseAclBindingFilters(args []string) (aclBindingFilters kafka.AclBindingFi
 			return
 		}
 
-		operation, err = kafka.AclOperationFromString(operationString)
+		operation, err = kafka.ACLOperationFromString(operationString)
 		if err != nil {
 			fmt.Printf("Invalid operation: %s: %v\n", operationString, err)
 			return
 		}
 
-		permissionType, err = kafka.AclPermissionTypeFromString(permissionTypeString)
+		permissionType, err = kafka.ACLPermissionTypeFromString(permissionTypeString)
 		if err != nil {
 			fmt.Printf("Invalid permission type: %s: %v\n", permissionTypeString, err)
 			return
 		}
 
-		parsedAclBindingFilters[i] = kafka.AclBindingFilter{
+		parsedACLBindingFilters[i] = kafka.ACLBindingFilter{
 			Type:                resourceType,
 			Name:                name,
 			ResourcePatternType: resourcePatternType,
@@ -79,7 +79,7 @@ func parseAclBindingFilters(args []string) (aclBindingFilters kafka.AclBindingFi
 			PermissionType:      permissionType,
 		}
 	}
-	aclBindingFilters = parsedAclBindingFilters
+	aclBindingFilters = parsedACLBindingFilters
 	return
 }
 
@@ -97,7 +97,7 @@ func main() {
 	}
 
 	broker := os.Args[1]
-	aclBindingFilters, err := parseAclBindingFilters(os.Args[2:])
+	aclBindingFilters, err := parseACLBindingFilters(os.Args[2:])
 	if err != nil {
 		os.Exit(1)
 	}
@@ -123,7 +123,7 @@ func main() {
 	if err != nil {
 		panic("ParseDuration(60s)")
 	}
-	results, err := a.DeleteAcls(
+	results, err := a.DeleteACLs(
 		ctx,
 		aclBindingFilters,
 		kafka.SetAdminRequestTimeout(maxDur),
@@ -136,9 +136,9 @@ func main() {
 	// Print results
 	for i, result := range results {
 		if result.Error.Code() == kafka.ErrNoError {
-			fmt.Printf("DeleteAcls %d successful, deleted: %+v\n", i, result.AclBindings)
+			fmt.Printf("DeleteACLs %d successful, deleted: %+v\n", i, result.ACLBindings)
 		} else {
-			fmt.Printf("DeleteAcls %d failed, error code: %s, message: %s\n",
+			fmt.Printf("DeleteACLs %d failed, error code: %s, message: %s\n",
 				i, result.Error.Code(), result.Error.String())
 		}
 	}

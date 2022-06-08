@@ -76,36 +76,36 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 	adminClient.Close()
 }
 
-func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
-	var res []CreateAclResult
+func testAdminAPIsCreateACLs(what string, a *AdminClient, t *testing.T) {
+	var res []CreateACLResult
 	var err error
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var expDuration time.Duration
 	var expDurationLonger time.Duration
 	var expError string
-	var invalidTests []AclBindings
+	var invalidTests []ACLBindings
 
-	checkFail := func(res []CreateAclResult, err error) {
+	checkFail := func(res []CreateACLResult, err error) {
 		if res != nil || err == nil {
-			t.Fatalf("Expected CreateAcls to fail, but got result: %v, err: %v", res, err)
+			t.Fatalf("Expected CreateACLs to fail, but got result: %v, err: %v", res, err)
 		}
 	}
 
-	aclBindings := AclBindings{
+	testACLBindings := ACLBindings{
 		{
 			Type:                ResourceTopic,
 			Name:                "mytopic",
 			ResourcePatternType: ResourcePatternTypeLiteral,
 			Principal:           "User:myuser",
 			Host:                "*",
-			Operation:           AclOperationAll,
-			PermissionType:      AclPermissionTypeAllow,
+			Operation:           ACLOperationAll,
+			PermissionType:      ACLPermissionTypeAllow,
 		},
 	}
 
-	copyAclBindings := func() AclBindings {
-		return append(AclBindings{}, aclBindings...)
+	copyACLBindings := func() ACLBindings {
+		return append(ACLBindings{}, testACLBindings...)
 	}
 
 	t.Logf("AdminClient API - ACLs testing on %s: %s", a, what)
@@ -115,17 +115,17 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	}
 
 	// nil aclBindings
-	res, err = a.CreateAcls(ctx, nil)
+	res, err = a.CreateACLs(ctx, nil)
 	checkFail(res, err)
-	expError = "Expected non-nil slice of AclBinding structs"
+	expError = "Expected non-nil slice of ACLBinding structs"
 	if err.Error() != expError {
 		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// empty aclBindings
-	res, err = a.CreateAcls(ctx, AclBindings{})
+	res, err = a.CreateACLs(ctx, ACLBindings{})
 	checkFail(res, err)
-	expError = "Expected non-empty slice of AclBinding structs"
+	expError = "Expected non-empty slice of ACLBinding structs"
 	if err.Error() != expError {
 		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
@@ -134,7 +134,7 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 
-	res, err = a.CreateAcls(ctx, aclBindings)
+	res, err = a.CreateACLs(ctx, testACLBindings)
 	checkFail(res, err)
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
@@ -149,7 +149,7 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), expDurationLonger)
 	defer cancel()
 
-	res, err = a.CreateAcls(ctx, aclBindings, SetAdminRequestTimeout(expDuration))
+	res, err = a.CreateACLs(ctx, testACLBindings, SetAdminRequestTimeout(expDuration))
 	checkFail(res, err)
 	expError = "Failed while waiting for controller: Local: Timed out"
 	if err.Error() != expError {
@@ -157,12 +157,12 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	}
 
 	// Invalid ACL bindings
-	invalidTests = []AclBindings{copyAclBindings(), copyAclBindings()}
+	invalidTests = []ACLBindings{copyACLBindings(), copyACLBindings()}
 	invalidTests[0][0].Type = ResourceUnknown
 	invalidTests[1][0].Type = ResourceAny
 	expError = ": Invalid resource type"
-	for _, invalidAclBindings := range invalidTests {
-		res, err = a.CreateAcls(ctx, invalidAclBindings)
+	for _, invalidACLBindings := range invalidTests {
+		res, err = a.CreateACLs(ctx, invalidACLBindings)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), expError) {
 			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", expError, err.Error())
@@ -182,23 +182,23 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 		": Invalid host",
 	}
 	nInvalidTests := len(suffixes)
-	invalidTests = make([]AclBindings, nInvalidTests)
+	invalidTests = make([]ACLBindings, nInvalidTests)
 	for i := 0; i < nInvalidTests; i++ {
-		invalidTests[i] = copyAclBindings()
+		invalidTests[i] = copyACLBindings()
 	}
 	invalidTests[0][0].ResourcePatternType = ResourcePatternTypeUnknown
 	invalidTests[1][0].ResourcePatternType = ResourcePatternTypeMatch
 	invalidTests[2][0].ResourcePatternType = ResourcePatternTypeAny
-	invalidTests[3][0].Operation = AclOperationUnknown
-	invalidTests[4][0].Operation = AclOperationAny
-	invalidTests[5][0].PermissionType = AclPermissionTypeUnknown
-	invalidTests[6][0].PermissionType = AclPermissionTypeAny
+	invalidTests[3][0].Operation = ACLOperationUnknown
+	invalidTests[4][0].Operation = ACLOperationAny
+	invalidTests[5][0].PermissionType = ACLPermissionTypeUnknown
+	invalidTests[6][0].PermissionType = ACLPermissionTypeAny
 	invalidTests[7][0].Name = ""
 	invalidTests[8][0].Principal = ""
 	invalidTests[9][0].Host = ""
 
-	for i, invalidAclBindings := range invalidTests {
-		res, err = a.CreateAcls(ctx, invalidAclBindings)
+	for i, invalidACLBindings := range invalidTests {
+		res, err = a.CreateACLs(ctx, invalidACLBindings)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), suffixes[i]) {
 			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", suffixes[i], err.Error())
@@ -206,8 +206,8 @@ func testAdminAPIsCreateAcls(what string, a *AdminClient, t *testing.T) {
 	}
 }
 
-func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
-	var res *DescribeAclsResult
+func testAdminAPIsDescribeACLs(what string, a *AdminClient, t *testing.T) {
+	var res *DescribeACLsResult
 	var err error
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -215,17 +215,17 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 	var expDurationLonger time.Duration
 	var expError string
 
-	checkFail := func(res *DescribeAclsResult, err error) {
+	checkFail := func(res *DescribeACLsResult, err error) {
 		if res != nil || err == nil {
-			t.Fatalf("Expected DescribeAcls to fail, but got result: %v, err: %v", res, err)
+			t.Fatalf("Expected DescribeACLs to fail, but got result: %v, err: %v", res, err)
 		}
 	}
 
-	aclBindingsFilter := AclBindingFilter{
+	aclBindingsFilter := ACLBindingFilter{
 		Type:                ResourceTopic,
 		ResourcePatternType: ResourcePatternTypeLiteral,
-		Operation:           AclOperationAll,
-		PermissionType:      AclPermissionTypeAllow,
+		Operation:           ACLOperationAll,
+		PermissionType:      ACLPermissionTypeAllow,
 	}
 
 	t.Logf("AdminClient API - ACLs testing on %s: %s", a, what)
@@ -238,7 +238,7 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 
-	res, err = a.DescribeAcls(ctx, aclBindingsFilter)
+	res, err = a.DescribeACLs(ctx, aclBindingsFilter)
 	checkFail(res, err)
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
@@ -253,7 +253,7 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), expDurationLonger)
 	defer cancel()
 
-	res, err = a.DescribeAcls(ctx, aclBindingsFilter, SetAdminRequestTimeout(expDuration))
+	res, err = a.DescribeACLs(ctx, aclBindingsFilter, SetAdminRequestTimeout(expDuration))
 	checkFail(res, err)
 	expError = "Failed while waiting for controller: Local: Timed out"
 	if err.Error() != expError {
@@ -267,16 +267,16 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 		": Invalid permission type",
 	}
 	nInvalidTests := len(suffixes)
-	invalidTests := make(AclBindingFilters, nInvalidTests)
+	invalidTests := make(ACLBindingFilters, nInvalidTests)
 	for i := 0; i < nInvalidTests; i++ {
 		invalidTests[i] = aclBindingsFilter
 	}
 	invalidTests[0].ResourcePatternType = ResourcePatternTypeUnknown
-	invalidTests[1].Operation = AclOperationUnknown
-	invalidTests[2].PermissionType = AclPermissionTypeUnknown
+	invalidTests[1].Operation = ACLOperationUnknown
+	invalidTests[2].PermissionType = ACLPermissionTypeUnknown
 
-	for i, invalidAclBindingFilter := range invalidTests {
-		res, err = a.DescribeAcls(ctx, invalidAclBindingFilter)
+	for i, invalidACLBindingFilter := range invalidTests {
+		res, err = a.DescribeACLs(ctx, invalidACLBindingFilter)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), suffixes[i]) {
 			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", suffixes[i], err.Error())
@@ -285,7 +285,7 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 
 	// ACL binding filters are valid with empty strings,
 	// matching any value
-	validTests := [3]AclBindingFilter{}
+	validTests := [3]ACLBindingFilter{}
 	for i := 0; i < len(validTests); i++ {
 		validTests[i] = aclBindingsFilter
 	}
@@ -293,8 +293,8 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 	validTests[1].Principal = ""
 	validTests[2].Host = ""
 
-	for _, validAclBindingFilter := range validTests {
-		res, err = a.DescribeAcls(ctx, validAclBindingFilter)
+	for _, validACLBindingFilter := range validTests {
+		res, err = a.DescribeACLs(ctx, validACLBindingFilter)
 		checkFail(res, err)
 		if ctx.Err() != context.DeadlineExceeded {
 			t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
@@ -302,8 +302,8 @@ func testAdminAPIsDescribeAcls(what string, a *AdminClient, t *testing.T) {
 	}
 }
 
-func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
-	var res []DeleteAclsResult
+func testAdminAPIsDeleteACLs(what string, a *AdminClient, t *testing.T) {
+	var res []DeleteACLsResult
 	var err error
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -311,23 +311,23 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 	var expDurationLonger time.Duration
 	var expError string
 
-	checkFail := func(res []DeleteAclsResult, err error) {
+	checkFail := func(res []DeleteACLsResult, err error) {
 		if res != nil || err == nil {
-			t.Fatalf("Expected DeleteAcl to fail, but got result: %v, err: %v", res, err)
+			t.Fatalf("Expected DeleteACL to fail, but got result: %v, err: %v", res, err)
 		}
 	}
 
-	aclBindingsFilters := AclBindingFilters{
+	aclBindingsFilters := ACLBindingFilters{
 		{
 			Type:                ResourceTopic,
 			ResourcePatternType: ResourcePatternTypeLiteral,
-			Operation:           AclOperationAll,
-			PermissionType:      AclPermissionTypeAllow,
+			Operation:           ACLOperationAll,
+			PermissionType:      ACLPermissionTypeAllow,
 		},
 	}
 
-	copyAclBindingFilters := func() AclBindingFilters {
-		return append(AclBindingFilters{}, aclBindingsFilters...)
+	copyACLBindingFilters := func() ACLBindingFilters {
+		return append(ACLBindingFilters{}, aclBindingsFilters...)
 	}
 
 	t.Logf("AdminClient API - ACLs testing on %s: %s", a, what)
@@ -337,17 +337,17 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 	}
 
 	// nil aclBindingFilters
-	res, err = a.DeleteAcls(ctx, nil)
+	res, err = a.DeleteACLs(ctx, nil)
 	checkFail(res, err)
-	expError = "Expected non-nil slice of AclBindingFilter structs"
+	expError = "Expected non-nil slice of ACLBindingFilter structs"
 	if err.Error() != expError {
 		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
 
 	// empty aclBindingFilters
-	res, err = a.DeleteAcls(ctx, AclBindingFilters{})
+	res, err = a.DeleteACLs(ctx, ACLBindingFilters{})
 	checkFail(res, err)
-	expError = "Expected non-empty slice of AclBindingFilter structs"
+	expError = "Expected non-empty slice of ACLBindingFilter structs"
 	if err.Error() != expError {
 		t.Fatalf("Expected error \"%s\", received: \"%v\"", expError, err.Error())
 	}
@@ -356,7 +356,7 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 
-	res, err = a.DeleteAcls(ctx, aclBindingsFilters)
+	res, err = a.DeleteACLs(ctx, aclBindingsFilters)
 	checkFail(res, err)
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
@@ -371,7 +371,7 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), expDurationLonger)
 	defer cancel()
 
-	res, err = a.DeleteAcls(ctx, aclBindingsFilters, SetAdminRequestTimeout(expDuration))
+	res, err = a.DeleteACLs(ctx, aclBindingsFilters, SetAdminRequestTimeout(expDuration))
 	checkFail(res, err)
 	expError = "Failed while waiting for controller: Local: Timed out"
 	if err.Error() != expError {
@@ -385,16 +385,16 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 		": Invalid permission type",
 	}
 	nInvalidTests := len(suffixes)
-	invalidTests := make([]AclBindingFilters, nInvalidTests)
+	invalidTests := make([]ACLBindingFilters, nInvalidTests)
 	for i := 0; i < nInvalidTests; i++ {
-		invalidTests[i] = copyAclBindingFilters()
+		invalidTests[i] = copyACLBindingFilters()
 	}
 	invalidTests[0][0].ResourcePatternType = ResourcePatternTypeUnknown
-	invalidTests[1][0].Operation = AclOperationUnknown
-	invalidTests[2][0].PermissionType = AclPermissionTypeUnknown
+	invalidTests[1][0].Operation = ACLOperationUnknown
+	invalidTests[2][0].PermissionType = ACLPermissionTypeUnknown
 
-	for i, invalidAclBindingFilters := range invalidTests {
-		res, err = a.DeleteAcls(ctx, invalidAclBindingFilters)
+	for i, invalidACLBindingFilters := range invalidTests {
+		res, err = a.DeleteACLs(ctx, invalidACLBindingFilters)
 		checkFail(res, err)
 		if !strings.HasSuffix(err.Error(), suffixes[i]) {
 			t.Fatalf("Expected an error ending with \"%s\", received: \"%s\"", suffixes[i], err.Error())
@@ -403,16 +403,16 @@ func testAdminAPIsDeleteAcls(what string, a *AdminClient, t *testing.T) {
 
 	// ACL binding filters are valid with empty strings,
 	// matching any value
-	validTests := [3]AclBindingFilters{}
+	validTests := [3]ACLBindingFilters{}
 	for i := 0; i < len(validTests); i++ {
-		validTests[i] = copyAclBindingFilters()
+		validTests[i] = copyACLBindingFilters()
 	}
 	validTests[0][0].Name = ""
 	validTests[1][0].Principal = ""
 	validTests[2][0].Host = ""
 
-	for _, validAclBindingFilters := range validTests {
-		res, err = a.DeleteAcls(ctx, validAclBindingFilters)
+	for _, validACLBindingFilters := range validTests {
+		res, err = a.DeleteACLs(ctx, validACLBindingFilters)
 		checkFail(res, err)
 		if ctx.Err() != context.DeadlineExceeded {
 			t.Fatalf("Expected DeadlineExceeded, not %v, %v", ctx.Err(), err)
@@ -646,9 +646,9 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 
-	testAdminAPIsCreateAcls(what, a, t)
-	testAdminAPIsDescribeAcls(what, a, t)
-	testAdminAPIsDeleteAcls(what, a, t)
+	testAdminAPIsCreateACLs(what, a, t)
+	testAdminAPIsDescribeACLs(what, a, t)
+	testAdminAPIsDeleteACLs(what, a, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
