@@ -259,7 +259,9 @@ func (h *handle) cleanup() {
 		ptr := <-h.cgoTokenCache
 		C.free(ptr)
 	}
-	close(h.cgoTokenCache)
+	if h.cgoTokenCache != nil {
+		close(h.cgoTokenCache)
+	}
 }
 
 func (h *handle) closePartitionQueues() {

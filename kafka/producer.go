@@ -384,6 +384,9 @@ func (p *Producer) FlushContext(ctx context.Context) int {
 // Close a Producer instance.
 // The Producer object or its channels are no longer usable after this call.
 func (p *Producer) Close() {
+	if p == nil {
+		return
+	}
 	// Wait for poller() (signaled by closing pollerTermChan)
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)

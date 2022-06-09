@@ -273,6 +273,20 @@ func TestProducerInvalidConfig(t *testing.T) {
 	}
 }
 
+func TestIdempotentConfig(t *testing.T) {
+	errorMsg := "`acks` must be set to `all` when `enable.idempotence` is true"
+	cfg := ConfigMap{
+		"enable.idempotence":    true,
+		"request.required.acks": 1,
+	}
+	p, err := NewProducer(&cfg)
+	if err.Error() != errorMsg {
+		t.Fatalf("Expected NewProducer() to fail with '%s', failed with '%s'", errorMsg, err.Error())
+	}
+	// assert closing a client that wasn't created doesn't error
+	p.Close()
+}
+
 func TestProducerOAuthBearerConfig(t *testing.T) {
 	myOAuthConfig := "scope=myscope principal=gotest"
 
