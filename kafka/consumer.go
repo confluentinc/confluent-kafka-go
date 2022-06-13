@@ -424,28 +424,11 @@ func (c *Consumer) Close() (err error) {
 		close(c.events)
 	}
 
-	doneChan := make(chan bool)
+	C.rd_kafka_consumer_close_queue(c.handle.rk, c.handle.rkq)
 
-	go func() {
-		C.rd_kafka_consumer_close(c.handle.rk)
-		// wake up Poll()
-		C.rd_kafka_queue_yield(c.handle.rkq)
-		doneChan <- true
-	}()
-
-	// wait for consumer_close() to finish while serving c.Poll() for rebalance callbacks/events
-	run := true
-	for run {
-		select {
-		case <-doneChan:
-			run = false
-
-		default:
-			c.Poll(100)
-		}
+	for C.rd_kafka_consumer_closed(c.handle.rk) != 1 {
+		c.Poll(100)
 	}
-
-	close(doneChan)
 
 	// Destroy our queue
 	C.rd_kafka_queue_destroy(c.handle.rkq)
