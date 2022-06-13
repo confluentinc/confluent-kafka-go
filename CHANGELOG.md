@@ -12,7 +12,8 @@ This is a feature release:
 
 ### Fixes
 
- * Fix Rebalance events behavior for static membership (@jliunyu, #757).
+ * Fix Rebalance events behavior for static membership (@jliunyu, #757,
+   #798).
  * Fix consumer close taking 10 seconds when there's no rebalance
    needed (@jliunyu, #757).
 
