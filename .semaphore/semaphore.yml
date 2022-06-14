@@ -1,0 +1,81 @@
+version: v1.0
+name: build-test-release
+agent:
+  machine:
+    type: e1-standard-4
+    os_image: ubuntu1804
+
+auto_cancel:
+  running:
+    when: "branch != 'master'"
+
+execution_time_limit:
+  hours: 1
+
+global_job_config:
+  secrets:
+    - name: vault_sem2_approle
+  prologue:
+    commands:
+      - chmod 400 ~/.ssh/id_rsa
+      - sem-version go 1.18
+      - export "GOPATH=$(go env GOPATH)"
+      - export "SEMAPHORE_GIT_DIR=${GOPATH}/src/github.com/confluentinc/${SEMAPHORE_PROJECT_NAME}"
+      - export "PATH=${GOPATH}/bin:${PATH}"
+      - mkdir -vp "${SEMAPHORE_GIT_DIR}" "${GOPATH}/bin"
+      - git config --global url."git@github.com:".insteadOf "https://github.com/"
+      - sem-service start postgres 13
+      # This username/password is just to create test db to run tests. DB will be destroyed when build finishes.
+      - psql -U postgres -h localhost -c "CREATE USER runner WITH PASSWORD 'semaphoredb';"
+      - psql -U postgres -h localhost -c "ALTER USER runner WITH SUPERUSER;"
+      - export ADMIN_DB_URL=postgres://runner:semaphoredb@localhost:5432
+      # Let the app set the default but don't let cc-go.mk sets the default
+      - export DB_URL=""
+      - sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+      - wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+      - sudo apt-get update
+      - sudo apt-get -y install postgresql-client-13
+      - checkout
+      - make install-vault
+      - . mk-include/bin/vault-setup
+      - . vault-sem-get-secret gitconfig
+      - . vault-sem-get-secret ssh_id_rsa
+      - . vault-sem-get-secret ssh_config
+      - . vault-sem-get-secret netrc
+      - . vault-sem-get-secret artifactory-docker-helm
+      - . vault-sem-get-secret maven-settings
+      - . vault-sem-get-secret cpd_gcloud
+      - . vault-sem-get-secret aws_credentials
+      - . vault-sem-get-secret testbreak-reporting
+      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
+      - exec &> >(tee -a build.log)
+      - make init-ci
+  epilogue:
+    always:
+      commands:
+        - make epilogue-ci
+
+blocks:
+  - name: "Build, Test, Release"
+    run:
+      # don't run the build or unit tests on non-functional changes...
+      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
+    task:
+       # You can customize your CI job here
+#      env_vars:
+#        # custom env_vars
+#      prologue:
+#        commands:
+#          # custom vault secrets
+#          # custom prologue commands
+      jobs:
+        - name: "Build, Test, Release"
+          commands:
+            - make build
+            - make test
+            - make release-ci
+      epilogue:
+        always:
+          commands:
+            - make epilogue-ci
+            - make testbreak-after
