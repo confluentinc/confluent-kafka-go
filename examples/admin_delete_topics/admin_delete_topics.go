@@ -20,28 +20,29 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
 
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <broker> <topic1> <topic2> ..\n",
+			"Usage: %s <bootstrap-servers> <topic1> <topic2> ..\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	topics := os.Args[2:]
 
 	// Create a new AdminClient.
 	// AdminClient can also be instantiated using an existing
 	// Producer or Consumer instance, see NewAdminClientFromProducer and
 	// NewAdminClientFromConsumer.
-	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": broker})
+	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
 	if err != nil {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
 		os.Exit(1)

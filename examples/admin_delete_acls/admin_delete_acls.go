@@ -90,13 +90,13 @@ func main() {
 	aclBindingFilterArgs := nArgs - 2
 	if aclBindingFilterArgs <= 0 || aclBindingFilterArgs%7 != 0 {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <broker> <resource-type1> <resource-name1> <resource-pattern-type1> "+
+			"Usage: %s <bootstrap-servers> <resource-type1> <resource-name1> <resource-pattern-type1> "+
 				"<principal1> <host1> <operation1> <permission-type1> ...\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	aclBindingFilters, err := parseACLBindingFilters(os.Args[2:])
 	if err != nil {
 		os.Exit(1)
@@ -106,7 +106,7 @@ func main() {
 	// AdminClient can also be instantiated using an existing
 	// Producer or Consumer instance, see NewAdminClientFromProducer and
 	// NewAdminClientFromConsumer.
-	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": broker})
+	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
 	if err != nil {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
 		os.Exit(1)
