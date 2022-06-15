@@ -22,10 +22,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 // Intersections this application will process.
@@ -75,7 +76,7 @@ func generateInputMessages(wg *sync.WaitGroup, termChan chan bool) {
 
 	config := &kafka.ConfigMap{
 		"client.id":              "generator",
-		"bootstrap.servers":      brokers,
+		"bootstrap.servers":      bootstrapServers,
 		"enable.idempotence":     true,
 		"go.logs.channel.enable": true,
 		"go.logs.channel":        logsChan,

@@ -21,8 +21,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 // createTransactionalProducer creates a transactional producer for the given
@@ -30,7 +31,7 @@ import (
 func createTransactionalProducer(toppar kafka.TopicPartition) error {
 	producerConfig := &kafka.ConfigMap{
 		"client.id":              fmt.Sprintf("txn-p%d", toppar.Partition),
-		"bootstrap.servers":      brokers,
+		"bootstrap.servers":      bootstrapServers,
 		"transactional.id":       fmt.Sprintf("go-transactions-example-p%d", int(toppar.Partition)),
 		"go.logs.channel.enable": true,
 		"go.logs.channel":        logsChan,
