@@ -20,13 +20,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 // Set to false to disable visualization, useful for troubleshooting.
@@ -36,8 +37,8 @@ var withVisualizer = true
 var inputTopic = "go-transactions-example-ingress-cars"
 var outputTopic = "go-transactions-example-traffic-light-states"
 
-// brokers holds the bootstrap servers
-var brokers string
+// bootstrapServers holds the bootstrap servers
+var bootstrapServers string
 
 // logsChan is the common log channel for all Kafka client instances.
 var logsChan chan kafka.LogEvent
@@ -65,11 +66,11 @@ func logReader(wg *sync.WaitGroup, termChan chan bool) {
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	brokers = os.Args[1]
+	bootstrapServers = os.Args[1]
 
 	rand.Seed(time.Now().Unix())
 
