@@ -22,28 +22,29 @@ package main
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
 
 	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <group> <topics..>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <group> <topics..>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	group := os.Args[2]
 	topics := os.Args[3:]
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
+		"bootstrap.servers": bootstrapServers,
 		// Avoid connecting to IPv6 brokers:
 		// This is needed for the ErrAllBrokersDown show-case below
 		// when using localhost brokers on OSX, since the OSX resolver

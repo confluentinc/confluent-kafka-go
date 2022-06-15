@@ -166,6 +166,15 @@ func (ao AdminOptionValidateOnly) supportsCreatePartitions() {
 func (ao AdminOptionValidateOnly) supportsAlterConfigs() {
 }
 
+func (ao AdminOptionRequestTimeout) supportsCreateACLs() {
+}
+
+func (ao AdminOptionRequestTimeout) supportsDescribeACLs() {
+}
+
+func (ao AdminOptionRequestTimeout) supportsDeleteACLs() {
+}
+
 func (ao AdminOptionValidateOnly) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
 		return nil
@@ -237,6 +246,30 @@ type AlterConfigsAdminOption interface {
 // See SetAdminRequestTimeout.
 type DescribeConfigsAdminOption interface {
 	supportsDescribeConfigs()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// CreateACLsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout
+type CreateACLsAdminOption interface {
+	supportsCreateACLs()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DescribeACLsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout
+type DescribeACLsAdminOption interface {
+	supportsDescribeACLs()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DeleteACLsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout
+type DeleteACLsAdminOption interface {
+	supportsDeleteACLs()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
