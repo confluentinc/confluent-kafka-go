@@ -23,12 +23,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/gdamore/tcell"
 	"os"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/gdamore/tcell"
 )
 
 // Height and width (terminal characters) per intersection frame.
@@ -331,7 +332,7 @@ func trafficLightVisualizer(wg *sync.WaitGroup, termChan chan bool) {
 
 	consumerConfig := &kafka.ConfigMap{
 		"client.id":              "visualizer",
-		"bootstrap.servers":      brokers,
+		"bootstrap.servers":      bootstrapServers,
 		"group.id":               processorGroupID + "_visualizer",
 		"auto.offset.reset":      "earliest",
 		"go.logs.channel.enable": true,
