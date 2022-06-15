@@ -24,9 +24,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"sync"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 // The processor's consumer group id.
@@ -267,7 +268,7 @@ func trafficLightProcessor(wg *sync.WaitGroup, termChan chan bool) {
 
 	consumerConfig := &kafka.ConfigMap{
 		"client.id":         "processor",
-		"bootstrap.servers": brokers,
+		"bootstrap.servers": bootstrapServers,
 		"group.id":          processorGroupID,
 		"auto.offset.reset": "earliest",
 		// Consumer used for input to a transactional processor

@@ -21,10 +21,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"regexp"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 var (
@@ -116,17 +117,17 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh) (kafka.OAuthBearerT
 func main() {
 
 	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	oauthConf := os.Args[2]
 
 	// You'll probably need to modify this configuration to
 	// match your environment.
 	config := kafka.ConfigMap{
-		"bootstrap.servers":       broker,
+		"bootstrap.servers":       bootstrapServers,
 		"security.protocol":       "SASL_PLAINTEXT",
 		"sasl.mechanisms":         "OAUTHBEARER",
 		"sasl.oauthbearer.config": oauthConf,
