@@ -1814,6 +1814,7 @@ func TestAdminACLs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
+	sort.Sort(&resultDeleteACLs[0].ACLBindings)
 	checkExpectedResult(expectedDeleteACLs, resultDeleteACLs)
 
 	// Delete the ACLs with ResourceTopic and ResourceGroup

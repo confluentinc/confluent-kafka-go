@@ -1294,7 +1294,7 @@ func (a *AdminClient) cToCreateACLResults(cCreateAclsRes **C.rd_kafka_acl_result
 		cCreateACLRes := C.acl_result_by_idx(cCreateAclsRes, aclCnt, C.size_t(i))
 		if cCreateACLRes != nil {
 			cCreateACLError := C.rd_kafka_acl_result_error(cCreateACLRes)
-			result[i].Error = newErrorFromCErrorDestroy(cCreateACLError)
+			result[i].Error = newErrorFromCError(cCreateACLError)
 		}
 	}
 
@@ -1312,10 +1312,7 @@ func (a *AdminClient) cToDescribeACLsResult(rkev *C.rd_kafka_event_t) (result *D
 	cResult := C.rd_kafka_event_DescribeAcls_result(rkev)
 	cResultACLs := C.rd_kafka_DescribeAcls_result_acls(cResult, &cResultACLsCount)
 	if errCode != ErrNoError {
-		result.Error = Error{
-			code: ErrorCode(err),
-			str:  C.GoString(errStr),
-		}
+		result.Error = newErrorFromCString(err, errStr)
 	}
 	result.ACLBindings = a.cToACLBindings(cResultACLs, cResultACLsCount)
 	return
@@ -1332,7 +1329,7 @@ func (a *AdminClient) cToDeleteACLsResults(cDeleteACLsResResponse **C.rd_kafka_D
 		}
 
 		cDeleteACLsError := C.rd_kafka_DeleteAcls_result_response_error(cDeleteACLsResResponse)
-		result[i].Error = newErrorFromCErrorDestroy(cDeleteACLsError)
+		result[i].Error = newErrorFromCError(cDeleteACLsError)
 
 		var cMatchingACLsCount C.size_t
 		cMatchingACLs := C.rd_kafka_DeleteAcls_result_response_matching_acls(
