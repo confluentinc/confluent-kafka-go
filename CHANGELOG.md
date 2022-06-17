@@ -5,6 +5,7 @@
 This is a feature release:
 
  * OAUTHBEARER OIDC support
+ * KIP-140 Admin API ACL support
  * Added MockCluster for functional testing of applications without the need
    for a real Kafka cluster (by @SourceFellows and @kkoehler, #729).
    See [examples/mock_cluster](examples/mock_cluster).

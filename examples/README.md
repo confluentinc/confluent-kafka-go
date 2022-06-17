@@ -1,6 +1,9 @@
 
 Examples:
 
+  admin_create_acls - Create Access Control Lists
+  admin_describe_acls - Find Access Control Lists using a filter
+  admin_delete_acls - Delete Access Control Lists using different filters
   consumer_channel_example - Channel based consumer
   consumer_example - Function & callback based consumer
   consumer_offset_metadata - Commit offset with metadata

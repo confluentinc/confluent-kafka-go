@@ -20,25 +20,26 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
 
 	if len(os.Args) != 4 {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <broker> <resource-type> <resource-name>\n"+
+			"Usage: %s <bootstrap-servers> <resource-type> <resource-name>\n"+
 				"\n"+
-				" <broker> - CSV list of bootstrap brokers\n"+
+				" <bootstrap-servers> - CSV list of bootstrap brokers\n"+
 				" <resource-type> - any, broker, topic, group\n"+
 				" <resource-name> - broker id or topic name\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	resourceType, err := kafka.ResourceTypeFromString(os.Args[2])
 	if err != nil {
 		fmt.Printf("Invalid resource type: %s\n", os.Args[2])
@@ -50,7 +51,7 @@ func main() {
 	// AdminClient can also be instantiated using an existing
 	// Producer or Consumer instance, see NewAdminClientFromProducer and
 	// NewAdminClientFromConsumer.
-	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": broker})
+	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
 	if err != nil {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
 		os.Exit(1)
