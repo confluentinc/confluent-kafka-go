@@ -12,6 +12,7 @@ spec:
     - tags
     - pull_requests
     pipeline_file: .semaphore/semaphore.yml
+    integration_type: github_app
     status:
       pipeline_files:
       - path: .semaphore/semaphore.yml
