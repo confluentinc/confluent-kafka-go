@@ -23,22 +23,23 @@ package main
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"strconv"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
 
 	if len(os.Args) != 7 && len(os.Args) != 5 {
 		fmt.Fprintf(os.Stderr, `Usage:
-- commit offset with metadata: %s <broker> <group> <topic> <partition> <offset> "<metadata>"
-- show partition offset: %s <broker> <group> <topic> <partition>`,
+- commit offset with metadata: %s <bootstrap-servers> <group> <topic> <partition> <offset> "<metadata>"
+- show partition offset: %s <bootstrap-servers> <group> <topic> <partition>`,
 			os.Args[0], os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	group := os.Args[2]
 	topic := os.Args[3]
 	partition, err := strconv.Atoi(os.Args[4])
@@ -48,7 +49,7 @@ func main() {
 	}
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
+		"bootstrap.servers": bootstrapServers,
 		"group.id":          group,
 	})
 
