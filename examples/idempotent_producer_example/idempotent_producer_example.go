@@ -29,9 +29,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 var run = true
@@ -39,16 +40,16 @@ var run = true
 func main() {
 
 	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <topic>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <topic>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	broker := os.Args[1]
+	bootstrapServers := os.Args[1]
 	topic := os.Args[2]
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
+		"bootstrap.servers": bootstrapServers,
 		// Enable the Idempotent Producer
 		"enable.idempotence": true})
 
