@@ -67,10 +67,8 @@ func newCErrorFromString(code C.rd_kafka_resp_err_t, str string) (err Error) {
 	return newErrorFromString(ErrorCode(code), str)
 }
 
-// newErrorFromCError creates a new Error instance and destroys
-// the passed cError.
-func newErrorFromCErrorDestroy(cError *C.rd_kafka_error_t) Error {
-	defer C.rd_kafka_error_destroy(cError)
+// newErrorFromCError creates a new Error instance
+func newErrorFromCError(cError *C.rd_kafka_error_t) Error {
 	return Error{
 		code:             ErrorCode(C.rd_kafka_error_code(cError)),
 		str:              C.GoString(C.rd_kafka_error_string(cError)),
@@ -78,6 +76,13 @@ func newErrorFromCErrorDestroy(cError *C.rd_kafka_error_t) Error {
 		retriable:        cint2bool(C.rd_kafka_error_is_retriable(cError)),
 		txnRequiresAbort: cint2bool(C.rd_kafka_error_txn_requires_abort(cError)),
 	}
+}
+
+// newErrorFromCErrorDestroy creates a new Error instance and destroys
+// the passed cError.
+func newErrorFromCErrorDestroy(cError *C.rd_kafka_error_t) Error {
+	defer C.rd_kafka_error_destroy(cError)
+	return newErrorFromCError(cError)
 }
 
 // Error returns a human readable representation of an Error
