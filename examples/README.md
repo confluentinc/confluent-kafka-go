@@ -49,4 +49,3 @@ Usage example
     $ go build   (or 'go install')
     $ ./consumer_example    # see usage
     $ ./consumer_example mybroker mygroup mytopic
-
