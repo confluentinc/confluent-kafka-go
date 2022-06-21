@@ -224,7 +224,8 @@ with `-tags dynamic`.
 API Strands
 ===========
 
-The recommended API strand is the Function-Based one, the Channel-Based one documentation is in [examples/legacy](examples/legacy).
+The recommended API strand is the Function-Based one,
+the Channel-Based one is documented in [examples/legacy](examples/legacy).
 
 Function-Based Consumer
 -----------------------
