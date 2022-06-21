@@ -24,6 +24,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 )
@@ -1653,4 +1654,198 @@ func TestAdminClient_ControllerID(t *testing.T) {
 	}
 
 	t.Logf("ControllerID: %d\n", controllerID)
+}
+
+func TestAdminACLs(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	rand.Seed(time.Now().Unix())
+	topic := testconf.Topic
+	group := testconf.GroupID
+	noError := NewError(ErrNoError, "", false)
+	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
+	var expectedCreateACLs []CreateACLResult
+	var expectedDescribeACLs DescribeACLsResult
+	var expectedDeleteACLs []DeleteACLsResult
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	a := createAdminClient(t)
+	defer a.Close()
+
+	maxDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	requestTimeout, err := time.ParseDuration("20s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	checkExpectedResult := func(expected interface{}, result interface{}) {
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected result to deep equal to %v, but found %v", expected, result)
+		}
+	}
+
+	// Create ACLs
+	t.Logf("Creating ACLs\n")
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:test-user-1",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Principal:           "User:test-user-2",
+			Host:                "*",
+			Operation:           ACLOperationWrite,
+			PermissionType:      ACLPermissionTypeDeny,
+		},
+		{
+			Type:                ResourceGroup,
+			Name:                group,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Principal:           "User:test-user-2",
+			Host:                "*",
+			Operation:           ACLOperationAll,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	invalidACLs := ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			// Principal must be in the form "{principalType}:{principalName}"
+			// Broker returns ErrUnknown in this case
+			Principal:      "wrong-principal",
+			Host:           "*",
+			Operation:      ACLOperationRead,
+			PermissionType: ACLPermissionTypeAllow,
+		},
+	}
+
+	aclBindingFilters := ACLBindingFilters{
+		{
+			Type:                ResourceAny,
+			ResourcePatternType: ResourcePatternTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
+		},
+		{
+			Type:                ResourceAny,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
+		},
+		{
+			Type:                ResourceTopic,
+			ResourcePatternType: ResourcePatternTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
+		},
+		{
+			Type:                ResourceGroup,
+			ResourcePatternType: ResourcePatternTypeAny,
+			Operation:           ACLOperationAny,
+			PermissionType:      ACLPermissionTypeAny,
+		},
+	}
+
+	// CreateACLs should be idempotent
+	for n := 0; n < 2; n++ {
+		ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+		defer cancel()
+
+		resultCreateACLs, err := a.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
+		if err != nil {
+			t.Fatalf("CreateACLs() failed: %s", err)
+		}
+		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}}
+		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+	}
+
+	// CreateACLs with server side validation errors
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	resultCreateACLs, err := a.CreateACLs(ctx, invalidACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	expectedCreateACLs = []CreateACLResult{{Error: unknownError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+
+	// DescribeACLs must return the three ACLs
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDescribeACLs, err := a.DescribeACLs(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
+	expectedDescribeACLs = DescribeACLsResult{
+		Error:       noError,
+		ACLBindings: newACLs,
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	sort.Sort(&resultDescribeACLs.ACLBindings)
+	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
+
+	// Delete the ACLs with ResourcePatternTypePrefixed
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDeleteACLs, err := a.DeleteACLs(ctx, aclBindingFilters[1:2], SetAdminRequestTimeout(requestTimeout))
+	expectedDeleteACLs = []DeleteACLsResult{
+		{
+			Error:       noError,
+			ACLBindings: newACLs[1:3],
+		},
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	sort.Sort(&resultDeleteACLs[0].ACLBindings)
+	checkExpectedResult(expectedDeleteACLs, resultDeleteACLs)
+
+	// Delete the ACLs with ResourceTopic and ResourceGroup
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDeleteACLs, err = a.DeleteACLs(ctx, aclBindingFilters[2:4], SetAdminRequestTimeout(requestTimeout))
+	expectedDeleteACLs = []DeleteACLsResult{
+		{
+			Error:       noError,
+			ACLBindings: newACLs[0:1],
+		},
+		{
+			Error:       noError,
+			ACLBindings: ACLBindings{},
+		},
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	checkExpectedResult(expectedDeleteACLs, resultDeleteACLs)
+
+	// All the ACLs should have been deleted
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	resultDescribeACLs, err = a.DescribeACLs(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
+	expectedDescribeACLs = DescribeACLsResult{
+		Error:       noError,
+		ACLBindings: ACLBindings{},
+	}
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
