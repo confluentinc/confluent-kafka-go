@@ -70,6 +70,12 @@ func main() {
 	for msgcnt < totalMsgcnt {
 		value := fmt.Sprintf("Producer example, message #%d", msgcnt)
 
+		// A delivery channel for each message sent.
+		// This permits to receive delivery reports
+		// separately and to handle the use case
+		// of a server that has multiple concurrent
+		// produce requests and needs to deliver the replies
+		// to many different response channels.
 		deliveryChan := make(chan kafka.Event)
 		go func() {
 			for e := range deliveryChan {
@@ -101,23 +107,18 @@ func main() {
 		if err != nil {
 			close(deliveryChan)
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
-				// Producer queue is full, waits for it to be freed
+				// Producer queue is full, wait 1s for messages
+				// to be delivered then try again.
 				time.Sleep(time.Second)
 				continue
 			}
 			fmt.Printf("Failed to produce message: %v\n", err)
-			// Flush and close the producer and the events channel
-			for p.Flush(1000) > 0 {
-				fmt.Print("Still waiting to flush outstanding messages\n", err)
-			}
-			p.Close()
-			os.Exit(1)
 		}
 		msgcnt++
 	}
 
 	// Flush and close the producer and the events channel
-	for p.Flush(1000) > 0 {
+	for p.Flush(10000) > 0 {
 		fmt.Print("Still waiting to flush outstanding messages\n", err)
 	}
 	p.Close()
