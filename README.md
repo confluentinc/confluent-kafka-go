@@ -224,65 +224,17 @@ with `-tags dynamic`.
 API Strands
 ===========
 
-There are two main API strands: function and channel-based.
+The recommended API strand is the Function-Based one,
+the Channel-Based one is documented in [examples/legacy](examples/legacy).
 
 Function-Based Consumer
 -----------------------
 
 Messages, errors and events are polled through the `consumer.Poll()` function.
 
-Pros:
-
- * More direct mapping to underlying librdkafka functionality.
-
-Cons:
-
- * Makes it harder to read from multiple channels, but a go-routine easily
-   solves that (see Cons in channel-based consumer below about outdated events).
- * Slower than the channel consumer.
+It has direct mapping to underlying librdkafka functionality.
 
 See [examples/consumer_example](examples/consumer_example)
-
-Channel-Based Consumer (deprecated)
------------------------------------
-
-*Deprecated*: The channel-based consumer is deprecated due to the channel issues
-              mentioned below. Use the function-based consumer.
-
-Messages, errors and events are posted on the `consumer.Events()` channel
-for the application to read.
-
-Pros:
-
- * Possibly more Golang:ish
- * Makes reading from multiple channels easy
- * Fast
-
-Cons:
-
- * Outdated events and messages may be consumed due to the buffering nature
-   of channels. The extent is limited, but not remedied, by the Events channel
-   buffer size (`go.events.channel.size`).
-
-See [examples/consumer_channel_example](examples/consumer_channel_example)
-
-Channel-Based Producer
-----------------------
-
-Application writes messages to the `producer.ProducerChannel()`.
-Delivery reports are emitted on the `producer.Events()` or specified private channel.
-
-Pros:
-
- * Go:ish
- * Proper channel backpressure if librdkafka internal queue is full.
-
-Cons:
-
- * Double queueing: messages are first queued in the channel (size is configurable)
-   and then inside librdkafka.
-
-See [examples/producer_channel_example](examples/producer_channel_example)
 
 Function-Based Producer
 -----------------------
@@ -290,15 +242,10 @@ Function-Based Producer
 Application calls `producer.Produce()` to produce messages.
 Delivery reports are emitted on the `producer.Events()` or specified private channel.
 
-Pros:
-
- * Go:ish
-
-Cons:
+_Warnings_
 
  * `Produce()` is a non-blocking call, if the internal librdkafka queue is full
-   the call will fail.
- * Somewhat slower than the channel producer.
+   the call will fail and can be retried.
 
 See [examples/producer_example](examples/producer_example)
 
