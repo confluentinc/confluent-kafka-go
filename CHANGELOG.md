@@ -18,7 +18,7 @@ This is a feature release:
  * Fix consumer close taking 10 seconds when there's no rebalance
    needed (@jliunyu, #757).
 
-confluent-kafka-go is based on librdkafka FUTUREFIXME, see the
+confluent-kafka-go is based on librdkafka v1.9.0, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
