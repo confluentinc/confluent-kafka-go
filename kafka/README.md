@@ -87,8 +87,7 @@ See instructions in [kafka/librdkafka/README.md](kafka/librdkafka/README.md).
 ### Update librdkafka version requirement
 
 Update the minimum required librdkafka version in `kafka/00version.go`
-and `README.md`.
-
+and `README.md` and the version in `examples/go.mod` and `mk/doc-gen.py`.
 
 ### Update error codes
 
