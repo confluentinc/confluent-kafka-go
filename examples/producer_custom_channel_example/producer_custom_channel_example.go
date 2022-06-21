@@ -1,4 +1,4 @@
-// Example function-based Apache Kafka producer
+// Example function-based Apache Kafka producer with a custom delivery channel
 package main
 
 /**
@@ -28,16 +28,16 @@ import (
 func main() {
 
 	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <topic>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <topic>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	bootstrapServers := os.Args[1]
+	broker := os.Args[1]
 	topic := os.Args[2]
 	totalMsgcnt := 3
 
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
+	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
 
 	if err != nil {
 		fmt.Printf("Failed to create producer: %s\n", err)
@@ -46,18 +46,11 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	// Listen to all the events on the default events channel
+	// Listen to all the client instance-level errors.
+	// It's important to read these errors too otherwise the events channel will eventually fill up
 	go func() {
 		for e := range p.Events() {
 			switch ev := e.(type) {
-			case *kafka.Message:
-				m := ev
-				if m.TopicPartition.Error != nil {
-					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
-				} else {
-					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
-						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
-				}
 			case kafka.Error:
 				// Generic client instance-level errors, such as
 				// broker connection failures, authentication issues, etc.
@@ -73,6 +66,27 @@ func main() {
 		}
 	}()
 
+	// Optional delivery channel, if not specified the Producer object's
+	// .Events channel is used.
+	deliveryChan := make(chan kafka.Event)
+	go func() {
+		for e := range deliveryChan {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				m := ev
+				if m.TopicPartition.Error != nil {
+					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
+				} else {
+					fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
+						*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+				}
+
+			default:
+				fmt.Printf("Ignored event: %s\n", ev)
+			}
+		}
+	}()
+
 	msgcnt := 0
 	for msgcnt < totalMsgcnt {
 		value := fmt.Sprintf("Producer example, message #%d", msgcnt)
@@ -81,7 +95,7 @@ func main() {
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Value:          []byte(value),
 			Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
-		}, nil)
+		}, deliveryChan)
 
 		if err != nil {
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
