@@ -59,7 +59,7 @@ type serde struct {
 	client              schemaregistry.Client
 	conf                *schemaregistry.ConfigMap
 	isKey               bool
-	subjectNameStrategy SubjectNameStrategy
+	subjectNameStrategy SubjectNameStrategyFunc
 }
 
 type serializer struct {
@@ -84,18 +84,18 @@ func (s *serde) configure(conf *schemaregistry.ConfigMap, isKey bool) error {
 	return nil
 }
 
-// SubjectNameStrategy determines the subject for the given parameters
-type SubjectNameStrategy func(topic string, isKey bool, schema schemaregistry.SchemaInfo) string
+// SubjectNameStrategyFunc determines the subject for the given parameters
+type SubjectNameStrategyFunc func(topic string, isKey bool, schema schemaregistry.SchemaInfo) string
 
-// SubjectNameStrategy returns a function pointer to the desired subject naming strategy.
+// SubjectNameStrategyFunc returns a function pointer to the desired subject naming strategy.
 // For additional information on subject naming strategies see the following link.
 // https://docs.confluent.io/current/schema-registry/docs/serializer-formatter.html#subject-name-strategy
-func (s *serde) SubjectNameStrategy() SubjectNameStrategy {
+func (s *serde) SubjectNameStrategy() SubjectNameStrategyFunc {
 	return s.subjectNameStrategy
 }
 
 // SetSubjectNameStrategy sets the subject naming strategy.
-func (s *serde) SetSubjectNameStrategy(strategy SubjectNameStrategy) {
+func (s *serde) SetSubjectNameStrategy(strategy SubjectNameStrategyFunc) {
 	s.subjectNameStrategy = strategy
 }
 

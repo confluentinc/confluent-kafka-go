@@ -9,13 +9,13 @@ import (
 	"strings"
 )
 
-// JSONSchemaSerializer represents either a JSON Schema serializer
+// JSONSchemaSerializer represents a JSON Schema serializer
 type JSONSchemaSerializer struct {
 	serializer
 	validate bool
 }
 
-// JSONSchemaDeserializer represents either a JSON Schema deserializer
+// JSONSchemaDeserializer represents a JSON Schema deserializer
 type JSONSchemaDeserializer struct {
 	deserializer
 	validate bool

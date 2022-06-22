@@ -41,12 +41,12 @@ import (
 	"strings"
 )
 
-// ProtobufSerializer represents either a Protobuf serializer
+// ProtobufSerializer represents a Protobuf serializer
 type ProtobufSerializer struct {
 	serializer
 }
 
-// ProtobufDeserializer represents either a Protobuf deserializer
+// ProtobufDeserializer represents a Protobuf deserializer
 type ProtobufDeserializer struct {
 	deserializer
 	ProtoRegistry *protoregistry.Types
