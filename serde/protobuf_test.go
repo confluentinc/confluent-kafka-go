@@ -24,7 +24,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -50,7 +50,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -75,7 +75,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -118,7 +118,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -147,7 +147,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

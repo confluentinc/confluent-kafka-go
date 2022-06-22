@@ -24,7 +24,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewSpecificAvroDeserializer(&conf, false)
+	deser, err := NewSpecificAvroDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -60,7 +60,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewSpecificAvroDeserializer(&conf, false)
+	deser, err := NewSpecificAvroDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -91,7 +91,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewSpecificAvroDeserializer(&conf, false)
+	deser, err := NewSpecificAvroDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

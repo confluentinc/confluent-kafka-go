@@ -1,5 +1,6 @@
 package serde
 
+import "C"
 import (
 	"bytes"
 	"encoding/binary"
@@ -8,6 +9,20 @@ import (
 	"github.com/actgardner/gogen-avro/v10/resolver"
 	"github.com/actgardner/gogen-avro/v10/schema"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+)
+
+const (
+	// KeySerde denotes a key serde
+	KeySerde = true
+	// ValueSerde denotes a value serde
+	ValueSerde = false
+)
+
+const (
+	// EnableValidation enables validation
+	EnableValidation = true
+	// DisableValidation disables validation
+	DisableValidation = false
 )
 
 const magicByte byte = 0x0

@@ -24,7 +24,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewGenericAvroDeserializer(&conf, false)
+	deser, err := NewGenericAvroDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -55,7 +55,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewGenericAvroDeserializer(&conf, false)
+	deser, err := NewGenericAvroDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -84,7 +84,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewGenericAvroDeserializer(&conf, false)
+	deser, err := NewGenericAvroDeserializer(&conf, ValueSerde)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

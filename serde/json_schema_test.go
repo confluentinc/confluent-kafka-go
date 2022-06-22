@@ -24,7 +24,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewJSONSchemaDeserializer(&conf, false, true)
+	deser, err := NewJSONSchemaDeserializer(&conf, ValueSerde, EnableValidation)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -54,7 +54,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser, err := NewJSONSchemaDeserializer(&conf, false, true)
+	deser, err := NewJSONSchemaDeserializer(&conf, ValueSerde, EnableValidation)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

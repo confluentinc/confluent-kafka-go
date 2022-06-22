@@ -66,7 +66,7 @@ func main() {
 
 	deser, err := serde.NewJSONSchemaDeserializer(&schemaregistry.ConfigMap{
 		"schema.registry.url": url,
-	}, false)
+	}, serde.ValueSerde, serde.DisableValidation)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)
