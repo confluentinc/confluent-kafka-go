@@ -3,7 +3,6 @@ package schemaregistry
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"net/url"
 	"strings"
 	"sync"
@@ -191,7 +190,7 @@ type Client interface {
 }
 
 // NewClient returns a Client implementation
-func NewClient(conf *kafka.ConfigMap) (Client, error) {
+func NewClient(conf *ConfigMap) (Client, error) {
 
 	urlConf, err := conf.Get("schema.registry.url", "")
 	if err != nil {

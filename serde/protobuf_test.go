@@ -1,7 +1,7 @@
 package serde
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 	"google.golang.org/protobuf/proto"
 	"testing"
@@ -10,11 +10,10 @@ import (
 func TestProtobufSerdeWithSimple(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := ProtobufSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	obj := test.Author{
@@ -25,8 +24,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := ProtobufDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -39,11 +37,10 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := ProtobufSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	obj := test.Pizza{
@@ -53,8 +50,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := ProtobufDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -67,11 +63,10 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := ProtobufSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	obj := test.NestedMessage_InnerMessage{
@@ -80,8 +75,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := ProtobufDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -94,11 +88,10 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 func TestProtobufSerdeWithReference(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := ProtobufSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	msg := test.TestMessage{
@@ -125,8 +118,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := ProtobufDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -139,11 +131,10 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 func TestProtobufSerdeWithCycle(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := ProtobufSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	inner := test.LinkedList{
@@ -156,8 +147,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := ProtobufDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewProtobufDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

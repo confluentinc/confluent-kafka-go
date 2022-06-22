@@ -2,7 +2,6 @@ package schemaregistry
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"io/ioutil"
 	"log"
 	"sort"
@@ -117,7 +116,7 @@ func TestClient(t *testing.T) {
 	if url == "" {
 		url = "mock://"
 	}
-	conf := kafka.ConfigMap{
+	conf := ConfigMap{
 		"schema.registry.url": url,
 	}
 

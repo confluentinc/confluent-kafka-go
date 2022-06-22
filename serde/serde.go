@@ -7,7 +7,6 @@ import (
 	"github.com/actgardner/gogen-avro/v10/parser"
 	"github.com/actgardner/gogen-avro/v10/resolver"
 	"github.com/actgardner/gogen-avro/v10/schema"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 )
 
@@ -22,14 +21,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a serializer
 type Serializer interface {
-	Configure(conf *kafka.ConfigMap, isKey bool) error
+	configure(conf *schemaregistry.ConfigMap, isKey bool) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a deserializer
 type Deserializer interface {
-	Configure(conf *kafka.ConfigMap, isKey bool) error
+	configure(conf *schemaregistry.ConfigMap, isKey bool) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -43,7 +42,7 @@ type Deserializer interface {
 // serde is a common instance for both the serializers and deserializers
 type serde struct {
 	client              schemaregistry.Client
-	conf                *kafka.ConfigMap
+	conf                *schemaregistry.ConfigMap
 	isKey               bool
 	subjectNameStrategy SubjectNameStrategy
 }
@@ -57,8 +56,8 @@ type deserializer struct {
 	messageFactory MessageFactory
 }
 
-// Configure configures the serde
-func (s *serde) Configure(conf *kafka.ConfigMap, isKey bool) error {
+// configure configures the serde
+func (s *serde) configure(conf *schemaregistry.ConfigMap, isKey bool) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err

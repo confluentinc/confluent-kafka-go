@@ -22,6 +22,16 @@ type GenericAvroDeserializer struct {
 var _ Serializer = new(GenericAvroSerializer)
 var _ Deserializer = new(GenericAvroDeserializer)
 
+// NewGenericAvroSerializer creates an Avro serializer for generic objects
+func NewGenericAvroSerializer(conf *schemaregistry.ConfigMap, isKey bool) (*GenericAvroSerializer, error) {
+	s := &GenericAvroSerializer{}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 // Serialize implements serialization of generic Avro data
 func (s *GenericAvroSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
@@ -47,6 +57,16 @@ func (s *GenericAvroSerializer) Serialize(topic string, msg interface{}) ([]byte
 		return nil, err
 	}
 	return payload, nil
+}
+
+// NewGenericAvroDeserializer creates an Avro deserializer for generic objects
+func NewGenericAvroDeserializer(conf *schemaregistry.ConfigMap, isKey bool) (*GenericAvroDeserializer, error) {
+	s := &GenericAvroDeserializer{}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // Deserialize implements deserialization of generic Avro data

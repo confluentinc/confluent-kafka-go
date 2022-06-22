@@ -32,6 +32,16 @@ type SpecificAvroMessage interface {
 	Schema() string
 }
 
+// NewSpecificAvroSerializer creates an Avro serializer for Avro-generated objects
+func NewSpecificAvroSerializer(conf *schemaregistry.ConfigMap, isKey bool) (*SpecificAvroSerializer, error) {
+	s := &SpecificAvroSerializer{}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 // Serialize implements serialization of specific Avro data
 func (s *SpecificAvroSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
@@ -62,6 +72,16 @@ func (s *SpecificAvroSerializer) Serialize(topic string, msg interface{}) ([]byt
 		return nil, err
 	}
 	return payload, nil
+}
+
+// NewSpecificAvroDeserializer creates an Avro deserializer for Avro-generated objects
+func NewSpecificAvroDeserializer(conf *schemaregistry.ConfigMap, isKey bool) (*SpecificAvroDeserializer, error) {
+	s := &SpecificAvroDeserializer{}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // Deserialize implements deserialization of specific Avro data

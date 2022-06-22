@@ -24,6 +24,18 @@ type JSONSchemaDeserializer struct {
 var _ Serializer = new(JSONSchemaSerializer)
 var _ Deserializer = new(JSONSchemaDeserializer)
 
+// NewJSONSchemaSerializer creates a JSON serializer for generic objects
+func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, isKey bool, validate bool) (*JSONSchemaSerializer, error) {
+	s := &JSONSchemaSerializer{
+		validate: validate,
+	}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 // Serialize implements serialization of generic data to JSON
 func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
@@ -67,6 +79,18 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 		return nil, err
 	}
 	return payload, nil
+}
+
+// NewJSONSchemaDeserializer creates a JSON deserializer for generic objects
+func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, isKey bool, validate bool) (*JSONSchemaDeserializer, error) {
+	s := &JSONSchemaDeserializer{
+		validate: validate,
+	}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // Deserialize implements deserialization of generic data from JSON

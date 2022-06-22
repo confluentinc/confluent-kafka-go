@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"io/ioutil"
 	"log"
 	"net"
@@ -87,7 +86,7 @@ type restService struct {
 }
 
 // newRestService returns a new REST client for the Confluent Schema Registry
-func newRestService(conf *kafka.ConfigMap) (*restService, error) {
+func newRestService(conf *ConfigMap) (*restService, error) {
 	urlConf, err := conf.Get("schema.registry.url", "")
 
 	if err != nil {
@@ -133,7 +132,7 @@ func encodeBasicAuth(userinfo string) string {
 }
 
 // configureTLS populates tlsConf
-func configureTLS(conf *kafka.ConfigMap, tlsConf *tls.Config) error {
+func configureTLS(conf *ConfigMap, tlsConf *tls.Config) error {
 	certFile, err := conf.Get("ssl.certificate.location", "")
 	if err != nil {
 		return err
@@ -182,7 +181,7 @@ func configureTLS(conf *kafka.ConfigMap, tlsConf *tls.Config) error {
 }
 
 // configureTransport returns a new Transport for use by the Confluent Schema Registry REST client
-func configureTransport(conf *kafka.ConfigMap) (*http.Transport, error) {
+func configureTransport(conf *ConfigMap) (*http.Transport, error) {
 
 	// Exposed for testing purposes only. In production properly formed certificates should be used
 	// https://tools.ietf.org/html/rfc2818#section-3
@@ -212,7 +211,7 @@ func configureURLAuth(service *url.URL, header http.Header) error {
 }
 
 // configureSASLAuth copies the sasl username and password into a HTTP basic authorization header
-func configureSASLAuth(conf *kafka.ConfigMap, header http.Header) error {
+func configureSASLAuth(conf *ConfigMap, header http.Header) error {
 	mech, err := conf.Get("sasl.mechanism", "GSSAPI")
 
 	if err != nil || strings.ToUpper(mech.(string)) == "GSSAPI" {
@@ -238,7 +237,7 @@ func configureSASLAuth(conf *kafka.ConfigMap, header http.Header) error {
 }
 
 // configureUSERINFOAuth copies basic.auth.user.info
-func configureUSERINFOAuth(conf *kafka.ConfigMap, header http.Header) error {
+func configureUSERINFOAuth(conf *ConfigMap, header http.Header) error {
 	auth, err := conf.Get("basic.auth.user.info", "")
 
 	if err != nil {
@@ -255,7 +254,7 @@ func configureUSERINFOAuth(conf *kafka.ConfigMap, header http.Header) error {
 }
 
 // newAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
-func newAuthHeader(service *url.URL, conf *kafka.ConfigMap) (http.Header, error) {
+func newAuthHeader(service *url.URL, conf *ConfigMap) (http.Header, error) {
 	// Remove userinfo from url regardless of source to avoid confusion/conflicts
 	defer func() {
 		service.User = nil

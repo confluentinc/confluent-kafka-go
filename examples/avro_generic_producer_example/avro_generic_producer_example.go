@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/serde"
 	"os"
 )
@@ -45,8 +46,7 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	ser := serde.GenericAvroSerializer{}
-	err = ser.Configure(&kafka.ConfigMap{
+	ser, err := serde.NewGenericAvroSerializer(&schemaregistry.ConfigMap{
 		"schema.registry.url":   url,
 		"auto.register.schemas": true,
 	}, false)

@@ -1,7 +1,7 @@
 package serde
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 	"testing"
 )
@@ -9,11 +9,10 @@ import (
 func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := SpecificAvroSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewSpecificAvroSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	obj := test.NewDemoSchema()
@@ -25,8 +24,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := SpecificAvroDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewSpecificAvroDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -38,11 +36,10 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := SpecificAvroSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewSpecificAvroSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	nested := test.NestedRecord{
@@ -63,8 +60,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := SpecificAvroDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewSpecificAvroDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -76,11 +72,10 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := SpecificAvroSerializer{}
-	err = ser.Configure(&conf, false)
+	ser, err := NewSpecificAvroSerializer(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	inner := test.RecursiveUnionTestRecord{
@@ -96,8 +91,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := SpecificAvroDeserializer{}
-	err = deser.Configure(&conf, false)
+	deser, err := NewSpecificAvroDeserializer(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

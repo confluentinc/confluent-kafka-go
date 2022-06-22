@@ -1,7 +1,7 @@
 package serde
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 	"testing"
 )
@@ -9,13 +9,10 @@ import (
 func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := JSONSchemaSerializer{
-		validate: true,
-	}
-	err = ser.Configure(&conf, false)
+	ser, err := NewJSONSchemaSerializer(&conf, false, true)
 	maybeFail("serializer configuration", err)
 
 	obj := JSONDemoSchema{}
@@ -27,10 +24,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := JSONSchemaDeserializer{
-		validate: true,
-	}
-	err = deser.Configure(&conf, false)
+	deser, err := NewJSONSchemaDeserializer(&conf, false, true)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -42,13 +36,10 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := JSONSchemaSerializer{
-		validate: true,
-	}
-	err = ser.Configure(&conf, false)
+	ser, err := NewJSONSchemaSerializer(&conf, false, true)
 	maybeFail("serializer configuration", err)
 
 	nested := JSONDemoSchema{}
@@ -63,10 +54,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := JSONSchemaDeserializer{
-		validate: true,
-	}
-	err = deser.Configure(&conf, false)
+	deser, err := NewJSONSchemaDeserializer(&conf, false, true)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
@@ -80,13 +68,13 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 func TestJSONSchemaSerdeWithCycle(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
-	conf := kafka.ConfigMap{}
+	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
 	ser := JSONSchemaSerializer{
 		validate: true,
 	}
-	err = ser.Configure(&conf, false)
+	err = ser.configure(&conf, false)
 	maybeFail("serializer configuration", err)
 
 	nested := JSONLinkedList{
@@ -102,7 +90,7 @@ func TestJSONSchemaSerdeWithCycle(t *testing.T) {
 	deser := JSONSchemaDeserializer{
 		validate: true,
 	}
-	err = deser.Configure(&conf, false)
+	err = deser.configure(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 

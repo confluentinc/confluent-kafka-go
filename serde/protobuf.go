@@ -3,7 +3,6 @@ package serde
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/confluent/types"
@@ -107,8 +106,18 @@ func init() {
 	}
 }
 
-// Configure configures the Protobuf deserializer
-func (s *ProtobufDeserializer) Configure(conf *kafka.ConfigMap, isKey bool) error {
+// NewProtobufSerializer creates a Protobuf serializer for Protobuf-generated objects
+func NewProtobufSerializer(conf *schemaregistry.ConfigMap, isKey bool) (*ProtobufSerializer, error) {
+	s := &ProtobufSerializer{}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// configure configures the Protobuf deserializer
+func (s *ProtobufDeserializer) configure(conf *schemaregistry.ConfigMap, isKey bool) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
@@ -311,6 +320,16 @@ func ignoreFile(name string) bool {
 	return strings.HasPrefix(name, "confluent/") ||
 		strings.HasPrefix(name, "google/protobuf/") ||
 		strings.HasPrefix(name, "google/type/")
+}
+
+// NewProtobufDeserializer creates a Protobuf deserializer for Protobuf-generated objects
+func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, isKey bool) (*ProtobufDeserializer, error) {
+	s := &ProtobufDeserializer{}
+	err := s.configure(conf, isKey)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // Deserialize implements deserialization of Protobuf data
