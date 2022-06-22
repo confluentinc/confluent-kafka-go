@@ -19,14 +19,40 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"os"
+
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-func main() {
+var p *kafka.Producer
 
+func main() {
+	// Use signal to kill the client instance.
+	// Adding extensions built is needed to kill in this way:
+	// Reference: https://github.com/aws/aws-lambda-go/issues/318#issuecomment-1019318919
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		fmt.Printf("waiting for the SIGTERM ")
+		s := <-sigs
+		fmt.Printf("received signal %s", s)
+		if p != nil {
+			p.Close()
+		}
+		fmt.Printf("done")
+	}()
+
+	lambda.Start(HandleRequest)
+}
+
+// HandleRequest handles creating producer and
+// producing messages.
+func HandleRequest() {
 	broker := os.Getenv("BOOTSTRAP_SERVERS")
 	topic := os.Getenv("TOPIC")
 	ccloudAPIKey := os.Getenv("CCLOUDAPIKEY")
@@ -34,16 +60,26 @@ func main() {
 
 	numParts := 4
 
-	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
-		"sasl.mechanisms":   "PLAIN",
-		"security.protocol": "SASL_SSL",
-		"sasl.username":     ccloudAPIKey,
-		"sasl.password":     ccloudAPISecret})
-	if err != nil {
-		fmt.Printf("Failed to create Admin client: %s\n", err)
-		os.Exit(1)
+	var err error
+
+	if p == nil {
+		p, err = kafka.NewProducer(&kafka.ConfigMap{
+			"bootstrap.servers": broker,
+			"sasl.mechanisms":   "PLAIN",
+			"security.protocol": "SASL_SSL",
+			"sasl.username":     ccloudAPIKey,
+			"sasl.password":     ccloudAPISecret,
+		})
+
+		if err != nil {
+			fmt.Printf("Failed to create producer: %s\n", err)
+			os.Exit(1)
+		}
 	}
+
+	fmt.Printf("Created Producer %v\n", p)
+
+	a, err := kafka.NewAdminClientFromProducer(p)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -69,20 +105,6 @@ func main() {
 	}
 
 	a.Close()
-
-	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
-		"sasl.mechanisms":   "PLAIN",
-		"security.protocol": "SASL_SSL",
-		"sasl.username":     ccloudAPIKey,
-		"sasl.password":     ccloudAPISecret})
-
-	if err != nil {
-		fmt.Printf("Failed to create producer: %s\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Created Producer %v\n", p)
 
 	deliveryChan := make(chan kafka.Event)
 
