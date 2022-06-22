@@ -1,8 +1,9 @@
-package schemaregistry
+package serde
 
 import (
 	"github.com/actgardner/gogen-avro/v10/parser"
 	"github.com/actgardner/gogen-avro/v10/schema"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/heetch/avro"
 	"reflect"
 	"unsafe"
@@ -30,7 +31,7 @@ func (s *GenericAvroSerializer) Serialize(topic string, msg interface{}) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	info := SchemaInfo{
+	info := schemaregistry.SchemaInfo{
 		Schema: avroType.String(),
 	}
 	id, err := s.getID(topic, msg, info)
@@ -84,7 +85,7 @@ func (s *GenericAvroDeserializer) DeserializeInto(topic string, payload []byte, 
 	return err
 }
 
-func (s *GenericAvroDeserializer) toType(schema SchemaInfo) (*avro.Type, string, error) {
+func (s *GenericAvroDeserializer) toType(schema schemaregistry.SchemaInfo) (*avro.Type, string, error) {
 	t := avro.Type{}
 	avroType, err := s.toAvroType(schema)
 	if err != nil {
@@ -97,7 +98,7 @@ func (s *GenericAvroDeserializer) toType(schema SchemaInfo) (*avro.Type, string,
 	return &t, avroType.Name(), nil
 }
 
-func (s *GenericAvroDeserializer) toAvroType(schema SchemaInfo) (schema.AvroType, error) {
+func (s *GenericAvroDeserializer) toAvroType(schema schemaregistry.SchemaInfo) (schema.AvroType, error) {
 	ns := parser.NewNamespace(false)
 	return resolveAvroReferences(s.client, schema, ns)
 }

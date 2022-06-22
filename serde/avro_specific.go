@@ -1,4 +1,4 @@
-package schemaregistry
+package serde
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"github.com/actgardner/gogen-avro/v10/schema"
 	"github.com/actgardner/gogen-avro/v10/vm"
 	"github.com/actgardner/gogen-avro/v10/vm/types"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"io"
 )
 
@@ -44,7 +45,7 @@ func (s *SpecificAvroSerializer) Serialize(topic string, msg interface{}) ([]byt
 		return nil, fmt.Errorf("serialization target must be an avro message. Got '%v'", t)
 	}
 	var id = 0
-	info := SchemaInfo{
+	info := schemaregistry.SchemaInfo{
 		Schema: avroMsg.Schema(),
 	}
 	id, err := s.getID(topic, avroMsg, info)
@@ -88,7 +89,7 @@ func (s *SpecificAvroDeserializer) Deserialize(topic string, payload []byte) (in
 	default:
 		return nil, fmt.Errorf("deserialization target must be an avro message. Got '%v'", t)
 	}
-	reader, err := s.toAvroType(SchemaInfo{Schema: avroMsg.Schema()})
+	reader, err := s.toAvroType(schemaregistry.SchemaInfo{Schema: avroMsg.Schema()})
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +121,7 @@ func (s *SpecificAvroDeserializer) DeserializeInto(topic string, payload []byte,
 	if err != nil {
 		return err
 	}
-	reader, err := s.toAvroType(SchemaInfo{Schema: avroMsg.Schema()})
+	reader, err := s.toAvroType(schemaregistry.SchemaInfo{Schema: avroMsg.Schema()})
 	if err != nil {
 		return err
 	}
@@ -132,7 +133,7 @@ func (s *SpecificAvroDeserializer) DeserializeInto(topic string, payload []byte,
 	return vm.Eval(r, deser, avroMsg)
 }
 
-func (s *SpecificAvroDeserializer) toAvroType(schema SchemaInfo) (schema.AvroType, error) {
+func (s *SpecificAvroDeserializer) toAvroType(schema schemaregistry.SchemaInfo) (schema.AvroType, error) {
 	ns := parser.NewNamespace(false)
 	return resolveAvroReferences(s.client, schema, ns)
 }

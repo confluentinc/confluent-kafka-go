@@ -1,4 +1,4 @@
-package schemaregistry
+package serde
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"github.com/actgardner/gogen-avro/v10/resolver"
 	"github.com/actgardner/gogen-avro/v10/schema"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 )
 
 const magicByte byte = 0x0
@@ -41,7 +42,7 @@ type Deserializer interface {
 
 // serde is a common instance for both the serializers and deserializers
 type serde struct {
-	client              Client
+	client              schemaregistry.Client
 	conf                *kafka.ConfigMap
 	isKey               bool
 	subjectNameStrategy SubjectNameStrategy
@@ -58,7 +59,7 @@ type deserializer struct {
 
 // Configure configures the serde
 func (s *serde) Configure(conf *kafka.ConfigMap, isKey bool) error {
-	client, err := NewClient(conf)
+	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (s *serde) Configure(conf *kafka.ConfigMap, isKey bool) error {
 }
 
 // SubjectNameStrategy determines the subject for the given parameters
-type SubjectNameStrategy func(topic string, isKey bool, schema SchemaInfo) string
+type SubjectNameStrategy func(topic string, isKey bool, schema schemaregistry.SchemaInfo) string
 
 // SubjectNameStrategy returns a function pointer to the desired subject naming strategy.
 // For additional information on subject naming strategies see the following link.
@@ -85,7 +86,7 @@ func (s *serde) SetSubjectNameStrategy(strategy SubjectNameStrategy) {
 }
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
-func TopicNameStrategy(topic string, isKey bool, schema SchemaInfo) string {
+func TopicNameStrategy(topic string, isKey bool, schema schemaregistry.SchemaInfo) string {
 	suffix := "-value"
 	if isKey {
 		suffix = "-key"
@@ -93,7 +94,7 @@ func TopicNameStrategy(topic string, isKey bool, schema SchemaInfo) string {
 	return topic + suffix
 }
 
-func (s *serializer) getID(topic string, msg interface{}, info SchemaInfo) (int, error) {
+func (s *serializer) getID(topic string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
 	autoRegister, err := s.conf.Get("auto.register.schemas", true)
 	if err != nil {
 		return -1, err
@@ -132,7 +133,7 @@ func (s *serializer) getID(topic string, msg interface{}, info SchemaInfo) (int,
 		if err != nil {
 			return -1, err
 		}
-		info = SchemaInfo{
+		info = schemaregistry.SchemaInfo{
 			Schema:     metadata.Schema,
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,
@@ -177,8 +178,8 @@ func (s *deserializer) SetMessageFactory(factory MessageFactory) {
 	s.messageFactory = factory
 }
 
-func (s *deserializer) getSchema(topic string, payload []byte) (SchemaInfo, error) {
-	info := SchemaInfo{}
+func (s *deserializer) getSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
+	info := schemaregistry.SchemaInfo{}
 	if payload[0] != magicByte {
 		return info, fmt.Errorf("unknown magic byte")
 	}
@@ -187,13 +188,13 @@ func (s *deserializer) getSchema(topic string, payload []byte) (SchemaInfo, erro
 	return s.client.GetBySubjectAndID(subject, int(id))
 }
 
-func resolveReferences(c Client, schema SchemaInfo, deps map[string]string) error {
+func resolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo, deps map[string]string) error {
 	for _, ref := range schema.References {
 		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
 		if err != nil {
 			return err
 		}
-		info := SchemaInfo{
+		info := schemaregistry.SchemaInfo{
 			Schema:     metadata.Schema,
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,
@@ -207,13 +208,13 @@ func resolveReferences(c Client, schema SchemaInfo, deps map[string]string) erro
 	return nil
 }
 
-func resolveAvroReferences(c Client, schema SchemaInfo, ns *parser.Namespace) (schema.AvroType, error) {
+func resolveAvroReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo, ns *parser.Namespace) (schema.AvroType, error) {
 	for _, ref := range schema.References {
 		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
 		if err != nil {
 			return nil, err
 		}
-		info := SchemaInfo{
+		info := schemaregistry.SchemaInfo{
 			Schema:     metadata.Schema,
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,

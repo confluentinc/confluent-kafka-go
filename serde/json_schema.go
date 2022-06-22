@@ -1,7 +1,8 @@
-package schemaregistry
+package serde
 
 import (
 	"encoding/json"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/invopop/jsonschema"
 	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
 	"io"
@@ -33,7 +34,7 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-	info := SchemaInfo{
+	info := schemaregistry.SchemaInfo{
 		Schema:     string(raw),
 		SchemaType: "JSON",
 	}
@@ -137,7 +138,7 @@ func (s *JSONSchemaDeserializer) DeserializeInto(topic string, payload []byte, m
 	return nil
 }
 
-func toJSONSchema(c Client, schema SchemaInfo) (*jsonschema2.Schema, error) {
+func toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*jsonschema2.Schema, error) {
 	deps := make(map[string]string)
 	err := resolveReferences(c, schema, deps)
 	if err != nil {

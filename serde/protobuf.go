@@ -1,9 +1,10 @@
-package schemaregistry
+package serde
 
 import (
 	"encoding/binary"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/confluent/types"
 	protoV1 "github.com/golang/protobuf/proto"
@@ -108,7 +109,7 @@ func init() {
 
 // Configure configures the Protobuf deserializer
 func (s *ProtobufDeserializer) Configure(conf *kafka.ConfigMap, isKey bool) error {
-	client, err := NewClient(conf)
+	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
 	}
@@ -149,7 +150,7 @@ func (s *ProtobufSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
-	info := SchemaInfo{
+	info := schemaregistry.SchemaInfo{
 		Schema:     metadata.Schema,
 		SchemaType: metadata.SchemaType,
 		References: metadata.References,
@@ -213,17 +214,17 @@ func (s *ProtobufSerializer) toDependencies(fileDesc *desc.FileDescriptor, deps 
 	return nil
 }
 
-func (s *ProtobufSerializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (SchemaMetadata, error) {
-	refs := make([]Reference, 0, len(fileDesc.GetDependencies())+len(fileDesc.GetPublicDependencies()))
+func (s *ProtobufSerializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
+	refs := make([]schemaregistry.Reference, 0, len(fileDesc.GetDependencies())+len(fileDesc.GetPublicDependencies()))
 	for _, d := range fileDesc.GetDependencies() {
 		if ignoreFile(d.GetName()) {
 			continue
 		}
 		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
 		if err != nil {
-			return SchemaMetadata{}, err
+			return schemaregistry.SchemaMetadata{}, err
 		}
-		refs = append(refs, Reference{d.GetName(), ref.Subject, ref.Version})
+		refs = append(refs, schemaregistry.Reference{d.GetName(), ref.Subject, ref.Version})
 	}
 	for _, d := range fileDesc.GetPublicDependencies() {
 		if ignoreFile(d.GetName()) {
@@ -231,11 +232,11 @@ func (s *ProtobufSerializer) resolveDependencies(fileDesc *desc.FileDescriptor, 
 		}
 		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
 		if err != nil {
-			return SchemaMetadata{}, err
+			return schemaregistry.SchemaMetadata{}, err
 		}
-		refs = append(refs, Reference{d.GetName(), ref.Subject, ref.Version})
+		refs = append(refs, schemaregistry.Reference{d.GetName(), ref.Subject, ref.Version})
 	}
-	info := SchemaInfo{
+	info := schemaregistry.SchemaInfo{
 		Schema:     deps[fileDesc.GetName()],
 		SchemaType: "PROTOBUF",
 		References: refs,
@@ -247,20 +248,20 @@ func (s *ProtobufSerializer) resolveDependencies(fileDesc *desc.FileDescriptor, 
 		if autoRegister {
 			id, err = s.client.Register(subject, info, normalize)
 			if err != nil {
-				return SchemaMetadata{}, err
+				return schemaregistry.SchemaMetadata{}, err
 			}
 		} else {
 			id, err = s.client.GetID(subject, info, normalize)
 			if err != nil {
-				return SchemaMetadata{}, err
+				return schemaregistry.SchemaMetadata{}, err
 			}
 		}
 		version, err = s.client.GetVersion(subject, info, normalize)
 		if err != nil {
-			return SchemaMetadata{}, err
+			return schemaregistry.SchemaMetadata{}, err
 		}
 	}
-	metadata := SchemaMetadata{
+	metadata := schemaregistry.SchemaMetadata{
 		SchemaInfo: info,
 		ID:         id,
 		Subject:    subject,
@@ -368,7 +369,7 @@ func (s *ProtobufDeserializer) DeserializeInto(topic string, payload []byte, msg
 	return proto.Unmarshal(payload[5+bytesRead:], protoMsg)
 }
 
-func (s *ProtobufDeserializer) toFileDesc(info SchemaInfo) (*desc.FileDescriptor, error) {
+func (s *ProtobufDeserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
 	deps := make(map[string]string)
 	err := resolveReferences(s.client, info, deps)
 	if err != nil {

@@ -1,4 +1,4 @@
-package schemaregistry
+package serde
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -6,116 +6,102 @@ import (
 	"testing"
 )
 
-func TestGenericAvroSerdeWithSimple(t *testing.T) {
+func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
 	conf := kafka.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := GenericAvroSerializer{}
+	ser := SpecificAvroSerializer{}
 	err = ser.Configure(&conf, false)
 	maybeFail("serializer configuration", err)
 
-	obj := GenericDemoSchema{}
+	obj := test.NewDemoSchema()
 	obj.IntField = 123
 	obj.DoubleField = 45.67
 	obj.StringField = "hi"
 	obj.BoolField = true
-	obj.BytesField = []byte{1, 2}
-	bytes, err := ser.Serialize("topic1", obj)
+	obj.BytesField = []byte{0, 0, 0, 1}
+	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := GenericAvroDeserializer{}
+	deser := SpecificAvroDeserializer{}
 	err = deser.Configure(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
-	var newobj GenericDemoSchema
+	var newobj test.DemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	maybeFail("deserialization", err, expect(newobj, obj))
 }
 
-func TestGenericAvroSerdeWithNested(t *testing.T) {
+func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
 	conf := kafka.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := GenericAvroSerializer{}
+	ser := SpecificAvroSerializer{}
 	err = ser.Configure(&conf, false)
 	maybeFail("serializer configuration", err)
 
-	nested := GenericDemoSchema{}
-	nested.IntField = 123
-	nested.DoubleField = 45.67
-	nested.StringField = "hi"
-	nested.BoolField = true
-	nested.BytesField = []byte{1, 2}
-	obj := GenericNestedTestRecord{
-		OtherField: nested,
+	nested := test.NestedRecord{
+		StringField: "hi",
+		BoolField:   true,
+		BytesField:  []byte{1, 2},
 	}
-
-	bytes, err := ser.Serialize("topic1", obj)
+	number := test.NumberRecord{
+		IntField:    123,
+		LongField:   456,
+		FloatField:  1.23,
+		DoubleField: 4.56,
+	}
+	obj := test.NestedTestRecord{
+		NumberField: number,
+		OtherField:  nested,
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := GenericAvroDeserializer{}
+	deser := SpecificAvroDeserializer{}
 	err = deser.Configure(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
-	var newobj GenericNestedTestRecord
+	var newobj test.NestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	maybeFail("deserialization", err, expect(newobj, obj))
 }
 
-func TestGenericAvroSerdeWithCycle(t *testing.T) {
+func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	maybeFail = initFailFunc(t)
 	var err error
 	conf := kafka.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser := GenericAvroSerializer{}
+	ser := SpecificAvroSerializer{}
 	err = ser.Configure(&conf, false)
 	maybeFail("serializer configuration", err)
 
-	nested := GenericLinkedList{
-		Value: 456,
+	inner := test.RecursiveUnionTestRecord{
+		RecursiveField: nil,
 	}
-	obj := GenericLinkedList{
-		Value: 123,
-		Next:  &nested,
+	wrapper := test.UnionNullRecursiveUnionTestRecord{
+		RecursiveUnionTestRecord: inner,
+		UnionType:                1,
 	}
-
-	bytes, err := ser.Serialize("topic1", obj)
+	obj := test.RecursiveUnionTestRecord{
+		RecursiveField: &wrapper,
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
 	maybeFail("serialization", err)
 
-	deser := GenericAvroDeserializer{}
+	deser := SpecificAvroDeserializer{}
 	err = deser.Configure(&conf, false)
 	maybeFail("deserializer configuration", err)
 	deser.client = ser.client
 
-	var newobj GenericLinkedList
+	var newobj test.RecursiveUnionTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	maybeFail("deserialization", err, expect(newobj, obj))
-}
-
-type GenericDemoSchema struct {
-	IntField int32 `json:"IntField"`
-
-	DoubleField float64 `json:"DoubleField"`
-
-	StringField string `json:"StringField"`
-
-	BoolField bool `json:"BoolField"`
-
-	BytesField test.Bytes `json:"BytesField"`
-}
-
-type GenericNestedTestRecord struct {
-	OtherField GenericDemoSchema
-}
-
-type GenericLinkedList struct {
-	Value int32
-	Next  *GenericLinkedList
 }

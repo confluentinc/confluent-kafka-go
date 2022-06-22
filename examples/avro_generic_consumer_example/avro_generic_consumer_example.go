@@ -23,7 +23,7 @@ package main
 import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/serde"
 	"os"
 	"os/signal"
 	"syscall"
@@ -63,7 +63,7 @@ func main() {
 
 	fmt.Printf("Created Consumer %v\n", c)
 
-	deser := schemaregistry.GenericAvroDeserializer{}
+	deser := serde.GenericAvroDeserializer{}
 	err = deser.Configure(&kafka.ConfigMap{
 		"schema.registry.url": url,
 	}, false)

@@ -1,4 +1,4 @@
-package schemaregistry
+package serde
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"

@@ -20,7 +20,7 @@ package main
 import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/serde"
 	"os"
 )
 
@@ -45,7 +45,7 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	ser := schemaregistry.JSONSchemaSerializer{}
+	ser := serde.JSONSchemaSerializer{}
 	err = ser.Configure(&kafka.ConfigMap{
 		"schema.registry.url":   url,
 		"auto.register.schemas": true,
