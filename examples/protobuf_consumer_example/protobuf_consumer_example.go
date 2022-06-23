@@ -24,7 +24,8 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/serde"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/protobuf"
 	"os"
 	"os/signal"
 	"syscall"
@@ -64,7 +65,7 @@ func main() {
 
 	fmt.Printf("Created Consumer %v\n", c)
 
-	deser, err := serde.NewProtobufDeserializer(&schemaregistry.ConfigMap{
+	deser, err := protobuf.NewDeserializer(&schemaregistry.ConfigMap{
 		"schema.registry.url": url,
 	}, serde.ValueSerde)
 

@@ -21,7 +21,8 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/serde"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/protobuf"
 	"os"
 )
 
@@ -46,7 +47,7 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	ser, err := serde.NewProtobufSerializer(&schemaregistry.ConfigMap{
+	ser, err := protobuf.NewSerializer(&schemaregistry.ConfigMap{
 		"schema.registry.url":   url,
 		"auto.register.schemas": true,
 	}, serde.ValueSerde)
