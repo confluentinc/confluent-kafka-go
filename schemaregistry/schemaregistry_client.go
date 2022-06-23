@@ -389,7 +389,28 @@ func (c *client) GetAllSubjects() ([]string, error) {
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
 func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
+	c.versionCacheLock.Lock()
+	for cacheKey, _ := range c.versionCache {
+		if cacheKey.subject == subject {
+			delete(c.versionCache, cacheKey)
+		}
+	}
+	c.versionCacheLock.Unlock()
+	c.idCacheLock.Lock()
+	for cacheKey, _ := range c.idCache {
+		if cacheKey.subject == subject {
+			delete(c.idCache, cacheKey)
+		}
+	}
+	c.idCacheLock.Unlock()
+	c.schemaCacheLock.Lock()
 	var result []int
+	for cacheKey, _ := range c.schemaCache {
+		if cacheKey.subject == subject {
+			delete(c.schemaCache, cacheKey)
+		}
+	}
+	c.schemaCacheLock.Unlock()
 	err = c.restService.handleRequest(newRequest("DELETE", subjects, nil, url.PathEscape(subject)), &result)
 
 	return result, err
@@ -397,9 +418,16 @@ func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
 
 // DeleteSubjectVersion removes the version identified by delete from the subject's registration
 // Returns integer id for the deleted version
-func (c *client) DeleteSubjectVersion(subject string, delete int) (deleted int, err error) {
+func (c *client) DeleteSubjectVersion(subject string, version int) (deleted int, err error) {
+	c.versionCacheLock.Lock()
+	for cacheKey, v := range c.versionCache {
+		if cacheKey.subject == subject && v == version {
+			delete(c.versionCache, cacheKey)
+		}
+	}
+	c.versionCacheLock.Unlock()
 	var result int
-	err = c.restService.handleRequest(newRequest("DELETE", versions, nil, url.PathEscape(subject), delete), &result)
+	err = c.restService.handleRequest(newRequest("DELETE", versions, nil, url.PathEscape(subject), version), &result)
 
 	return result, err
 
