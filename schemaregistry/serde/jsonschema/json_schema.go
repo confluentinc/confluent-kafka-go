@@ -1,4 +1,4 @@
-package json_schema
+package jsonschema
 
 import (
 	"encoding/json"
@@ -10,24 +10,24 @@ import (
 	"strings"
 )
 
-// JSONSchemaSerializer represents a JSON Schema BaseSerializer
-type JSONSchemaSerializer struct {
+// Serializer represents a JSON Schema BaseSerializer
+type Serializer struct {
 	serde.BaseSerializer
 	validate bool
 }
 
-// JSONSchemaDeserializer represents a JSON Schema BaseDeserializer
-type JSONSchemaDeserializer struct {
+// Deserializer represents a JSON Schema BaseDeserializer
+type Deserializer struct {
 	serde.BaseDeserializer
 	validate bool
 }
 
-var _ serde.Serializer = new(JSONSchemaSerializer)
-var _ serde.Deserializer = new(JSONSchemaDeserializer)
+var _ serde.Serializer = new(Serializer)
+var _ serde.Deserializer = new(Deserializer)
 
 // NewJSONSchemaSerializer creates a JSON BaseSerializer for generic objects
-func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType, validate bool) (*JSONSchemaSerializer, error) {
-	s := &JSONSchemaSerializer{
+func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type, validate bool) (*Serializer, error) {
+	s := &Serializer{
 		validate: validate,
 	}
 	err := s.Configure(conf, serdeType)
@@ -38,7 +38,7 @@ func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Ser
 }
 
 // Serialize implements serialization of generic data to JSON
-func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
@@ -83,8 +83,8 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 }
 
 // NewJSONSchemaDeserializer creates a JSON BaseDeserializer for generic objects
-func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType, validate bool) (*JSONSchemaDeserializer, error) {
-	s := &JSONSchemaDeserializer{
+func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type, validate bool) (*Deserializer, error) {
+	s := &Deserializer{
 		validate: validate,
 	}
 	err := s.Configure(conf, serdeType)
@@ -95,7 +95,7 @@ func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.S
 }
 
 // Deserialize implements deserialization of generic data from JSON
-func (s *JSONSchemaDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -135,7 +135,7 @@ func (s *JSONSchemaDeserializer) Deserialize(topic string, payload []byte) (inte
 }
 
 // DeserializeInto implements deserialization of generic data from JSON to the given object
-func (s *JSONSchemaDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
 	if payload == nil {
 		return nil
 	}

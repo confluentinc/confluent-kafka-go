@@ -1,4 +1,4 @@
-package json_schema
+package jsonschema
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
@@ -72,7 +72,7 @@ func TestJSONSchemaSerdeWithCycle(t *testing.T) {
 	Conf := schemaregistry.ConfigMap{}
 	Conf.SetKey("schema.registry.url", "mock://")
 
-	ser := JSONSchemaSerializer{
+	ser := Serializer{
 		validate: true,
 	}
 	err = ser.Configure(&Conf, false)
@@ -88,7 +88,7 @@ func TestJSONSchemaSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	MaybeFail("serialization", err)
 
-	deser := JSONSchemaDeserializer{
+	deser := Deserializer{
 		validate: true,
 	}
 	err = deser.Configure(&Conf, false)

@@ -13,18 +13,18 @@ import (
 	"io"
 )
 
-// SpecificAvroSerializer represents a specific Avro BaseSerializer
-type SpecificAvroSerializer struct {
+// SpecificSerializer represents a specific Avro BaseSerializer
+type SpecificSerializer struct {
 	serde.BaseSerializer
 }
 
-// SpecificAvroDeserializer represents a specific Avro BaseDeserializer
-type SpecificAvroDeserializer struct {
+// SpecificDeserializer represents a specific Avro BaseDeserializer
+type SpecificDeserializer struct {
 	serde.BaseDeserializer
 }
 
-var _ serde.Serializer = new(SpecificAvroSerializer)
-var _ serde.Deserializer = new(SpecificAvroDeserializer)
+var _ serde.Serializer = new(SpecificSerializer)
+var _ serde.Deserializer = new(SpecificDeserializer)
 
 // SpecificAvroMessage represents a generated Avro class from gogen-avro
 type SpecificAvroMessage interface {
@@ -34,8 +34,8 @@ type SpecificAvroMessage interface {
 }
 
 // NewSpecificAvroSerializer creates an Avro BaseSerializer for Avro-generated objects
-func NewSpecificAvroSerializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*SpecificAvroSerializer, error) {
-	s := &SpecificAvroSerializer{}
+func NewSpecificAvroSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*SpecificSerializer, error) {
+	s := &SpecificSerializer{}
 	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func NewSpecificAvroSerializer(conf *schemaregistry.ConfigMap, serdeType serde.S
 }
 
 // Serialize implements serialization of specific Avro data
-func (s *SpecificAvroSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
@@ -76,8 +76,8 @@ func (s *SpecificAvroSerializer) Serialize(topic string, msg interface{}) ([]byt
 }
 
 // NewSpecificAvroDeserializer creates an Avro BaseDeserializer for Avro-generated objects
-func NewSpecificAvroDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*SpecificAvroDeserializer, error) {
-	s := &SpecificAvroDeserializer{}
+func NewSpecificAvroDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*SpecificDeserializer, error) {
+	s := &SpecificDeserializer{}
 	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func NewSpecificAvroDeserializer(conf *schemaregistry.ConfigMap, serdeType serde
 }
 
 // Deserialize implements deserialization of specific Avro data
-func (s *SpecificAvroDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -126,7 +126,7 @@ func (s *SpecificAvroDeserializer) Deserialize(topic string, payload []byte) (in
 }
 
 // DeserializeInto implements deserialization of specific Avro data to the given object
-func (s *SpecificAvroDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+func (s *SpecificDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
 	if payload == nil {
 		return nil
 	}
@@ -157,7 +157,7 @@ func (s *SpecificAvroDeserializer) DeserializeInto(topic string, payload []byte,
 	return vm.Eval(r, deser, avroMsg)
 }
 
-func (s *SpecificAvroDeserializer) toAvroType(schema schemaregistry.SchemaInfo) (schema.AvroType, error) {
+func (s *SpecificDeserializer) toAvroType(schema schemaregistry.SchemaInfo) (schema.AvroType, error) {
 	ns := parser.NewNamespace(false)
 	return resolveAvroReferences(s.Client, schema, ns)
 }

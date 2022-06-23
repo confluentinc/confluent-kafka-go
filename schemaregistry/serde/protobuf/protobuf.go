@@ -42,19 +42,19 @@ import (
 	"strings"
 )
 
-// ProtobufSerializer represents a Protobuf BaseSerializer
-type ProtobufSerializer struct {
+// Serializer represents a Protobuf BaseSerializer
+type Serializer struct {
 	serde.BaseSerializer
 }
 
-// ProtobufDeserializer represents a Protobuf BaseDeserializer
-type ProtobufDeserializer struct {
+// Deserializer represents a Protobuf BaseDeserializer
+type Deserializer struct {
 	serde.BaseDeserializer
 	ProtoRegistry *protoregistry.Types
 }
 
-var _ serde.Serializer = new(ProtobufSerializer)
-var _ serde.Deserializer = new(ProtobufDeserializer)
+var _ serde.Serializer = new(Serializer)
+var _ serde.Deserializer = new(Deserializer)
 
 var builtInDeps = make(map[string]string)
 
@@ -108,8 +108,8 @@ func init() {
 }
 
 // NewProtobufSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
-func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*ProtobufSerializer, error) {
-	s := &ProtobufSerializer{}
+func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Serializer, error) {
+	s := &Serializer{}
 	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
@@ -117,8 +117,8 @@ func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Serde
 	return s, nil
 }
 
-// configure configures the Protobuf BaseDeserializer
-func (s *ProtobufDeserializer) Configure(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) error {
+// Configure configures the Protobuf BaseDeserializer
+func (s *Deserializer) Configure(conf *schemaregistry.ConfigMap, serdeType serde.Type) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func (s *ProtobufDeserializer) Configure(conf *schemaregistry.ConfigMap, serdeTy
 }
 
 // Serialize implements serialization of Protobuf data
-func (s *ProtobufSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
@@ -181,7 +181,7 @@ func (s *ProtobufSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	return payload, nil
 }
 
-func (s *ProtobufSerializer) toProtobufSchema(msg proto.Message) (*desc.FileDescriptor, map[string]string, error) {
+func (s *Serializer) toProtobufSchema(msg proto.Message) (*desc.FileDescriptor, map[string]string, error) {
 	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(msg))
 	fileDesc := messageDesc.GetFile()
 	if err != nil {
@@ -195,7 +195,7 @@ func (s *ProtobufSerializer) toProtobufSchema(msg proto.Message) (*desc.FileDesc
 	return fileDesc, deps, nil
 }
 
-func (s *ProtobufSerializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[string]string) error {
+func (s *Serializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[string]string) error {
 	printer := protoprint.Printer{OmitComments: protoprint.CommentsAll}
 	var writer strings.Builder
 	err := printer.PrintProtoFile(fileDesc, &writer)
@@ -224,7 +224,7 @@ func (s *ProtobufSerializer) toDependencies(fileDesc *desc.FileDescriptor, deps 
 	return nil
 }
 
-func (s *ProtobufSerializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
+func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
 	refs := make([]schemaregistry.Reference, 0, len(fileDesc.GetDependencies())+len(fileDesc.GetPublicDependencies()))
 	for _, d := range fileDesc.GetDependencies() {
 		if ignoreFile(d.GetName()) {
@@ -324,8 +324,8 @@ func ignoreFile(name string) bool {
 }
 
 // NewProtobufDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
-func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*ProtobufDeserializer, error) {
-	s := &ProtobufDeserializer{}
+func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Deserializer, error) {
+	s := &Deserializer{}
 	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
@@ -334,7 +334,7 @@ func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Ser
 }
 
 // Deserialize implements deserialization of Protobuf data
-func (s *ProtobufDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -374,7 +374,7 @@ func (s *ProtobufDeserializer) Deserialize(topic string, payload []byte) (interf
 }
 
 // DeserializeInto implements deserialization of Protobuf data to the given object
-func (s *ProtobufDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
 	if payload == nil {
 		return nil
 	}
@@ -392,7 +392,7 @@ func (s *ProtobufDeserializer) DeserializeInto(topic string, payload []byte, msg
 	return proto.Unmarshal(payload[5+bytesRead:], protoMsg)
 }
 
-func (s *ProtobufDeserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
 	deps := make(map[string]string)
 	err := serde.ResolveReferences(s.Client, info, deps)
 	if err != nil {
@@ -464,7 +464,7 @@ func toMessageDesc(descriptor desc.Descriptor, msgIndexes []int) (*desc.MessageD
 	}
 }
 
-func (s *ProtobufDeserializer) protoMessageFactory(subject string, name string) (interface{}, error) {
+func (s *Deserializer) protoMessageFactory(subject string, name string) (interface{}, error) {
 	mt, err := s.ProtoRegistry.FindMessageByName(protoreflect.FullName(name))
 	if mt == nil {
 		err = fmt.Errorf("unable to find MessageType %s", name)

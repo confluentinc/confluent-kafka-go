@@ -8,8 +8,8 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 )
 
-// SerdeType represents the type of Serde
-type SerdeType = int
+// Type represents the type of Serde
+type Type = int
 
 const (
 	// KeySerde denotes a key Serde
@@ -37,14 +37,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a BaseSerializer
 type Serializer interface {
-	Configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error
+	Configure(conf *schemaregistry.ConfigMap, serdeType Type) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a BaseDeserializer
 type Deserializer interface {
-	Configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error
+	Configure(conf *schemaregistry.ConfigMap, serdeType Type) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -57,7 +57,7 @@ type Deserializer interface {
 type Serde struct {
 	Client              schemaregistry.Client
 	Conf                *schemaregistry.ConfigMap
-	SerdeType           SerdeType
+	SerdeType           Type
 	SubjectNameStrategy SubjectNameStrategyFunc
 }
 
@@ -66,14 +66,14 @@ type BaseSerializer struct {
 	Serde
 }
 
-// BaseSerializer represents basic deserializer info
+// BaseDeserializer represents basic deserializer info
 type BaseDeserializer struct {
 	Serde
 	MessageFactory MessageFactory
 }
 
 // Configure configures the Serde
-func (s *Serde) Configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error {
+func (s *Serde) Configure(conf *schemaregistry.ConfigMap, serdeType Type) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
@@ -86,10 +86,10 @@ func (s *Serde) Configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) e
 }
 
 // SubjectNameStrategyFunc determines the subject for the given parameters
-type SubjectNameStrategyFunc func(topic string, serdeType SerdeType, schema schemaregistry.SchemaInfo) (string, error)
+type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
-func TopicNameStrategy(topic string, serdeType SerdeType, schema schemaregistry.SchemaInfo) (string, error) {
+func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
 	suffix := "-value"
 	if serdeType == KeySerde {
 		suffix = "-key"
