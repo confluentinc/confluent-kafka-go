@@ -65,9 +65,16 @@ func main() {
 
 	fmt.Printf("Created Consumer %v\n", c)
 
-	deser, err := avro.NewGenericDeserializer(&schemaregistry.ConfigMap{
+	client, err := schemaregistry.NewClient(&schemaregistry.ConfigMap{
 		"schema.registry.url": url,
-	}, serde.ValueSerde)
+	})
+
+	if err != nil {
+		fmt.Printf("Failed to create schema registry client: %s\n", err)
+		os.Exit(1)
+	}
+
+	deser, err := avro.NewGenericDeserializer(client, &schemaregistry.ConfigMap{}, serde.ValueSerde)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

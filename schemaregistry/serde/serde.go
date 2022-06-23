@@ -37,14 +37,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a BaseSerializer
 type Serializer interface {
-	Configure(conf *schemaregistry.ConfigMap, serdeType Type) error
+	Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType Type) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a BaseDeserializer
 type Deserializer interface {
-	Configure(conf *schemaregistry.ConfigMap, serdeType Type) error
+	Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType Type) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -73,10 +73,13 @@ type BaseDeserializer struct {
 }
 
 // Configure configures the Serde
-func (s *Serde) Configure(conf *schemaregistry.ConfigMap, serdeType Type) error {
-	client, err := schemaregistry.NewClient(conf)
-	if err != nil {
-		return err
+func (s *Serde) Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType Type) error {
+	if client == nil {
+		var err error
+		client, err = schemaregistry.NewClient(conf)
+		if err != nil {
+			return err
+		}
 	}
 	s.Client = client
 	s.Conf = conf

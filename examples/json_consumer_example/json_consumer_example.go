@@ -65,9 +65,16 @@ func main() {
 
 	fmt.Printf("Created Consumer %v\n", c)
 
-	deser, err := jsonschema.NewDeserializer(&schemaregistry.ConfigMap{
+	client, err := schemaregistry.NewClient(&schemaregistry.ConfigMap{
 		"schema.registry.url": url,
-	}, serde.ValueSerde, serde.DisableValidation)
+	})
+
+	if err != nil {
+		fmt.Printf("Failed to create schema registry client: %s\n", err)
+		os.Exit(1)
+	}
+
+	deser, err := jsonschema.NewDeserializer(client, &schemaregistry.ConfigMap{}, serde.ValueSerde, serde.DisableValidation)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

@@ -13,7 +13,10 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := JSONDemoSchema{}
@@ -25,7 +28,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -40,7 +43,10 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := JSONDemoSchema{}
@@ -55,7 +61,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -63,43 +69,6 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
-
-// invopop/jsonschema does not support cycles
-/*
-func TestJSONSchemaSerdeWithCycle(t *testing.T) {
-	MaybeFail = InitFailFunc(t)
-	var err error
-	Conf := schemaregistry.ConfigMap{}
-	Conf.SetKey("schema.registry.url", "mock://")
-
-	ser := Serializer{
-		validate: true,
-	}
-	err = ser.Configure(&Conf, false)
-	MaybeFail("BaseSerializer configuration", err)
-
-	nested := JSONLinkedList{
-		Value: 456,
-	}
-	obj := JSONLinkedList{
-		Value: 123,
-		Next:  &nested,
-	}
-	bytes, err := ser.Serialize("topic1", &obj)
-	MaybeFail("serialization", err)
-
-	deser := Deserializer{
-		validate: true,
-	}
-	err = deser.Configure(&Conf, false)
-	MaybeFail("BaseDeserializer configuration", err)
-	deser.Client = ser.Client
-
-	var newobj JSONLinkedList
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	MaybeFail("deserialization", err, Expect(newobj, obj))
-}
-*/
 
 type JSONDemoSchema struct {
 	IntField int32 `json:"IntField"`

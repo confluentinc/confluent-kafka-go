@@ -14,7 +14,10 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.Author{
@@ -25,7 +28,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -41,7 +44,10 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.Pizza{
@@ -51,7 +57,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -67,7 +73,10 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.NestedMessage_InnerMessage{
@@ -76,7 +85,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -92,7 +101,10 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	msg := test.TestMessage{
@@ -119,7 +131,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -135,7 +147,10 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSerializer(&conf, serde.ValueSerde)
+	client, err := schemaregistry.NewClient(&conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	inner := test.LinkedList{
@@ -148,7 +163,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(&conf, serde.ValueSerde)
+	deser, err := NewDeserializer(client, &conf, serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 

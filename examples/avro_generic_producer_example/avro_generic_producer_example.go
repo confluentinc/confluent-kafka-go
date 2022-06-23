@@ -47,8 +47,16 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	ser, err := avro.NewGenericSerializer(&schemaregistry.ConfigMap{
-		"schema.registry.url":   url,
+	client, err := schemaregistry.NewClient(&schemaregistry.ConfigMap{
+		"schema.registry.url": url,
+	})
+
+	if err != nil {
+		fmt.Printf("Failed to create schema registry client: %s\n", err)
+		os.Exit(1)
+	}
+
+	ser, err := avro.NewGenericSerializer(client, &schemaregistry.ConfigMap{
 		"auto.register.schemas": true,
 	}, serde.ValueSerde)
 
