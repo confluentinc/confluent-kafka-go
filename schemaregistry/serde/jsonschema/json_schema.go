@@ -25,8 +25,8 @@ type Deserializer struct {
 var _ serde.Serializer = new(Serializer)
 var _ serde.Deserializer = new(Deserializer)
 
-// NewJSONSchemaSerializer creates a JSON BaseSerializer for generic objects
-func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type, validate bool) (*Serializer, error) {
+// NewSerializer creates a JSON BaseSerializer for generic objects
+func NewSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type, validate bool) (*Serializer, error) {
 	s := &Serializer{
 		validate: validate,
 	}
@@ -82,8 +82,8 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	return payload, nil
 }
 
-// NewJSONSchemaDeserializer creates a JSON BaseDeserializer for generic objects
-func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type, validate bool) (*Deserializer, error) {
+// NewDeserializer creates a JSON BaseDeserializer for generic objects
+func NewDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type, validate bool) (*Deserializer, error) {
 	s := &Deserializer{
 		validate: validate,
 	}

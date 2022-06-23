@@ -107,8 +107,8 @@ func init() {
 	}
 }
 
-// NewProtobufSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
-func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Serializer, error) {
+// NewSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
+func NewSerializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Serializer, error) {
 	s := &Serializer{}
 	err := s.Configure(conf, serdeType)
 	if err != nil {
@@ -323,8 +323,8 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
-// NewProtobufDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
-func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Deserializer, error) {
+// NewDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
+func NewDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Deserializer, error) {
 	s := &Deserializer{}
 	err := s.Configure(conf, serdeType)
 	if err != nil {
