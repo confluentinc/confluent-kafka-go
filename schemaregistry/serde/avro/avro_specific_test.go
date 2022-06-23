@@ -1,19 +1,20 @@
-package serializer
+package avro
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 	"testing"
 )
 
 func TestSpecificAvroSerdeWithSimple(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSpecificAvroSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewSpecificAvroSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.NewDemoSchema()
 	obj.IntField = 123
@@ -22,25 +23,25 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{0, 0, 0, 1}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewSpecificAvroDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewSpecificAvroDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	var newobj test.DemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	maybeFail("deserialization", err, expect(newobj, obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
 func TestSpecificAvroSerdeWithNested(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSpecificAvroSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewSpecificAvroSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := test.NestedRecord{
 		StringField: "hi",
@@ -58,25 +59,25 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 		OtherField:  nested,
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewSpecificAvroDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewSpecificAvroDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	var newobj test.NestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	maybeFail("deserialization", err, expect(newobj, obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
 func TestSpecificAvroSerdeWithCycle(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSpecificAvroSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewSpecificAvroSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	inner := test.RecursiveUnionTestRecord{
 		RecursiveField: nil,
@@ -89,13 +90,13 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 		RecursiveField: &wrapper,
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewSpecificAvroDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewSpecificAvroDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	var newobj test.RecursiveUnionTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	maybeFail("deserialization", err, expect(newobj, obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }

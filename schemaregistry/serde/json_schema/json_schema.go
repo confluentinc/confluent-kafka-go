@@ -1,35 +1,36 @@
-package serializer
+package json_schema
 
 import (
 	"encoding/json"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/invopop/jsonschema"
 	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
 	"io"
 	"strings"
 )
 
-// JSONSchemaSerializer represents a JSON Schema serializer
+// JSONSchemaSerializer represents a JSON Schema BaseSerializer
 type JSONSchemaSerializer struct {
-	serializer
+	serde.BaseSerializer
 	validate bool
 }
 
-// JSONSchemaDeserializer represents a JSON Schema deserializer
+// JSONSchemaDeserializer represents a JSON Schema BaseDeserializer
 type JSONSchemaDeserializer struct {
-	deserializer
+	serde.BaseDeserializer
 	validate bool
 }
 
-var _ Serializer = new(JSONSchemaSerializer)
-var _ Deserializer = new(JSONSchemaDeserializer)
+var _ serde.Serializer = new(JSONSchemaSerializer)
+var _ serde.Deserializer = new(JSONSchemaDeserializer)
 
-// NewJSONSchemaSerializer creates a JSON serializer for generic objects
-func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType SerdeType, validate bool) (*JSONSchemaSerializer, error) {
+// NewJSONSchemaSerializer creates a JSON BaseSerializer for generic objects
+func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType, validate bool) (*JSONSchemaSerializer, error) {
 	s := &JSONSchemaSerializer{
 		validate: validate,
 	}
-	err := s.configure(conf, serdeType)
+	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 		Schema:     string(raw),
 		SchemaType: "JSON",
 	}
-	id, err := s.getID(topic, msg, info)
+	id, err := s.GetID(topic, msg, info)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 		if err != nil {
 			return nil, err
 		}
-		jschema, err := toJSONSchema(s.client, info)
+		jschema, err := toJSONSchema(s.Client, info)
 		if err != nil {
 			return nil, err
 		}
@@ -74,19 +75,19 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 			return nil, err
 		}
 	}
-	payload, err := s.writeBytes(id, raw)
+	payload, err := s.WriteBytes(id, raw)
 	if err != nil {
 		return nil, err
 	}
 	return payload, nil
 }
 
-// NewJSONSchemaDeserializer creates a JSON deserializer for generic objects
-func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType SerdeType, validate bool) (*JSONSchemaDeserializer, error) {
+// NewJSONSchemaDeserializer creates a JSON BaseDeserializer for generic objects
+func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType, validate bool) (*JSONSchemaDeserializer, error) {
 	s := &JSONSchemaDeserializer{
 		validate: validate,
 	}
-	err := s.configure(conf, serdeType)
+	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +99,7 @@ func (s *JSONSchemaDeserializer) Deserialize(topic string, payload []byte) (inte
 	if payload == nil {
 		return nil, nil
 	}
-	info, err := s.getSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (s *JSONSchemaDeserializer) Deserialize(topic string, payload []byte) (inte
 		if err != nil {
 			return nil, err
 		}
-		jschema, err := toJSONSchema(s.client, info)
+		jschema, err := toJSONSchema(s.Client, info)
 		if err != nil {
 			return nil, err
 		}
@@ -118,11 +119,11 @@ func (s *JSONSchemaDeserializer) Deserialize(topic string, payload []byte) (inte
 			return nil, err
 		}
 	}
-	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
 	}
-	msg, err := s.messageFactory(subject, "")
+	msg, err := s.MessageFactory(subject, "")
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func (s *JSONSchemaDeserializer) DeserializeInto(topic string, payload []byte, m
 	if payload == nil {
 		return nil
 	}
-	info, err := s.getSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload)
 	if err != nil {
 		return err
 	}
@@ -149,7 +150,7 @@ func (s *JSONSchemaDeserializer) DeserializeInto(topic string, payload []byte, m
 		if err != nil {
 			return err
 		}
-		jschema, err := toJSONSchema(s.client, info)
+		jschema, err := toJSONSchema(s.Client, info)
 		if err != nil {
 			return err
 		}
@@ -167,7 +168,7 @@ func (s *JSONSchemaDeserializer) DeserializeInto(topic string, payload []byte, m
 
 func toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*jsonschema2.Schema, error) {
 	deps := make(map[string]string)
-	err := resolveReferences(c, schema, deps)
+	err := serde.ResolveReferences(c, schema, deps)
 	if err != nil {
 		return nil, err
 	}

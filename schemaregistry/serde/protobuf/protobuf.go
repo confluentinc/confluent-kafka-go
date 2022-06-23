@@ -1,4 +1,4 @@
-package serializer
+package protobuf
 
 import (
 	"encoding/binary"
@@ -6,6 +6,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/confluent/types"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	protoV1 "github.com/golang/protobuf/proto"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
@@ -41,19 +42,19 @@ import (
 	"strings"
 )
 
-// ProtobufSerializer represents a Protobuf serializer
+// ProtobufSerializer represents a Protobuf BaseSerializer
 type ProtobufSerializer struct {
-	serializer
+	serde.BaseSerializer
 }
 
-// ProtobufDeserializer represents a Protobuf deserializer
+// ProtobufDeserializer represents a Protobuf BaseDeserializer
 type ProtobufDeserializer struct {
-	deserializer
+	serde.BaseDeserializer
 	ProtoRegistry *protoregistry.Types
 }
 
-var _ Serializer = new(ProtobufSerializer)
-var _ Deserializer = new(ProtobufDeserializer)
+var _ serde.Serializer = new(ProtobufSerializer)
+var _ serde.Deserializer = new(ProtobufDeserializer)
 
 var builtInDeps = make(map[string]string)
 
@@ -106,27 +107,27 @@ func init() {
 	}
 }
 
-// NewProtobufSerializer creates a Protobuf serializer for Protobuf-generated objects
-func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*ProtobufSerializer, error) {
+// NewProtobufSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
+func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*ProtobufSerializer, error) {
 	s := &ProtobufSerializer{}
-	err := s.configure(conf, serdeType)
+	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-// configure configures the Protobuf deserializer
-func (s *ProtobufDeserializer) configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error {
+// configure configures the Protobuf BaseDeserializer
+func (s *ProtobufDeserializer) Configure(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
 	}
-	s.client = client
-	s.conf = conf
-	s.serdeType = serdeType
-	s.subjectNameStrategy = TopicNameStrategy
-	s.messageFactory = s.protoMessageFactory
+	s.Client = client
+	s.Conf = conf
+	s.SerdeType = serdeType
+	s.SubjectNameStrategy = serde.TopicNameStrategy
+	s.MessageFactory = s.protoMessageFactory
 	s.ProtoRegistry = new(protoregistry.Types)
 	return nil
 }
@@ -143,11 +144,11 @@ func (s *ProtobufSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	autoRegister, err := s.conf.Get("auto.register.schemas", true)
+	autoRegister, err := s.Conf.Get("auto.register.schemas", true)
 	if err != nil {
 		return nil, err
 	}
-	normalize, err := s.conf.Get("normalize.schemas", false)
+	normalize, err := s.Conf.Get("normalize.schemas", false)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +165,7 @@ func (s *ProtobufSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 		SchemaType: metadata.SchemaType,
 		References: metadata.References,
 	}
-	id, err := s.getID(topic, protoMsg, info)
+	id, err := s.GetID(topic, protoMsg, info)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +174,7 @@ func (s *ProtobufSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
-	payload, err := s.writeBytes(id, append(msgIndexBytes, msgBytes...))
+	payload, err := s.WriteBytes(id, append(msgIndexBytes, msgBytes...))
 	if err != nil {
 		return nil, err
 	}
@@ -255,17 +256,17 @@ func (s *ProtobufSerializer) resolveDependencies(fileDesc *desc.FileDescriptor, 
 	var version = 0
 	if subject != "" {
 		if autoRegister {
-			id, err = s.client.Register(subject, info, normalize)
+			id, err = s.Client.Register(subject, info, normalize)
 			if err != nil {
 				return schemaregistry.SchemaMetadata{}, err
 			}
 		} else {
-			id, err = s.client.GetID(subject, info, normalize)
+			id, err = s.Client.GetID(subject, info, normalize)
 			if err != nil {
 				return schemaregistry.SchemaMetadata{}, err
 			}
 		}
-		version, err = s.client.GetVersion(subject, info, normalize)
+		version, err = s.Client.GetVersion(subject, info, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -322,10 +323,10 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
-// NewProtobufDeserializer creates a Protobuf deserializer for Protobuf-generated objects
-func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*ProtobufDeserializer, error) {
+// NewProtobufDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
+func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*ProtobufDeserializer, error) {
 	s := &ProtobufDeserializer{}
-	err := s.configure(conf, serdeType)
+	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +338,7 @@ func (s *ProtobufDeserializer) Deserialize(topic string, payload []byte) (interf
 	if payload == nil {
 		return nil, nil
 	}
-	info, err := s.getSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -353,11 +354,11 @@ func (s *ProtobufDeserializer) Deserialize(topic string, payload []byte) (interf
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
 	}
-	msg, err := s.messageFactory(subject, messageDesc.GetFullyQualifiedName())
+	msg, err := s.MessageFactory(subject, messageDesc.GetFullyQualifiedName())
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +394,7 @@ func (s *ProtobufDeserializer) DeserializeInto(topic string, payload []byte, msg
 
 func (s *ProtobufDeserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
 	deps := make(map[string]string)
-	err := resolveReferences(s.client, info, deps)
+	err := serde.ResolveReferences(s.Client, info, deps)
 	if err != nil {
 		return nil, err
 	}

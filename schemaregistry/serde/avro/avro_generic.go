@@ -1,31 +1,32 @@
-package serializer
+package avro
 
 import (
 	"github.com/actgardner/gogen-avro/v10/parser"
 	"github.com/actgardner/gogen-avro/v10/schema"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/heetch/avro"
 	"reflect"
 	"unsafe"
 )
 
-// GenericAvroSerializer represents a generic Avro serializer
+// GenericAvroSerializer represents a generic Avro BaseSerializer
 type GenericAvroSerializer struct {
-	serializer
+	serde.BaseSerializer
 }
 
-// GenericAvroDeserializer represents a generic Avro deserializer
+// GenericAvroDeserializer represents a generic Avro BaseDeserializer
 type GenericAvroDeserializer struct {
-	deserializer
+	serde.BaseDeserializer
 }
 
-var _ Serializer = new(GenericAvroSerializer)
-var _ Deserializer = new(GenericAvroDeserializer)
+var _ serde.Serializer = new(GenericAvroSerializer)
+var _ serde.Deserializer = new(GenericAvroDeserializer)
 
-// NewGenericAvroSerializer creates an Avro serializer for generic objects
-func NewGenericAvroSerializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*GenericAvroSerializer, error) {
+// NewGenericAvroSerializer creates an Avro BaseSerializer for generic objects
+func NewGenericAvroSerializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*GenericAvroSerializer, error) {
 	s := &GenericAvroSerializer{}
-	err := s.configure(conf, serdeType)
+	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +45,7 @@ func (s *GenericAvroSerializer) Serialize(topic string, msg interface{}) ([]byte
 	info := schemaregistry.SchemaInfo{
 		Schema: avroType.String(),
 	}
-	id, err := s.getID(topic, msg, info)
+	id, err := s.GetID(topic, msg, info)
 	if err != nil {
 		return nil, err
 	}
@@ -52,17 +53,17 @@ func (s *GenericAvroSerializer) Serialize(topic string, msg interface{}) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	payload, err := s.writeBytes(id, msgBytes)
+	payload, err := s.WriteBytes(id, msgBytes)
 	if err != nil {
 		return nil, err
 	}
 	return payload, nil
 }
 
-// NewGenericAvroDeserializer creates an Avro deserializer for generic objects
-func NewGenericAvroDeserializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*GenericAvroDeserializer, error) {
+// NewGenericAvroDeserializer creates an Avro BaseDeserializer for generic objects
+func NewGenericAvroDeserializer(conf *schemaregistry.ConfigMap, serdeType serde.SerdeType) (*GenericAvroDeserializer, error) {
 	s := &GenericAvroDeserializer{}
-	err := s.configure(conf, serdeType)
+	err := s.Configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (s *GenericAvroDeserializer) Deserialize(topic string, payload []byte) (int
 	if payload == nil {
 		return nil, nil
 	}
-	info, err := s.getSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -82,11 +83,11 @@ func (s *GenericAvroDeserializer) Deserialize(topic string, payload []byte) (int
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
 	}
-	msg, err := s.messageFactory(subject, name)
+	msg, err := s.MessageFactory(subject, name)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +100,7 @@ func (s *GenericAvroDeserializer) DeserializeInto(topic string, payload []byte, 
 	if payload == nil {
 		return nil
 	}
-	info, err := s.getSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload)
 	if err != nil {
 		return err
 	}
@@ -123,7 +124,7 @@ func (s *GenericAvroDeserializer) toType(schema schemaregistry.SchemaInfo) (*avr
 
 func (s *GenericAvroDeserializer) toAvroType(schema schemaregistry.SchemaInfo) (schema.AvroType, error) {
 	ns := parser.NewNamespace(false)
-	return resolveAvroReferences(s.client, schema, ns)
+	return resolveAvroReferences(s.Client, schema, ns)
 }
 
 // From https://stackoverflow.com/questions/42664837/how-to-access-unexported-struct-fields/43918797#43918797

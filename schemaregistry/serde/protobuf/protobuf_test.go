@@ -1,20 +1,21 @@
-package serializer
+package protobuf
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 	"google.golang.org/protobuf/proto"
 	"testing"
 )
 
 func TestProtobufSerdeWithSimple(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewProtobufSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.Author{
 		Name:  "Kafka",
@@ -22,77 +23,77 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 		Works: []string{"The Castle", "The Trial"},
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewProtobufDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	maybeFail("deserialization", err, expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
 func TestProtobufSerdeWithSecondMessage(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewProtobufSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.Pizza{
 		Size:     "Extra extra large",
 		Toppings: []string{"anchovies", "mushrooms"},
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewProtobufDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	maybeFail("deserialization", err, expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
 func TestProtobufSerdeWithNestedMessage(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewProtobufSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.NestedMessage_InnerMessage{
 		Id: "inner",
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewProtobufDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	maybeFail("deserialization", err, expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
 func TestProtobufSerdeWithReference(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewProtobufSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	msg := test.TestMessage{
 		TestString:   "hi",
@@ -116,26 +117,26 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 		TestMesssage: &msg,
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewProtobufDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	maybeFail("deserialization", err, expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
 func TestProtobufSerdeWithCycle(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, ValueSerde)
-	maybeFail("serializer configuration", err)
+	ser, err := NewProtobufSerializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	inner := test.LinkedList{
 		Value: 100,
@@ -145,14 +146,14 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 		Next:  &inner,
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewProtobufDeserializer(&conf, ValueSerde)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewProtobufDeserializer(&conf, serde.ValueSerde)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	maybeFail("deserialization", err, expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }

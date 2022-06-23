@@ -1,4 +1,4 @@
-package serializer
+package serde
 
 import (
 	"fmt"
@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-type failFunc func(string, ...error)
+type FailFunc func(string, ...error)
 
-var maybeFail failFunc
+var MaybeFail FailFunc
 
-func initFailFunc(t *testing.T) failFunc {
+func InitFailFunc(t *testing.T) FailFunc {
 	tester := t
 	return func(msg string, errors ...error) {
 		for _, err := range errors {
@@ -27,7 +27,7 @@ func initFailFunc(t *testing.T) failFunc {
 	}
 }
 
-func expect(actual, expected interface{}) error {
+func Expect(actual, expected interface{}) error {
 	if !reflect.DeepEqual(actual, expected) {
 		return fmt.Errorf("expected: %v, Actual: %v", expected, actual)
 	}

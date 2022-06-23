@@ -1,19 +1,20 @@
-package serializer
+package json_schema
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 	"testing"
 )
 
 func TestJSONSchemaSerdeWithSimple(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewJSONSchemaSerializer(&conf, ValueSerde, EnableValidation)
-	maybeFail("serializer configuration", err)
+	ser, err := NewJSONSchemaSerializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := JSONDemoSchema{}
 	obj.IntField = 123
@@ -22,25 +23,25 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{0, 0, 0, 1}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewJSONSchemaDeserializer(&conf, ValueSerde, EnableValidation)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewJSONSchemaDeserializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	var newobj JSONDemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	maybeFail("deserialization", err, expect(newobj, obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
 func TestJSONSchemaSerdeWithNested(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewJSONSchemaSerializer(&conf, ValueSerde, EnableValidation)
-	maybeFail("serializer configuration", err)
+	ser, err := NewJSONSchemaSerializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := JSONDemoSchema{}
 	nested.IntField = 123
@@ -52,30 +53,30 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 		OtherField: nested,
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	serde.MaybeFail("serialization", err)
 
-	deser, err := NewJSONSchemaDeserializer(&conf, ValueSerde, EnableValidation)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	deser, err := NewJSONSchemaDeserializer(&conf, serde.ValueSerde, serde.EnableValidation)
+	serde.MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	var newobj JSONNestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	maybeFail("deserialization", err, expect(newobj, obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
 // invopop/jsonschema does not support cycles
 /*
 func TestJSONSchemaSerdeWithCycle(t *testing.T) {
-	maybeFail = initFailFunc(t)
+	MaybeFail = InitFailFunc(t)
 	var err error
-	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	Conf := schemaregistry.ConfigMap{}
+	Conf.SetKey("schema.registry.url", "mock://")
 
 	ser := JSONSchemaSerializer{
 		validate: true,
 	}
-	err = ser.configure(&conf, false)
-	maybeFail("serializer configuration", err)
+	err = ser.Configure(&Conf, false)
+	MaybeFail("BaseSerializer configuration", err)
 
 	nested := JSONLinkedList{
 		Value: 456,
@@ -85,18 +86,18 @@ func TestJSONSchemaSerdeWithCycle(t *testing.T) {
 		Next:  &nested,
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
-	maybeFail("serialization", err)
+	MaybeFail("serialization", err)
 
 	deser := JSONSchemaDeserializer{
 		validate: true,
 	}
-	err = deser.configure(&conf, false)
-	maybeFail("deserializer configuration", err)
-	deser.client = ser.client
+	err = deser.Configure(&Conf, false)
+	MaybeFail("BaseDeserializer configuration", err)
+	deser.Client = ser.Client
 
 	var newobj JSONLinkedList
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	maybeFail("deserialization", err, expect(newobj, obj))
+	MaybeFail("deserialization", err, Expect(newobj, obj))
 }
 */
 
