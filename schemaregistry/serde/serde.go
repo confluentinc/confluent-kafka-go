@@ -25,8 +25,8 @@ const (
 	DisableValidation = false
 )
 
-// MagicByte is prepended to the serialized payload
-const MagicByte byte = 0x0
+// magicByte is prepended to the serialized payload
+const magicByte byte = 0x0
 
 // MessageFactory is a factory function, which should return a pointer to
 // an instance into which we will unmarshal wire data.
@@ -161,10 +161,10 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 	return id, nil
 }
 
-// WriteBytes writes the serialized payload prepended by the MagicByte
+// WriteBytes writes the serialized payload prepended by the magicByte
 func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	err := buf.WriteByte(MagicByte)
+	err := buf.WriteByte(magicByte)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 // GetSchema returns a schema for a payload
 func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
-	if payload[0] != MagicByte {
+	if payload[0] != magicByte {
 		return info, fmt.Errorf("unknown magic byte")
 	}
 	id := binary.BigEndian.Uint32(payload[1:5])
