@@ -1416,9 +1416,10 @@ func (a *AdminClient) CreateACLs(ctx context.Context, aclBindings ACLBindings, o
 //  * `aclBindingFilter` - A filter with attributes that must match.
 //     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `Any`.
-//     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
-//     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
-//     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
+//     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns ACL bindings with:
+//     - `ResourcePatternTypeLiteral` pattern type with resource name equal to the given resource name
+//     - `ResourcePatternTypeLiteral` pattern type with wildcard resource name that matches the given resource name
+//     - `ResourcePatternTypePrefixed` pattern type with resource name that is a prefix of the given resource name
 //  * `options` - Describe ACLs options
 //
 // Returns a slice of ACLBindings when the operation was successful
@@ -1471,9 +1472,10 @@ func (a *AdminClient) DescribeACLs(ctx context.Context, aclBindingFilter ACLBind
 //  * `aclBindingFilters` - a slice of ACL binding filters to match ACLs to delete.
 //     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `Any`.
-//     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns all
-//     the ACL bindings with `ResourcePatternTypeLiteral`, `ResourcePatternTypeWildcard`
-//     or `ResourcePatternTypePrefixed` pattern type that match the resource name.
+//     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` deletes ACL bindings with:
+//     - `ResourcePatternTypeLiteral` pattern type with resource name equal to the given resource name
+//     - `ResourcePatternTypeLiteral` pattern type with wildcard resource name that matches the given resource name
+//     - `ResourcePatternTypePrefixed` pattern type with resource name that is a prefix of the given resource name
 //  * `options` - Delete ACLs options
 //
 // Returns a slice of ACLBinding for each filter when the operation was successful
