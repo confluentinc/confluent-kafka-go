@@ -1,4 +1,4 @@
-package serde
+package serializer
 
 import (
 	"github.com/actgardner/gogen-avro/v10/parser"

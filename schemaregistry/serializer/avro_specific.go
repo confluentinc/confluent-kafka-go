@@ -1,4 +1,4 @@
-package serde
+package serializer
 
 import (
 	"bytes"

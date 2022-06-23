@@ -1,4 +1,4 @@
-package serde
+package serializer
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
