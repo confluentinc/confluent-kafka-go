@@ -32,19 +32,17 @@ import (
 var p *kafka.Producer
 
 func main() {
-	// Use signal to kill the client instance.
-	// Adding extensions built is needed to kill in this way:
 	// Reference: https://github.com/aws/aws-lambda-go/issues/318#issuecomment-1019318919
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
-		fmt.Printf("waiting for the SIGTERM ")
+		fmt.Printf("waiting for the SIGTERM\n")
 		s := <-sigs
-		fmt.Printf("received signal %s", s)
+		fmt.Printf("received signal %s\n", s)
 		if p != nil {
 			p.Close()
 		}
-		fmt.Printf("done")
+		fmt.Printf("done\n")
 	}()
 
 	lambda.Start(HandleRequest)
@@ -52,13 +50,11 @@ func main() {
 
 // HandleRequest handles creating producer and
 // producing messages.
-func HandleRequest() {
+func HandleRequest() error {
 	broker := os.Getenv("BOOTSTRAP_SERVERS")
 	topic := os.Getenv("TOPIC")
 	ccloudAPIKey := os.Getenv("CCLOUDAPIKEY")
 	ccloudAPISecret := os.Getenv("CCLOUDAPISECRET")
-
-	numParts := 4
 
 	var err error
 
@@ -75,11 +71,12 @@ func HandleRequest() {
 			fmt.Printf("Failed to create producer: %s\n", err)
 			os.Exit(1)
 		}
+
+		fmt.Printf("Created Producer %v\n", p)
 	}
 
-	fmt.Printf("Created Producer %v\n", p)
-
 	a, err := kafka.NewAdminClientFromProducer(p)
+	defer a.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -88,23 +85,23 @@ func HandleRequest() {
 	if err != nil {
 		panic("ParseDuration(60s)")
 	}
+
+	// Create topics if it doesn't exist
 	results, err := a.CreateTopics(
 		ctx,
 		[]kafka.TopicSpecification{{
 			Topic:         topic,
-			NumPartitions: numParts}},
+			NumPartitions: 1}},
 		kafka.SetAdminOperationTimeout(maxDur))
 	if err != nil {
 		fmt.Printf("Failed to create topic: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Print results
 	for _, result := range results {
 		fmt.Printf("%s\n", result)
 	}
-
-	a.Close()
 
 	deliveryChan := make(chan kafka.Event)
 
@@ -114,6 +111,11 @@ func HandleRequest() {
 		Value:          []byte(value),
 		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 	}, deliveryChan)
+
+	if err != nil {
+		fmt.Printf("Produce failed: %s\n", err)
+		return err
+	}
 
 	e := <-deliveryChan
 	m := e.(*kafka.Message)
@@ -126,4 +128,6 @@ func HandleRequest() {
 	}
 
 	close(deliveryChan)
+
+	return nil
 }
