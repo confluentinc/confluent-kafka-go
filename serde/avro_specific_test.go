@@ -12,7 +12,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSpecificAvroSerializer(&conf, false)
+	ser, err := NewSpecificAvroSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	obj := test.NewDemoSchema()
@@ -39,7 +39,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSpecificAvroSerializer(&conf, false)
+	ser, err := NewSpecificAvroSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	nested := test.NestedRecord{
@@ -75,7 +75,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewSpecificAvroSerializer(&conf, false)
+	ser, err := NewSpecificAvroSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	inner := test.RecursiveUnionTestRecord{

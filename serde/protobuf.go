@@ -107,9 +107,9 @@ func init() {
 }
 
 // NewProtobufSerializer creates a Protobuf serializer for Protobuf-generated objects
-func NewProtobufSerializer(conf *schemaregistry.ConfigMap, isKey bool) (*ProtobufSerializer, error) {
+func NewProtobufSerializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*ProtobufSerializer, error) {
 	s := &ProtobufSerializer{}
-	err := s.configure(conf, isKey)
+	err := s.configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -117,14 +117,14 @@ func NewProtobufSerializer(conf *schemaregistry.ConfigMap, isKey bool) (*Protobu
 }
 
 // configure configures the Protobuf deserializer
-func (s *ProtobufDeserializer) configure(conf *schemaregistry.ConfigMap, isKey bool) error {
+func (s *ProtobufDeserializer) configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
 	}
 	s.client = client
 	s.conf = conf
-	s.isKey = isKey
+	s.serdeType = serdeType
 	s.subjectNameStrategy = TopicNameStrategy
 	s.messageFactory = s.protoMessageFactory
 	s.ProtoRegistry = new(protoregistry.Types)
@@ -323,9 +323,9 @@ func ignoreFile(name string) bool {
 }
 
 // NewProtobufDeserializer creates a Protobuf deserializer for Protobuf-generated objects
-func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, isKey bool) (*ProtobufDeserializer, error) {
+func NewProtobufDeserializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*ProtobufDeserializer, error) {
 	s := &ProtobufDeserializer{}
-	err := s.configure(conf, isKey)
+	err := s.configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +353,10 @@ func (s *ProtobufDeserializer) Deserialize(topic string, payload []byte) (interf
 	if err != nil {
 		return nil, err
 	}
-	subject := s.subjectNameStrategy(topic, s.isKey, info)
+	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	if err != nil {
+		return nil, err
+	}
 	msg, err := s.messageFactory(subject, messageDesc.GetFullyQualifiedName())
 	if err != nil {
 		return nil, err

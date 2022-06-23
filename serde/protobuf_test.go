@@ -13,7 +13,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	obj := test.Author{
@@ -40,7 +40,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	obj := test.Pizza{
@@ -66,7 +66,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	obj := test.NestedMessage_InnerMessage{
@@ -91,7 +91,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	msg := test.TestMessage{
@@ -134,7 +134,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewProtobufSerializer(&conf, false)
+	ser, err := NewProtobufSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	inner := test.LinkedList{

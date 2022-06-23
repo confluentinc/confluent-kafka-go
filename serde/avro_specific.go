@@ -33,9 +33,9 @@ type SpecificAvroMessage interface {
 }
 
 // NewSpecificAvroSerializer creates an Avro serializer for Avro-generated objects
-func NewSpecificAvroSerializer(conf *schemaregistry.ConfigMap, isKey bool) (*SpecificAvroSerializer, error) {
+func NewSpecificAvroSerializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*SpecificAvroSerializer, error) {
 	s := &SpecificAvroSerializer{}
-	err := s.configure(conf, isKey)
+	err := s.configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +75,9 @@ func (s *SpecificAvroSerializer) Serialize(topic string, msg interface{}) ([]byt
 }
 
 // NewSpecificAvroDeserializer creates an Avro deserializer for Avro-generated objects
-func NewSpecificAvroDeserializer(conf *schemaregistry.ConfigMap, isKey bool) (*SpecificAvroDeserializer, error) {
+func NewSpecificAvroDeserializer(conf *schemaregistry.ConfigMap, serdeType SerdeType) (*SpecificAvroDeserializer, error) {
 	s := &SpecificAvroDeserializer{}
-	err := s.configure(conf, isKey)
+	err := s.configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,10 @@ func (s *SpecificAvroDeserializer) Deserialize(topic string, payload []byte) (in
 	if err != nil {
 		return nil, err
 	}
-	subject := s.subjectNameStrategy(topic, s.isKey, info)
+	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	if err != nil {
+		return nil, err
+	}
 	msg, err := s.messageFactory(subject, writer.Name())
 	if err != nil {
 		return nil, err

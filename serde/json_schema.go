@@ -25,11 +25,11 @@ var _ Serializer = new(JSONSchemaSerializer)
 var _ Deserializer = new(JSONSchemaDeserializer)
 
 // NewJSONSchemaSerializer creates a JSON serializer for generic objects
-func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, isKey bool, validate bool) (*JSONSchemaSerializer, error) {
+func NewJSONSchemaSerializer(conf *schemaregistry.ConfigMap, serdeType SerdeType, validate bool) (*JSONSchemaSerializer, error) {
 	s := &JSONSchemaSerializer{
 		validate: validate,
 	}
-	err := s.configure(conf, isKey)
+	err := s.configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -82,11 +82,11 @@ func (s *JSONSchemaSerializer) Serialize(topic string, msg interface{}) ([]byte,
 }
 
 // NewJSONSchemaDeserializer creates a JSON deserializer for generic objects
-func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, isKey bool, validate bool) (*JSONSchemaDeserializer, error) {
+func NewJSONSchemaDeserializer(conf *schemaregistry.ConfigMap, serdeType SerdeType, validate bool) (*JSONSchemaDeserializer, error) {
 	s := &JSONSchemaDeserializer{
 		validate: validate,
 	}
-	err := s.configure(conf, isKey)
+	err := s.configure(conf, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,10 @@ func (s *JSONSchemaDeserializer) Deserialize(topic string, payload []byte) (inte
 			return nil, err
 		}
 	}
-	subject := s.subjectNameStrategy(topic, s.isKey, info)
+	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	if err != nil {
+		return nil, err
+	}
 	msg, err := s.messageFactory(subject, "")
 	if err != nil {
 		return nil, err

@@ -12,7 +12,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewJSONSchemaSerializer(&conf, false, true)
+	ser, err := NewJSONSchemaSerializer(&conf, ValueSerde, EnableValidation)
 	maybeFail("serializer configuration", err)
 
 	obj := JSONDemoSchema{}
@@ -39,7 +39,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewJSONSchemaSerializer(&conf, false, true)
+	ser, err := NewJSONSchemaSerializer(&conf, ValueSerde, EnableValidation)
 	maybeFail("serializer configuration", err)
 
 	nested := JSONDemoSchema{}

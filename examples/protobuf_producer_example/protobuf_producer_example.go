@@ -49,7 +49,7 @@ func main() {
 	ser, err := serde.NewProtobufSerializer(&schemaregistry.ConfigMap{
 		"schema.registry.url":   url,
 		"auto.register.schemas": true,
-	}, false)
+	}, serde.ValueSerde)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)

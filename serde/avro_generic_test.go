@@ -12,7 +12,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewGenericAvroSerializer(&conf, false)
+	ser, err := NewGenericAvroSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	obj := GenericDemoSchema{}
@@ -39,7 +39,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewGenericAvroSerializer(&conf, false)
+	ser, err := NewGenericAvroSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	nested := GenericDemoSchema{}
@@ -70,7 +70,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	conf := schemaregistry.ConfigMap{}
 	conf.SetKey("schema.registry.url", "mock://")
 
-	ser, err := NewGenericAvroSerializer(&conf, false)
+	ser, err := NewGenericAvroSerializer(&conf, ValueSerde)
 	maybeFail("serializer configuration", err)
 
 	nested := GenericLinkedList{

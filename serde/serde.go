@@ -11,11 +11,13 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 )
 
+type SerdeType = int
+
 const (
 	// KeySerde denotes a key serde
-	KeySerde = true
+	KeySerde = 1
 	// ValueSerde denotes a value serde
-	ValueSerde = false
+	ValueSerde = 2
 )
 
 const (
@@ -36,14 +38,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a serializer
 type Serializer interface {
-	configure(conf *schemaregistry.ConfigMap, isKey bool) error
+	configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a deserializer
 type Deserializer interface {
-	configure(conf *schemaregistry.ConfigMap, isKey bool) error
+	configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -58,7 +60,7 @@ type Deserializer interface {
 type serde struct {
 	client              schemaregistry.Client
 	conf                *schemaregistry.ConfigMap
-	isKey               bool
+	serdeType           SerdeType
 	subjectNameStrategy SubjectNameStrategyFunc
 }
 
@@ -72,20 +74,20 @@ type deserializer struct {
 }
 
 // configure configures the serde
-func (s *serde) configure(conf *schemaregistry.ConfigMap, isKey bool) error {
+func (s *serde) configure(conf *schemaregistry.ConfigMap, serdeType SerdeType) error {
 	client, err := schemaregistry.NewClient(conf)
 	if err != nil {
 		return err
 	}
 	s.client = client
 	s.conf = conf
-	s.isKey = isKey
+	s.serdeType = serdeType
 	s.subjectNameStrategy = TopicNameStrategy
 	return nil
 }
 
 // SubjectNameStrategyFunc determines the subject for the given parameters
-type SubjectNameStrategyFunc func(topic string, isKey bool, schema schemaregistry.SchemaInfo) string
+type SubjectNameStrategyFunc func(topic string, serdeType SerdeType, schema schemaregistry.SchemaInfo) (string, error)
 
 // SubjectNameStrategyFunc returns a function pointer to the desired subject naming strategy.
 // For additional information on subject naming strategies see the following link.
@@ -100,12 +102,12 @@ func (s *serde) SetSubjectNameStrategy(strategy SubjectNameStrategyFunc) {
 }
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
-func TopicNameStrategy(topic string, isKey bool, schema schemaregistry.SchemaInfo) string {
+func TopicNameStrategy(topic string, serdeType SerdeType, schema schemaregistry.SchemaInfo) (string, error) {
 	suffix := "-value"
-	if isKey {
+	if serdeType == KeySerde {
 		suffix = "-key"
 	}
-	return topic + suffix
+	return topic + suffix, nil
 }
 
 func (s *serializer) getID(topic string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
@@ -127,7 +129,10 @@ func (s *serializer) getID(topic string, msg interface{}, info schemaregistry.Sc
 	}
 
 	var id = -1
-	subject := s.subjectNameStrategy(topic, s.isKey, info)
+	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	if err != nil {
+		return -1, err
+	}
 	if autoRegister.(bool) {
 		id, err = s.client.Register(subject, info, normalizeSchema.(bool))
 		if err != nil {
@@ -198,7 +203,10 @@ func (s *deserializer) getSchema(topic string, payload []byte) (schemaregistry.S
 		return info, fmt.Errorf("unknown magic byte")
 	}
 	id := binary.BigEndian.Uint32(payload[1:5])
-	subject := s.subjectNameStrategy(topic, s.isKey, info)
+	subject, err := s.subjectNameStrategy(topic, s.serdeType, info)
+	if err != nil {
+		return info, err
+	}
 	return s.client.GetBySubjectAndID(subject, int(id))
 }
 

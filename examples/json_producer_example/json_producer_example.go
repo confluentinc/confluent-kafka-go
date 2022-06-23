@@ -49,7 +49,7 @@ func main() {
 	ser, err := serde.NewJSONSchemaSerializer(&schemaregistry.ConfigMap{
 		"schema.registry.url":   url,
 		"auto.register.schemas": true,
-	}, false, false)
+	}, serde.ValueSerde, serde.DisableValidation)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
