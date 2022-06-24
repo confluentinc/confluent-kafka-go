@@ -112,12 +112,12 @@ func testTestCompatibility(subject string, version int, schema SchemaInfo, expec
 func TestClient(t *testing.T) {
 	maybeFail = initFailFunc(t)
 
-	url := testconf.getString("SchemaRegistryURL")
+	url := testconf.getString("SchemaRegistryUrl")
 	if url == "" {
 		url = "mock://"
 	}
 	conf := ConfigMap{
-		"schema.registry.url": url,
+		SchemaRegistryURL: url,
 	}
 
 	var err error

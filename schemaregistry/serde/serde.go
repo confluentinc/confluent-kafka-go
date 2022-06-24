@@ -25,6 +25,17 @@ const (
 	DisableValidation = false
 )
 
+const (
+	// AutoRegisterSchemas determines whether to automatically register schemas during serialization
+	AutoRegisterSchemas = "auto.register.schemas"
+	// UseSchemaID specifies a schema ID to use during serialization
+	UseSchemaID = "use.schema.id"
+	// UseLatestVersion specifies whether to use the latest schema version during serialization
+	UseLatestVersion = "use.latest.version"
+	// NormalizeSchemas determines whether to normalize schemas during serialization
+	NormalizeSchemas = "normalize.schemas"
+)
+
 // magicByte is prepended to the serialized payload
 const magicByte byte = 0x0
 
@@ -102,19 +113,19 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 
 // GetID returns a schema ID for the given schema
 func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
-	autoRegister, err := s.Conf.Get("auto.register.schemas", true)
+	autoRegister, err := s.Conf.GetBool(AutoRegisterSchemas, true)
 	if err != nil {
 		return -1, err
 	}
-	useSchemaID, err := s.Conf.Get("use.info.id", -1)
+	useSchemaID, err := s.Conf.GetInt(UseSchemaID, -1)
 	if err != nil {
 		return -1, err
 	}
-	useLatest, err := s.Conf.Get("use.latest.version", false)
+	useLatest, err := s.Conf.GetBool(UseLatestVersion, false)
 	if err != nil {
 		return -1, err
 	}
-	normalizeSchema, err := s.Conf.Get("normalize.schemas", false)
+	normalizeSchema, err := s.Conf.GetBool(NormalizeSchemas, false)
 	if err != nil {
 		return -1, err
 	}
@@ -124,13 +135,13 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 	if err != nil {
 		return -1, err
 	}
-	if autoRegister.(bool) {
-		id, err = s.Client.Register(subject, info, normalizeSchema.(bool))
+	if autoRegister {
+		id, err = s.Client.Register(subject, info, normalizeSchema)
 		if err != nil {
 			return -1, err
 		}
-	} else if useSchemaID.(int) >= 0 {
-		info, err = s.Client.GetBySubjectAndID(subject, useSchemaID.(int))
+	} else if useSchemaID >= 0 {
+		info, err = s.Client.GetBySubjectAndID(subject, useSchemaID)
 		if err != nil {
 			return -1, err
 		}
@@ -138,7 +149,7 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 		if err != nil {
 			return -1, err
 		}
-	} else if useLatest.(bool) {
+	} else if useLatest {
 		metadata, err := s.Client.GetLatestSchemaMetadata(subject)
 		if err != nil {
 			return -1, err
@@ -153,7 +164,7 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 			return -1, err
 		}
 	} else {
-		id, err = s.Client.GetID(subject, info, normalizeSchema.(bool))
+		id, err = s.Client.GetID(subject, info, normalizeSchema)
 		if err != nil {
 			return -1, err
 		}

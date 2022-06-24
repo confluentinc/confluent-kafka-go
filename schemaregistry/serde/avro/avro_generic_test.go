@@ -11,7 +11,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)
@@ -41,7 +41,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)
@@ -75,7 +75,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)

@@ -12,7 +12,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)
@@ -42,7 +42,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)
@@ -71,7 +71,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)
@@ -99,7 +99,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)
@@ -145,7 +145,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.ConfigMap{}
-	conf.SetKey("schema.registry.url", "mock://")
+	conf.SetString("schema.registry.url", "mock://")
 
 	client, err := schemaregistry.NewClient(&conf)
 	serde.MaybeFail("Schema Registry configuration", err)

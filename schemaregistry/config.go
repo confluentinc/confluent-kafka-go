@@ -17,37 +17,38 @@ package schemaregistry
  */
 
 import (
-	"fmt"
-	"reflect"
+	"strconv"
 )
 
-// ConfigValue supports the following types:
-//  bool, int, string, any type with the standard String() interface
-type ConfigValue interface{}
+// ConfigMap is a map of string key-values
+type ConfigMap map[string]string
 
-// ConfigMap is a map containing ConfigValues by key
-type ConfigMap map[string]ConfigValue
+// Config is type-safe interface for specifying config key-value pairs
+type Config interface {
+	GetBool(key string, defval bool) (bool, error)
+	GetInt(key string, defval int) (int, error)
+	GetString(key string, defval string) (string, error)
+	SetBool(key string, value bool) error
+	SetInt(key string, value int) error
+	SetString(key string, value string) error
+}
 
-// SetKey sets configuration property key to value.
-func (m ConfigMap) SetKey(key string, value ConfigValue) error {
-	m[key] = value
+// SetBool sets configuration property key to the bool value.
+func (m ConfigMap) SetBool(key string, value bool) error {
+	m[key] = strconv.FormatBool(value)
 	return nil
 }
 
-// get finds key in the configmap and returns its value.
-// If the key is not found defval is returned.
-// If the key is found but the type is mismatched an error is returned.
-func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
-	v, ok := m[key]
-	if !ok {
-		return defval, nil
-	}
+// SetInt sets configuration property key to the int value.
+func (m ConfigMap) SetInt(key string, value int) error {
+	m[key] = strconv.FormatInt(int64(value), 10)
+	return nil
+}
 
-	if defval != nil && reflect.TypeOf(defval) != reflect.TypeOf(v) {
-		return nil, fmt.Errorf("%s expects type %T, not %T", key, defval, v)
-	}
-
-	return v, nil
+// SetString sets configuration property key to the string value.
+func (m ConfigMap) SetString(key string, value string) error {
+	m[key] = value
+	return nil
 }
 
 func (m ConfigMap) clone() ConfigMap {
@@ -58,10 +59,49 @@ func (m ConfigMap) clone() ConfigMap {
 	return m2
 }
 
-// Get finds the given key in the ConfigMap and returns its value.
+// GetBool finds the given key in the ConfigMap and returns its bool value.
 // If the key is not found `defval` is returned.
 // If the key is found but the type does not match that of `defval` (unless nil)
 // an error is returned.
-func (m ConfigMap) Get(key string, defval ConfigValue) (ConfigValue, error) {
-	return m.get(key, defval)
+func (m ConfigMap) GetBool(key string, defval bool) (bool, error) {
+	v, ok := m[key]
+	if !ok {
+		return defval, nil
+	}
+
+	ret, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, err
+	}
+	return ret, nil
+}
+
+// GetInt finds the given key in the ConfigMap and returns its int value.
+// If the key is not found `defval` is returned.
+// If the key is found but the type does not match that of `defval` (unless nil)
+// an error is returned.
+func (m ConfigMap) GetInt(key string, defval int) (int, error) {
+	v, ok := m[key]
+	if !ok {
+		return defval, nil
+	}
+
+	ret, err := strconv.ParseInt(v, 10, 0)
+	if err != nil {
+		return 0, err
+	}
+	return int(ret), nil
+}
+
+// GetString finds the given key in the ConfigMap and returns its string value.
+// If the key is not found `defval` is returned.
+// If the key is found but the type does not match that of `defval` (unless nil)
+// an error is returned.
+func (m ConfigMap) GetString(key string, defval string) (string, error) {
+	v, ok := m[key]
+	if !ok {
+		return defval, nil
+	}
+
+	return v, nil
 }

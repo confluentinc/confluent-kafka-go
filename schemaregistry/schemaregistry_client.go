@@ -48,6 +48,31 @@ import (
 * GET /config/(string: subject) returns: JSON string:compatibility; raises: 404, 500[01]
  */
 
+// Configuration keys
+const (
+	// SchemaRegistryURL determines the URL of Schema Registry
+	SchemaRegistryURL = "schema.registry.url"
+
+	// BasicAuth keys
+	BasicAuthUserInfo          = "basic.auth.user.info"
+	BasicAuthCredentialsSource = "basic.auth.credentials.source"
+
+	// Sasl keys
+	SaslMechanism = "sasl.mechanism"
+	SaslUsername  = "sasl.username"
+	SaslPassword  = "sasl.password"
+
+	// Ssl Keys
+	SslCertificationLocation       = "ssl.certificate.location"
+	SslKeyLocation                 = "ssl.key.location"
+	SslCaLocation                  = "ssl.ca.location"
+	SslDisableEndpointVerification = "ssl.disable.endpoint.verification"
+
+	// Timeouts
+	ConnectionTimeoutMs = "connection.timout.ms"
+	RequestTimeoutMs    = "request.timeout.ms"
+)
+
 // Reference represents a schema reference
 type Reference struct {
 	Name    string `json:"name"`
@@ -190,14 +215,14 @@ type Client interface {
 }
 
 // NewClient returns a Client implementation
-func NewClient(conf *ConfigMap) (Client, error) {
+func NewClient(conf Config) (Client, error) {
 
-	urlConf, err := conf.Get("schema.registry.url", "")
+	urlConf, err := conf.GetString(SchemaRegistryURL, "")
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(urlConf.(string), "mock://") {
-		url, err := url.Parse(urlConf.(string))
+	if strings.HasPrefix(urlConf, "mock://") {
+		url, err := url.Parse(urlConf)
 		if err != nil {
 			return nil, err
 		}
@@ -390,14 +415,14 @@ func (c *client) GetAllSubjects() ([]string, error) {
 // Returns integer slice of versions removed by delete
 func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
 	c.versionCacheLock.Lock()
-	for cacheKey, _ := range c.versionCache {
+	for cacheKey := range c.versionCache {
 		if cacheKey.subject == subject {
 			delete(c.versionCache, cacheKey)
 		}
 	}
 	c.versionCacheLock.Unlock()
 	c.idCacheLock.Lock()
-	for cacheKey, _ := range c.idCache {
+	for cacheKey := range c.idCache {
 		if cacheKey.subject == subject {
 			delete(c.idCache, cacheKey)
 		}
@@ -405,7 +430,7 @@ func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
 	c.idCacheLock.Unlock()
 	c.schemaCacheLock.Lock()
 	var result []int
-	for cacheKey, _ := range c.schemaCache {
+	for cacheKey := range c.schemaCache {
 		if cacheKey.subject == subject {
 			delete(c.schemaCache, cacheKey)
 		}

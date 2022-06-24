@@ -147,11 +147,11 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	autoRegister, err := s.Conf.Get("auto.register.schemas", true)
+	autoRegister, err := s.Conf.GetBool(serde.AutoRegisterSchemas, true)
 	if err != nil {
 		return nil, err
 	}
-	normalize, err := s.Conf.Get("normalize.schemas", false)
+	normalize, err := s.Conf.GetBool(serde.NormalizeSchemas, false)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister.(bool), normalize.(bool))
+	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
 	if err != nil {
 		return nil, err
 	}

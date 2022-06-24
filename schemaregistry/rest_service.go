@@ -86,14 +86,14 @@ type restService struct {
 }
 
 // newRestService returns a new REST client for the Confluent Schema Registry
-func newRestService(conf *ConfigMap) (*restService, error) {
-	urlConf, err := conf.Get("schema.registry.url", "")
+func newRestService(conf Config) (*restService, error) {
+	urlConf, err := conf.GetString(SchemaRegistryURL, "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	u, err := url.Parse(urlConf.(string))
+	u, err := url.Parse(urlConf)
 
 	if err != nil {
 		return nil, err
@@ -114,14 +114,14 @@ func newRestService(conf *ConfigMap) (*restService, error) {
 		return nil, err
 	}
 
-	timeout, err := conf.Get("request.timeout.ms", 10000)
+	timeout, err := conf.GetInt(RequestTimeoutMs, 10000)
 
 	return &restService{
 		url:     u,
 		headers: headers,
 		Client: &http.Client{
 			Transport: transport,
-			Timeout:   time.Duration(timeout.(int)) * time.Millisecond,
+			Timeout:   time.Duration(timeout) * time.Millisecond,
 		},
 	}, nil
 }
@@ -132,27 +132,27 @@ func encodeBasicAuth(userinfo string) string {
 }
 
 // configureTLS populates tlsConf
-func configureTLS(conf *ConfigMap, tlsConf *tls.Config) error {
-	certFile, err := conf.Get("ssl.certificate.location", "")
+func configureTLS(conf Config, tlsConf *tls.Config) error {
+	certFile, err := conf.GetString(SslCertificationLocation, "")
 	if err != nil {
 		return err
 	}
-	keyFile, err := conf.Get("ssl.key.location", "")
+	keyFile, err := conf.GetString(SslKeyLocation, "")
 	if err != nil {
 		return err
 	}
-	caFile, err := conf.Get("ssl.ca.location", "")
+	caFile, err := conf.GetString(SslCaLocation, "")
 	if err != nil {
 		return err
 	}
-	unsafe, err := conf.Get("ssl.disable.endpoint.verification", false)
+	unsafe, err := conf.GetBool(SslDisableEndpointVerification, false)
 	if err != nil {
 		return err
 	}
 
 	if certFile != "" {
 		var cert tls.Certificate
-		cert, err = tls.LoadX509KeyPair(certFile.(string), keyFile.(string))
+		cert, err = tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			return err
 		}
@@ -160,12 +160,12 @@ func configureTLS(conf *ConfigMap, tlsConf *tls.Config) error {
 	}
 
 	if caFile != "" {
-		if unsafe.(bool) {
+		if unsafe {
 			log.Println("WARN: endpoint verification is currently disabled. " +
 				"This feature should be configured for development purposes only")
 		}
 		var caCert []byte
-		caCert, err = ioutil.ReadFile(caFile.(string))
+		caCert, err = ioutil.ReadFile(caFile)
 		if err != nil {
 			return err
 		}
@@ -181,7 +181,7 @@ func configureTLS(conf *ConfigMap, tlsConf *tls.Config) error {
 }
 
 // configureTransport returns a new Transport for use by the Confluent Schema Registry REST client
-func configureTransport(conf *ConfigMap) (*http.Transport, error) {
+func configureTransport(conf Config) (*http.Transport, error) {
 
 	// Exposed for testing purposes only. In production properly formed certificates should be used
 	// https://tools.ietf.org/html/rfc2818#section-3
@@ -190,15 +190,14 @@ func configureTransport(conf *ConfigMap) (*http.Transport, error) {
 		return nil, err
 	}
 
-	timeout, err := conf.Get("connection.timout.ms", 10000)
+	timeout, err := conf.GetInt(ConnectionTimeoutMs, 10000)
 	if err != nil {
 		return nil, err
 	}
 
 	return &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: time.Duration(timeout.(int)) *
-				time.Millisecond,
+			Timeout: time.Duration(timeout) * time.Millisecond,
 		}).Dial,
 		TLSClientConfig: tlsConfig,
 	}, nil
@@ -211,63 +210,63 @@ func configureURLAuth(service *url.URL, header http.Header) error {
 }
 
 // configureSASLAuth copies the sasl username and password into a HTTP basic authorization header
-func configureSASLAuth(conf *ConfigMap, header http.Header) error {
-	mech, err := conf.Get("sasl.mechanism", "GSSAPI")
+func configureSASLAuth(conf Config, header http.Header) error {
+	mech, err := conf.GetString(SaslMechanism, "GSSAPI")
 
-	if err != nil || strings.ToUpper(mech.(string)) == "GSSAPI" {
+	if err != nil || strings.ToUpper(mech) == "GSSAPI" {
 		return fmt.Errorf("SASL_INHERIT support PLAIN and SCRAM SASL mechanisms only")
 	}
 
-	user, err := conf.Get("sasl.username", "")
+	user, err := conf.GetString(SaslUsername, "")
 	if err != nil {
 		return err
 	}
 
-	pass, err := conf.Get("sasl.password", "")
+	pass, err := conf.GetString(SaslPassword, "")
 	if err != nil {
 		return err
 	}
 
-	if user.(string) == "" || pass.(string) == "" {
+	if user == "" || pass == "" {
 		return fmt.Errorf("SASL_INHERIT requires both sasl.username and sasl.password be set")
 	}
 
-	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(fmt.Sprintf("%s:%s", user.(string), pass.(string)))))
+	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(fmt.Sprintf("%s:%s", user, pass))))
 	return nil
 }
 
 // configureUSERINFOAuth copies basic.auth.user.info
-func configureUSERINFOAuth(conf *ConfigMap, header http.Header) error {
-	auth, err := conf.Get("basic.auth.user.info", "")
+func configureUSERINFOAuth(conf Config, header http.Header) error {
+	auth, err := conf.GetString(BasicAuthUserInfo, "")
 
 	if err != nil {
 		return err
 	}
 
-	if auth.(string) == "" {
+	if auth == "" {
 		return fmt.Errorf("USER_INFO source configured without basic.auth.user.info ")
 	}
 
-	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(auth.(string))))
+	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(auth)))
 	return nil
 
 }
 
 // newAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
-func newAuthHeader(service *url.URL, conf *ConfigMap) (http.Header, error) {
+func newAuthHeader(service *url.URL, conf Config) (http.Header, error) {
 	// Remove userinfo from url regardless of source to avoid confusion/conflicts
 	defer func() {
 		service.User = nil
 	}()
 
-	source, err := conf.Get("basic.auth.credentials.source", "URL")
+	source, err := conf.GetString(BasicAuthCredentialsSource, "URL")
 	if err != nil {
 		return nil, err
 	}
 
 	header := http.Header{}
 
-	switch strings.ToUpper(source.(string)) {
+	switch strings.ToUpper(source) {
 	case "URL":
 		err = configureURLAuth(service, header)
 	case "SASL_INHERIT":
@@ -275,7 +274,7 @@ func newAuthHeader(service *url.URL, conf *ConfigMap) (http.Header, error) {
 	case "USER_INFO":
 		err = configureUSERINFOAuth(conf, header)
 	default:
-		err = fmt.Errorf("unrecognized value for basic.auth.credentials.source %s", source.(string))
+		err = fmt.Errorf("unrecognized value for basic.auth.credentials.source %s", source)
 	}
 	return header, err
 }
