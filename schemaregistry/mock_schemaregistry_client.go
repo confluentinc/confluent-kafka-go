@@ -24,15 +24,25 @@ func (c counter) increment() int {
 	return c.count
 }
 
+type versionCacheEntry struct {
+	version     int
+	softDeleted bool
+}
+
+type idCacheEntry struct {
+	id          int
+	softDeleted bool
+}
+
 /* HTTP(S) Schema Registry Client and schema caches */
 type mockclient struct {
 	sync.Mutex
 	url                    *url.URL
-	schemaCache            map[subjectJSON]int
+	schemaCache            map[subjectJSON]idCacheEntry
 	schemaCacheLock        sync.RWMutex
 	idCache                map[subjectID]*SchemaInfo
 	idCacheLock            sync.RWMutex
-	versionCache           map[subjectJSON]int
+	versionCache           map[subjectJSON]versionCacheEntry
 	versionCacheLock       sync.RWMutex
 	compatibilityCache     map[string]Compatibility
 	compatibilityCacheLock sync.RWMutex
@@ -52,7 +62,10 @@ func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool)
 		json:    string(schemaJSON),
 	}
 	c.schemaCacheLock.RLock()
-	id, ok := c.schemaCache[cacheKey]
+	idCacheEntryVal, ok := c.schemaCache[cacheKey]
+	if idCacheEntryVal.softDeleted {
+		ok = false
+	}
 	c.schemaCacheLock.RUnlock()
 	if ok {
 		return id, nil
@@ -63,7 +76,7 @@ func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool)
 		return -1, err
 	}
 	c.schemaCacheLock.Lock()
-	c.schemaCache[cacheKey] = id
+	c.schemaCache[cacheKey] = idCacheEntry{id, false}
 	c.schemaCacheLock.Unlock()
 	return id, nil
 }
@@ -112,7 +125,7 @@ func (c *mockclient) generateVersion(subject string, schema SchemaInfo) error {
 		json:    string(schemaJSON),
 	}
 	c.versionCacheLock.Lock()
-	c.versionCache[cacheKey] = newVersion
+	c.versionCache[cacheKey] = versionCacheEntry{newVersion, false}
 	c.versionCacheLock.Unlock()
 	return nil
 }
@@ -149,10 +162,13 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 		json:    string(schemaJSON),
 	}
 	c.schemaCacheLock.RLock()
-	id, ok := c.schemaCache[cacheKey]
+	idCacheEntryVal, ok := c.schemaCache[cacheKey]
+	if idCacheEntryVal.softDeleted {
+		ok = false
+	}
 	c.schemaCacheLock.RUnlock()
 	if ok {
-		return id, nil
+		return idCacheEntryVal.id, nil
 	}
 
 	posErr := url.Error{
@@ -184,7 +200,7 @@ func (c *mockclient) GetSchemaMetadata(subject string, version int) (result Sche
 	var json string
 	c.versionCacheLock.RLock()
 	for key, value := range c.versionCache {
-		if key.subject == subject && value == version {
+		if key.subject == subject && value.version == version && !value.softDeleted {
 			json = key.json
 			break
 		}
@@ -249,8 +265,8 @@ func (c *mockclient) allVersions(subject string) (results []int) {
 	versions := make([]int, 0)
 	c.versionCacheLock.RLock()
 	for key, value := range c.versionCache {
-		if key.subject == subject {
-			versions = append(versions, value)
+		if key.subject == subject && !value.softDeleted {
+			versions = append(versions, value.version)
 		}
 	}
 	c.versionCacheLock.RUnlock()
@@ -266,6 +282,22 @@ func (c *mockclient) latestVersion(subject string) int {
 	return versions[len(versions)-1]
 }
 
+func (c *mockclient) deleteVersion(key subjectJSON, version int, permanent bool) {
+	if permanent {
+		delete(c.versionCache, key)
+	} else {
+		c.versionCache[key] = versionCacheEntry{version, true}
+	}
+}
+
+func (c *mockclient) deleteID(key subjectJSON, id int, permanent bool) {
+	if permanent {
+		delete(c.schemaCache, key)
+	} else {
+		c.schemaCache[key] = idCacheEntry{id, true}
+	}
+}
+
 // GetVersion finds the Subject SchemaMetadata associated with the provided schema
 // Returns integer SchemaMetadata number
 func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize bool) (int, error) {
@@ -278,10 +310,13 @@ func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize boo
 		json:    string(schemaJSON),
 	}
 	c.versionCacheLock.RLock()
-	id, ok := c.versionCache[cacheKey]
+	versionCacheEntryVal, ok := c.versionCache[cacheKey]
+	if versionCacheEntryVal.softDeleted {
+		ok = false
+	}
 	c.versionCacheLock.RUnlock()
 	if ok {
-		return id, nil
+		return versionCacheEntryVal.version, nil
 	}
 	posErr := url.Error{
 		Op:  "GET",
@@ -296,8 +331,10 @@ func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize boo
 func (c *mockclient) GetAllSubjects() ([]string, error) {
 	subjects := make([]string, 0)
 	c.versionCacheLock.RLock()
-	for key := range c.versionCache {
-		subjects = append(subjects, key.subject)
+	for key, value := range c.versionCache {
+		if !value.softDeleted {
+			subjects = append(subjects, key.subject)
+		}
 	}
 	c.versionCacheLock.RUnlock()
 	sort.Strings(subjects)
@@ -306,42 +343,64 @@ func (c *mockclient) GetAllSubjects() ([]string, error) {
 
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
-func (c *mockclient) DeleteSubject(subject string) (deleted []int, err error) {
+func (c *mockclient) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
 	c.schemaCacheLock.Lock()
-	for key := range c.schemaCache {
-		if key.subject == subject {
-			delete(c.schemaCache, key)
+	for key, value := range c.schemaCache {
+		if key.subject == subject && (!value.softDeleted || permanent) {
+			c.deleteID(key, value.id, permanent)
 		}
 	}
 	c.schemaCacheLock.Unlock()
-	c.idCacheLock.Lock()
-	for key := range c.idCache {
-		if key.subject == subject {
-			delete(c.idCache, key)
-		}
-	}
-	c.idCacheLock.Unlock()
 	c.versionCacheLock.Lock()
 	for key, value := range c.versionCache {
-		if key.subject == subject {
-			delete(c.versionCache, key)
-			deleted = append(deleted, value)
+		if key.subject == subject && (!value.softDeleted || permanent) {
+			c.deleteVersion(key, value.version, permanent)
+			deleted = append(deleted, value.version)
 		}
 	}
 	c.versionCacheLock.Unlock()
 	c.compatibilityCacheLock.Lock()
 	delete(c.compatibilityCache, subject)
 	c.compatibilityCacheLock.Unlock()
+	if permanent {
+		c.idCacheLock.Lock()
+		for key := range c.idCache {
+			if key.subject == subject {
+				delete(c.idCache, key)
+			}
+		}
+		c.idCacheLock.Unlock()
+	}
 	return deleted, nil
 }
 
 // DeleteSubjectVersion removes the version identified by delete from the subject's registration
 // Returns integer id for the deleted version
-func (c *mockclient) DeleteSubjectVersion(subject string, version int) (deleted int, err error) {
+func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent bool) (deleted int, err error) {
 	c.versionCacheLock.Lock()
 	for key, value := range c.versionCache {
-		if key.subject == subject && value == version {
-			delete(c.versionCache, key)
+		if key.subject == subject && value.version == version {
+			c.deleteVersion(key, value.version, permanent)
+			schemaJSON := key.json
+			cacheKeySchema := subjectJSON{
+				subject: subject,
+				json:    string(schemaJSON),
+			}
+			c.schemaCacheLock.Lock()
+			idSchemaEntryVal, ok := c.schemaCache[cacheKeySchema]
+			if ok {
+				c.deleteID(key, idSchemaEntryVal.id, permanent)
+			}
+			c.schemaCacheLock.Unlock()
+			if permanent && ok {
+				c.idCacheLock.Lock()
+				cacheKeyID := subjectID{
+					subject: subject,
+					id:      idSchemaEntryVal.id,
+				}
+				delete(c.idCache, cacheKeyID)
+				c.idCacheLock.Unlock()
+			}
 		}
 	}
 	c.versionCacheLock.Unlock()

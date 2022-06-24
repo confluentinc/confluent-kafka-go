@@ -205,8 +205,8 @@ type Client interface {
 	GetAllVersions(subject string) ([]int, error)
 	GetVersion(subject string, schema SchemaInfo, normalize bool) (version int, err error)
 	GetAllSubjects() ([]string, error)
-	DeleteSubject(subject string) ([]int, error)
-	DeleteSubjectVersion(subject string, version int) (deletes int, err error)
+	DeleteSubject(subject string, permanent bool) ([]int, error)
+	DeleteSubjectVersion(subject string, version int, permanent bool) (deletes int, err error)
 	GetCompatibility(subject string) (compatibility Compatibility, err error)
 	UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error)
 	TestCompatibility(subject string, version int, schema SchemaInfo) (compatible bool, err error)
@@ -228,9 +228,9 @@ func NewClient(conf Config) (Client, error) {
 		}
 		mock := &mockclient{
 			url:                url,
-			schemaCache:        make(map[subjectJSON]int),
+			schemaCache:        make(map[subjectJSON]idCacheEntry),
 			idCache:            make(map[subjectID]*SchemaInfo),
-			versionCache:       make(map[subjectJSON]int),
+			versionCache:       make(map[subjectJSON]versionCacheEntry),
 			compatibilityCache: make(map[string]Compatibility),
 		}
 		return mock, nil
@@ -383,10 +383,10 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 		json:    string(schemaJSON),
 	}
 	c.versionCacheLock.RLock()
-	id, ok := c.versionCache[cacheKey]
+	version, ok := c.versionCache[cacheKey]
 	c.versionCacheLock.RUnlock()
 	if ok {
-		return id, nil
+		return version, nil
 	}
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
@@ -413,47 +413,65 @@ func (c *client) GetAllSubjects() ([]string, error) {
 
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
-func (c *client) DeleteSubject(subject string) (deleted []int, err error) {
+func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
+	c.schemaCacheLock.Lock()
+	for key := range c.schemaCache {
+		if key.subject == subject {
+			delete(c.schemaCache, key)
+		}
+	}
+	c.schemaCacheLock.Unlock()
 	c.versionCacheLock.Lock()
-	for cacheKey := range c.versionCache {
-		if cacheKey.subject == subject {
-			delete(c.versionCache, cacheKey)
+	for key := range c.versionCache {
+		if key.subject == subject {
+			delete(c.versionCache, key)
 		}
 	}
 	c.versionCacheLock.Unlock()
 	c.idCacheLock.Lock()
-	for cacheKey := range c.idCache {
-		if cacheKey.subject == subject {
-			delete(c.idCache, cacheKey)
+	for key := range c.idCache {
+		if key.subject == subject {
+			delete(c.idCache, key)
 		}
 	}
 	c.idCacheLock.Unlock()
-	c.schemaCacheLock.Lock()
 	var result []int
-	for cacheKey := range c.schemaCache {
-		if cacheKey.subject == subject {
-			delete(c.schemaCache, cacheKey)
-		}
-	}
-	c.schemaCacheLock.Unlock()
-	err = c.restService.handleRequest(newRequest("DELETE", subjects, nil, url.PathEscape(subject)), &result)
-
+	err = c.restService.handleRequest(newRequest("DELETE", subjectsDelete, nil, url.PathEscape(subject), permanent), &result)
 	return result, err
 }
 
 // DeleteSubjectVersion removes the version identified by delete from the subject's registration
 // Returns integer id for the deleted version
-func (c *client) DeleteSubjectVersion(subject string, version int) (deleted int, err error) {
+func (c *client) DeleteSubjectVersion(subject string, version int, permanent bool) (deleted int, err error) {
 	c.versionCacheLock.Lock()
-	for cacheKey, v := range c.versionCache {
-		if cacheKey.subject == subject && v == version {
-			delete(c.versionCache, cacheKey)
+	for key, value := range c.versionCache {
+		if key.subject == subject && value == version {
+			delete(c.versionCache, key)
+			schemaJSON := key.json
+			cacheKeySchema := subjectJSON{
+				subject: subject,
+				json:    string(schemaJSON),
+			}
+			c.schemaCacheLock.Lock()
+			id, ok := c.schemaCache[cacheKeySchema]
+			if ok {
+				delete(c.schemaCache, cacheKeySchema)
+			}
+			c.schemaCacheLock.Unlock()
+			if ok {
+				c.idCacheLock.Lock()
+				cacheKeyID := subjectID{
+					subject: subject,
+					id:      id,
+				}
+				delete(c.idCache, cacheKeyID)
+				c.idCacheLock.Unlock()
+			}
 		}
 	}
 	c.versionCacheLock.Unlock()
 	var result int
-	err = c.restService.handleRequest(newRequest("DELETE", versions, nil, url.PathEscape(subject), version), &result)
-
+	err = c.restService.handleRequest(newRequest("DELETE", versionsDelete, nil, url.PathEscape(subject), version, permanent), &result)
 	return result, err
 
 }

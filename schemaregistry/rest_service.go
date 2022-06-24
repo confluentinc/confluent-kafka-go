@@ -24,9 +24,11 @@ const (
 	subject           = "/subjects"
 	subjects          = subject + "/%s"
 	subjectsNormalize = subject + "/%s?normalize=%t"
+	subjectsDelete    = subjects + "?permanent=%t"
 	version           = subjects + "/versions"
 	versionNormalize  = subjects + "/versions?normalize=%t"
 	versions          = version + "/%v"
+	versionsDelete    = versions + "?permanent=%t"
 	compatibility     = "/compatibility" + versions
 	config            = "/config"
 	subjectConfig     = config + "/%s"
