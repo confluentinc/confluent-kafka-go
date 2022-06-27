@@ -88,13 +88,8 @@ type restService struct {
 }
 
 // newRestService returns a new REST client for the Confluent Schema Registry
-func newRestService(conf Config) (*restService, error) {
-	urlConf, err := conf.GetString(SchemaRegistryURL, "")
-
-	if err != nil {
-		return nil, err
-	}
-
+func newRestService(conf *Config) (*restService, error) {
+	urlConf := conf.SchemaRegistryURL
 	u, err := url.Parse(urlConf)
 
 	if err != nil {
@@ -116,7 +111,7 @@ func newRestService(conf Config) (*restService, error) {
 		return nil, err
 	}
 
-	timeout, err := conf.GetInt(RequestTimeoutMs, 10000)
+	timeout := conf.RequestTimeoutMs
 
 	return &restService{
 		url:     u,
@@ -134,27 +129,16 @@ func encodeBasicAuth(userinfo string) string {
 }
 
 // configureTLS populates tlsConf
-func configureTLS(conf Config, tlsConf *tls.Config) error {
-	certFile, err := conf.GetString(SslCertificationLocation, "")
-	if err != nil {
-		return err
-	}
-	keyFile, err := conf.GetString(SslKeyLocation, "")
-	if err != nil {
-		return err
-	}
-	caFile, err := conf.GetString(SslCaLocation, "")
-	if err != nil {
-		return err
-	}
-	unsafe, err := conf.GetBool(SslDisableEndpointVerification, false)
-	if err != nil {
-		return err
-	}
+func configureTLS(conf *Config, tlsConf *tls.Config) error {
+	certFile := conf.SslCertificationLocation
+	keyFile := conf.SslKeyLocation
+	caFile := conf.SslCaLocation
+	unsafe := conf.SslDisableEndpointVerification
 
+	var err error
 	if certFile != "" {
 		var cert tls.Certificate
-		cert, err = tls.LoadX509KeyPair(certFile, keyFile)
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			return err
 		}
@@ -167,7 +151,7 @@ func configureTLS(conf Config, tlsConf *tls.Config) error {
 				"This feature should be configured for development purposes only")
 		}
 		var caCert []byte
-		caCert, err = ioutil.ReadFile(caFile)
+		caCert, err := ioutil.ReadFile(caFile)
 		if err != nil {
 			return err
 		}
@@ -183,7 +167,7 @@ func configureTLS(conf Config, tlsConf *tls.Config) error {
 }
 
 // configureTransport returns a new Transport for use by the Confluent Schema Registry REST client
-func configureTransport(conf Config) (*http.Transport, error) {
+func configureTransport(conf *Config) (*http.Transport, error) {
 
 	// Exposed for testing purposes only. In production properly formed certificates should be used
 	// https://tools.ietf.org/html/rfc2818#section-3
@@ -192,10 +176,7 @@ func configureTransport(conf Config) (*http.Transport, error) {
 		return nil, err
 	}
 
-	timeout, err := conf.GetInt(ConnectionTimeoutMs, 10000)
-	if err != nil {
-		return nil, err
-	}
+	timeout := conf.ConnectionTimeoutMs
 
 	return &http.Transport{
 		Dial: (&net.Dialer{
@@ -212,23 +193,14 @@ func configureURLAuth(service *url.URL, header http.Header) error {
 }
 
 // configureSASLAuth copies the sasl username and password into a HTTP basic authorization header
-func configureSASLAuth(conf Config, header http.Header) error {
-	mech, err := conf.GetString(SaslMechanism, "GSSAPI")
-
-	if err != nil || strings.ToUpper(mech) == "GSSAPI" {
+func configureSASLAuth(conf *Config, header http.Header) error {
+	mech := conf.SaslMechanism
+	if strings.ToUpper(mech) == "GSSAPI" {
 		return fmt.Errorf("SASL_INHERIT support PLAIN and SCRAM SASL mechanisms only")
 	}
 
-	user, err := conf.GetString(SaslUsername, "")
-	if err != nil {
-		return err
-	}
-
-	pass, err := conf.GetString(SaslPassword, "")
-	if err != nil {
-		return err
-	}
-
+	user := conf.SaslUsername
+	pass := conf.SaslPassword
 	if user == "" || pass == "" {
 		return fmt.Errorf("SASL_INHERIT requires both sasl.username and sasl.password be set")
 	}
@@ -238,13 +210,8 @@ func configureSASLAuth(conf Config, header http.Header) error {
 }
 
 // configureUSERINFOAuth copies basic.auth.user.info
-func configureUSERINFOAuth(conf Config, header http.Header) error {
-	auth, err := conf.GetString(BasicAuthUserInfo, "")
-
-	if err != nil {
-		return err
-	}
-
+func configureUSERINFOAuth(conf *Config, header http.Header) error {
+	auth := conf.BasicAuthUserInfo
 	if auth == "" {
 		return fmt.Errorf("USER_INFO source configured without basic.auth.user.info ")
 	}
@@ -255,19 +222,17 @@ func configureUSERINFOAuth(conf Config, header http.Header) error {
 }
 
 // newAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
-func newAuthHeader(service *url.URL, conf Config) (http.Header, error) {
+func newAuthHeader(service *url.URL, conf *Config) (http.Header, error) {
 	// Remove userinfo from url regardless of source to avoid confusion/conflicts
 	defer func() {
 		service.User = nil
 	}()
 
-	source, err := conf.GetString(BasicAuthCredentialsSource, "URL")
-	if err != nil {
-		return nil, err
-	}
+	source := conf.BasicAuthCredentialsSource
 
 	header := http.Header{}
 
+	var err error
 	switch strings.ToUpper(source) {
 	case "URL":
 		err = configureURLAuth(service, header)

@@ -108,7 +108,7 @@ func init() {
 }
 
 // NewSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
-func NewSerializer(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Serializer, error) {
+func NewSerializer(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) (*Serializer, error) {
 	s := &Serializer{}
 	err := s.Configure(client, conf, serdeType)
 	if err != nil {
@@ -118,13 +118,9 @@ func NewSerializer(client schemaregistry.Client, conf *schemaregistry.ConfigMap,
 }
 
 // Configure configures the Protobuf BaseDeserializer
-func (s *Deserializer) Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType serde.Type) error {
+func (s *Deserializer) Configure(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) error {
 	if client == nil {
-		var err error
-		client, err = schemaregistry.NewClient(conf)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("schema registry client missing")
 	}
 	s.Client = client
 	s.Conf = conf
@@ -147,14 +143,8 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	autoRegister, err := s.Conf.GetBool(serde.AutoRegisterSchemas, true)
-	if err != nil {
-		return nil, err
-	}
-	normalize, err := s.Conf.GetBool(serde.NormalizeSchemas, false)
-	if err != nil {
-		return nil, err
-	}
+	autoRegister := s.Conf.AutoRegisterSchemas
+	normalize := s.Conf.NormalizeSchemas
 	fileDesc, deps, err := s.toProtobufSchema(protoMsg)
 	if err != nil {
 		return nil, err
@@ -327,7 +317,7 @@ func ignoreFile(name string) bool {
 }
 
 // NewDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
-func NewDeserializer(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType serde.Type) (*Deserializer, error) {
+func NewDeserializer(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) (*Deserializer, error) {
 	s := &Deserializer{}
 	err := s.Configure(client, conf, serdeType)
 	if err != nil {

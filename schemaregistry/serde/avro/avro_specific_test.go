@@ -10,13 +10,12 @@ import (
 func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
-	conf := schemaregistry.ConfigMap{}
-	conf.SetString("schema.registry.url", "mock://")
+	conf := schemaregistry.NewConfig("mock://")
 
-	client, err := schemaregistry.NewClient(&conf)
+	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSpecificSerializer(client, &conf, serde.ValueSerde)
+	ser, err := NewSpecificSerializer(client, serde.NewConfig(), serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.NewDemoSchema()
@@ -28,7 +27,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewSpecificDeserializer(client, &conf, serde.ValueSerde)
+	deser, err := NewSpecificDeserializer(client, serde.NewConfig(), serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -40,13 +39,12 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
-	conf := schemaregistry.ConfigMap{}
-	conf.SetString("schema.registry.url", "mock://")
+	conf := schemaregistry.NewConfig("mock://")
 
-	client, err := schemaregistry.NewClient(&conf)
+	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSpecificSerializer(client, &conf, serde.ValueSerde)
+	ser, err := NewSpecificSerializer(client, serde.NewConfig(), serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := test.NestedRecord{
@@ -67,7 +65,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewSpecificDeserializer(client, &conf, serde.ValueSerde)
+	deser, err := NewSpecificDeserializer(client, serde.NewConfig(), serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -79,13 +77,12 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
-	conf := schemaregistry.ConfigMap{}
-	conf.SetString("schema.registry.url", "mock://")
+	conf := schemaregistry.NewConfig("mock://")
 
-	client, err := schemaregistry.NewClient(&conf)
+	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSpecificSerializer(client, &conf, serde.ValueSerde)
+	ser, err := NewSpecificSerializer(client, serde.NewConfig(), serde.ValueSerde)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	inner := test.RecursiveUnionTestRecord{
@@ -101,7 +98,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewSpecificDeserializer(client, &conf, serde.ValueSerde)
+	deser, err := NewSpecificDeserializer(client, serde.NewConfig(), serde.ValueSerde)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 

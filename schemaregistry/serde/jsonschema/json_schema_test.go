@@ -10,13 +10,12 @@ import (
 func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
-	conf := schemaregistry.ConfigMap{}
-	conf.SetString("schema.registry.url", "mock://")
+	conf := schemaregistry.NewConfig("mock://")
 
-	client, err := schemaregistry.NewClient(&conf)
+	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
+	ser, err := NewSerializer(client, serde.NewConfig(), serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := JSONDemoSchema{}
@@ -28,7 +27,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
+	deser, err := NewDeserializer(client, serde.NewConfig(), serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -40,13 +39,12 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
-	conf := schemaregistry.ConfigMap{}
-	conf.SetString("schema.registry.url", "mock://")
+	conf := schemaregistry.NewConfig("mock://")
 
-	client, err := schemaregistry.NewClient(&conf)
+	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
+	ser, err := NewSerializer(client, serde.NewConfig(), serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := JSONDemoSchema{}
@@ -61,7 +59,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, &conf, serde.ValueSerde, serde.EnableValidation)
+	deser, err := NewDeserializer(client, serde.NewConfig(), serde.ValueSerde, serde.EnableValidation)
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 

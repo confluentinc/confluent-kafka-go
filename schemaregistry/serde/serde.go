@@ -25,17 +25,6 @@ const (
 	DisableValidation = false
 )
 
-const (
-	// AutoRegisterSchemas determines whether to automatically register schemas during serialization
-	AutoRegisterSchemas = "auto.register.schemas"
-	// UseSchemaID specifies a schema ID to use during serialization
-	UseSchemaID = "use.schema.id"
-	// UseLatestVersion specifies whether to use the latest schema version during serialization
-	UseLatestVersion = "use.latest.version"
-	// NormalizeSchemas determines whether to normalize schemas during serialization
-	NormalizeSchemas = "normalize.schemas"
-)
-
 // magicByte is prepended to the serialized payload
 const magicByte byte = 0x0
 
@@ -48,14 +37,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a BaseSerializer
 type Serializer interface {
-	Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType Type) error
+	Configure(client schemaregistry.Client, conf *Config, serdeType Type) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a BaseDeserializer
 type Deserializer interface {
-	Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType Type) error
+	Configure(client schemaregistry.Client, conf *Config, serdeType Type) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -67,7 +56,7 @@ type Deserializer interface {
 // Serde is a common instance for both the serializers and deserializers
 type Serde struct {
 	Client              schemaregistry.Client
-	Conf                *schemaregistry.ConfigMap
+	Conf                *Config
 	SerdeType           Type
 	SubjectNameStrategy SubjectNameStrategyFunc
 }
@@ -84,13 +73,9 @@ type BaseDeserializer struct {
 }
 
 // Configure configures the Serde
-func (s *Serde) Configure(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType Type) error {
+func (s *Serde) Configure(client schemaregistry.Client, conf *Config, serdeType Type) error {
 	if client == nil {
-		var err error
-		client, err = schemaregistry.NewClient(conf)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("schema registry client missing")
 	}
 	s.Client = client
 	s.Conf = conf
@@ -113,22 +98,10 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 
 // GetID returns a schema ID for the given schema
 func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
-	autoRegister, err := s.Conf.GetBool(AutoRegisterSchemas, true)
-	if err != nil {
-		return -1, err
-	}
-	useSchemaID, err := s.Conf.GetInt(UseSchemaID, -1)
-	if err != nil {
-		return -1, err
-	}
-	useLatest, err := s.Conf.GetBool(UseLatestVersion, false)
-	if err != nil {
-		return -1, err
-	}
-	normalizeSchema, err := s.Conf.GetBool(NormalizeSchemas, false)
-	if err != nil {
-		return -1, err
-	}
+	autoRegister := s.Conf.AutoRegisterSchemas
+	useSchemaID := s.Conf.UseSchemaID
+	useLatest := s.Conf.UseLatestVersion
+	normalizeSchema := s.Conf.NormalizeSchemas
 
 	var id = -1
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)

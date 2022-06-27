@@ -47,18 +47,14 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	client, err := schemaregistry.NewClient(&schemaregistry.ConfigMap{
-		"schema.registry.url": url,
-	})
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(url))
 
 	if err != nil {
 		fmt.Printf("Failed to create schema registry client: %s\n", err)
 		os.Exit(1)
 	}
 
-	ser, err := protobuf.NewSerializer(client, &schemaregistry.ConfigMap{
-		"auto.register.schemas": true,
-	}, serde.ValueSerde)
+	ser, err := protobuf.NewSerializer(client, serde.NewConfig(), serde.ValueSerde)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)

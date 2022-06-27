@@ -24,7 +24,7 @@ var _ serde.Serializer = new(GenericSerializer)
 var _ serde.Deserializer = new(GenericDeserializer)
 
 // NewGenericSerializer creates an Avro BaseSerializer for generic objects
-func NewGenericSerializer(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType serde.Type) (*GenericSerializer, error) {
+func NewGenericSerializer(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) (*GenericSerializer, error) {
 	s := &GenericSerializer{}
 	err := s.Configure(client, conf, serdeType)
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 }
 
 // NewGenericDeserializer creates an Avro BaseDeserializer for generic objects
-func NewGenericDeserializer(client schemaregistry.Client, conf *schemaregistry.ConfigMap, serdeType serde.Type) (*GenericDeserializer, error) {
+func NewGenericDeserializer(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) (*GenericDeserializer, error) {
 	s := &GenericDeserializer{}
 	err := s.Configure(client, conf, serdeType)
 	if err != nil {

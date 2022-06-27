@@ -163,22 +163,20 @@ func TestClient(t *testing.T) {
 	if url == "" {
 		url = "mock://"
 	}
-	conf := ConfigMap{
-		SchemaRegistryURL: url,
-	}
+	conf := NewConfig(url)
 
 	var err error
-	srClient, err = NewClient(&conf)
+	srClient, err = NewClient(conf)
 	maybeFail("schema registry client instantiation ", err)
 
-	var subjects []string = make([]string, len(schemaTests))
-	var ids [][]int = make([][]int, len(schemaTests))
-	var versions [][]int = make([][]int, len(schemaTests))
-	var schemas [][]SchemaInfo = make([][]SchemaInfo, len(schemaTests))
+	var subjects = make([]string, len(schemaTests))
+	var ids = make([][]int, len(schemaTests))
+	var versions = make([][]int, len(schemaTests))
+	var schemas = make([][]SchemaInfo, len(schemaTests))
 	var version int
 
 	for idx, schemaTestVersions := range schemaTests {
-		var currentVersions []int = make([]int, 0)
+		var currentVersions = make([]int, 0)
 		subject := fmt.Sprintf("schema%d-key", idx)
 		srClient.DeleteSubject(subject, false)
 		srClient.DeleteSubject(subject, true)

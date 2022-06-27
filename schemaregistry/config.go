@@ -16,92 +16,51 @@ package schemaregistry
  * limitations under the License.
  */
 
-import (
-	"strconv"
-)
+// Config is used to pass multiple configuration options to the Schema Registry client.
+type Config struct {
+	// SchemaRegistryURL determines the URL of Schema Registry
+	SchemaRegistryURL string
 
-// ConfigMap is a map of string key-values
-type ConfigMap map[string]string
+	// BasicAuth keys
+	BasicAuthUserInfo          string
+	BasicAuthCredentialsSource string
 
-// Config is type-safe interface for specifying config key-value pairs
-type Config interface {
-	GetBool(key string, defval bool) (bool, error)
-	GetInt(key string, defval int) (int, error)
-	GetString(key string, defval string) (string, error)
-	SetBool(key string, value bool) error
-	SetInt(key string, value int) error
-	SetString(key string, value string) error
+	// Sasl keys
+	SaslMechanism string
+	SaslUsername  string
+	SaslPassword  string
+
+	// Ssl Keys
+	SslCertificationLocation       string
+	SslKeyLocation                 string
+	SslCaLocation                  string
+	SslDisableEndpointVerification bool
+
+	// Timeouts
+	ConnectionTimeoutMs int
+	RequestTimeoutMs    int
 }
 
-// SetBool sets configuration property key to the bool value.
-func (m ConfigMap) SetBool(key string, value bool) error {
-	m[key] = strconv.FormatBool(value)
-	return nil
-}
+// NewConfig returns a new configuration instance with sane defaults.
+func NewConfig(url string) *Config {
+	c := &Config{}
 
-// SetInt sets configuration property key to the int value.
-func (m ConfigMap) SetInt(key string, value int) error {
-	m[key] = strconv.FormatInt(int64(value), 10)
-	return nil
-}
+	c.SchemaRegistryURL = url
 
-// SetString sets configuration property key to the string value.
-func (m ConfigMap) SetString(key string, value string) error {
-	m[key] = value
-	return nil
-}
+	c.BasicAuthUserInfo = ""
+	c.BasicAuthCredentialsSource = "URL"
 
-func (m ConfigMap) clone() ConfigMap {
-	m2 := make(ConfigMap)
-	for k, v := range m {
-		m2[k] = v
-	}
-	return m2
-}
+	c.SaslMechanism = "GSSAPI"
+	c.SaslUsername = ""
+	c.SaslPassword = ""
 
-// GetBool finds the given key in the ConfigMap and returns its bool value.
-// If the key is not found `defval` is returned.
-// If the key is found but the type does not match that of `defval` (unless nil)
-// an error is returned.
-func (m ConfigMap) GetBool(key string, defval bool) (bool, error) {
-	v, ok := m[key]
-	if !ok {
-		return defval, nil
-	}
+	c.SslCertificationLocation = ""
+	c.SslKeyLocation = ""
+	c.SslCaLocation = ""
+	c.SslDisableEndpointVerification = false
 
-	ret, err := strconv.ParseBool(v)
-	if err != nil {
-		return false, err
-	}
-	return ret, nil
-}
+	c.ConnectionTimeoutMs = 10000
+	c.RequestTimeoutMs = 10000
 
-// GetInt finds the given key in the ConfigMap and returns its int value.
-// If the key is not found `defval` is returned.
-// If the key is found but the type does not match that of `defval` (unless nil)
-// an error is returned.
-func (m ConfigMap) GetInt(key string, defval int) (int, error) {
-	v, ok := m[key]
-	if !ok {
-		return defval, nil
-	}
-
-	ret, err := strconv.ParseInt(v, 10, 0)
-	if err != nil {
-		return 0, err
-	}
-	return int(ret), nil
-}
-
-// GetString finds the given key in the ConfigMap and returns its string value.
-// If the key is not found `defval` is returned.
-// If the key is found but the type does not match that of `defval` (unless nil)
-// an error is returned.
-func (m ConfigMap) GetString(key string, defval string) (string, error) {
-	v, ok := m[key]
-	if !ok {
-		return defval, nil
-	}
-
-	return v, nil
+	return c
 }
