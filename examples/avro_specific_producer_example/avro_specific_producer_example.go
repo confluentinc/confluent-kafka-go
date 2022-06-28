@@ -61,8 +61,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Created serializer\n")
-
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
 	deliveryChan := make(chan kafka.Event)

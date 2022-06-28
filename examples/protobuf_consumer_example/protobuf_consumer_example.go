@@ -75,8 +75,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Created deserializer\n")
-
 	// Register the Protobuf type so that Deserialize can be called.
 	// An alternative is to pass a pointer to an instance of the Protobuf type
 	// to the DeserializeInto method.

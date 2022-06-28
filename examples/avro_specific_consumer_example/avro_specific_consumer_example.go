@@ -75,8 +75,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Created deserializer\n")
-
 	err = c.SubscribeTopics(topics, nil)
 
 	run := true
