@@ -22,32 +22,33 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/protobuf"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func main() {
 
 	if len(os.Args) < 5 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <schema-registry> <broker> <group> <topics..>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <schema-registry> <bootstrap-servers> <group> <topics..>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	url := os.Args[1]
-	broker := os.Args[2]
+	bootstrapServers := os.Args[2]
 	group := os.Args[3]
 	topics := os.Args[4:]
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": broker,
+		"bootstrap.servers": bootstrapServers,
 		// Avoid connecting to IPv6 brokers:
 		"broker.address.family": "v4",
 		"group.id":              group,
@@ -101,7 +102,7 @@ func main() {
 				if err != nil {
 					fmt.Printf("Failed to deserialize payload: %s\n", err)
 				} else {
-					fmt.Printf("%% Message on %s:\n%v\n", e.TopicPartition, value)
+					fmt.Printf("%% Message on %s:\n%+v\n", e.TopicPartition, value)
 				}
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)

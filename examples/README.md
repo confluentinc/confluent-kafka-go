@@ -14,6 +14,14 @@ Examples
   
   [admin_describe_config](admin_describe_config) - Describe broker, topic or group configs
   
+  [avro_generic_consumer_example](avro_generic_consumer_example) - consumer with Schema Registry and Avro Generic Deserializer
+
+  [avro_generic_producer_example](avro_generic_producer_example) - producer with Schema Registry and Avro Generic Serializer
+  
+  [avro_specific_consumer_example](avro_specific_consumer_example) - consumer with Schema Registry and Avro Specific Deserializer
+  
+  [avro_specific_producer_example](avro_specific_producer_example) - producer with Schema Registry and Avro Specific Serializer
+
   [consumer_example](consumer_example) - Function & callback based consumer
   
   [consumer_offset_metadata](consumer_offset_metadata) - Commit offset with metadata
@@ -25,6 +33,10 @@ Examples
   [go-kafkacat](go-kafkacat) - Channel based kafkacat Go clone
 
   [idempotent_producer_example](idempotent_producer_example) - Idempotent producer
+
+  [json_consumer_example](json_consumer_example) - consumer with Schema Registry and JSON Schema Deserializer
+  
+  [json_producer_example](json_producer_example) - producer with Schema Registry and JSON Schema Serializer
   
   [legacy](legacy) - Legacy examples
   
@@ -38,6 +50,10 @@ Examples
 
   [producer_example](producer_example) - Function based producer
   
+  [protobuf_consumer_example](protobuf_consumer_example) - consumer with Schema Registry and Protocol Buffers Deserializer
+  
+  [protobuf_producer_example](protobuf_producer_example) - producer with Schema Registry and Protocol Buffers Serializer
+
   [stats_example](stats_example) - Receiving stats events
 
   [transactions_example](transactions_example) - Showcasing a transactional consume-process-produce application
