@@ -21,6 +21,7 @@ import "github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
 	serde.SerializerConfig
+	// EnableValidation enables validation of the JSON against the schema.
 	EnableValidation bool
 }
 

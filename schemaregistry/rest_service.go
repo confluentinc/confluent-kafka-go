@@ -130,7 +130,7 @@ func encodeBasicAuth(userinfo string) string {
 
 // configureTLS populates tlsConf
 func configureTLS(conf *Config, tlsConf *tls.Config) error {
-	certFile := conf.SslCertificationLocation
+	certFile := conf.SslCertificateLocation
 	keyFile := conf.SslKeyLocation
 	caFile := conf.SslCaLocation
 	unsafe := conf.SslDisableEndpointVerification
