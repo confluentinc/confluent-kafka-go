@@ -72,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	deser, err := protobuf.NewDeserializer(client, serde.NewConfig(), serde.ValueSerde)
+	deser, err := protobuf.NewDeserializer(client, protobuf.NewDeserializerConfig(), serde.ValueSerde)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

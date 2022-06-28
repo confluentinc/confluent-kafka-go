@@ -54,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := avro.NewSpecificSerializer(client, serde.NewConfig(), serde.ValueSerde)
+	ser, err := avro.NewSpecificSerializer(client, avro.NewSerializerConfig(), serde.ValueSerde)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)

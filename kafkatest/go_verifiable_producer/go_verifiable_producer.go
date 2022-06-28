@@ -187,7 +187,7 @@ func main() {
 	maxMessages := kingpin.Flag("max-messages", "Max message count").Default("1000000").Int()
 	valuePrefix := kingpin.Flag("value-prefix", "Payload value string prefix").Default("").String()
 	acks := kingpin.Flag("acks", "Required acks").Default("all").String()
-	configFile := kingpin.Flag("producer.config", "Config file").File()
+	configFile := kingpin.Flag("producer.config", "SerializerConfig file").File()
 	debug := kingpin.Flag("debug", "Debug flags").String()
 	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
@@ -209,7 +209,7 @@ func main() {
 			conf[x[0]] = x[1]
 		}
 	}
-	fmt.Println("Config: ", conf)
+	fmt.Println("SerializerConfig: ", conf)
 
 	if *configFile != nil {
 		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *configFile)

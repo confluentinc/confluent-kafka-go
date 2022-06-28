@@ -46,7 +46,7 @@ type Consumer struct {
 	readerTermChan     chan bool
 	rebalanceCb        RebalanceCb
 	appReassigned      bool
-	appRebalanceEnable bool // Config setting
+	appRebalanceEnable bool // SerializerConfig setting
 }
 
 // Strings returns a human readable name for a Consumer instance

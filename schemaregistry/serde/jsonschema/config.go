@@ -1,4 +1,6 @@
-package serde
+package jsonschema
+
+import "github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 
 /**
  * Copyright 2022 Confluent Inc.
@@ -18,35 +20,32 @@ package serde
 
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
-	// AutoRegisterSchemas determines whether to automatically register schemas during serialization
-	AutoRegisterSchemas bool
-	// UseSchemaID specifies a schema ID to use during serialization
-	UseSchemaID int
-	// UseLatestVersion specifies whether to use the latest schema version during serialization
-	UseLatestVersion bool
-	// NormalizeSchemas determines whether to normalize schemas during serialization
-	NormalizeSchemas bool
+	serde.SerializerConfig
+	EnableValidation bool
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
 func NewSerializerConfig() *SerializerConfig {
-	c := &SerializerConfig{}
-
-	c.AutoRegisterSchemas = true
-	c.UseSchemaID = -1
-	c.UseLatestVersion = false
-	c.NormalizeSchemas = false
+	c := &SerializerConfig{
+		SerializerConfig: *serde.NewSerializerConfig(),
+		EnableValidation: false,
+	}
 
 	return c
 }
 
 // DeserializerConfig is used to pass multiple configuration options to the deserializers.
 type DeserializerConfig struct {
+	serde.DeserializerConfig
+	EnableValidation bool
 }
 
 // NewDeserializerConfig returns a new configuration instance with sane defaults.
 func NewDeserializerConfig() *DeserializerConfig {
-	c := &DeserializerConfig{}
+	c := &DeserializerConfig{
+		DeserializerConfig: *serde.NewDeserializerConfig(),
+		EnableValidation:   false,
+	}
 
 	return c
 }

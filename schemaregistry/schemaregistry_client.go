@@ -37,7 +37,7 @@ import (
 * Test schema (http body) against configured comparability for subject version
 * -POST /compatibility/subjects/{string: subject}/versions/{int:string('latest'): version} returns: JSON bool:is_compatible; raises: 404[01,02], 422[01,02], 500[01]
 *
-* ====Config====
+* ====SerializerConfig====
 * Returns global configuration
 * -GET /config  returns: JSON string:comparability; raises: 500[01]
 * Update global SR config

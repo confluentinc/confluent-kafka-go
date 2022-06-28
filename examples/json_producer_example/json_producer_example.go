@@ -54,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := jsonschema.NewSerializer(client, serde.NewConfig(), serde.ValueSerde, serde.DisableValidation)
+	ser, err := jsonschema.NewSerializer(client, jsonschema.NewSerializerConfig(), serde.ValueSerde)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)

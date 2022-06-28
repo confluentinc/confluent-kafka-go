@@ -390,7 +390,7 @@ func main() {
 	enableAutocommit := kingpin.Flag("enable-autocommit", "Enable auto-commit").Default("true").Bool()
 	maxMessages := kingpin.Flag("max-messages", "Max messages to consume").Default("10000000").Int()
 	javaAssignmentStrategy := kingpin.Flag("assignment-strategy", "Assignment strategy (Java class name)").String()
-	configFile := kingpin.Flag("consumer.config", "Config file").File()
+	configFile := kingpin.Flag("consumer.config", "SerializerConfig file").File()
 	debug := kingpin.Flag("debug", "Debug flags").String()
 	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
@@ -434,7 +434,7 @@ func main() {
 			conf[x[0]] = x[1]
 		}
 	}
-	fmt.Println("Config: ", conf)
+	fmt.Println("SerializerConfig: ", conf)
 
 	state.autoCommit = *enableAutocommit
 	state.maxMessages = *maxMessages

@@ -37,14 +37,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a BaseSerializer
 type Serializer interface {
-	Configure(client schemaregistry.Client, conf *Config, serdeType Type) error
+	ConfigureSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType Type) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a BaseDeserializer
 type Deserializer interface {
-	Configure(client schemaregistry.Client, conf *Config, serdeType Type) error
+	ConfigureDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType Type) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -56,7 +56,6 @@ type Deserializer interface {
 // Serde is a common instance for both the serializers and deserializers
 type Serde struct {
 	Client              schemaregistry.Client
-	Conf                *Config
 	SerdeType           Type
 	SubjectNameStrategy SubjectNameStrategyFunc
 }
@@ -64,16 +63,30 @@ type Serde struct {
 // BaseSerializer represents basic serializer info
 type BaseSerializer struct {
 	Serde
+	Conf *SerializerConfig
 }
 
 // BaseDeserializer represents basic deserializer info
 type BaseDeserializer struct {
 	Serde
+	Conf           *DeserializerConfig
 	MessageFactory MessageFactory
 }
 
-// Configure configures the Serde
-func (s *Serde) Configure(client schemaregistry.Client, conf *Config, serdeType Type) error {
+// ConfigureSerializer configures the Serializer
+func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType Type) error {
+	if client == nil {
+		return fmt.Errorf("schema registry client missing")
+	}
+	s.Client = client
+	s.Conf = conf
+	s.SerdeType = serdeType
+	s.SubjectNameStrategy = TopicNameStrategy
+	return nil
+}
+
+// ConfigureDeserializer configures the Deserializer
+func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType Type) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}

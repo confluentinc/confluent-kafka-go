@@ -34,9 +34,9 @@ type SpecificAvroMessage interface {
 }
 
 // NewSpecificSerializer creates an Avro BaseSerializer for Avro-generated objects
-func NewSpecificSerializer(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) (*SpecificSerializer, error) {
+func NewSpecificSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType serde.Type) (*SpecificSerializer, error) {
 	s := &SpecificSerializer{}
-	err := s.Configure(client, conf, serdeType)
+	err := s.ConfigureSerializer(client, &conf.SerializerConfig, serdeType)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +76,9 @@ func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 }
 
 // NewSpecificDeserializer creates an Avro BaseDeserializer for Avro-generated objects
-func NewSpecificDeserializer(client schemaregistry.Client, conf *serde.Config, serdeType serde.Type) (*SpecificDeserializer, error) {
+func NewSpecificDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType serde.Type) (*SpecificDeserializer, error) {
 	s := &SpecificDeserializer{}
-	err := s.Configure(client, conf, serdeType)
+	err := s.ConfigureDeserializer(client, &conf.DeserializerConfig, serdeType)
 	if err != nil {
 		return nil, err
 	}
