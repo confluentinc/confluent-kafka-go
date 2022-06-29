@@ -19,26 +19,27 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/jsonschema"
-	"os"
 )
 
 func main() {
 
 	if len(os.Args) != 4 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <broker> <topic>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <schema-registry> <bootstrap-servers> <topic>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	url := os.Args[1]
-	broker := os.Args[2]
+	bootstrapServers := os.Args[2]
 	topic := os.Args[3]
 
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
+	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
 
 	if err != nil {
 		fmt.Printf("Failed to create producer: %s\n", err)
