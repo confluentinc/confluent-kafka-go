@@ -101,7 +101,7 @@ for f in rdkafka.h LICENSES.txt ; do
 done
 
 
-for btype in glibc_linux musl_linux darwin windows ; do
+for btype in glibc_linux musl_linux darwin_amd64 darwin_arm64 windows ; do
     lib=$bdir/librdkafka_${btype}.a
     pc=${lib/%.a/.pc}
     [[ -f $lib ]] || (echo "Expected file $lib missing" ; exit 1)
