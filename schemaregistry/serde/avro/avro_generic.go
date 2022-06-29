@@ -38,6 +38,11 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 	if msg == nil {
 		return nil, nil
 	}
+	val := reflect.ValueOf(msg)
+	if val.Kind() == reflect.Ptr {
+		// avro.TypeOf expects an interface containing a non-pointer
+		msg = val.Elem().Interface()
+	}
 	avroType, err := avro.TypeOf(msg)
 	if err != nil {
 		return nil, err

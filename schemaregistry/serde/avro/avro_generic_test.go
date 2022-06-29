@@ -24,7 +24,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	obj.StringField = "hi"
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
-	bytes, err := ser.Serialize("topic1", obj)
+	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -57,7 +57,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 		OtherField: nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", obj)
+	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -88,7 +88,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 		Next:  &nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", obj)
+	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())

@@ -69,7 +69,7 @@ func main() {
 	value := MyRecord{
 		ProductName: "Hello!",
 	}
-	payload, err := ser.Serialize(topic, value)
+	payload, err := ser.Serialize(topic, &value)
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)
