@@ -15,7 +15,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := JSONDemoSchema{}
@@ -27,7 +27,7 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -44,7 +44,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := JSONDemoSchema{}
@@ -59,7 +59,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 

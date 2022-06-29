@@ -16,7 +16,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.Author{
@@ -27,7 +27,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -45,7 +45,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.Pizza{
@@ -55,7 +55,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -73,7 +73,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := test.NestedMessage_InnerMessage{
@@ -82,7 +82,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -100,7 +100,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	msg := test.TestMessage{
@@ -127,7 +127,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -145,7 +145,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	inner := test.LinkedList{
@@ -158,7 +158,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 

@@ -69,7 +69,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	deser, err := jsonschema.NewDeserializer(client, jsonschema.NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := jsonschema.NewDeserializer(client, serde.ValueSerde, jsonschema.NewDeserializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

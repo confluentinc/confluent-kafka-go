@@ -69,7 +69,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	deser, err := avro.NewGenericDeserializer(client, avro.NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := avro.NewGenericDeserializer(client, serde.ValueSerde, avro.NewDeserializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

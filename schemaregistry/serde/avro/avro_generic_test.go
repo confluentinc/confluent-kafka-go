@@ -15,7 +15,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewGenericSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewGenericSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	obj := GenericDemoSchema{}
@@ -27,7 +27,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewGenericDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -44,7 +44,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewGenericSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewGenericSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := GenericDemoSchema{}
@@ -60,7 +60,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewGenericDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -77,7 +77,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewGenericSerializer(client, NewSerializerConfig(), serde.ValueSerde)
+	ser, err := NewGenericSerializer(client, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("BaseSerializer configuration", err)
 
 	nested := GenericLinkedList{
@@ -91,7 +91,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewGenericDeserializer(client, NewDeserializerConfig(), serde.ValueSerde)
+	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("BaseDeserializer configuration", err)
 	deser.Client = ser.Client
 

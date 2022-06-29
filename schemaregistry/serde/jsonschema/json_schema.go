@@ -26,11 +26,11 @@ var _ serde.Serializer = new(Serializer)
 var _ serde.Deserializer = new(Deserializer)
 
 // NewSerializer creates a JSON BaseSerializer for generic objects
-func NewSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType serde.Type) (*Serializer, error) {
+func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
 	s := &Serializer{
 		validate: conf.EnableValidation,
 	}
-	err := s.ConfigureSerializer(client, &conf.SerializerConfig, serdeType)
+	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -83,11 +83,11 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 }
 
 // NewDeserializer creates a JSON BaseDeserializer for generic objects
-func NewDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType serde.Type) (*Deserializer, error) {
+func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
 	s := &Deserializer{
 		validate: conf.EnableValidation,
 	}
-	err := s.ConfigureDeserializer(client, &conf.DeserializerConfig, serdeType)
+	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}

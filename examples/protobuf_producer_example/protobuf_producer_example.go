@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := protobuf.NewSerializer(client, protobuf.NewSerializerConfig(), serde.ValueSerde)
+	ser, err := protobuf.NewSerializer(client, serde.ValueSerde, protobuf.NewSerializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)

@@ -108,9 +108,9 @@ func init() {
 }
 
 // NewSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
-func NewSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType serde.Type) (*Serializer, error) {
+func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
 	s := &Serializer{}
-	err := s.ConfigureSerializer(client, &conf.SerializerConfig, serdeType)
+	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func NewSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeTy
 }
 
 // ConfigureDeserializer configures the Protobuf BaseDeserializer
-func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, conf *serde.DeserializerConfig, serdeType serde.Type) error {
+func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *serde.DeserializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
@@ -317,9 +317,9 @@ func ignoreFile(name string) bool {
 }
 
 // NewDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
-func NewDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType serde.Type) (*Deserializer, error) {
+func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
 	s := &Deserializer{}
-	err := s.ConfigureDeserializer(client, &conf.DeserializerConfig, serdeType)
+	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}

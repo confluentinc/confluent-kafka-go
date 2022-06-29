@@ -37,14 +37,14 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a BaseSerializer
 type Serializer interface {
-	ConfigureSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType Type) error
+	ConfigureSerializer(client schemaregistry.Client, serdeType Type, conf *SerializerConfig) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
 // Deserializer represents a BaseDeserializer
 type Deserializer interface {
-	ConfigureDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType Type) error
+	ConfigureDeserializer(client schemaregistry.Client, serdeType Type, conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
@@ -74,7 +74,7 @@ type BaseDeserializer struct {
 }
 
 // ConfigureSerializer configures the Serializer
-func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, conf *SerializerConfig, serdeType Type) error {
+func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, serdeType Type, conf *SerializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
@@ -86,7 +86,7 @@ func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, conf 
 }
 
 // ConfigureDeserializer configures the Deserializer
-func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, conf *DeserializerConfig, serdeType Type) error {
+func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType Type, conf *DeserializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
