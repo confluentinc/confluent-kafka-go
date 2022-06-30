@@ -10,12 +10,12 @@ import (
 	"unsafe"
 )
 
-// GenericSerializer represents a generic Avro BaseSerializer
+// GenericSerializer represents a generic Avro serializer
 type GenericSerializer struct {
 	serde.BaseSerializer
 }
 
-// GenericDeserializer represents a generic Avro BaseDeserializer
+// GenericDeserializer represents a generic Avro deserializer
 type GenericDeserializer struct {
 	serde.BaseDeserializer
 }
@@ -23,7 +23,7 @@ type GenericDeserializer struct {
 var _ serde.Serializer = new(GenericSerializer)
 var _ serde.Deserializer = new(GenericDeserializer)
 
-// NewGenericSerializer creates an Avro BaseSerializer for generic objects
+// NewGenericSerializer creates an Avro serializer for generic objects
 func NewGenericSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*GenericSerializer, error) {
 	s := &GenericSerializer{}
 	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
@@ -65,7 +65,7 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 	return payload, nil
 }
 
-// NewGenericDeserializer creates an Avro BaseDeserializer for generic objects
+// NewGenericDeserializer creates an Avro deserializer for generic objects
 func NewGenericDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*GenericDeserializer, error) {
 	s := &GenericDeserializer{}
 	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)

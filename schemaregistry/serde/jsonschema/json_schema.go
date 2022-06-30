@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-// Serializer represents a JSON Schema BaseSerializer
+// Serializer represents a JSON Schema serializer
 type Serializer struct {
 	serde.BaseSerializer
 	validate bool
 }
 
-// Deserializer represents a JSON Schema BaseDeserializer
+// Deserializer represents a JSON Schema deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
 	validate bool
@@ -25,7 +25,7 @@ type Deserializer struct {
 var _ serde.Serializer = new(Serializer)
 var _ serde.Deserializer = new(Deserializer)
 
-// NewSerializer creates a JSON BaseSerializer for generic objects
+// NewSerializer creates a JSON serializer for generic objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
 	s := &Serializer{
 		validate: conf.EnableValidation,
@@ -82,7 +82,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	return payload, nil
 }
 
-// NewDeserializer creates a JSON BaseDeserializer for generic objects
+// NewDeserializer creates a JSON deserializer for generic objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
 	s := &Deserializer{
 		validate: conf.EnableValidation,

@@ -35,14 +35,14 @@ const magicByte byte = 0x0
 // For Protobuf, the name will be the name of the message type.
 type MessageFactory func(subject string, name string) (interface{}, error)
 
-// Serializer represents a BaseSerializer
+// Serializer represents a serializer
 type Serializer interface {
 	ConfigureSerializer(client schemaregistry.Client, serdeType Type, conf *SerializerConfig) error
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
 
-// Deserializer represents a BaseDeserializer
+// Deserializer represents a deserializer
 type Deserializer interface {
 	ConfigureDeserializer(client schemaregistry.Client, serdeType Type, conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object

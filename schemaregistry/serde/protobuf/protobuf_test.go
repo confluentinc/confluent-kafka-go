@@ -17,7 +17,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	obj := test.Author{
 		Name:  "Kafka",
@@ -28,7 +28,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
@@ -46,7 +46,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	obj := test.Pizza{
 		Size:     "Extra extra large",
@@ -56,7 +56,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
@@ -74,7 +74,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	obj := test.NestedMessage_InnerMessage{
 		Id: "inner",
@@ -83,7 +83,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
@@ -101,7 +101,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	msg := test.TestMessage{
 		TestString:   "hi",
@@ -128,7 +128,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
@@ -146,7 +146,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	inner := test.LinkedList{
 		Value: 100,
@@ -159,7 +159,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())

@@ -16,7 +16,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewGenericSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	obj := GenericDemoSchema{}
 	obj.IntField = 123
@@ -28,7 +28,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj GenericDemoSchema
@@ -45,7 +45,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewGenericSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	nested := GenericDemoSchema{}
 	nested.IntField = 123
@@ -61,7 +61,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj GenericNestedTestRecord
@@ -78,7 +78,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewGenericSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	nested := GenericLinkedList{
 		Value: 456,
@@ -92,7 +92,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj GenericLinkedList

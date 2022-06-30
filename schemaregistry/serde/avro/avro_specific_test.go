@@ -16,7 +16,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSpecificSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	obj := test.NewDemoSchema()
 	obj.IntField = 123
@@ -28,7 +28,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj test.DemoSchema
@@ -45,7 +45,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSpecificSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	nested := test.NestedRecord{
 		StringField: "hi",
@@ -66,7 +66,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj test.NestedTestRecord
@@ -83,7 +83,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail("Schema Registry configuration", err)
 
 	ser, err := NewSpecificSerializer(client, serde.ValueSerde, NewSerializerConfig())
-	serde.MaybeFail("BaseSerializer configuration", err)
+	serde.MaybeFail("Serializer configuration", err)
 
 	inner := test.RecursiveUnionTestRecord{
 		RecursiveField: nil,
@@ -99,7 +99,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
-	serde.MaybeFail("BaseDeserializer configuration", err)
+	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj test.RecursiveUnionTestRecord

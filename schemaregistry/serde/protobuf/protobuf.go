@@ -42,12 +42,12 @@ import (
 	"strings"
 )
 
-// Serializer represents a Protobuf BaseSerializer
+// Serializer represents a Protobuf serializer
 type Serializer struct {
 	serde.BaseSerializer
 }
 
-// Deserializer represents a Protobuf BaseDeserializer
+// Deserializer represents a Protobuf deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
 	ProtoRegistry *protoregistry.Types
@@ -107,7 +107,7 @@ func init() {
 	}
 }
 
-// NewSerializer creates a Protobuf BaseSerializer for Protobuf-generated objects
+// NewSerializer creates a Protobuf serializer for Protobuf-generated objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
 	s := &Serializer{}
 	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
@@ -117,7 +117,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	return s, nil
 }
 
-// ConfigureDeserializer configures the Protobuf BaseDeserializer
+// ConfigureDeserializer configures the Protobuf deserializer
 func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *serde.DeserializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
@@ -316,7 +316,7 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
-// NewDeserializer creates a Protobuf BaseDeserializer for Protobuf-generated objects
+// NewDeserializer creates a Protobuf deserializer for Protobuf-generated objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
 	s := &Deserializer{}
 	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
