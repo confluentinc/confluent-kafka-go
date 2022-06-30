@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -253,15 +254,19 @@ func (rs *restService) handleRequest(request *api, response interface{}) error {
 		return err
 	}
 
-	outbuf, err := json.Marshal(request.body)
-	if err != nil {
-		return err
+	var readCloser io.ReadCloser
+	if request.body != nil {
+		outbuf, err := json.Marshal(request.body)
+		if err != nil {
+			return err
+		}
+		readCloser = ioutil.NopCloser(bytes.NewBuffer(outbuf))
 	}
 
 	req := &http.Request{
 		Method: request.method,
 		URL:    endpoint,
-		Body:   ioutil.NopCloser(bytes.NewBuffer(outbuf)),
+		Body:   readCloser,
 		Header: rs.headers,
 	}
 

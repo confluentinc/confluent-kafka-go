@@ -48,6 +48,8 @@ type Config struct {
 	ConnectionTimeoutMs int
 	// RequestTimeoutMs determines the request timeout in milliseconds.
 	RequestTimeoutMs int
+	// CacheCapacity positive integer or zero for unbounded capacity
+	CacheCapacity int
 }
 
 // NewConfig returns a new configuration instance with sane defaults.
