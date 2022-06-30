@@ -14,7 +14,7 @@
   <script defer="" src="https://go.dev/js/jquery.js">
   </script>
   <script>
-   var goVersion = "go1.16.4";
+   var goVersion = "go1.18.1";
   </script>
   <script defer="" src="https://go.dev/js/godocs.js">
   </script>
@@ -1364,8 +1364,8 @@ possible complications with blocking Poll() calls.
         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/adminoptions.go">
          adminoptions.go
         </a>
-        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/build_darwin.go">
-         build_darwin.go
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/build_darwin_arm64.go">
+         build_darwin_arm64.go
         </a>
         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/config.go">
          config.go
@@ -1538,7 +1538,7 @@ possible complications with blocking Poll() calls.
     <p>
      LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
     </p>
-    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin from librdkafka-static-bundle-v1.9.0.tgz"</pre>
+    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin_arm64 from librdkafka-static-bundle-v1.9.1-RC1.tgz"</pre>
     <p>
      OffsetBeginning represents the earliest offset (logical)
     </p>
@@ -3674,7 +3674,7 @@ This flag is only set by the Transactional producer API.
     </p>
     <h2 id="ErrorCode">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=283:301#L1">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=284:302#L1">
       ErrorCode
      </a>
      <a class="permalink" href="#ErrorCode">
@@ -4007,7 +4007,7 @@ This flag is only set by the Transactional producer API.
 )</pre>
     <h3 id="ErrorCode.String">
      func (ErrorCode)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=370:404#L4">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=371:405#L4">
       String
      </a>
      <a class="permalink" href="#ErrorCode.String">
@@ -5401,7 +5401,7 @@ TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 }
 </pre>
     <div id="footer">
-     Build version go1.16.4.
+     Build version go1.18.1.
      <br/>
      Except as
      <a href="https://developers.google.com/site-policies#restrictions">
