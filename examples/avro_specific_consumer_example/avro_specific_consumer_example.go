@@ -35,13 +35,13 @@ import (
 func main() {
 
 	if len(os.Args) < 5 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <schema-registry> <bootstrap-servers> <group> <topics..>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <schema-registry> <group> <topics..>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	url := os.Args[1]
-	bootstrapServers := os.Args[2]
+	bootstrapServers := os.Args[1]
+	url := os.Args[2]
 	group := os.Args[3]
 	topics := os.Args[4:]
 	sigchan := make(chan os.Signal, 1)
@@ -91,7 +91,7 @@ func main() {
 
 			switch e := ev.(type) {
 			case *kafka.Message:
-				value := MyRecord{}
+				value := User{}
 				err := deser.DeserializeInto(*e.TopicPartition.Topic, e.Value, &value)
 				if err != nil {
 					fmt.Printf("Failed to deserialize payload: %s\n", err)
