@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-package main;
-option go_package="main";
-
-message MyRecord {
-    string productName = 1;
-}

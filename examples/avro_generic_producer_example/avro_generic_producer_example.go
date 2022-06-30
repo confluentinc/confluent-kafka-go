@@ -30,13 +30,13 @@ import (
 func main() {
 
 	if len(os.Args) != 4 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <schema-registry> <bootstrap-servers> <topic>\n",
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <schema-registry> <topic>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
-	url := os.Args[1]
-	bootstrapServers := os.Args[2]
+	bootstrapServers := os.Args[1]
+	url := os.Args[2]
 	topic := os.Args[3]
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
@@ -66,8 +66,10 @@ func main() {
 	// .Events channel is used.
 	deliveryChan := make(chan kafka.Event)
 
-	value := MyRecord{
-		ProductName: "Hello!",
+	value := User{
+		Name:           "First user",
+		FavoriteNumber: 42,
+		FavoriteColor:  "blue",
 	}
 	payload, err := ser.Serialize(topic, value)
 	if err != nil {
@@ -80,6 +82,10 @@ func main() {
 		Value:          payload,
 		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 	}, deliveryChan)
+	if err != nil {
+		fmt.Printf("Produce failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	e := <-deliveryChan
 	m := e.(*kafka.Message)
@@ -94,7 +100,9 @@ func main() {
 	close(deliveryChan)
 }
 
-// MyRecord is a simple record example
-type MyRecord struct {
-	ProductName string `json:"ProductName"`
+// User is a simple record example
+type User struct {
+	Name           string `json:"name"`
+	FavoriteNumber int64  `json:"favorite_number"`
+	FavoriteColor  string `json:"favorite_color"`
 }
