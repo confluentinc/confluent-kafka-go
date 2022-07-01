@@ -38,6 +38,8 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 // Serializer represents a serializer
 type Serializer interface {
 	ConfigureSerializer(client schemaregistry.Client, serdeType Type, conf *SerializerConfig) error
+	// Serialize will serialize the given message, which should be a pointer.
+	// For example, in Protobuf, messages are always a pointer to a struct and never just a struct.
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	Close()
 }
