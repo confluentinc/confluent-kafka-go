@@ -1,6 +1,3 @@
-// Apache Kafka kafkatest VerifiableConsumer implemented in Go
-package main
-
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -17,16 +14,20 @@ package main
  * limitations under the License.
  */
 
+// Apache Kafka kafkatest VerifiableConsumer implemented in Go
+package main
+
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/alecthomas/kingpin"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/alecthomas/kingpin"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 var (

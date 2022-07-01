@@ -1,6 +1,3 @@
-// Delete ACLs
-package main
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Delete ACLs
+package main
 
 import (
 	"context"

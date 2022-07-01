@@ -1,7 +1,3 @@
-package schemaregistry
-
-import "fmt"
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -17,6 +13,10 @@ import "fmt"
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package schemaregistry
+
+import "fmt"
 
 // Config is used to pass multiple configuration options to the Schema Registry client.
 type Config struct {

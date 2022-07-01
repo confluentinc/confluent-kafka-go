@@ -1,6 +1,3 @@
-// Example client with a custom OAUTHBEARER token implementation.
-package main
-
 /**
  * Copyright 2019 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example client with a custom OAUTHBEARER token implementation.
+package main
 
 import (
 	"encoding/base64"

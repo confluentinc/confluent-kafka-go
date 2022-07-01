@@ -1,6 +1,3 @@
-// Example function-based Apache Kafka producer with a custom delivery channel
-package main
-
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example function-based Apache Kafka producer with a custom delivery channel
+package main
 
 import (
 	"fmt"

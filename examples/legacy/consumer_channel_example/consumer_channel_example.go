@@ -1,6 +1,3 @@
-// Example channel-based high-level Apache Kafka consumer
-package main
-
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example channel-based high-level Apache Kafka consumer
+package main
 
 import (
 	"fmt"

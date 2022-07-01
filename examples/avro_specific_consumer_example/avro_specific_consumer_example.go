@@ -1,6 +1,3 @@
-// Example function-based high-level Apache Kafka consumer
-package main
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example function-based high-level Apache Kafka consumer
+package main
 
 // consumer_example implements a consumer using the non-channel Poll() API
 // to retrieve messages and events.

@@ -1,6 +1,3 @@
-// Describe ACLs
-package main
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Describe ACLs
+package main
 
 import (
 	"context"

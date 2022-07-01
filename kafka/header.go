@@ -1,5 +1,3 @@
-package kafka
-
 /**
  * Copyright 2018 Confluent Inc.
  *
@@ -15,6 +13,8 @@ package kafka
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package kafka
 
 import (
 	"fmt"
