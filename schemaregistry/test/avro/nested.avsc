@@ -1,0 +1,33 @@
+{
+	"type": "record",
+	"name": "NestedTestRecord",
+	"fields": [
+		{
+			"name": "NumberField",
+			"type": 
+			{
+				"type": "record", 
+				"name": "NumberRecord",
+				"fields": [
+					{"name": "IntField", "type": "int"},
+					{"name": "LongField", "type": "long"},
+					{"name": "FloatField", "type": "float"},
+					{"name": "DoubleField", "type": "double"}
+				]
+			}
+		},
+		{
+			"name": "OtherField",
+			"type": 
+			{
+				"type": "record", 
+				"name": "NestedRecord",
+				"fields": [
+					{"name": "StringField", "type": "string"},
+					{"name": "BoolField", "type": "boolean"},
+					{"name": "BytesField", "type": "bytes"}
+				]
+			}
+		}
+	]
+}

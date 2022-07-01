@@ -285,7 +285,7 @@ func TestProducerOAuthBearerConfig(t *testing.T) {
 	}
 
 	// Wait for initial OAuthBearerTokenRefresh and check
-	// that its Config string is identical to myOAuthConfig
+	// that its SerializerConfig string is identical to myOAuthConfig
 	for {
 		ev := <-p.Events()
 		oatr, ok := ev.(OAuthBearerTokenRefresh)
@@ -293,10 +293,10 @@ func TestProducerOAuthBearerConfig(t *testing.T) {
 			continue
 		}
 
-		t.Logf("Got %s with Config \"%s\"", oatr, oatr.Config)
+		t.Logf("Got %s with SerializerConfig \"%s\"", oatr, oatr.Config)
 
 		if oatr.Config != myOAuthConfig {
-			t.Fatalf("%s: Expected .Config to be %s, not %s",
+			t.Fatalf("%s: Expected .SerializerConfig to be %s, not %s",
 				oatr, myOAuthConfig, oatr.Config)
 		}
 

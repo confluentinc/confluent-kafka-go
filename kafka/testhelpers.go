@@ -77,13 +77,13 @@ func testconfRead() bool {
 	return true
 }
 
-// update existing ConfigMap with key=value pairs from testconf.Config
+// update existing ConfigMap with key=value pairs from testconf.SerializerConfig
 func (cm *ConfigMap) updateFromTestconf() error {
 	if testconf.Config == nil {
 		return nil
 	}
 
-	// Translate "key=value" pairs in Config to ConfigMap
+	// Translate "key=value" pairs in SerializerConfig to ConfigMap
 	for _, s := range testconf.Config {
 		err := cm.Set(s)
 		if err != nil {
