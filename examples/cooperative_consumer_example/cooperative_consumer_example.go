@@ -1,8 +1,3 @@
-// Example high-level Apache Kafka consumer using the
-// cooperative incremental rebalancing protocol which allows
-// seamless reassignment of partitions to other group members.
-package main
-
 /**
  * Copyright 2020 Confluent Inc.
  *
@@ -18,6 +13,11 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example high-level Apache Kafka consumer using the
+// cooperative incremental rebalancing protocol which allows
+// seamless reassignment of partitions to other group members.
+package main
 
 import (
 	"fmt"

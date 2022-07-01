@@ -1,6 +1,3 @@
-// Delete topics
-package main
-
 /**
  * Copyright 2018 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Delete topics
+package main
 
 import (
 	"context"

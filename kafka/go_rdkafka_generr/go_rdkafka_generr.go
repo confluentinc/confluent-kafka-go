@@ -1,6 +1,3 @@
-// confluent-kafka-go internal tool to generate error constants from librdkafka
-package main
-
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -17,9 +14,13 @@ package main
  * limitations under the License.
  */
 
+// confluent-kafka-go internal tool to generate error constants from librdkafka
+package main
+
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {

@@ -1,8 +1,5 @@
-// Example function-based Apache Kafka producer
-package main
-
 /**
- * Copyright 2016 Confluent Inc.
+ * Copyright 2022 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example function-based Apache Kafka producer
+package main
 
 import (
 	"fmt"

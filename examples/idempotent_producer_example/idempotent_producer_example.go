@@ -1,16 +1,3 @@
-// Idempotent Producer example.
-//
-// The idempotent producer provides strict ordering and
-// exactly-once producing guarantees.
-//
-// From the application developer's perspective, the only difference
-// from a standard producer is the enabling of the feature by setting
-// the `enable.idempotence` configuration property to true, and
-// handling fatal errors (Error.IsFatal()) which are raised when the
-// idempotent guarantees can't be satisfied.
-
-package main
-
 /**
  * Copyright 2019 Confluent Inc.
  *
@@ -26,6 +13,19 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Idempotent Producer example.
+//
+// The idempotent producer provides strict ordering and
+// exactly-once producing guarantees.
+//
+// From the application developer's perspective, the only difference
+// from a standard producer is the enabling of the feature by setting
+// the `enable.idempotence` configuration property to true, and
+// handling fatal errors (Error.IsFatal()) which are raised when the
+// idempotent guarantees can't be satisfied.
+
+package main
 
 import (
 	"fmt"

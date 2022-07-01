@@ -1,5 +1,3 @@
-package soaktest
-
 /**
  * Copyright 2021 Confluent Inc.
  *
@@ -16,13 +14,16 @@ package soaktest
  * limitations under the License.
  */
 
+package soaktest
+
 import (
-	"github.com/DataDog/datadog-go/statsd"
-	"github.com/shirou/gopsutil/process"
 	"os"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-go/statsd"
+	"github.com/shirou/gopsutil/process"
 )
 
 const datadogHost = "127.0.0.1:8125"

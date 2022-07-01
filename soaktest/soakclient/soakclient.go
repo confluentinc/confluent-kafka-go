@@ -1,5 +1,3 @@
-package main
-
 /**
  * Copyright 2021 Confluent Inc.
  *
@@ -16,16 +14,19 @@ package main
  * limitations under the License.
  */
 
+package main
+
 import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/soaktest"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/soaktest"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )

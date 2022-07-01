@@ -1,7 +1,3 @@
-package protobuf
-
-import "github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -17,6 +13,10 @@ import "github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package protobuf
+
+import "github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
