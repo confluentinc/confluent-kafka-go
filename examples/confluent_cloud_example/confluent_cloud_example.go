@@ -26,9 +26,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
+	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde/avro"
 )
 
 // In order to set the constants below, you are going to need
@@ -60,9 +64,12 @@ import (
 //    $ ccloud api-key create
 
 const (
-	bootstrapServers = "<BOOTSTRAP_SERVERS>"
-	ccloudAPIKey     = "<CCLOUD_API_KEY>"
-	ccloudAPISecret  = "<CCLOUD_API_SECRET>"
+	bootstrapServers          = "<BOOTSTRAP_SERVERS>"
+	ccloudAPIKey              = "<CCLOUD_API_KEY>"
+	ccloudAPISecret           = "<CCLOUD_API_SECRET>"
+	schemaRegistryAPIEndpoint = "<CCLOUD_SR_ENDPOINT>"
+	schemaRegistryAPIKey      = "<CCLOUD_SR_API_KEY>"
+	schemaRegistryAPISecret   = "<CCLOUD_SR_API_SECRET>"
 )
 
 func main() {
@@ -72,21 +79,55 @@ func main() {
 
 	// Produce a new record to the topic...
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"sasl.mechanisms":         "PLAIN",
-		"security.protocol":       "SASL_SSL",
-		"sasl.username":           ccloudAPIKey,
-		"sasl.password":           ccloudAPISecret})
+		"bootstrap.servers": bootstrapServers,
+		"sasl.mechanisms":   "PLAIN",
+		"security.protocol": "SASL_SSL",
+		"sasl.username":     ccloudAPIKey,
+		"sasl.password":     ccloudAPISecret})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create producer: %s", err))
 	}
 
-	value := "golang test value"
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(
+		schemaRegistryAPIEndpoint,
+		schemaRegistryAPIKey,
+		schemaRegistryAPISecret))
+
+	if err != nil {
+		fmt.Printf("Failed to create schema registry client: %s\n", err)
+		os.Exit(1)
+	}
+
+	ser, err := avro.NewGenericSerializer(client, serde.ValueSerde, avro.NewSerializerConfig())
+
+	if err != nil {
+		fmt.Printf("Failed to create serializer: %s\n", err)
+		os.Exit(1)
+	}
+	deser, err := avro.NewGenericDeserializer(client, serde.ValueSerde, avro.NewDeserializerConfig())
+
+	if err != nil {
+		fmt.Printf("Failed to create deserializer: %s\n", err)
+		os.Exit(1)
+	}
+
+	value := User{
+		Name:           "First user",
+		FavoriteNumber: 42,
+		FavoriteColor:  "blue",
+	}
+
+	payload, err := ser.Serialize(topic, &value)
+	if err != nil {
+		fmt.Printf("Failed to serialize payload: %s\n", err)
+		os.Exit(1)
+	}
+
 	producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic,
 			Partition: kafka.PartitionAny},
-		Value: []byte(value)}, nil)
+		Value: payload}, nil)
 
 	// Wait for delivery report
 	e := <-producer.Events()
@@ -106,14 +147,14 @@ func main() {
 
 	// Now consumes the record and print its value...
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"sasl.mechanisms":         "PLAIN",
-		"security.protocol":       "SASL_SSL",
-		"sasl.username":           ccloudAPIKey,
-		"sasl.password":           ccloudAPISecret,
-		"session.timeout.ms":      6000,
-		"group.id":                "my-group",
-		"auto.offset.reset":       "earliest"})
+		"bootstrap.servers":  bootstrapServers,
+		"sasl.mechanisms":    "PLAIN",
+		"security.protocol":  "SASL_SSL",
+		"sasl.username":      ccloudAPIKey,
+		"sasl.password":      ccloudAPISecret,
+		"session.timeout.ms": 6000,
+		"group.id":           "my-group",
+		"auto.offset.reset":  "earliest"})
 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create consumer: %s", err))
@@ -125,9 +166,16 @@ func main() {
 	for {
 		message, err := consumer.ReadMessage(100 * time.Millisecond)
 		if err == nil {
-			fmt.Printf("consumed from topic %s [%d] at offset %v: "+
-				string(message.Value), *message.TopicPartition.Topic,
-				message.TopicPartition.Partition, message.TopicPartition.Offset)
+			received := User{}
+			err := deser.DeserializeInto(*message.TopicPartition.Topic, message.Value, &received)
+			if err != nil {
+				fmt.Printf("Failed to deserialize payload: %s\n", err)
+			} else {
+				fmt.Printf("consumed from topic %s [%d] at offset %v: %+v",
+					*message.TopicPartition.Topic,
+					message.TopicPartition.Partition, message.TopicPartition.Offset,
+					received)
+			}
 		}
 	}
 
@@ -187,4 +235,11 @@ func createTopic(topic string) {
 
 	adminClient.Close()
 
+}
+
+// User is a simple record example
+type User struct {
+	Name           string `json:"name"`
+	FavoriteNumber int64  `json:"favorite_number"`
+	FavoriteColor  string `json:"favorite_color"`
 }
