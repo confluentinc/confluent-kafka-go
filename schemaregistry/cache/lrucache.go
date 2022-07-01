@@ -64,17 +64,15 @@ func NewLRUCache(capacity int) (c *LRUCache, err error) {
 // Returns the value associated with key and a bool that is `false`
 // if the key was not found
 func (c *LRUCache) Get(key interface{}) (value interface{}, ok bool) {
+	c.cacheLock.Lock()
+	defer c.cacheLock.Unlock()
 	var element *list.Element
-	c.cacheLock.RLock()
 	value, ok = c.entries[key]
 	if ok {
 		element, ok = c.lruElements[key]
 	}
-	c.cacheLock.RUnlock()
 	if ok {
-		c.cacheLock.Lock()
 		c.lruKeys.MoveToFront(element)
-		c.cacheLock.Unlock()
 	} else {
 		value = nil
 	}
@@ -88,6 +86,7 @@ func (c *LRUCache) Get(key interface{}) (value interface{}, ok bool) {
 //  * `value` - the value to put
 func (c *LRUCache) Put(key interface{}, value interface{}) {
 	c.cacheLock.Lock()
+	defer c.cacheLock.Unlock()
 	_, ok := c.entries[key]
 	if !ok {
 		// delete in advance to avoid increasing map capacity
@@ -108,7 +107,6 @@ func (c *LRUCache) Put(key interface{}, value interface{}) {
 		}
 	}
 	c.entries[key] = value
-	c.cacheLock.Unlock()
 }
 
 // Delete deletes the cache entry associated with key
@@ -116,28 +114,26 @@ func (c *LRUCache) Put(key interface{}, value interface{}) {
 // Parameters:
 //  * `key` - the key to delete
 func (c *LRUCache) Delete(key interface{}) {
-	c.cacheLock.RLock()
+	c.cacheLock.Lock()
+	defer c.cacheLock.Unlock()
 	_, ok := c.entries[key]
-	c.cacheLock.RUnlock()
 	if ok {
-		c.cacheLock.Lock()
 		element, okElement := c.lruElements[key]
 		if okElement {
 			delete(c.lruElements, key)
 			c.lruKeys.Remove(element)
 		}
 		delete(c.entries, key)
-		c.cacheLock.Unlock()
 	}
 }
 
 // ToMap returns the current cache entries copied into a map
 func (c *LRUCache) ToMap() map[interface{}]interface{} {
+	c.cacheLock.Lock()
+	defer c.cacheLock.Unlock()
 	ret := make(map[interface{}]interface{})
-	c.cacheLock.RLock()
 	for k, v := range c.entries {
 		ret[k] = v
 	}
-	c.cacheLock.RUnlock()
 	return ret
 }
