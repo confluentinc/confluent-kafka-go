@@ -75,7 +75,7 @@
 // of per-message produce success or failure through something called delivery reports.
 // Delivery reports are by default emitted on the `.Events()` channel as `*kafka.Message`
 // and you should check `msg.TopicPartition.Error` for `nil` to find out if the message
-// was succesfully delivered or not.
+// was successfully delivered or not.
 // It is also possible to direct delivery reports to alternate channels
 // by providing a non-nil `chan Event` channel to `.Produce()`.
 // If no delivery reports are wanted they can be completely disabled by

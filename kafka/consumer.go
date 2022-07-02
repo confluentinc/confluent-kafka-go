@@ -190,7 +190,7 @@ func (c *Consumer) GetRebalanceProtocol() string {
 // This method is only applicable for use with a subscribing consumer when
 // handling a rebalance event or callback.
 // Partitions that have been lost may already be owned by other members in the
-// group and therefore commiting offsets, for example, may fail.
+// group and therefore committing offsets, for example, may fail.
 func (c *Consumer) AssignmentLost() bool {
 	return cint2bool(C.rd_kafka_assignment_lost(c.handle.rk))
 }
