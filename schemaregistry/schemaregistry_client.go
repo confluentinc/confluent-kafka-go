@@ -265,14 +265,21 @@ func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
-	if err != nil {
-		return -1, err
-	}
 	c.schemaCacheLock.Lock()
-	c.schemaCache.Put(cacheKey, metadata.ID)
+	// another goroutine could have already put it in cache
+	idValue, ok = c.schemaCache.Get(cacheKey)
+	if !ok {
+		err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		if err == nil {
+			c.schemaCache.Put(cacheKey, metadata.ID)
+		} else {
+			metadata.ID = -1
+		}
+	} else {
+		metadata.ID = idValue.(int)
+	}
 	c.schemaCacheLock.Unlock()
-	return metadata.ID, nil
+	return metadata.ID, err
 }
 
 // GetBySubjectAndID returns the schema identified by id
@@ -290,23 +297,29 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 	}
 
 	metadata := SchemaMetadata{}
-	if len(subject) > 0 {
-		err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
-	} else {
-		err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &metadata)
-	}
-	if err != nil {
-		return SchemaInfo{}, err
-	}
-	newInfo := &SchemaInfo{
-		Schema:     metadata.Schema,
-		SchemaType: metadata.SchemaType,
-		References: metadata.References,
-	}
+	newInfo := &SchemaInfo{}
 	c.idCacheLock.Lock()
-	c.idCache.Put(cacheKey, newInfo)
+	// another goroutine could have already put it in cache
+	infoValue, ok = c.idCache.Get(cacheKey)
+	if !ok {
+		if len(subject) > 0 {
+			err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
+		} else {
+			err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &metadata)
+		}
+		if err == nil {
+			newInfo = &SchemaInfo{
+				Schema:     metadata.Schema,
+				SchemaType: metadata.SchemaType,
+				References: metadata.References,
+			}
+			c.idCache.Put(cacheKey, newInfo)
+		}
+	} else {
+		newInfo = infoValue.(*SchemaInfo)
+	}
 	c.idCacheLock.Unlock()
-	return *newInfo, nil
+	return *newInfo, err
 }
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found
@@ -325,18 +338,25 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 	if ok {
 		return idValue.(int), nil
 	}
+
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-
-	err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
-	if err != nil {
-		return -1, err
-	}
 	c.schemaCacheLock.Lock()
-	c.schemaCache.Put(cacheKey, metadata.ID)
+	// another goroutine could have already put it in cache
+	idValue, ok = c.schemaCache.Get(cacheKey)
+	if !ok {
+		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		if err == nil {
+			c.schemaCache.Put(cacheKey, metadata.ID)
+		} else {
+			metadata.ID = -1
+		}
+	} else {
+		metadata.ID = idValue.(int)
+	}
 	c.schemaCacheLock.Unlock()
-	return metadata.ID, nil
+	return metadata.ID, err
 }
 
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
@@ -381,18 +401,25 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 	if ok {
 		return versionValue.(int), nil
 	}
+
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-
-	err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
-	if err != nil {
-		return -1, err
-	}
 	c.versionCacheLock.Lock()
-	c.versionCache.Put(cacheKey, metadata.Version)
+	// another goroutine could have already put it in cache
+	versionValue, ok = c.versionCache.Get(cacheKey)
+	if !ok {
+		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		if err == nil {
+			c.versionCache.Put(cacheKey, metadata.Version)
+		} else {
+			metadata.Version = -1
+		}
+	} else {
+		metadata.Version = versionValue.(int)
+	}
 	c.versionCacheLock.Unlock()
-	return metadata.Version, nil
+	return metadata.Version, err
 }
 
 // Fetch all Subjects registered with the schema Registry
