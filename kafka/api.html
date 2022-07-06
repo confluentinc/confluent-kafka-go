@@ -14,7 +14,7 @@
   <script defer="" src="https://go.dev/js/jquery.js">
   </script>
   <script>
-   var goVersion = "go1.16.4";
+   var goVersion = "go1.18.1";
   </script>
   <script defer="" src="https://go.dev/js/godocs.js">
   </script>
@@ -1364,8 +1364,8 @@ possible complications with blocking Poll() calls.
         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/adminoptions.go">
          adminoptions.go
         </a>
-        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/build_darwin.go">
-         build_darwin.go
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/build_darwin_arm64.go">
+         build_darwin_arm64.go
         </a>
         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/config.go">
          config.go
@@ -1538,7 +1538,7 @@ possible complications with blocking Poll() calls.
     <p>
      LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
     </p>
-    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin from librdkafka-static-bundle-v1.9.0.tgz"</pre>
+    <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin_arm64 from librdkafka-static-bundle-v1.9.1.tgz"</pre>
     <p>
      OffsetBeginning represents the earliest offset (logical)
     </p>
@@ -2701,7 +2701,7 @@ DescribeConfigs request.
     <pre>type ConfigValue interface{}</pre>
     <h2 id="Consumer">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1184:1421#L32">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1184:1431#L32">
       Consumer
      </a>
      <a class="permalink" href="#Consumer">
@@ -2717,7 +2717,7 @@ DescribeConfigs request.
 </pre>
     <h3 id="NewConsumer">
      func
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=15092:15144#L454">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=15102:15154#L454">
       NewConsumer
      </a>
      <a class="permalink" href="#NewConsumer">
@@ -2753,7 +2753,7 @@ event or message may be outdated.
     </p>
     <h3 id="Consumer.Assign">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=3143:3209#L95">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=3153:3219#L95">
       Assign
      </a>
      <a class="permalink" href="#Consumer.Assign">
@@ -2776,7 +2776,7 @@ use the committed offset as a start position, with a fallback to
     </p>
     <h3 id="Consumer.Assignment">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=20677:20749#L621">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=20687:20759#L621">
       Assignment
      </a>
      <a class="permalink" href="#Consumer.Assignment">
@@ -2789,7 +2789,7 @@ use the committed offset as a start position, with a fallback to
     </p>
     <h3 id="Consumer.AssignmentLost">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=5976:6016#L184">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=5986:6026#L184">
       AssignmentLost
      </a>
      <a class="permalink" href="#Consumer.AssignmentLost">
@@ -2806,7 +2806,7 @@ group and therefore commiting offsets, for example, may fail.
     </p>
     <h3 id="Consumer.Close">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=13141:13179#L408">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=13151:13189#L408">
       Close
      </a>
      <a class="permalink" href="#Consumer.Close">
@@ -2820,7 +2820,7 @@ The object is no longer usable after this call.
     </p>
     <h3 id="Consumer.Commit">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=7721:7774#L239">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=7731:7784#L239">
       Commit
      </a>
      <a class="permalink" href="#Consumer.Commit">
@@ -2835,7 +2835,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.CommitMessage">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=7938:8008#L246">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=7948:8018#L246">
       CommitMessage
      </a>
      <a class="permalink" href="#Consumer.CommitMessage">
@@ -2850,7 +2850,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.CommitOffsets">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=8354:8438#L258">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=8364:8448#L258">
       CommitOffsets
      </a>
      <a class="permalink" href="#Consumer.CommitOffsets">
@@ -2865,7 +2865,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.Committed">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=21136:21246#L636">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=21146:21256#L636">
       Committed
      </a>
      <a class="permalink" href="#Consumer.Committed">
@@ -2878,7 +2878,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.Events">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=11333:11371#L339">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=11343:11381#L339">
       Events
      </a>
      <a class="permalink" href="#Consumer.Events">
@@ -2891,7 +2891,7 @@ Returns the committed offsets on success.
     </p>
     <h3 id="Consumer.GetConsumerGroupMetadata">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=26031:26108#L756">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=26041:26118#L756">
       GetConsumerGroupMetadata
      </a>
      <a class="permalink" href="#Consumer.GetConsumerGroupMetadata">
@@ -2906,7 +2906,7 @@ SendOffsetsToTransaction() API.
     </p>
     <h3 id="Consumer.GetMetadata">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=18179:18274#L563">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=18189:18284#L563">
       GetMetadata
      </a>
      <a class="permalink" href="#Consumer.GetMetadata">
@@ -2923,7 +2923,7 @@ GetMetadata is equivalent to listTopics, describeTopics and describeCluster in t
     </p>
     <h3 id="Consumer.GetRebalanceProtocol">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=5471:5519#L170">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=5481:5529#L170">
       GetRebalanceProtocol
      </a>
      <a class="permalink" href="#Consumer.GetRebalanceProtocol">
@@ -2940,7 +2940,7 @@ Should typically only be called during rebalancing.
     </p>
     <h3 id="Consumer.GetWatermarkOffsets">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=18979:19077#L576">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=18989:19087#L576">
       GetWatermarkOffsets
      </a>
      <a class="permalink" href="#Consumer.GetWatermarkOffsets">
@@ -2956,7 +2956,7 @@ OffsetInvalid will be returned if there is no cached offset for either value.
     </p>
     <h3 id="Consumer.IncrementalAssign">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=4246:4323#L131">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=4256:4333#L131">
       IncrementalAssign
      </a>
      <a class="permalink" href="#Consumer.IncrementalAssign">
@@ -2980,7 +2980,7 @@ use the committed offset as a start position, with a fallback to
     </p>
     <h3 id="Consumer.IncrementalUnassign">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=4836:4915#L151">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=4846:4925#L151">
       IncrementalUnassign
      </a>
      <a class="permalink" href="#Consumer.IncrementalUnassign">
@@ -3000,7 +3000,7 @@ partitions to consume.
     </p>
     <h3 id="Consumer.Logs">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=11456:11495#L344">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=11466:11505#L344">
       Logs
      </a>
      <a class="permalink" href="#Consumer.Logs">
@@ -3013,7 +3013,7 @@ partitions to consume.
     </p>
     <h3 id="Consumer.OffsetsForTimes">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=19846:19957#L595">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=19856:19967#L595">
       OffsetsForTimes
      </a>
      <a class="permalink" href="#Consumer.OffsetsForTimes">
@@ -3044,7 +3044,7 @@ Per-partition errors may be returned in the `.Error` field.
     </p>
     <h3 id="Consumer.Pause">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=22585:22650#L669">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=22595:22660#L669">
       Pause
      </a>
      <a class="permalink" href="#Consumer.Pause">
@@ -3062,7 +3062,7 @@ this call, set `go.events.channel.size` accordingly.
     </p>
     <h3 id="Consumer.Poll">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=11161:11213#L333">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=11171:11223#L333">
       Poll
      </a>
      <a class="permalink" href="#Consumer.Poll">
@@ -3086,7 +3086,7 @@ this call, set `go.events.channel.size` accordingly.
     </p>
     <h3 id="Consumer.Position">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=21945:22039#L653">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=21955:22049#L653">
       Position
      </a>
      <a class="permalink" href="#Consumer.Position">
@@ -3104,7 +3104,7 @@ i.e., the offset of the last message seen by the application + 1.
     </p>
     <h3 id="Consumer.QueryWatermarkOffsets">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=18440:18555#L568">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=18450:18565#L568">
       QueryWatermarkOffsets
      </a>
      <a class="permalink" href="#Consumer.QueryWatermarkOffsets">
@@ -3117,7 +3117,7 @@ i.e., the offset of the last message seen by the application + 1.
     </p>
     <h3 id="Consumer.ReadMessage">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=12304:12375#L366">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=12314:12385#L366">
       ReadMessage
      </a>
      <a class="permalink" href="#Consumer.ReadMessage">
@@ -3151,7 +3151,7 @@ msg.TopicPartition provides partition-specific information (such as topic, parti
     </p>
     <h3 id="Consumer.Resume">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=22961:23027#L680">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=22971:23037#L680">
       Resume
      </a>
      <a class="permalink" href="#Consumer.Resume">
@@ -3164,7 +3164,7 @@ msg.TopicPartition provides partition-specific information (such as topic, parti
     </p>
     <h3 id="Consumer.Seek">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=10626:10696#L313">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=10636:10706#L313">
       Seek
      </a>
      <a class="permalink" href="#Consumer.Seek">
@@ -3193,7 +3193,7 @@ a starting offset for each partition.
     </p>
     <h3 id="Consumer.SetOAuthBearerToken">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=23877:23956#L700">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=23887:23966#L700">
       SetOAuthBearerToken
      </a>
      <a class="permalink" href="#Consumer.SetOAuthBearerToken">
@@ -3218,7 +3218,7 @@ authentication mechanism.
     </p>
     <h3 id="Consumer.SetOAuthBearerTokenFailure">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=24455:24521#L711">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=24465:24531#L711">
       SetOAuthBearerTokenFailure
      </a>
      <a class="permalink" href="#Consumer.SetOAuthBearerTokenFailure">
@@ -3237,7 +3237,7 @@ authentication mechanism.
     </p>
     <h3 id="Consumer.StoreMessage">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=9481:9568#L287">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=9491:9578#L287">
       StoreMessage
      </a>
      <a class="permalink" href="#Consumer.StoreMessage">
@@ -3251,7 +3251,7 @@ This is a convenience method that uses StoreOffsets to do the actual work.
     </p>
     <h3 id="Consumer.StoreOffsets">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=8852:8953#L269">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=8862:8963#L269">
       StoreOffsets
      </a>
      <a class="permalink" href="#Consumer.StoreOffsets">
@@ -3271,7 +3271,7 @@ specific errors via its `.Error` member.
     </p>
     <h3 id="Consumer.String">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1488:1522#L43">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1498:1532#L43">
       String
      </a>
      <a class="permalink" href="#Consumer.String">
@@ -3284,7 +3284,7 @@ specific errors via its `.Error` member.
     </p>
     <h3 id="Consumer.Subscribe">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1734:1807#L54">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1744:1817#L54">
       Subscribe
      </a>
      <a class="permalink" href="#Consumer.Subscribe">
@@ -3298,7 +3298,7 @@ This replaces the current subscription
     </p>
     <h3 id="Consumer.SubscribeTopics">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1974:2062#L60">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=1984:2072#L60">
       SubscribeTopics
      </a>
      <a class="permalink" href="#Consumer.SubscribeTopics">
@@ -3312,7 +3312,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Subscription">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=20079:20141#L600">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=20089:20151#L600">
       Subscription
      </a>
      <a class="permalink" href="#Consumer.Subscription">
@@ -3325,7 +3325,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Unassign">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=3524:3565#L110">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=3534:3575#L110">
       Unassign
      </a>
      <a class="permalink" href="#Consumer.Unassign">
@@ -3338,7 +3338,7 @@ This replaces the current subscription.
     </p>
     <h3 id="Consumer.Unsubscribe">
      func (*Consumer)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=2587:2631#L81">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=2597:2641#L81">
       Unsubscribe
      </a>
      <a class="permalink" href="#Consumer.Unsubscribe">
@@ -3351,7 +3351,7 @@ This replaces the current subscription.
     </p>
     <h2 id="ConsumerGroupMetadata">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=24657:24713#L716">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=24667:24723#L716">
       ConsumerGroupMetadata
      </a>
      <a class="permalink" href="#ConsumerGroupMetadata">
@@ -3367,7 +3367,7 @@ This replaces the current subscription.
 </pre>
     <h3 id="NewTestConsumerGroupMetadata">
      func
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=26645:26726#L774">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/consumer.go?s=26655:26736#L774">
       NewTestConsumerGroupMetadata
      </a>
      <a class="permalink" href="#NewTestConsumerGroupMetadata">
@@ -3674,7 +3674,7 @@ This flag is only set by the Transactional producer API.
     </p>
     <h2 id="ErrorCode">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=283:301#L1">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=280:298#L1">
       ErrorCode
      </a>
      <a class="permalink" href="#ErrorCode">
@@ -4007,7 +4007,7 @@ This flag is only set by the Transactional producer API.
 )</pre>
     <h3 id="ErrorCode.String">
      func (ErrorCode)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=370:404#L4">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.0/kafka/generated_errors.go?s=367:401#L4">
       String
      </a>
      <a class="permalink" href="#ErrorCode.String">
@@ -5401,7 +5401,7 @@ TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 }
 </pre>
     <div id="footer">
-     Build version go1.16.4.
+     Build version go1.18.1.
      <br/>
      Except as
      <a href="https://developers.google.com/site-policies#restrictions">
