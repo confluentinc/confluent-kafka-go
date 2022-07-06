@@ -1,5 +1,3 @@
-package main
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -16,10 +14,13 @@ package main
  * limitations under the License.
  */
 
+package main
+
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {

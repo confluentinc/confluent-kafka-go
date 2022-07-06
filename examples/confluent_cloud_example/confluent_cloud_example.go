@@ -1,12 +1,3 @@
-// This is a simple example demonstrating how to produce a message to
-// a topic, and then reading it back again using a consumer. The topic
-// belongs to a Apache Kafka cluster from Confluent Cloud. For more
-// information about Confluent Cloud, please visit:
-//
-// https://www.confluent.io/confluent-cloud/
-
-package main
-
 /**
  * Copyright 2018 Confluent Inc.
  *
@@ -22,6 +13,15 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// This is a simple example demonstrating how to produce a message to
+// a topic, and then reading it back again using a consumer. The topic
+// belongs to a Apache Kafka cluster from Confluent Cloud. For more
+// information about Confluent Cloud, please visit:
+//
+// https://www.confluent.io/confluent-cloud/
+
+package main
 
 import (
 	"context"

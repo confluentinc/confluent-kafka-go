@@ -1,6 +1,3 @@
-// Example kafkacat clone written in Golang
-package main
-
 /**
  * Copyright 2016 Confluent Inc.
  *
@@ -17,15 +14,19 @@ package main
  * limitations under the License.
  */
 
+// Example kafkacat clone written in Golang
+package main
+
 import (
 	"bufio"
 	"fmt"
-	"github.com/alecthomas/kingpin"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/alecthomas/kingpin"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 var (

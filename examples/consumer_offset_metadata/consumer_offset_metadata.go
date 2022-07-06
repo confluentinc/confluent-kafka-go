@@ -1,6 +1,3 @@
-// Example Apache Kafka consumer that commit offset with metadata
-package main
-
 /**
  * Copyright 2019 Confluent Inc.
  *
@@ -16,6 +13,9 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example Apache Kafka consumer that commit offset with metadata
+package main
 
 // consumer_offset_metadata implements a consumer that commit offset with metadata that represents the state
 // of the partition consumer at that point in time. The metadata string can be used by another consumer

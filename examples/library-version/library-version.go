@@ -21,11 +21,11 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-
-func main () {
+func main() {
 	vnum, vstr := kafka.LibraryVersion()
 	fmt.Printf("LibraryVersion: %s (0x%x)\n", vstr, vnum)
 	fmt.Printf("LinkInfo:       %s\n", kafka.LibrdkafkaLinkInfo)

@@ -1,10 +1,3 @@
-// Example of a consumer handling statistics events.
-// The Stats handling code is the same for Consumers and Producers.
-//
-// The definition of the emitted statistics JSON object can be found here:
-// https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
-package main
-
 /**
  * Copyright 2019 Confluent Inc.
  *
@@ -20,6 +13,13 @@ package main
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Example of a consumer handling statistics events.
+// The Stats handling code is the same for Consumers and Producers.
+//
+// The definition of the emitted statistics JSON object can be found here:
+// https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
+package main
 
 import (
 	"encoding/json"

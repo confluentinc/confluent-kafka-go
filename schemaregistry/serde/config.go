@@ -1,5 +1,3 @@
-package serde
-
 /**
  * Copyright 2022 Confluent Inc.
  *
@@ -15,6 +13,8 @@ package serde
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package serde
 
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
