@@ -1,5 +1,19 @@
 # Confluent's Golang client for Apache Kafka
 
+
+## v1.9.1
+
+This is a feature release:
+
+ * Built-in support for Mac OSX M1 / arm64.
+
+
+confluent-kafka-go is based on librdkafka v1.9.1, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
 ## v1.9.0
 
 This is a feature release:
