@@ -24,7 +24,7 @@ This is a feature release:
 
    [examples/json_producer_example](examples/json_producer_example).
 
- * Built-in support for Mac OSX M1 / arm64.
+ * Built-in support for Mac OSX M1 / arm64. (#818).
 
 
 confluent-kafka-go is based on librdkafka v1.9.1, see the
