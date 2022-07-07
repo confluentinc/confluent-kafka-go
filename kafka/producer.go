@@ -495,7 +495,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		// produce.offset.report is no longer used in librdkafka >= v1.0.0
 		v, _ = confCopy.extract("{topic}.produce.offset.report", nil)
 		if v == nil {
-			// Enable offset reporting by default, unless override.
+			// Enable offset reporting by default, unless overridden.
 			confCopy.SetKey("{topic}.produce.offset.report", true)
 		}
 	}
