@@ -19,7 +19,7 @@ def convert_path(url, base_url, after):
 
 if __name__ == '__main__':
 
-    tag = "v1.9.0"
+    tag = "v1.9.1"
     base_css = "https://go.dev/css"
     base_js = "https://go.dev/js"
     base_src = "https://github.com/confluentinc/" + \

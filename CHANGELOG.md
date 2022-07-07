@@ -5,7 +5,26 @@
 
 This is a feature release:
 
- * Built-in support for Mac OSX M1 / arm64.
+ * Schema Registry support for Avro (generic and specific), Protobuf and JSON Schema. (@rayokota, #776).
+   See:
+
+   [examples/avro_generic_consumer_example](examples/avro_generic_consumer_example)
+
+   [examples/avro_generic_producer_example](examples/avro_generic_producer_example)
+
+   [examples/avro_specific_producer_example](examples/avro_specific_producer_example)
+
+   [examples/avro_specific_consumer_example](examples/avro_specific_consumer_example)
+
+   [examples/protobuf_producer_example](examples/protobuf_producer_example)
+
+   [examples/protobuf_consumer_example](examples/protobuf_consumer_example)
+
+   [examples/json_consumer_example](examples/json_consumer_example)
+
+   [examples/json_producer_example](examples/json_producer_example).
+
+ * Built-in support for Mac OSX M1 / arm64. (#818).
 
 
 confluent-kafka-go is based on librdkafka v1.9.1, see the
