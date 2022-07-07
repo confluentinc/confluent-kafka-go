@@ -5,25 +5,7 @@
 
 This is a feature release:
 
- * Schema Registry support for Avro (generic and specific), Protobuf and JSON Schema. (@rayokota, #776).
-   See:
-
-   [examples/avro_generic_consumer_example](examples/avro_generic_consumer_example)
-
-   [examples/avro_generic_producer_example](examples/avro_generic_producer_example)
-
-   [examples/avro_specific_producer_example](examples/avro_specific_producer_example)
-
-   [examples/avro_specific_consumer_example](examples/avro_specific_consumer_example)
-
-   [examples/protobuf_producer_example](examples/protobuf_producer_example)
-
-   [examples/protobuf_consumer_example](examples/protobuf_consumer_example)
-
-   [examples/json_consumer_example](examples/json_consumer_example)
-
-   [examples/json_producer_example](examples/json_producer_example).
-
+ * Schema Registry support for Avro [generic](examples/avro_generic_producer_example) and [specific](examples/avro_specific_producer_example), [Protocol Buffers](examples/protobuf_producer_example) and [JSON Schema](examples/json_producer_example). (@rayokota, #776).
  * Built-in support for Mac OSX M1 / arm64. (#818).
 
 
