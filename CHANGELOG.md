@@ -5,7 +5,7 @@
 
 This is a feature release:
 
- * Schema Registry support for Avro (generic and specific), Protobuf and JSON Schema.
+ * Schema Registry support for Avro (generic and specific), Protobuf and JSON Schema. (@rayokota, #776).
    See:
 
    [examples/avro_generic_consumer_example](examples/avro_generic_consumer_example)
