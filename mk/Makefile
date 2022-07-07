@@ -13,7 +13,8 @@
 DIRS?=$(shell find . -xdev -type f -name '*.go' -exec dirname {} \; | sort | uniq)
 
 docs: generr
-	mk/doc-gen.py > kafka/api.html
+	mk/doc-gen.py kafka > kafka/api.html && \
+	mk/doc-gen.py schemaregistry > schemaregistry/api.html
 
 generr:
 	(cd kafka/go_rdkafka_generr && go install)
