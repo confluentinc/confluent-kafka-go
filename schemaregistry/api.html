@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <meta content="#375EAB" name="theme-color"/>
+  <title>
+   schemaregistry - Go Documentation Server
+  </title>
+  <link href="https://go.dev/css/styles.css" rel="stylesheet" type="text/css"/>
+  <script>
+   window.initFuncs = [];
+  </script>
+  <script defer="" src="https://go.dev/js/jquery.js">
+  </script>
+  <script>
+   var goVersion = "go1.18.2";
+  </script>
+  <script defer="" src="https://go.dev/js/godocs.js">
+  </script>
+ </head>
+ <body>
+  <div id="lowframe" style="position: fixed; bottom: 0; left: 0; height: 0; width: 100%; border-top: thin solid grey; background-color: white; overflow: auto;">
+   ...
+  </div>
+  <!-- #lowframe -->
+  <div class="wide" id="page">
+   <div class="container">
+    <h1>
+     Package schemaregistry
+     <span class="text-muted">
+     </span>
+    </h1>
+    <div id="nav">
+    </div>
+    <!--
+	Copyright 2009 The Go Authors. All rights reserved.
+	Use of this source code is governed by a BSD-style
+	license that can be found in the LICENSE file.
+-->
+    <!--
+	Note: Static (i.e., not template-generated) href and id
+	attributes start with "pkg-" to make it impossible for
+	them to conflict with generated attributes (some of which
+	correspond to Go identifiers).
+-->
+    <script>
+     document.ANALYSIS_DATA = null;
+	document.CALLGRAPH = null;
+    </script>
+    <div id="short-nav">
+     <dl>
+      <dd>
+       <code>
+        import "github.com/confluentinc/confluent-kafka-go/schemaregistry"
+       </code>
+      </dd>
+     </dl>
+     <dl>
+      <dd>
+       <a class="overviewLink" href="#pkg-overview">
+        Overview
+       </a>
+      </dd>
+      <dd>
+       <a class="indexLink" href="#pkg-index">
+        Index
+       </a>
+      </dd>
+      <dd>
+      </dd>
+     </dl>
+    </div>
+    <!-- The package's Name is printed as title by the top-level template -->
+    <div class="toggleVisible" id="pkg-overview">
+     <div class="collapsed">
+      <h2 class="toggleButton" title="Click to show Overview section">
+       Overview ▹
+      </h2>
+     </div>
+     <div class="expanded">
+      <h2 class="toggleButton" title="Click to hide Overview section">
+       Overview ▾
+      </h2>
+     </div>
+    </div>
+    <div class="toggleVisible" id="pkg-index">
+     <div class="collapsed">
+      <h2 class="toggleButton" title="Click to show Index section">
+       Index ▹
+      </h2>
+     </div>
+     <div class="expanded">
+      <h2 class="toggleButton" title="Click to hide Index section">
+       Index ▾
+      </h2>
+      <!-- Table of contents for API; must be named manual-nav to turn off auto nav. -->
+      <div id="manual-nav">
+       <dl>
+        <dd>
+         <a href="#pkg-constants">
+          Constants
+         </a>
+        </dd>
+        <dd>
+         <a href="#Client">
+          type Client
+         </a>
+        </dd>
+        <dd>
+         <a href="#NewClient">
+          func NewClient(conf *Config) (Client, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#Compatibility">
+          type Compatibility
+         </a>
+        </dd>
+        <dd>
+         <a href="#Compatibility.MarshalJSON">
+          func (c Compatibility) MarshalJSON() ([]byte, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#Compatibility.ParseString">
+          func (c *Compatibility) ParseString(val string) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#Compatibility.String">
+          func (c Compatibility) String() string
+         </a>
+        </dd>
+        <dd>
+         <a href="#Compatibility.UnmarshalJSON">
+          func (c *Compatibility) UnmarshalJSON(b []byte) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#Config">
+          type Config
+         </a>
+        </dd>
+        <dd>
+         <a href="#NewConfig">
+          func NewConfig(url string) *Config
+         </a>
+        </dd>
+        <dd>
+         <a href="#NewConfigWithAuthentication">
+          func NewConfigWithAuthentication(url string, username string, password string) *Config
+         </a>
+        </dd>
+        <dd>
+         <a href="#Reference">
+          type Reference
+         </a>
+        </dd>
+        <dd>
+         <a href="#RestError">
+          type RestError
+         </a>
+        </dd>
+        <dd>
+         <a href="#RestError.Error">
+          func (err *RestError) Error() string
+         </a>
+        </dd>
+        <dd>
+         <a href="#SchemaInfo">
+          type SchemaInfo
+         </a>
+        </dd>
+        <dd>
+         <a href="#SchemaInfo.MarshalJSON">
+          func (sd *SchemaInfo) MarshalJSON() ([]byte, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#SchemaInfo.UnmarshalJSON">
+          func (sd *SchemaInfo) UnmarshalJSON(b []byte) error
+         </a>
+        </dd>
+        <dd>
+         <a href="#SchemaMetadata">
+          type SchemaMetadata
+         </a>
+        </dd>
+        <dd>
+         <a href="#SchemaMetadata.MarshalJSON">
+          func (sd *SchemaMetadata) MarshalJSON() ([]byte, error)
+         </a>
+        </dd>
+        <dd>
+         <a href="#SchemaMetadata.UnmarshalJSON">
+          func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error
+         </a>
+        </dd>
+       </dl>
+      </div>
+      <!-- #manual-nav -->
+      <h3>
+       Package files
+      </h3>
+      <p>
+       <span style="font-size:90%">
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/config.go">
+         config.go
+        </a>
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/mock_schemaregistry_client.go">
+         mock_schemaregistry_client.go
+        </a>
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/rest_service.go">
+         rest_service.go
+        </a>
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go">
+         schemaregistry_client.go
+        </a>
+        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/testhelpers.go">
+         testhelpers.go
+        </a>
+       </span>
+      </p>
+     </div>
+     <!-- .expanded -->
+    </div>
+    <!-- #pkg-index -->
+    <h2 id="pkg-constants">
+     Constants
+    </h2>
+    <pre>const (
+
+    <span class="comment">// None is no compatibility</span>
+    <span id="None">None</span>
+    <span class="comment">// Backward compatibility</span>
+    <span id="Backward">Backward</span>
+    <span class="comment">// Forward compatibility</span>
+    <span id="Forward">Forward</span>
+    <span class="comment">// Full compatibility</span>
+    <span id="Full">Full</span>
+    <span class="comment">// BackwardTransitive compatibility</span>
+    <span id="BackwardTransitive">BackwardTransitive</span>
+    <span class="comment">// ForwardTransitive compatibility</span>
+    <span id="ForwardTransitive">ForwardTransitive</span>
+    <span class="comment">// FullTransitive compatibility</span>
+    <span id="FullTransitive">FullTransitive</span>
+)</pre>
+    <h2 id="Client">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=6419:7569#L182">
+      Client
+     </a>
+     <a class="permalink" href="#Client">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Client is an interface for clients interacting with the Confluent Schema Registry.
+The Schema Registry's REST interface is further explained in Confluent's Schema Registry API documentation
+     <a href="https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java">
+      https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
+     </a>
+    </p>
+    <pre>type Client interface {
+    Register(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, schema <a href="#SchemaInfo">SchemaInfo</a>, normalize <a href="https://pkg.go.dev/builtin/#bool">bool</a>) (id <a href="https://pkg.go.dev/builtin/#int">int</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetBySubjectAndID(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, id <a href="https://pkg.go.dev/builtin/#int">int</a>) (schema <a href="#SchemaInfo">SchemaInfo</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetID(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, schema <a href="#SchemaInfo">SchemaInfo</a>, normalize <a href="https://pkg.go.dev/builtin/#bool">bool</a>) (id <a href="https://pkg.go.dev/builtin/#int">int</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetLatestSchemaMetadata(subject <a href="https://pkg.go.dev/builtin/#string">string</a>) (<a href="#SchemaMetadata">SchemaMetadata</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetSchemaMetadata(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, version <a href="https://pkg.go.dev/builtin/#int">int</a>) (<a href="#SchemaMetadata">SchemaMetadata</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetAllVersions(subject <a href="https://pkg.go.dev/builtin/#string">string</a>) ([]<a href="https://pkg.go.dev/builtin/#int">int</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetVersion(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, schema <a href="#SchemaInfo">SchemaInfo</a>, normalize <a href="https://pkg.go.dev/builtin/#bool">bool</a>) (version <a href="https://pkg.go.dev/builtin/#int">int</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetAllSubjects() ([]<a href="https://pkg.go.dev/builtin/#string">string</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    DeleteSubject(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, permanent <a href="https://pkg.go.dev/builtin/#bool">bool</a>) ([]<a href="https://pkg.go.dev/builtin/#int">int</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    DeleteSubjectVersion(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, version <a href="https://pkg.go.dev/builtin/#int">int</a>, permanent <a href="https://pkg.go.dev/builtin/#bool">bool</a>) (deletes <a href="https://pkg.go.dev/builtin/#int">int</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetCompatibility(subject <a href="https://pkg.go.dev/builtin/#string">string</a>) (compatibility <a href="#Compatibility">Compatibility</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    UpdateCompatibility(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, update <a href="#Compatibility">Compatibility</a>) (compatibility <a href="#Compatibility">Compatibility</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    TestCompatibility(subject <a href="https://pkg.go.dev/builtin/#string">string</a>, version <a href="https://pkg.go.dev/builtin/#int">int</a>, schema <a href="#SchemaInfo">SchemaInfo</a>) (compatible <a href="https://pkg.go.dev/builtin/#bool">bool</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    GetDefaultCompatibility() (compatibility <a href="#Compatibility">Compatibility</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+    UpdateDefaultCompatibility(update <a href="#Compatibility">Compatibility</a>) (compatibility <a href="#Compatibility">Compatibility</a>, err <a href="https://pkg.go.dev/builtin/#error">error</a>)
+}</pre>
+    <h3 id="NewClient">
+     func
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=7616:7660#L201">
+      NewClient
+     </a>
+     <a class="permalink" href="#NewClient">
+      ¶
+     </a>
+    </h3>
+    <pre>func NewClient(conf *<a href="#Config">Config</a>) (<a href="#Client">Client</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)</pre>
+    <p>
+     NewClient returns a Client implementation
+    </p>
+    <h2 id="Compatibility">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=16560:16582#L511">
+      Compatibility
+     </a>
+     <a class="permalink" href="#Compatibility">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Compatibility options
+    </p>
+    <pre>type Compatibility <a href="https://pkg.go.dev/builtin/#int">int</a></pre>
+    <h3 id="Compatibility.MarshalJSON">
+     func (Compatibility)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=17337:17389#L549">
+      MarshalJSON
+     </a>
+     <a class="permalink" href="#Compatibility.MarshalJSON">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c <a href="#Compatibility">Compatibility</a>) MarshalJSON() ([]<a href="https://pkg.go.dev/builtin/#byte">byte</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)</pre>
+    <p>
+     MarshalJSON implements json.Marshaler
+    </p>
+    <h3 id="Compatibility.ParseString">
+     func (*Compatibility)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=17810:17863#L568">
+      ParseString
+     </a>
+     <a class="permalink" href="#Compatibility.ParseString">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Compatibility">Compatibility</a>) ParseString(val <a href="https://pkg.go.dev/builtin/#string">string</a>) <a href="https://pkg.go.dev/builtin/#error">error</a></pre>
+    <p>
+     ParseString returns a Compatibility for the given string
+    </p>
+    <h3 id="Compatibility.String">
+     func (Compatibility)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=17677:17715#L563">
+      String
+     </a>
+     <a class="permalink" href="#Compatibility.String">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c <a href="#Compatibility">Compatibility</a>) String() <a href="https://pkg.go.dev/builtin/#string">string</a></pre>
+    <h3 id="Compatibility.UnmarshalJSON">
+     func (*Compatibility)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=17473:17526#L554">
+      UnmarshalJSON
+     </a>
+     <a class="permalink" href="#Compatibility.UnmarshalJSON">
+      ¶
+     </a>
+    </h3>
+    <pre>func (c *<a href="#Compatibility">Compatibility</a>) UnmarshalJSON(b []<a href="https://pkg.go.dev/builtin/#byte">byte</a>) <a href="https://pkg.go.dev/builtin/#error">error</a></pre>
+    <p>
+     UnmarshalJSON implements json.Unmarshaler
+    </p>
+    <h2 id="Config">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/config.go?s=722:2038#L12">
+      Config
+     </a>
+     <a class="permalink" href="#Config">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Config is used to pass multiple configuration options to the Schema Registry client.
+    </p>
+    <pre>type Config struct {
+<span id="Config.SchemaRegistryURL"></span>    <span class="comment">// SchemaRegistryURL determines the URL of Schema Registry.</span>
+    SchemaRegistryURL <a href="https://pkg.go.dev/builtin/#string">string</a>
+
+<span id="Config.BasicAuthUserInfo"></span>    <span class="comment">// BasicAuthUserInfo specifies the user info in the form of {username}:{password}.</span>
+    BasicAuthUserInfo <a href="https://pkg.go.dev/builtin/#string">string</a>
+<span id="Config.BasicAuthCredentialsSource"></span>    <span class="comment">// BasicAuthCredentialsSource specifies how to determine the credentials, one of URL, USER_INFO, and SASL_INHERIT.</span>
+    BasicAuthCredentialsSource <a href="https://pkg.go.dev/builtin/#string">string</a>
+
+<span id="Config.SaslMechanism"></span>    <span class="comment">// SaslMechanism specifies the SASL mechanism used for client connections, which defaults to GSSAPI.</span>
+    SaslMechanism <a href="https://pkg.go.dev/builtin/#string">string</a>
+<span id="Config.SaslUsername"></span>    <span class="comment">// SaslUsername specifies the username for SASL.</span>
+    SaslUsername <a href="https://pkg.go.dev/builtin/#string">string</a>
+    <span class="comment">// SaslUsername specifies the password for SASL.</span>
+<span id="Config.SaslPassword"></span>    SaslPassword <a href="https://pkg.go.dev/builtin/#string">string</a>
+
+<span id="Config.SslCertificateLocation"></span>    <span class="comment">// SslCertificateLocation specifies the location of SSL certificates.</span>
+    SslCertificateLocation <a href="https://pkg.go.dev/builtin/#string">string</a>
+<span id="Config.SslKeyLocation"></span>    <span class="comment">// SslKeyLocation specifies the location of SSL keys.</span>
+    SslKeyLocation <a href="https://pkg.go.dev/builtin/#string">string</a>
+<span id="Config.SslCaLocation"></span>    <span class="comment">// SslCaLocation specifies the location of SSL certificate authorities.</span>
+    SslCaLocation <a href="https://pkg.go.dev/builtin/#string">string</a>
+<span id="Config.SslDisableEndpointVerification"></span>    <span class="comment">// SslDisableEndpointVerification determines whether to disable endpoint verification.</span>
+    SslDisableEndpointVerification <a href="https://pkg.go.dev/builtin/#bool">bool</a>
+
+<span id="Config.ConnectionTimeoutMs"></span>    <span class="comment">// ConnectionTimeoutMs determines the connection timeout in milliseconds.</span>
+    ConnectionTimeoutMs <a href="https://pkg.go.dev/builtin/#int">int</a>
+<span id="Config.RequestTimeoutMs"></span>    <span class="comment">// RequestTimeoutMs determines the request timeout in milliseconds.</span>
+    RequestTimeoutMs <a href="https://pkg.go.dev/builtin/#int">int</a>
+<span id="Config.CacheCapacity"></span>    <span class="comment">// CacheCapacity positive integer or zero for unbounded capacity</span>
+    CacheCapacity <a href="https://pkg.go.dev/builtin/#int">int</a>
+}
+</pre>
+    <h3 id="NewConfig">
+     func
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/config.go?s=2110:2144#L46">
+      NewConfig
+     </a>
+     <a class="permalink" href="#NewConfig">
+      ¶
+     </a>
+    </h3>
+    <pre>func NewConfig(url <a href="https://pkg.go.dev/builtin/#string">string</a>) *<a href="#Config">Config</a></pre>
+    <p>
+     NewConfig returns a new configuration instance with sane defaults.
+    </p>
+    <h3 id="NewConfigWithAuthentication">
+     func
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/config.go?s=2710:2796#L71">
+      NewConfigWithAuthentication
+     </a>
+     <a class="permalink" href="#NewConfigWithAuthentication">
+      ¶
+     </a>
+    </h3>
+    <pre>func NewConfigWithAuthentication(url <a href="https://pkg.go.dev/builtin/#string">string</a>, username <a href="https://pkg.go.dev/builtin/#string">string</a>, password <a href="https://pkg.go.dev/builtin/#string">string</a>) *<a href="#Config">Config</a></pre>
+    <p>
+     NewConfigWithAuthentication returns a new configuration instance using basic authentication.
+For Confluent Cloud, use the API key for the username and the API secret for the password.
+    </p>
+    <h2 id="Reference">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=3021:3142#L60">
+      Reference
+     </a>
+     <a class="permalink" href="#Reference">
+      ¶
+     </a>
+    </h2>
+    <p>
+     Reference represents a schema reference
+    </p>
+    <pre>type Reference struct {
+<span id="Reference.Name"></span>    Name    <a href="https://pkg.go.dev/builtin/#string">string</a> `json:"name"`
+<span id="Reference.Subject"></span>    Subject <a href="https://pkg.go.dev/builtin/#string">string</a> `json:"subject"`
+<span id="Reference.Version"></span>    Version <a href="https://pkg.go.dev/builtin/#int">int</a>    `json:"version"`
+}
+</pre>
+    <h2 id="RestError">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/rest_service.go?s=2539:2633#L81">
+      RestError
+     </a>
+     <a class="permalink" href="#RestError">
+      ¶
+     </a>
+    </h2>
+    <p>
+     RestError represents a Schema Registry HTTP Error response
+    </p>
+    <pre>type RestError struct {
+<span id="RestError.Code"></span>    Code    <a href="https://pkg.go.dev/builtin/#int">int</a>    `json:"error_code"`
+<span id="RestError.Message"></span>    Message <a href="https://pkg.go.dev/builtin/#string">string</a> `json:"message"`
+}
+</pre>
+    <h3 id="RestError.Error">
+     func (*RestError)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/rest_service.go?s=2682:2718#L87">
+      Error
+     </a>
+     <a class="permalink" href="#RestError.Error">
+      ¶
+     </a>
+    </h3>
+    <pre>func (err *<a href="#RestError">RestError</a>) Error() <a href="https://pkg.go.dev/builtin/#string">string</a></pre>
+    <p>
+     Error implements the errors.Error interface
+    </p>
+    <h2 id="SchemaInfo">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=3194:3378#L67">
+      SchemaInfo
+     </a>
+     <a class="permalink" href="#SchemaInfo">
+      ¶
+     </a>
+    </h2>
+    <p>
+     SchemaInfo represents basic schema information
+    </p>
+    <pre>type SchemaInfo struct {
+<span id="SchemaInfo.Schema"></span>    Schema     <a href="https://pkg.go.dev/builtin/#string">string</a>      `json:"schema,omitempty"`
+<span id="SchemaInfo.SchemaType"></span>    SchemaType <a href="https://pkg.go.dev/builtin/#string">string</a>      `json:"schemaType,omitempty"`
+<span id="SchemaInfo.References"></span>    References []<a href="#Reference">Reference</a> `json:"references,omitempty"`
+}
+</pre>
+    <h3 id="SchemaInfo.MarshalJSON">
+     func (*SchemaInfo)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=3435:3486#L74">
+      MarshalJSON
+     </a>
+     <a class="permalink" href="#SchemaInfo.MarshalJSON">
+      ¶
+     </a>
+    </h3>
+    <pre>func (sd *<a href="#SchemaInfo">SchemaInfo</a>) MarshalJSON() ([]<a href="https://pkg.go.dev/builtin/#byte">byte</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)</pre>
+    <p>
+     MarshalJSON implements the json.Marshaler interface
+    </p>
+    <h3 id="SchemaInfo.UnmarshalJSON">
+     func (*SchemaInfo)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=3799:3850#L87">
+      UnmarshalJSON
+     </a>
+     <a class="permalink" href="#SchemaInfo.UnmarshalJSON">
+      ¶
+     </a>
+    </h3>
+    <pre>func (sd *<a href="#SchemaInfo">SchemaInfo</a>) UnmarshalJSON(b []<a href="https://pkg.go.dev/builtin/#byte">byte</a>) <a href="https://pkg.go.dev/builtin/#error">error</a></pre>
+    <p>
+     UnmarshalJSON implements the json.Unmarshaller interface
+    </p>
+    <h2 id="SchemaMetadata">
+     type
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=4232:4398#L105">
+      SchemaMetadata
+     </a>
+     <a class="permalink" href="#SchemaMetadata">
+      ¶
+     </a>
+    </h2>
+    <p>
+     SchemaMetadata represents schema metadata
+    </p>
+    <pre>type SchemaMetadata struct {
+    <a href="#SchemaInfo">SchemaInfo</a>
+<span id="SchemaMetadata.ID"></span>    ID      <a href="https://pkg.go.dev/builtin/#int">int</a>    `json:"id,omitempty"`
+<span id="SchemaMetadata.Subject"></span>    Subject <a href="https://pkg.go.dev/builtin/#string">string</a> `json:"subject,omitempty"`
+<span id="SchemaMetadata.Version"></span>    Version <a href="https://pkg.go.dev/builtin/#int">int</a>    `json:"version,omitempty"`
+}
+</pre>
+    <h3 id="SchemaMetadata.MarshalJSON">
+     func (*SchemaMetadata)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=4455:4510#L113">
+      MarshalJSON
+     </a>
+     <a class="permalink" href="#SchemaMetadata.MarshalJSON">
+      ¶
+     </a>
+    </h3>
+    <pre>func (sd *<a href="#SchemaMetadata">SchemaMetadata</a>) MarshalJSON() ([]<a href="https://pkg.go.dev/builtin/#byte">byte</a>, <a href="https://pkg.go.dev/builtin/#error">error</a>)</pre>
+    <p>
+     MarshalJSON implements the json.Marshaler interface
+    </p>
+    <h3 id="SchemaMetadata.UnmarshalJSON">
+     func (*SchemaMetadata)
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v1.9.1/schemaregistry/schemaregistry_client.go?s=5011:5066#L132">
+      UnmarshalJSON
+     </a>
+     <a class="permalink" href="#SchemaMetadata.UnmarshalJSON">
+      ¶
+     </a>
+    </h3>
+    <pre>func (sd *<a href="#SchemaMetadata">SchemaMetadata</a>) UnmarshalJSON(b []<a href="https://pkg.go.dev/builtin/#byte">byte</a>) <a href="https://pkg.go.dev/builtin/#error">error</a></pre>
+    <p>
+     UnmarshalJSON implements the json.Unmarshaller interface
+    </p>
+    <div id="footer">
+     Build version go1.18.2.
+     <br/>
+     Except as
+     <a href="https://developers.google.com/site-policies#restrictions">
+      noted
+     </a>
+     ,
+the content of this page is licensed under the
+Creative Commons Attribution 3.0 License,
+and code is licensed under a
+     <a href="/LICENSE">
+      BSD license
+     </a>
+     .
+     <br/>
+     <a href="https://golang.org/doc/tos.html">
+      Terms of Service
+     </a>
+     |
+     <a href="https://www.google.com/intl/en/policies/privacy/">
+      Privacy Policy
+     </a>
+    </div>
+   </div>
+   <!-- .container -->
+  </div>
+  <!-- #page -->
+ </body>
+</html>
+

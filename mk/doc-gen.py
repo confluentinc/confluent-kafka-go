@@ -7,6 +7,7 @@
 
 import subprocess
 import re
+import sys
 from bs4 import BeautifulSoup
 
 
@@ -18,6 +19,10 @@ def convert_path(url, base_url, after):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print(f"usage: {sys.argv[0]} <package>")
+        sys.exit(1)
+    package = sys.argv[1]
 
     tag = "v1.9.1"
     base_css = "https://go.dev/css"
@@ -28,7 +33,8 @@ if __name__ == '__main__':
 
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
-        'godoc -url=/pkg/github.com/confluentinc/confluent-kafka-go/kafka ' +
+        'godoc -url=/pkg/github.com/confluentinc/' +
+        f'confluent-kafka-go/{package} ' +
         '| egrep -v "^using (GOPATH|module) mode"', shell=True)
 
     # Parse HTML
