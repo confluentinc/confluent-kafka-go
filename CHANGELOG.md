@@ -5,6 +5,7 @@
 
 This is a feature release:
 
+ * Schema Registry support for Avro (generic and specific), Protobuf and JSON Schema
  * Built-in support for Mac OSX M1 / arm64.
 
 
