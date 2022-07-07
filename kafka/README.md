@@ -62,22 +62,11 @@ these tags should be specified on the **application** build/get/install command.
 
 
 
-## Generating HTML documentation
-
-To generate one-page HTML documentation run the mk/doc-gen.py script from the
-top-level directory. This script requires the beautifulsoup4 Python package.
-
-```
-$ source .../your/virtualenv/bin/activate
-$ pip install beautifulsoup4
-...
-$ make -f mk/Makefile docs
-```
-
-
 ## Release process
 
 For each release candidate and final release, perform the following steps:
+
+### Review the CHANGELOG
 
 ### Update bundle to latest librdkafka
 
@@ -98,6 +87,19 @@ Update generated error codes:
 
     $ make -f mk/Makefile generr
     # Verify by building
+
+
+## Generating HTML documentation
+
+To generate one-page HTML documentation run the mk/doc-gen.py script from the
+top-level directory. This script requires the beautifulsoup4 Python package.
+
+```
+$ source .../your/virtualenv/bin/activate
+$ pip install beautifulsoup4
+...
+$ make -f mk/Makefile docs
+```
 
 
 ### Rebuild everything
@@ -145,3 +147,5 @@ Put the new version in settings.sh of these two repos
 https://github.com/confluentinc/docs
 
 https://github.com/confluentinc/docs-platform
+
+### Don't forget tweeting it!
