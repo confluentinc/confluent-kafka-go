@@ -9,7 +9,7 @@
   Choose the `Container Image` when create the lambda function, add the docker image URL from `Container image URL`.
 
 # Config Environment Variables
-  Add the environment variables under the `Configuration`, we can pass the parameters like `bootstrap_servers`, `ccloudAPIKey`, `ccloudAPISecret` as environment variables. 
+  Add the environment variables under the `Configuration`, we can pass the parameters like `BOOTSTRAP_SERVERS`, `CCLOUDAPIKEY`, `CCLOUDAPISECRET`, `TOPIC` as environment variables.
 
 # Run the test
   Click the `Test` button under `Test`.

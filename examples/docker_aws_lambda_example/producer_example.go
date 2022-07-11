@@ -94,11 +94,10 @@ func HandleRequest() error {
 			NumPartitions: 1}},
 		kafka.SetAdminOperationTimeout(maxDur))
 	if err != nil {
-		fmt.Printf("Failed to create topic: %v\n", err)
+		fmt.Printf("CreateTopics request failed: %v\n", err)
 		return err
 	}
 
-	// Print results
 	for _, result := range results {
 		fmt.Printf("%s\n", result)
 	}
