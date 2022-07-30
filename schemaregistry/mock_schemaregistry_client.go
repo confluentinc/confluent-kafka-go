@@ -56,6 +56,8 @@ type mockclient struct {
 	url                    *url.URL
 	schemaCache            map[subjectJSON]idCacheEntry
 	schemaCacheLock        sync.RWMutex
+	metadataCache          map[subjectVersion]SchemaMetadata
+	metadataCacheLock      sync.RWMutex
 	idCache                map[subjectID]*SchemaInfo
 	idCacheLock            sync.RWMutex
 	versionCache           map[subjectJSON]versionCacheEntry

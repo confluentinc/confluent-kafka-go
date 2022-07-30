@@ -172,16 +172,23 @@ type subjectID struct {
 	id      int
 }
 
+type subjectVersion struct {
+	subject string
+	version int
+}
+
 /* HTTP(S) Schema Registry Client and schema caches */
 type client struct {
 	sync.Mutex
-	restService      *restService
-	schemaCache      cache.Cache
-	schemaCacheLock  sync.RWMutex
-	idCache          cache.Cache
-	idCacheLock      sync.RWMutex
-	versionCache     cache.Cache
-	versionCacheLock sync.RWMutex
+	restService       *restService
+	schemaCache       cache.Cache
+	schemaCacheLock   sync.RWMutex
+	metadataCache     cache.Cache
+	metadataCacheLock sync.RWMutex
+	idCache           cache.Cache
+	idCacheLock       sync.RWMutex
+	versionCache      cache.Cache
+	versionCacheLock  sync.RWMutex
 }
 
 var _ Client = new(client)
@@ -219,6 +226,7 @@ func NewClient(conf *Config) (Client, error) {
 		mock := &mockclient{
 			url:                url,
 			schemaCache:        make(map[subjectJSON]idCacheEntry),
+			metadataCache:      make(map[subjectVersion]SchemaMetadata),
 			idCache:            make(map[subjectID]*SchemaInfo),
 			versionCache:       make(map[subjectJSON]versionCacheEntry),
 			compatibilityCache: make(map[string]Compatibility),
@@ -233,6 +241,7 @@ func NewClient(conf *Config) (Client, error) {
 
 	var schemaCache cache.Cache
 	var idCache cache.Cache
+	var metadataCache cache.Cache
 	var versionCache cache.Cache
 	if conf.CacheCapacity != 0 {
 		schemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
@@ -243,6 +252,10 @@ func NewClient(conf *Config) (Client, error) {
 		if err != nil {
 			return nil, err
 		}
+		metadataCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		if err != nil {
+			return nil, err
+		}
 		versionCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
 			return nil, err
@@ -250,13 +263,15 @@ func NewClient(conf *Config) (Client, error) {
 	} else {
 		schemaCache = cache.NewMapCache()
 		idCache = cache.NewMapCache()
+		metadataCache = cache.NewMapCache()
 		versionCache = cache.NewMapCache()
 	}
 	handle := &client{
-		restService:  restService,
-		schemaCache:  schemaCache,
-		idCache:      idCache,
-		versionCache: versionCache,
+		restService:   restService,
+		schemaCache:   schemaCache,
+		metadataCache: metadataCache,
+		idCache:       idCache,
+		versionCache:  versionCache,
 	}
 	return handle, nil
 }
@@ -386,7 +401,27 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
+	cacheKey := subjectVersion{
+		subject: subject,
+		version: version,
+	}
+	c.metadataCacheLock.RLock()
+	metadataValue, ok := c.metadataCache.Get(cacheKey)
+	c.metadataCacheLock.RUnlock()
+	if ok {
+		return metadataValue.(SchemaMetadata), nil
+	}
+
+	c.metadataCacheLock.Lock()
+	// another goroutine could have already put it in cache
+	metadataValue, ok = c.schemaCache.Get(cacheKey)
+	if !ok {
+		err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
+		if err == nil {
+			c.metadataCache.Put(cacheKey, result)
+		}
+	}
+	c.metadataCacheLock.Unlock()
 
 	return result, err
 }
