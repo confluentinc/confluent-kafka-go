@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Example client with a custom OAUTHBEARER token implementation.
+// Example consumer with a custom OAUTHBEARER token implementation.
 package main
 
 import (
@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -48,6 +50,7 @@ const (
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
 // previously-received token is 80% of the way to its expiration time).
 func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh) {
+	fmt.Fprintf(os.Stderr, "Token refresh\n")
 	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e)
 	if retrieveErr != nil {
 		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
@@ -93,7 +96,8 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh) (kafka.OAuthBearerT
 	// We then exit immediately after that, so no additional token refreshes will occur.
 	// Therefore set the lifetime to be an hour (though anything on the order of a minute or more
 	// would be fine).
-	expiration := now.Add(time.Second * time.Duration(3600))
+	// In this example it's kept very short to quickly show the token refresh event in action.
+	expiration := now.Add(time.Second * 3)
 	expirationSecondsSinceEpoch := expiration.Unix()
 
 	oauthbearerMapForJSON := map[string]interface{}{
@@ -116,55 +120,86 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh) (kafka.OAuthBearerT
 
 func main() {
 
-	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
+	if len(os.Args) != 5 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <topic> <group> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	oauthConf := os.Args[2]
+	topic := os.Args[2]
+	group := os.Args[3]
+	oauthConf := os.Args[4]
 
-	// You'll probably need to modify this configuration to
-	// match your environment.
-	config := kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"security.protocol":       "SASL_PLAINTEXT",
-		"sasl.mechanisms":         "OAUTHBEARER",
-		"sasl.oauthbearer.config": oauthConf,
-	}
+	c, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers":        bootstrapServers,
+		"security.protocol":        "SASL_PLAINTEXT",
+		"sasl.mechanisms":          "OAUTHBEARER",
+		"sasl.oauthbearer.config":  oauthConf,
+		"group.id":                 group,
+		"session.timeout.ms":       6000,
+		"auto.offset.reset":        "earliest",
+		"enable.auto.offset.store": false,
+	})
 
-	p, err := kafka.NewProducer(&config)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
 		os.Exit(1)
 	}
 
-	// Token refresh events are posted on the Events channel, instructing
-	// the application to refresh its token.
-	go func(eventsChan chan kafka.Event) {
-		for ev := range eventsChan {
-			oart, ok := ev.(kafka.OAuthBearerTokenRefresh)
-			if !ok {
-				// Ignore other event types
+	fmt.Printf("Created Consumer %v\n", c)
+
+	err = c.SubscribeTopics([]string{topic}, nil)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topic: %s\n", topic)
+		os.Exit(1)
+	}
+
+	run := true
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	for run {
+		select {
+		case sig := <-signalChannel:
+			fmt.Printf("Caught signal %v: terminating\n", sig)
+			run = false
+		default:
+			ev := c.Poll(100)
+			if ev == nil {
 				continue
 			}
 
-			handleOAuthBearerTokenRefreshEvent(p, oart)
+			switch e := ev.(type) {
+			case *kafka.Message:
+				fmt.Printf("%% Message on %s:\n%s\n",
+					e.TopicPartition, string(e.Value))
+				if e.Headers != nil {
+					fmt.Printf("%% Headers: %v\n", e.Headers)
+				}
+				_, err := c.StoreMessage(e)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%% Error storing offset after message %s:\n",
+						e.TopicPartition)
+				}
+			case kafka.Error:
+				// Errors should generally be considered
+				// informational, the client will try to
+				// automatically recover.
+				// But in this example we choose to terminate
+				// the application if all brokers are down.
+				fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+				if e.Code() == kafka.ErrAllBrokersDown {
+					run = false
+				}
+			case kafka.OAuthBearerTokenRefresh:
+				handleOAuthBearerTokenRefreshEvent(c, e)
+			default:
+				fmt.Printf("Ignored %v\n", e)
+			}
 		}
-	}(p.Events())
-
-	// Get Metadata and print the broker list.
-	md, err := p.GetMetadata(nil, false, 5000)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to acquire metadata: %s\n", err)
-		p.Close()
-		os.Exit(1)
 	}
 
-	for _, broker := range md.Brokers {
-		fmt.Printf("Broker %d: %s:%d\n",
-			broker.ID, broker.Host, broker.Port)
-	}
-
-	p.Close()
+	fmt.Printf("Closing consumer\n")
+	c.Close()
 }
