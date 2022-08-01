@@ -44,7 +44,11 @@ Examples
 
   [mockcluster_example](mockcluster_example) - Use a mock cluster for testing
 
-  [oauthbearer_example](oauthbearer_example) - Provides unsecured SASL/OAUTHBEARER example
+  [oauthbearer_consumer](oauthbearer_consumer) - Provides unsecured SASL/OAUTHBEARER consumer example
+
+  [oauthbearer_oidc_example](oauthbearer_oidc_example) - SASL/OAUTHBEARER with OIDC method example
+  
+  [oauthbearer_producer](oauthbearer_producer) - Provides unsecured SASL/OAUTHBEARER producer example
 
   [producer_custom_channel_example](producer_custom_channel_example) - Function based producer with a custom delivery channel
 
