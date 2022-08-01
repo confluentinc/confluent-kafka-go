@@ -1,6 +1,19 @@
 # Confluent's Golang client for Apache Kafka
 
 
+## v1.9.2
+
+This is a maintenance release:
+
+ * Bundles librdkafka v1.9.2
+ * Example for using go clients with AWS lambda (@jliunyu, #823)
+
+
+confluent-kafka-go is based on librdkafka v1.9.2, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.9.1
 
 This is a feature release:
