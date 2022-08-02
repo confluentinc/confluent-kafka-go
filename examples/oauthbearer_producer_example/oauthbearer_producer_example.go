@@ -1,5 +1,5 @@
 /**
- * Copyright 2019 Confluent Inc.
+ * Copyright 2022 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Example client with a custom OAUTHBEARER token implementation.
+// Example producer with a custom OAUTHBEARER token implementation.
 package main
 
 import (
@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -48,6 +50,7 @@ const (
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
 // previously-received token is 80% of the way to its expiration time).
 func handleOAuthBearerTokenRefreshEvent(client kafka.Handle, e kafka.OAuthBearerTokenRefresh) {
+	fmt.Fprintf(os.Stderr, "Token refresh\n")
 	oauthBearerToken, retrieveErr := retrieveUnsecuredToken(e)
 	if retrieveErr != nil {
 		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
@@ -93,7 +96,8 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh) (kafka.OAuthBearerT
 	// We then exit immediately after that, so no additional token refreshes will occur.
 	// Therefore set the lifetime to be an hour (though anything on the order of a minute or more
 	// would be fine).
-	expiration := now.Add(time.Second * time.Duration(3600))
+	// In this example it's kept very short to quickly show the token refresh event in action.
+	expiration := now.Add(time.Second * 3)
 	expirationSecondsSinceEpoch := expiration.Unix()
 
 	oauthbearerMapForJSON := map[string]interface{}{
@@ -116,13 +120,14 @@ func retrieveUnsecuredToken(e kafka.OAuthBearerTokenRefresh) (kafka.OAuthBearerT
 
 func main() {
 
-	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
+	if len(os.Args) != 4 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <topic> \"[principalClaimName=<claimName>] principal=<value>\"\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	oauthConf := os.Args[2]
+	topic := os.Args[2]
+	oauthConf := os.Args[3]
 
 	// You'll probably need to modify this configuration to
 	// match your environment.
@@ -153,17 +158,39 @@ func main() {
 		}
 	}(p.Events())
 
-	// Get Metadata and print the broker list.
-	md, err := p.GetMetadata(nil, false, 5000)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to acquire metadata: %s\n", err)
-		p.Close()
-		os.Exit(1)
-	}
+	run := true
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	for _, broker := range md.Brokers {
-		fmt.Printf("Broker %d: %s:%d\n",
-			broker.ID, broker.Host, broker.Port)
+	msgcnt := 0
+	for run {
+		select {
+		case sig := <-signalChannel:
+			fmt.Printf("Caught signal %v: terminating\n", sig)
+			run = false
+		default:
+			value := fmt.Sprintf("Producer example, message #%d", msgcnt)
+			err = p.Produce(&kafka.Message{
+				TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+				Value:          []byte(value),
+				Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+			}, nil)
+
+			if err != nil {
+				if err.(kafka.Error).Code() == kafka.ErrQueueFull {
+					// Producer queue is full, wait 1s for messages
+					// to be delivered then try again.
+					time.Sleep(time.Second)
+					continue
+				}
+				fmt.Printf("Failed to produce message: %v\n", err)
+			} else {
+				fmt.Printf("Produced message: %s\n", value)
+			}
+
+			time.Sleep(1 * time.Second)
+			msgcnt++
+		}
 	}
 
 	p.Close()
