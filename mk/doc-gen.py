@@ -24,12 +24,13 @@ if __name__ == '__main__':
         sys.exit(1)
     package = sys.argv[1]
 
-    tag = "v1.9.1"
+    tag = "v1.9.2"
     base_css = "https://go.dev/css"
     base_js = "https://go.dev/js"
     base_src = "https://github.com/confluentinc/" + \
                f"confluent-kafka-go/blob/{tag}"
     base_pkg = "https://pkg.go.dev"
+    license = "https://go.dev/LICENSE"
 
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
@@ -59,6 +60,8 @@ if __name__ == '__main__':
             t['href'] = convert_path(href, base_src, "/confluent-kafka-go/")
         elif href.startswith("/pkg/"):
             t['href'] = convert_path(href, base_pkg, "/pkg/")
+        elif href == "/LICENSE":
+            t['href'] = license
 
     for t in soup.find_all(src=re.compile(r'^/')):
         if t['src'].endswith(".js"):
