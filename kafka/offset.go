@@ -72,8 +72,8 @@ func (o *Offset) Set(offset interface{}) error {
 	return err
 }
 
-// NewOffset creates a new Offset using the provided logical string, or an
-// absolute int64 offset value.
+// NewOffset creates a new Offset using the provided logical string, an
+// absolute int64 offset value, or a concrete Offset type.
 // Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "stored"
 func NewOffset(offset interface{}) (Offset, error) {
 
