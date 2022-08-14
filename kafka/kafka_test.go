@@ -131,6 +131,22 @@ func TestOffsetAPIs(t *testing.T) {
 		t.Errorf("Failed to change offset. Expect (%v), got (%v)\n", 10, offset)
 	}
 
+	// test passing explicit 'Offset' type
+	err = offset.Set(OffsetBeginning)
+	if err != nil {
+		t.Errorf("Cannot set offset to (%v). Error: %s \n", OffsetBeginning, err)
+	} else if offset != OffsetBeginning {
+		t.Errorf("Failed to change offset. Expect (%v), got %v\n", OffsetBeginning, offset)
+	}
+
+	// test passing explicit 'Offset' type
+	err = offset.Set(OffsetEnd)
+	if err != nil {
+		t.Errorf("Cannot set offset to (%v). Error: %s \n", OffsetEnd, err)
+	} else if offset != OffsetEnd {
+		t.Errorf("Failed to change offset. Expect (%v), got %v\n", OffsetEnd, offset)
+	}
+
 	// test OffsetTail()
 	tail := OffsetTail(offset)
 	t.Logf("offset tail %v\n", tail)
