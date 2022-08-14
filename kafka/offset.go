@@ -107,6 +107,8 @@ func NewOffset(offset interface{}) (Offset, error) {
 		return Offset((int64)(v)), nil
 	case int64:
 		return Offset(v), nil
+	case Offset:
+		return Offset(v), nil
 	default:
 		return OffsetInvalid, newErrorFromString(ErrInvalidArg,
 			fmt.Sprintf("Invalid offset type: %t", v))
