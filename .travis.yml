@@ -17,6 +17,13 @@ jobs:
    os: linux
    env:
     - EXPECT_LINK_INFO="static"
+ - name: "Go 1.16 Linux arm64 bundled librdkafka"
+   if: tag is present
+   go: "1.16"
+   os: linux
+   arch: arm64
+   env:
+    - EXPECT_LINK_INFO="static"
  - name: "Go 1.16 OSX dynamic librdkafka"
    if: tag is present
    go: "1.16"
