@@ -53,10 +53,13 @@ jobs:
     - EXPECT_LINK_INFO="static"
 
 before_install:
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get update -q ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install confluent-librdkafka-plugins -y ; fi
+  - |-
+      if [[ $TRAVIS_OS_NAME == linux && $TRAVIS_CPU_ARCH == amd64 ]]; then 
+        wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ;
+        sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y;
+        sudo apt-get update -q;
+        sudo apt-get install confluent-librdkafka-plugins -y;
+      fi
   - rm -rf tmp-build
   - if [[ -n $BUILD_TYPE ]]; then bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
   - go get -u golang.org/x/lint/golint && touch .do_lint
