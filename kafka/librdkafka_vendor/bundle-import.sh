@@ -46,14 +46,30 @@ setup_build() {
     local apath=$2
     local pc=$3
     local srcinfo=$4
-    local build_tag=
+    local build_tag=""
     local gpath="../build_${btype}.go"
     local dpath="librdkafka_${btype}.a"
 
+    if [[ $btype =~ ^.*_linux(_arm64)?$ ]]; then
+        build_tag=$"$build_tag// +build linux"$'\n'
+    fi
+    if [[ $btype =~ ^windows$ ]]; then
+        build_tag="$build_tag// +build windows"$'\n'
+    fi
+    if [[ $btype =~ ^darwin_.*$ ]]; then
+        build_tag="$build_tag// +build darwin"$'\n'
+    fi
+
+    if [[ $btype =~ ^.*_arm64$ ]]; then
+        build_tag="$build_tag// +build arm64"$'\n'
+    else
+        build_tag="$build_tag// +build amd64"$'\n'
+    fi
+
     if [[ $btype =~ ^glibc_linux(_arm64)?$ ]]; then
-        build_tag="// +build !musl"
+        build_tag="$build_tag// +build !musl"$'\n'
     elif [[ $btype =~ ^musl_linux(_arm64)?$ ]]; then
-        build_tag="// +build musl"
+        build_tag="$build_tag// +build musl"$'\n'
     fi
 
     local dynlibs=$(parse_pc_dynlibs $pc)
@@ -61,7 +77,9 @@ setup_build() {
     echo "Copying $apath to $dpath"
     cp "$apath" "$dpath"
 
-    echo "Generating $gpath (extra build tag: $build_tag)"
+    echo "Generating $gpath (
+extra build tag:
+$build_tag)"
 
     cat >$gpath <<EOF
 // +build !dynamic
