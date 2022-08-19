@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## v1.9.3
+
+This is a maintenance release:
+
+ * Bundles librdkafka v1.9.3.
+ * Built-in support for Linux / arm64. (#818).
+
+confluent-kafka-go is based on librdkafka v1.9.3, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v1.9.2
 
