@@ -15,6 +15,7 @@ require (
 )
 
 retract (
+	v1.9.3-RC2
 	v1.9.3-RC1-test
 	v1.9.3-RC1
 )
