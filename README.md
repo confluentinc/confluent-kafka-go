@@ -42,6 +42,11 @@ High-level balanced consumer
 ```golang
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
@@ -59,8 +64,16 @@ func main() {
 
 	c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
 
-	for {
-		msg, err := c.ReadMessage(-1)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT)
+	closed := false
+	go func() {
+		<-sig
+		closed = true
+	}()
+
+	for !closed {
+		msg, err := c.ReadMessage(100 * time.Millisecond)
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
 		} else {
