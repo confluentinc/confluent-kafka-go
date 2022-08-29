@@ -17,12 +17,30 @@
 package avro
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 )
+
+func testMessageFactoryGeneric(subject string, name string) (interface{}, error) {
+	if subject != "topic1-value" {
+		return nil, errors.New("Message factory only handles topic1.")
+	}
+
+	switch name {
+	case "GenericDemoSchema":
+		return &GenericDemoSchema{}, nil
+	case "GenericLinkedList":
+		return &GenericLinkedList{}, nil
+	case "GenericNestedTestRecord":
+		return &GenericNestedTestRecord{}, nil
+	}
+
+	return nil, errors.New("Schema not found.")
+}
 
 func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
@@ -47,10 +65,14 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactoryGeneric
 
 	var newobj GenericDemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 func TestGenericAvroSerdeWithNested(t *testing.T) {
@@ -80,10 +102,14 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactoryGeneric
 
 	var newobj GenericNestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 func TestGenericAvroSerdeWithCycle(t *testing.T) {
@@ -111,10 +137,14 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactoryGeneric
 
 	var newobj GenericLinkedList
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 type GenericDemoSchema struct {
