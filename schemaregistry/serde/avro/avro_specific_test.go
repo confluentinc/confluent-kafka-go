@@ -17,12 +17,30 @@
 package avro
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
 )
+
+func testMessageFactorySpecific(subject string, name string) (interface{}, error) {
+	if subject != "topic1-value" {
+		return nil, errors.New("Message factory only handles topic1.")
+	}
+
+	switch name {
+	case "DemoSchema":
+		return &test.DemoSchema{}, nil
+	case "NestedTestRecord":
+		return &test.NestedTestRecord{}, nil
+	case "RecursiveUnionTestRecord":
+		return &test.RecursiveUnionTestRecord{}, nil
+	}
+
+	return nil, errors.New("Schema not found.")
+}
 
 func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
@@ -47,10 +65,14 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactorySpecific
 
 	var newobj test.DemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 func TestSpecificAvroSerdeWithNested(t *testing.T) {
@@ -85,10 +107,14 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactorySpecific
 
 	var newobj test.NestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 func TestSpecificAvroSerdeWithCycle(t *testing.T) {
@@ -118,8 +144,12 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactorySpecific
 
 	var newobj test.RecursiveUnionTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }

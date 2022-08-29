@@ -139,7 +139,11 @@ func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interf
 		return nil, err
 	}
 	r := bytes.NewReader(payload[5:])
-	return vm.Eval(r, deser, avroMsg), nil
+
+	if err = vm.Eval(r, deser, avroMsg); err != nil {
+		return nil, err
+	}
+	return avroMsg, nil
 }
 
 // DeserializeInto implements deserialization of specific Avro data to the given object
