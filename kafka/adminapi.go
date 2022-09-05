@@ -28,6 +28,13 @@ import (
 #include "select_rdkafka.h"
 #include <stdlib.h>
 
+static const rd_kafka_group_result_t *
+group_result_by_idx (const rd_kafka_group_result_t **groups, size_t cnt, size_t idx) {
+    if (idx >= cnt)
+      return NULL;
+    return groups[idx];
+}
+
 static const rd_kafka_topic_result_t *
 topic_result_by_idx (const rd_kafka_topic_result_t **topics, size_t cnt, size_t idx) {
     if (idx >= cnt)
@@ -93,12 +100,28 @@ type TopicResult struct {
 	Error Error
 }
 
+// GroupResult provides per-group operation result (error) information.
+type GroupResult struct {
+	// Group name
+	Group string
+	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
+	Error Error
+}
+
 // String returns a human-readable representation of a TopicResult.
 func (t TopicResult) String() string {
 	if t.Error.code == 0 {
 		return t.Topic
 	}
 	return fmt.Sprintf("%s (%s)", t.Topic, t.Error.str)
+}
+
+// String returns a human-readable representation of a GroupResult.
+func (t GroupResult) String() string {
+	if t.Error.code == ErrNoError {
+		return t.Group
+	}
+	return fmt.Sprintf("%s (%s)", t.Group, t.Error.str)
 }
 
 // TopicSpecification holds parameters for creating a new topic.
@@ -617,6 +640,20 @@ func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t
 	}
 }
 
+// cToGroupResults converts a C group_result_t array to Go GroupResult list.
+func (a *AdminClient) cToGroupResults(cGroupRes **C.rd_kafka_group_result_t, cCnt C.size_t) (result []GroupResult, err error) {
+
+	result = make([]GroupResult, int(cCnt))
+
+	for i := 0; i < int(cCnt); i++ {
+		cGroup := C.group_result_by_idx(cGroupRes, cCnt, C.size_t(i))
+		result[i].Group = C.GoString(C.rd_kafka_group_result_name(cGroup))
+		result[i].Error = newErrorFromCError(C.rd_kafka_group_result_error(cGroup))
+	}
+
+	return result, nil
+}
+
 // cToTopicResults converts a C topic_result_t array to Go TopicResult list.
 func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCnt C.size_t) (result []TopicResult, err error) {
 
@@ -897,6 +934,64 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options
 	cTopicRes := C.rd_kafka_DeleteTopics_result_topics(cRes, &cCnt)
 
 	return a.cToTopicResults(cTopicRes, cCnt)
+}
+
+// DeleteGroups delete a batch of consumer groups
+func (a *AdminClient) DeleteGroups(ctx context.Context, groups []string, options ...DeleteGroupsAdminOption) (result []GroupResult, err error) {
+	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	// Convert Go DeleteGroups to C DeleteGroups
+	for i, group := range groups {
+		cGroups[i] = C.rd_kafka_DeleteGroup_new(C.CString(group))
+		if cGroups[i] == nil {
+			return nil, newErrorFromString(ErrInvalidArg,
+				fmt.Sprintf("Invalid arguments for group %s", group))
+		}
+
+		defer C.rd_kafka_DeleteGroup_destroy(cGroups[i])
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_DELETEGROUPS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_DeleteGroups(
+		a.handle.rk,
+		(**C.rd_kafka_DeleteGroup_t)(&cGroups[0]),
+		C.size_t(len(cGroups)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEGROUPS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DeleteGroups_result(rkev)
+
+	// Convert result from C to Go
+	var cCnt C.size_t
+	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
+
+	return a.cToGroupResults(cGroupRes, cCnt)
 }
 
 // CreatePartitions creates additional partitions for topics.

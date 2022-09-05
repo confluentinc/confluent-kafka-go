@@ -225,6 +225,13 @@ type DeleteTopicsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
+// DeleteGroupsAdminOption - see setters.
+//
+// See SetAdminRequestTimeout, SetAdminOperationTimeout.
+type DeleteGroupsAdminOption interface {
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
 // CreatePartitionsAdminOption - see setters.
 //
 // See SetAdminRequestTimeout, SetAdminOperationTimeout, SetAdminValidateOnly.

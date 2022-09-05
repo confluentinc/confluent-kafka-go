@@ -1228,6 +1228,145 @@ func validateTopicResult(t *testing.T, result []TopicResult, expError map[string
 	}
 }
 
+// TestAdminClient_DeleteGroups verifies the working of the DeleteGroups API in the admin client.
+// It does so by checking the offset of the consumer before (but after producing a message) and after deleting the
+// consumer group.
+// TODO: Change this test once DescribeGroup is available.
+func TestAdminClient_DeleteGroups(t *testing.T) {
+	rand.Seed(time.Now().Unix())
+
+	// Generating new groupID to ensure a fresh group is created.
+	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{{
+		Topic:         testconf.Topic,
+		NumPartitions: 1,
+	}})
+	if err != nil {
+		t.Fatalf("Failed to create a topic: %s\n", err)
+	}
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config.updateFromTestconf()
+
+	// Create producer
+	producer, err := NewProducer(config)
+	if err != nil {
+		t.Fatalf("Failed to create Producer client: %s\n", err)
+	}
+	defer producer.Close()
+
+	drChan := make(chan Event, 10)
+
+	// Produce with function, DR on passed drChan
+	err = producer.Produce(&Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		Value: []byte("This is my value"), Key: []byte("This is my key")},
+		drChan)
+	if err != nil {
+		t.Fatalf("Failed to produce message: %s\n", err)
+		return
+	}
+
+	// Create consumer
+	config = &ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+		"group.id":          groupID,
+		"auto.offset.reset": "earliest",
+	}
+	config.updateFromTestconf()
+	consumer, err := NewConsumer(config)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %s\n", err)
+	}
+
+	if err := consumer.Subscribe(testconf.Topic, nil); err != nil {
+		t.Fatalf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
+	}
+
+	msg, err := consumer.ReadMessage(-1)
+	if err != nil {
+		t.Fatalf("Failed to read message: %s\n", err)
+		return
+	}
+	consumer.StoreMessage(msg)
+	_, err = consumer.Commit()
+	if err != nil {
+		t.Fatalf("Failed to commit: %s\n", err)
+		return
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	committedOffsets, err := consumer.Committed(
+		[]TopicPartition{{Topic: &testconf.Topic, Partition: 0}}, 30*1000)
+	if err != nil {
+		t.Fatalf("Failed to get committed offset: %s\n", err)
+		return
+	}
+	if committedOffsets[0].Offset != 1 {
+		t.Fatalf("Expected offset 1 for partition 0, but found %v", committedOffsets[0].Offset)
+		return
+	}
+
+	// Try deleting the group while consumer is active. It should fail.
+	result, err := ac.DeleteGroups(ctx, []string{groupID})
+	if err != nil {
+		t.Fatalf("DeleteGroups() failed: %s", err)
+	}
+
+	if len(result) != 1 || result[0].Group != groupID {
+		t.Fatalf("Wrong group affected/no group affected")
+	}
+
+	if result[0].Error.code != ErrNonEmptyGroup {
+		t.Fatalf("Encountered the wrong error after calling DeleteGroups %s", result[0].Error)
+	}
+
+	consumer.Close()
+
+	// Delete the consumer group now.
+	result, err = ac.DeleteGroups(ctx, []string{groupID})
+	if err != nil {
+		t.Fatalf("DeleteGroups() failed: %s", err)
+	}
+
+	if len(result) != 1 || result[0].Group != groupID {
+		t.Fatalf("Wrong group affected/no group affected")
+	}
+
+	if result[0].Error.code != ErrNoError {
+		t.Fatalf("Encountered an error after calling DeleteGroups %s", result[0].Error)
+	}
+
+	consumer, err = NewConsumer(config)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %s\n", err)
+		return
+	}
+	defer consumer.Close()
+
+	// Calling Poll is required to trigger a rebalance.
+	consumer.Poll(1000)
+
+	// Committed Offset should reset
+	committedOffsets, err = consumer.Committed(
+		[]TopicPartition{{Topic: &testconf.Topic, Partition: 0}}, 30*1000)
+	if err != nil {
+		t.Fatalf("Failed to get committed offset after DeleteGroups(): %s\n", err)
+		return
+	}
+	if committedOffsets[0].Offset != OffsetInvalid {
+		t.Fatalf("Expected offset unset for partition 0 after DeleteGroups(), but found %v", committedOffsets[0].Offset)
+		return
+	}
+}
 func TestAdminTopics(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 
