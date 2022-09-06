@@ -125,6 +125,10 @@ rd_kafka_resp_err_t err;
       return RD_KAFKA_RESP_ERR_NO_ERROR;
 #endif
 }
+
+// Declaration of the C function which sets the common C callback function (that is used by all Go Kafka clients)
+// into the configuration.
+extern void set_plain_creds_cb(rd_kafka_conf_t *conf);
 */
 import "C"
 
@@ -500,10 +504,22 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		}
 	}
 
+	// If the caller wants to use a Go function as the credentials callback, obtain a pointer to that callback
+	// function and remove that key from the configuration map (because it is not recognized by librdkafka).
+	cbFun, err := extractCallbackFromConfigMap(&confCopy)
+	if err != nil {
+		return nil, err
+	}
+
 	// Convert ConfigMap to librdkafka conf_t
 	cConf, err := confCopy.convert()
 	if err != nil {
 		return nil, err
+	}
+
+	// Inserts the C callback (which delegates to the Go callback provided by the user) into the configuration.
+	if cbFun != nil {
+		C.set_plain_creds_cb(cConf)
 	}
 
 	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
@@ -515,6 +531,14 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if p.handle.rk == nil {
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
+	}
+
+	// Inserts the Go callback into the disambiguation map for this client.
+	// Note: Since this happens _after_ the Kafka client has been created, there is a window where a callback
+	// might happen but the (Go) callback has not been registered yet. This might cause the first few connections
+	// to the broker to fail!
+	if cbFun != nil {
+		insertPlainCredsCallback(unsafe.Pointer(p.handle.rk), cbFun)
 	}
 
 	p.handle.p = p
