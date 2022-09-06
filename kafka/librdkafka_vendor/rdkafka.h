@@ -2127,6 +2127,55 @@ void rd_kafka_conf_set_oauthbearer_token_refresh_cb(
                                          void *opaque));
 
 /**
+ * @brief Set SASL/PLAIN credential callback in provided conf object.
+ *
+ * @param conf the configuration to mutate.
+ * @param plain_creds_cb the callback to set; callback function
+ *  arguments:<br>
+ *   \p rk - Kafka handle<br>
+ *   \p username - Pointer to the receiving area for the SASL username (may be
+ *                 NULL)
+ *   \p username_size - Pointer to the number of bytes available in the
+ *                      receiving area. If this is not enough, set this to
+ *                      the number of bytes required.
+ *   \p password - Pointer to the receiving area for the SASL password (may be
+ *                 NULL)
+ *   \p password_size - Pointer to the number of bytes available in the
+ *                      receiving area. If this is not enough, set this to the
+ *                      number of bytes required,
+ *
+ * Users of the SASL/PLAIN authentication mechanism can opt to set the SASL
+ * username and password statically in the configuration or specify this
+ * callback. If the callback is set, then neither the sasl.username nor the
+ * sasl.password field may be set.
+ *
+ * Whenever the SASL/PLAIN implementation needs the SASL username and/or
+ * password it will call this callback. The callback needs to set the memory
+ * pointed to by *username and *password to the credentials to be used. The
+ * username_size and password_size fields point to integers that indicate how
+ * much memory is available in each of the receiving areas.
+ * If the receiving area cannot hold the username or password the callback
+ * should set these pointers to the number of bytes required (including the
+ * terminating 0x00 byte and return -1, and 0 otherwise.
+ *
+ * The SASL/PLAIN implementation does not cache the provided username and
+ * password. The callback will be called _every_ time the username and/or
+ * password is needed.
+ *
+ * If username or password is NULL that means that we are not interested
+ * in that particular bit of information. Use the if statement in your callback
+ * to detect this condition :-) In that case the pointer to the
+ * provided/required size will be NULL too.
+ */
+RD_EXPORT
+void rd_kafka_conf_set_plain_creds_cb(rd_kafka_conf_t *conf,
+                                      int (*plain_creds_cb)(rd_kafka_t *rk,
+                                                            char *username,
+                                                            size_t *username_size,
+                                                            char *password,
+                                                            size_t *password_size));
+
+/**
  * @brief Enable/disable creation of a queue specific to SASL events
  *        and callbacks.
  *
@@ -2155,7 +2204,6 @@ void rd_kafka_conf_set_oauthbearer_token_refresh_cb(
 
 RD_EXPORT
 void rd_kafka_conf_enable_sasl_queue(rd_kafka_conf_t *conf, int enable);
-
 
 /**
  * @brief Set socket callback.
