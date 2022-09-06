@@ -671,6 +671,23 @@ func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartiti
 	return newTopicPartitionsFromCparts(cparts), nil
 }
 
+// populateErrorsFromTopicPartitionToTopicPartition sets the error from the
+// first i partitions of src into the first i partitions of dst, where i is
+// min(len(src), len(dst)).
+// Returns the total number of not-nil errors set on dst.
+func populateErrorsFromTopicPartitionToTopicPartition(
+	src []TopicPartition, dst []TopicPartition) int {
+	errcnt := 0
+	for idx := 0; idx < len(src) && idx < len(dst); idx++ {
+		dst[idx].Error = src[idx].Error
+		if dst[idx].Error != nil {
+			errcnt++
+		}
+	}
+
+	return errcnt
+}
+
 // Pause consumption for the provided list of partitions
 //
 // Note that messages already enqueued on the consumer's Event channel
@@ -679,22 +696,36 @@ func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartiti
 func (c *Consumer) Pause(partitions []TopicPartition) (err error) {
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
-	cerr := C.rd_kafka_pause_partitions(c.handle.rk, cparts)
-	if cerr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return newError(cerr)
+	C.rd_kafka_pause_partitions(c.handle.rk, cparts)
+
+	updatedPartitions := newTopicPartitionsFromCparts(cparts)
+	errcnt := populateErrorsFromTopicPartitionToTopicPartition(
+		updatedPartitions, partitions)
+
+	err = nil
+	if errcnt > 0 {
+		err = fmt.Errorf(
+			"%d error(s), check elements of the `partitions` slice for specific errors", errcnt)
 	}
-	return nil
+	return err
 }
 
 // Resume consumption for the provided list of partitions
 func (c *Consumer) Resume(partitions []TopicPartition) (err error) {
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
-	cerr := C.rd_kafka_resume_partitions(c.handle.rk, cparts)
-	if cerr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		return newError(cerr)
+	C.rd_kafka_resume_partitions(c.handle.rk, cparts)
+	updatedPartitions := newTopicPartitionsFromCparts(cparts)
+	errcnt := populateErrorsFromTopicPartitionToTopicPartition(
+		updatedPartitions, partitions)
+
+	err = nil
+	if errcnt > 0 {
+		err = fmt.Errorf(
+			"%d error(s), check elements of the `partitions` slice for specific errors", errcnt)
 	}
-	return nil
+
+	return err
 }
 
 // SetOAuthBearerToken sets the the data to be transmitted
