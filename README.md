@@ -44,7 +44,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -65,7 +64,8 @@ func main() {
 	c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT)
+	// get notified by signal when interrupted and break the consuming loop
+	signal.Notify(sig, os.Interrupt)
 	closed := false
 	go func() {
 		<-sig
