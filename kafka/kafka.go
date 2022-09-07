@@ -44,7 +44,7 @@
 // `"go.application.rebalance.enable": true` to the `NewConsumer()` call
 // mentioned above. You will (eventually) see a `kafka.AssignedPartitions` event
 // with the assigned partition set. You can optionally modify the initial
-// offsets (they'll default to stored offsets and if there are no previously stored
+// offsets (they'll default to committed offsets and if there are no previously committed
 // offsets it will fall back to `"auto.offset.reset"`
 // which defaults to the `latest` message) and then call `.Assign(partitions)`
 // to start consuming. If you don't need to modify the initial offsets you will
