@@ -1672,7 +1672,86 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	// Convert result from C to Go.
 	var cGroupCount C.size_t
 	cGroups := C.rd_kafka_ListConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
-	fmt.Println(cGroupCount)
+
+	return a.cToGroupTopicPartitions(cGroups, cGroupCount), nil
+}
+
+// AlterConsumerGroupOffsets alters the offsets for topic partition(s) for consumer group(s).
+//
+// Parameters:
+//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//  * `groupsPartitions` - a slice of GroupTopicPartitions, each element of which has the id
+//     of a consumer group, and a slice of the TopicPartitions we need to alter the offsets for.
+//     Currently, the size of `groupsPartitions` has to be exactly one.
+//  * `options` - AlterConsumerGroupOffsetsAdminOption options.
+//
+// Returns a slice of GroupTopicPartitions corresponding to the input slice, plus an error that
+// is not `nil` for client level errors. Individual TopicPartitions inside each of
+// the GroupTopicPartitions should also be checked for errors.
+// This will succeed at the partition level only if the group is not actively subscribed to the
+// corresponding topic(s).
+func (a *AdminClient) AlterConsumerGroupOffsets(
+	ctx context.Context, groupsPartitions []GroupTopicPartitions,
+	options ...AlterConsumerGroupOffsetsAdminOption) (result []GroupTopicPartitions, err error) {
+	// For now, we only support one group at a time given as a single element of groupsPartitions.
+	// Code has been written so that only this if-guard needs to be removed when we add support for
+	// multiple GroupTopicPartitions.
+	if len(groupsPartitions) != 1 {
+		return nil, fmt.Errorf("expected length of groupsPartitions is 1, got %d", len(groupsPartitions))
+	}
+
+	cGroupsPartitions := make([]*C.rd_kafka_AlterConsumerGroupOffsets_t, len(groupsPartitions))
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	// Convert Go GroupTopicPartitions to C AlterConsumerGroupOffsets.
+	for i, groupPartitions := range groupsPartitions {
+		// We don't need to destroy this list because rd_kafka_AlterConsumerGroupOffsets_destroy
+		// takes care of it.
+		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
+
+		cGroupsPartitions[i] =
+			C.rd_kafka_AlterConsumerGroupOffsets_new(C.CString(groupPartitions.Group), cPartitions)
+		defer C.rd_kafka_AlterConsumerGroupOffsets_destroy(cGroupsPartitions[i])
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_AlterConsumerGroupOffsets (asynchronous).
+	C.rd_kafka_AlterConsumerGroupOffsets(
+		a.handle.rk,
+		(**C.rd_kafka_AlterConsumerGroupOffsets_t)(&cGroupsPartitions[0]),
+		C.size_t(len(cGroupsPartitions)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_AlterConsumerGroupOffsets_result(rkev)
+
+	// Convert result from C to Go.
+	var cGroupCount C.size_t
+	cGroups := C.rd_kafka_AlterConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
 
 	return a.cToGroupTopicPartitions(cGroups, cGroupCount), nil
 }
