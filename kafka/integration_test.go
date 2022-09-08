@@ -1852,3 +1852,125 @@ func TestAdminACLs(t *testing.T) {
 	}
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
+
+// TestAdminClient_ListConsumerGroupOffsets tests the API ListConsumerGroupOffsets API.
+// It is checked by producing to a topic, and consuming it, and then checking the offset
+// of the topicpartition for that group.
+// TODO(milind): we can probably use the same function to test Alter as well once I've
+// written the binding for it.
+func TestAdminClient_ListConsumerGroupOffsets(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// Create a topic.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         testconf.Topic,
+			NumPartitions: 1,
+		},
+	})
+	if err != nil {
+		t.Errorf("Topic creation failed with error %v", err)
+		return
+	}
+
+	// Delete the topic after the test is done.
+	defer func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{testconf.Topic})
+		if err != nil {
+			t.Errorf("Topic deletion failed with error %v", err)
+		}
+	}()
+
+	// Produce to the topic.
+	producer, err := NewProducer(&ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+	})
+	if err != nil {
+		t.Errorf("Producer could not be created with error %v", err)
+		return
+	}
+	defer producer.Close()
+
+	err = producer.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		Value:          []byte("Value"),
+	}, nil)
+	if err != nil {
+		t.Errorf("Produce failed with error %v", err)
+		return
+	}
+
+	producer.Flush(-1)
+
+	// Consume from the topic.
+	consumer, err := NewConsumer(&ConfigMap{
+		"bootstrap.servers":        testconf.Brokers,
+		"group.id":                 testconf.GroupID,
+		"auto.offset.reset":        "earliest",
+		"enable.auto.offset.store": false,
+	})
+	if err != nil {
+		t.Errorf("Consumer could not be created with error %v", err)
+		return
+	}
+	defer consumer.Close()
+
+	if err = consumer.Subscribe(testconf.Topic, nil); err != nil {
+		t.Errorf("Consumer could not subscribe to the topic with an error %v", err)
+		return
+	}
+
+	msg, err := consumer.ReadMessage(-1)
+	if err != nil {
+		t.Errorf("Consumer failed to read a message with error %v", err)
+		return
+	}
+
+	if _, err = consumer.StoreMessage(msg); err != nil {
+		t.Errorf("Consumer failed to store the message with error %v, %s", err, msg.TopicPartition)
+		return
+	}
+
+	if _, err = consumer.Commit(); err != nil {
+		t.Errorf("Consumer failed to commit with error %v", err)
+		return
+	}
+
+	// List offsets for our group/partition.
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+		{
+			Group:      testconf.GroupID,
+			Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0}},
+		},
+	})
+	if err != nil {
+		t.Errorf("Failed to list offset with error %v", err)
+		return
+	}
+
+	if result == nil || len(result) != 1 {
+		t.Errorf("Result length %d doesn't match expected length of 1", len(result))
+		return
+	}
+
+	groupTopicParitions := result[0]
+	expectedResult := GroupTopicPartitions{
+		Group:      testconf.GroupID,
+		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: 1}},
+	}
+	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
+		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v", expectedResult, groupTopicParitions)
+		return
+	}
+}
