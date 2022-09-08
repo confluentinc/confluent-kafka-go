@@ -646,6 +646,30 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	topic := "topic"
+	lres, err := a.ListConsumerGroupOffsets(
+		ctx,
+		[]GroupTopicPartitions{
+			{
+				"test",
+				[]TopicPartition{
+					{
+						Topic:     &topic,
+						Partition: 0,
+					},
+				},
+			},
+		},
+		SetAdminRequireStable(false))
+	if lres != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v", lres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
 	testAdminAPIsCreateACLs(what, a, t)
 	testAdminAPIsDescribeACLs(what, a, t)
 	testAdminAPIsDeleteACLs(what, a, t)

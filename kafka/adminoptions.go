@@ -113,6 +113,8 @@ func (ao AdminOptionRequestTimeout) supportsAlterConfigs() {
 }
 func (ao AdminOptionRequestTimeout) supportsDescribeConfigs() {
 }
+func (ao AdminOptionOperationTimeout) supportsListConsumerGroupOffsets() {
+}
 
 func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
@@ -209,6 +211,53 @@ func SetAdminValidateOnly(validateOnly bool) (ao AdminOptionValidateOnly) {
 	return ao
 }
 
+// AdminOptionRequireStable decides if the broker should return stable
+// offsets (transaction-committed).
+//
+// Default: false
+//
+// Valid for ListConsumerGroupOffsets.
+type AdminOptionRequireStable struct {
+	isSet bool
+	val   bool
+}
+
+func (ao AdminOptionRequireStable) supportsListConsumerGroupOffsets() {
+}
+
+func (ao AdminOptionRequireStable) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
+	if !ao.isSet {
+		return nil
+	}
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cErr := C.rd_kafka_AdminOptions_set_require_stable(
+		cOptions, bool2cint(ao.val),
+		cErrstr, cErrstrSize)
+	if cErr != 0 {
+		C.rd_kafka_AdminOptions_destroy(cOptions)
+		return newCErrorFromString(cErr,
+			fmt.Sprintf("%s", C.GoString(cErrstr)))
+	}
+
+	return nil
+}
+
+// SetAdminRequireStable decides if the broker should return stable
+// offsets (transaction-committed).
+//
+// Default: false
+//
+// Valid for ListConsumerGroupOffsets.
+func SetAdminRequireStable(val bool) (ao AdminOptionRequireStable) {
+	ao.isSet = true
+	ao.val = val
+	return ao
+}
+
 // CreateTopicsAdminOption - see setters.
 //
 // See SetAdminRequestTimeout, SetAdminOperationTimeout, SetAdminValidateOnly.
@@ -270,6 +319,14 @@ type DescribeACLsAdminOption interface {
 // See SetAdminRequestTimeout
 type DeleteACLsAdminOption interface {
 	supportsDeleteACLs()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// ListConsumerGroupOffsetsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminRequireStable.
+type ListConsumerGroupOffsetsAdminOption interface {
+	supportsListConsumerGroupOffsets()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
