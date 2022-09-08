@@ -1853,15 +1853,16 @@ func TestAdminACLs(t *testing.T) {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
-// TestAdminClient_ListConsumerGroupOffsets tests the API ListConsumerGroupOffsets API.
-// It is checked by producing to a topic, and consuming it, and then checking the offset
-// of the topicpartition for that group.
-// TODO(milind): we can probably use the same function to test Alter as well once I've
-// written the binding for it.
-func TestAdminClient_ListConsumerGroupOffsets(t *testing.T) {
+// TestAdminClient_AlterListConsumerGroupOffsets tests the APIs ListConsumerGroupOffsets
+// and AlterConsumerGroupOffsets.
+// They are checked by producing to a topic, and consuming it, and then listing, modifying
+// and again listing the offset for that topic partition.
+func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
 	}
+
+	numMsgs := 5 // Needs to be > 1 to check alter.
 
 	ac := createAdminClient(t)
 	defer ac.Close()
@@ -1900,13 +1901,14 @@ func TestAdminClient_ListConsumerGroupOffsets(t *testing.T) {
 	}
 	defer producer.Close()
 
-	err = producer.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-		Value:          []byte("Value"),
-	}, nil)
-	if err != nil {
-		t.Errorf("Produce failed with error %v", err)
-		return
+	for i := 0; i < numMsgs; i++ {
+		if err = producer.Produce(&Message{
+			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			Value:          []byte("Value"),
+		}, nil); err != nil {
+			t.Errorf("Produce failed with error %v", err)
+			return
+		}
 	}
 
 	producer.Flush(-1)
@@ -1922,22 +1924,29 @@ func TestAdminClient_ListConsumerGroupOffsets(t *testing.T) {
 		t.Errorf("Consumer could not be created with error %v", err)
 		return
 	}
-	defer consumer.Close()
+	consumerClosed := false
+	defer func() {
+		if !consumerClosed {
+			consumer.Close()
+		}
+	}()
 
 	if err = consumer.Subscribe(testconf.Topic, nil); err != nil {
 		t.Errorf("Consumer could not subscribe to the topic with an error %v", err)
 		return
 	}
 
-	msg, err := consumer.ReadMessage(-1)
-	if err != nil {
-		t.Errorf("Consumer failed to read a message with error %v", err)
-		return
-	}
+	for i := 0; i < numMsgs; i++ {
+		msg, err := consumer.ReadMessage(-1)
+		if err != nil {
+			t.Errorf("Consumer failed to read a message with error %v", err)
+			return
+		}
 
-	if _, err = consumer.StoreMessage(msg); err != nil {
-		t.Errorf("Consumer failed to store the message with error %v, %s", err, msg.TopicPartition)
-		return
+		if _, err = consumer.StoreMessage(msg); err != nil {
+			t.Errorf("Consumer failed to store the message with error %v", err)
+			return
+		}
 	}
 
 	if _, err = consumer.Commit(); err != nil {
@@ -1945,10 +1954,44 @@ func TestAdminClient_ListConsumerGroupOffsets(t *testing.T) {
 		return
 	}
 
+	// Try altering offsets without closing the consumer - this should give an error.
+	// The error should be on a TopicPartition level, and not on the `err` level.
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	result, err := ac.AlterConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+		{
+			Group: testconf.GroupID,
+			Partitions: []TopicPartition{
+				{
+					Topic:     &testconf.Topic,
+					Partition: 0,
+					Offset:    Offset(numMsgs - 1),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Errorf("Unexpected error while altering offset %v", err)
+		return
+	}
+
+	if len(result) != 1 ||
+		len(result[0].Partitions) != 1 ||
+		result[0].Partitions[0].Error == nil {
+		t.Errorf("Unexpected result while altering offset, expected non-nil error in topic partition, got %v", result)
+		return
+	}
+
+	// Close consumer so we can safely alter offsets.
+	if err = consumer.Close(); err != nil {
+		t.Errorf("Consumer failed to close with error %v", err)
+		return
+	}
+	consumerClosed = true
+
 	// List offsets for our group/partition.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	result, err := ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+	result, err = ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
 		{
 			Group:      testconf.GroupID,
 			Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0}},
@@ -1967,10 +2010,77 @@ func TestAdminClient_ListConsumerGroupOffsets(t *testing.T) {
 	groupTopicParitions := result[0]
 	expectedResult := GroupTopicPartitions{
 		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: 1}},
+		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: Offset(numMsgs)}},
 	}
 	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
-		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v", expectedResult, groupTopicParitions)
+		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
+			expectedResult, groupTopicParitions)
 		return
 	}
+
+	// Alter offsets for our group/partitions.
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	result, err = ac.AlterConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+		{
+			Group: testconf.GroupID,
+			Partitions: []TopicPartition{
+				{
+					Topic:     &testconf.Topic,
+					Partition: 0,
+					Offset:    Offset(numMsgs - 1),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Errorf("Failed to alter offset with error %v", err)
+		return
+	}
+
+	if result == nil || len(result) != 1 {
+		t.Errorf("Result length %d doesn't match expected length of 1", len(result))
+		return
+	}
+
+	groupTopicParitions = result[0]
+	expectedResult = GroupTopicPartitions{
+		Group:      testconf.GroupID,
+		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
+	}
+	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
+		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
+			expectedResult, groupTopicParitions)
+		return
+	}
+
+	// Check altered offsets using ListConsumerGroupOffsets.
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err = ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+		{
+			Group:      testconf.GroupID,
+			Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0}},
+		},
+	})
+	if err != nil {
+		t.Errorf("Failed to list offset with error %v", err)
+		return
+	}
+
+	if result == nil || len(result) != 1 {
+		t.Errorf("Result length %d doesn't match expected length of 1", len(result))
+		return
+	}
+
+	groupTopicParitions = result[0]
+	expectedResult = GroupTopicPartitions{
+		Group:      testconf.GroupID,
+		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
+	}
+	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
+		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
+			expectedResult, groupTopicParitions)
+		return
+	}
+
 }

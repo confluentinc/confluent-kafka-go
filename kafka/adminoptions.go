@@ -115,6 +115,8 @@ func (ao AdminOptionRequestTimeout) supportsDescribeConfigs() {
 }
 func (ao AdminOptionOperationTimeout) supportsListConsumerGroupOffsets() {
 }
+func (ao AdminOptionOperationTimeout) supportsAlterConsumerGroupOffsets() {
+}
 
 func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
@@ -327,6 +329,14 @@ type DeleteACLsAdminOption interface {
 // See SetAdminRequestTimeout, SetAdminRequireStable.
 type ListConsumerGroupOffsetsAdminOption interface {
 	supportsListConsumerGroupOffsets()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// ListConsumerGroupOffsetsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout.
+type AlterConsumerGroupOffsetsAdminOption interface {
+	supportsAlterConsumerGroupOffsets()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
