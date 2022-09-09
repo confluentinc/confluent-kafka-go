@@ -1236,6 +1236,10 @@ func validateTopicResult(t *testing.T, result []TopicResult, expError map[string
 // consumer group.
 // TODO: Change this test once DescribeGroup is available.
 func TestAdminClient_DeleteGroups(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
 	rand.Seed(time.Now().Unix())
 
 	// Generating new groupID to ensure a fresh group is created.
@@ -1252,105 +1256,131 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 		NumPartitions: 1,
 	}})
 	if err != nil {
-		t.Fatalf("Failed to create a topic: %s\n", err)
+		t.Errorf("Failed to create a topic: %s\n", err)
+		return
 	}
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	config.updateFromTestconf()
 
-	// Create producer
+	// Create producer and produce a message.
 	producer, err := NewProducer(config)
 	if err != nil {
-		t.Fatalf("Failed to create Producer client: %s\n", err)
+		t.Errorf("Failed to create Producer client: %s\n", err)
+		return
 	}
 	defer producer.Close()
 
-	drChan := make(chan Event, 10)
-
-	// Produce with function, DR on passed drChan
-	err = producer.Produce(&Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-		Value: []byte("This is my value"), Key: []byte("This is my key")},
-		drChan)
+	err = producer.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		Value:          []byte("This is my value"), Key: []byte("This is my key")},
+		nil)
 	if err != nil {
-		t.Fatalf("Failed to produce message: %s\n", err)
+		t.Errorf("Failed to produce message: %s\n", err)
 		return
 	}
 
 	// Create consumer
 	config = &ConfigMap{
-		"bootstrap.servers": testconf.Brokers,
-		"group.id":          groupID,
-		"auto.offset.reset": "earliest",
+		"bootstrap.servers":        testconf.Brokers,
+		"group.id":                 groupID,
+		"auto.offset.reset":        "earliest",
+		"enable.auto.offset.store": false,
 	}
 	config.updateFromTestconf()
 	consumer, err := NewConsumer(config)
 	if err != nil {
-		t.Fatalf("Failed to create consumer: %s\n", err)
+		t.Errorf("Failed to create consumer: %s\n", err)
+		return
 	}
+	consumerClosed := false
+	defer func() {
+		if !consumerClosed {
+			consumer.Close()
+		}
+	}()
 
 	if err := consumer.Subscribe(testconf.Topic, nil); err != nil {
-		t.Fatalf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
+		return
 	}
 
 	msg, err := consumer.ReadMessage(-1)
 	if err != nil {
-		t.Fatalf("Failed to read message: %s\n", err)
+		t.Errorf("Failed to read message: %s\n", err)
 		return
 	}
-	consumer.StoreMessage(msg)
-	_, err = consumer.Commit()
-	if err != nil {
-		t.Fatalf("Failed to commit: %s\n", err)
+
+	if _, err = consumer.StoreMessage(msg); err != nil {
+		t.Errorf("Failed to store message offset: %s", err)
+		return
+	}
+
+	if _, err = consumer.Commit(); err != nil {
+		t.Errorf("Failed to commit: %s\n", err)
 		return
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
+	// Check the committed offset for this consumer.
 	committedOffsets, err := consumer.Committed(
 		[]TopicPartition{{Topic: &testconf.Topic, Partition: 0}}, 30*1000)
 	if err != nil {
-		t.Fatalf("Failed to get committed offset: %s\n", err)
+		t.Errorf("Failed to get committed offset: %s\n", err)
 		return
 	}
 	if committedOffsets[0].Offset != 1 {
-		t.Fatalf("Expected offset 1 for partition 0, but found %v", committedOffsets[0].Offset)
+		t.Errorf("Expected offset 1 for partition 0, but found %v", committedOffsets[0].Offset)
 		return
 	}
 
 	// Try deleting the group while consumer is active. It should fail.
 	result, err := ac.DeleteGroups(ctx, []string{groupID})
 	if err != nil {
-		t.Fatalf("DeleteGroups() failed: %s", err)
+		t.Errorf("DeleteGroups() failed: %s", err)
+		return
 	}
 
 	if len(result) != 1 || result[0].Group != groupID {
-		t.Fatalf("Wrong group affected/no group affected")
+		t.Errorf("Wrong group affected/no group affected")
+		return
 	}
 
 	if result[0].Error.code != ErrNonEmptyGroup {
-		t.Fatalf("Encountered the wrong error after calling DeleteGroups %s", result[0].Error)
+		t.Errorf("Encountered the wrong error after calling DeleteGroups %s", result[0].Error)
+		return
 	}
 
-	consumer.Close()
+	// Close the consumer.
+	if err = consumer.Close(); err != nil {
+		t.Errorf("Could not close consumer %s", err)
+		return
+	}
+	consumerClosed = true
 
 	// Delete the consumer group now.
 	result, err = ac.DeleteGroups(ctx, []string{groupID})
 	if err != nil {
-		t.Fatalf("DeleteGroups() failed: %s", err)
+		t.Errorf("DeleteGroups() failed: %s", err)
+		return
 	}
 
 	if len(result) != 1 || result[0].Group != groupID {
-		t.Fatalf("Wrong group affected/no group affected")
+		t.Errorf("Wrong group affected/no group affected")
+		return
 	}
 
 	if result[0].Error.code != ErrNoError {
-		t.Fatalf("Encountered an error after calling DeleteGroups %s", result[0].Error)
+		t.Errorf("Encountered an error after calling DeleteGroups %s", result[0].Error)
+		return
 	}
 
+	// Check for the absence of the consumer group after deletion.
 	consumer, err = NewConsumer(config)
 	if err != nil {
-		t.Fatalf("Failed to create consumer: %s\n", err)
+		t.Errorf("Failed to create consumer: %s\n", err)
 		return
 	}
 	defer consumer.Close()
@@ -1362,11 +1392,11 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	committedOffsets, err = consumer.Committed(
 		[]TopicPartition{{Topic: &testconf.Topic, Partition: 0}}, 30*1000)
 	if err != nil {
-		t.Fatalf("Failed to get committed offset after DeleteGroups(): %s\n", err)
+		t.Errorf("Failed to get committed offset after DeleteGroups(): %s\n", err)
 		return
 	}
 	if committedOffsets[0].Offset != OffsetInvalid {
-		t.Fatalf("Expected offset unset for partition 0 after DeleteGroups(), but found %v", committedOffsets[0].Offset)
+		t.Errorf("Expected offset unset for partition 0 after DeleteGroups(), but found %v", committedOffsets[0].Offset)
 		return
 	}
 }

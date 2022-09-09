@@ -76,13 +76,6 @@ AclBinding_by_idx (const rd_kafka_AclBinding_t **acl_bindings, size_t cnt, size_
       return NULL;
     return acl_bindings[idx];
 }
-
-static const rd_kafka_group_result_t *
-group_result_by_idx (const rd_kafka_group_result_t **group_results, size_t cnt, size_t idx) {
-    if (idx >= cnt)
-      return NULL;
-    return group_results[idx];
-}
 */
 import "C"
 
@@ -954,7 +947,14 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options
 	return a.cToTopicResults(cTopicRes, cCnt)
 }
 
-// DeleteGroups delete a batch of consumer groups
+// DeleteGroups deletes a batch of consumer groups.
+// Parameters:
+//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//  * `groups` - A slice of groupIDs to delete.
+//  * `options` - Delete groups admin options.
+//
+// Returns a slice of GroupResults, with group-level errors, (if any) contained inside; and
+// an error that is not nil for client level errors.
 func (a *AdminClient) DeleteGroups(ctx context.Context, groups []string, options ...DeleteGroupsAdminOption) (result []GroupResult, err error) {
 	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
 
