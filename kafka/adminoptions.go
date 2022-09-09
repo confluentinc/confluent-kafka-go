@@ -113,9 +113,11 @@ func (ao AdminOptionRequestTimeout) supportsAlterConfigs() {
 }
 func (ao AdminOptionRequestTimeout) supportsDescribeConfigs() {
 }
-func (ao AdminOptionOperationTimeout) supportsListConsumerGroupOffsets() {
+func (ao AdminOptionRequestTimeout) supportsDeleteGroups() {
 }
-func (ao AdminOptionOperationTimeout) supportsAlterConsumerGroupOffsets() {
+func (ao AdminOptionRequestTimeout) supportsListConsumerGroupOffsets() {
+}
+func (ao AdminOptionRequestTimeout) supportsAlterConsumerGroupOffsets() {
 }
 
 func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
@@ -278,8 +280,9 @@ type DeleteTopicsAdminOption interface {
 
 // DeleteGroupsAdminOption - see setters.
 //
-// See SetAdminRequestTimeout, SetAdminOperationTimeout.
+// See SetAdminRequestTimeout.
 type DeleteGroupsAdminOption interface {
+	supportsDeleteGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 

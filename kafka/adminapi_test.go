@@ -693,6 +693,16 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	dgres, err := a.DeleteGroups(ctx, []string{"group1"}, SetAdminRequestTimeout(time.Second))
+	if dgres != nil || err == nil {
+		t.Fatalf("Expected DeleteGroups to fail, but got result: %v, err: %v", dgres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
 	testAdminAPIsCreateACLs(what, a, t)
 	testAdminAPIsDescribeACLs(what, a, t)
 	testAdminAPIsDeleteACLs(what, a, t)
