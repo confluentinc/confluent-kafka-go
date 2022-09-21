@@ -703,6 +703,22 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 
+	listres, err := a.ListConsumerGroups(time.Second)
+	if listres != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v", listres, err)
+	}
+	if err.(Error).Code() != ErrTimedOut {
+		t.Fatalf("Expected ErrTimedOut, got %v", err)
+	}
+
+	descres, err := a.DescribeConsumerGroups(nil, time.Second)
+	if descres != nil || err == nil {
+		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v", descres, err)
+	}
+	if err.(Error).Code() != ErrTimedOut {
+		t.Fatalf("Expected ErrTimedOut, got %v", err)
+	}
+
 	testAdminAPIsCreateACLs(what, a, t)
 	testAdminAPIsDescribeACLs(what, a, t)
 	testAdminAPIsDeleteACLs(what, a, t)

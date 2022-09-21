@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"fmt"
 	"unsafe"
 )
 
@@ -72,6 +73,10 @@ type Metadata struct {
 	Topics  map[string]TopicMetadata
 
 	OriginatingBroker BrokerMetadata
+}
+
+func (t BrokerMetadata) String() string {
+	return fmt.Sprintf("%d %s:%d", t.ID, t.Host, t.Port)
 }
 
 // getMetadata queries broker for cluster and topic metadata.

@@ -72,6 +72,41 @@ func msgtrackerStart(t *testing.T, expectedCnt int) (mt msgtracker) {
 	return mt
 }
 
+// findGroup returns the GroupInfo for a group with name `group`
+// from a slice of GroupInfos, and nil otherwise.
+func findGroup(groups []GroupInfo, group string) *GroupInfo {
+	for _, groupInfo := range groups {
+		if groupInfo.Group == group {
+			return &groupInfo
+		}
+	}
+	return nil
+}
+
+// checkGroupInfo is a helper function to check the validity of a GroupInfo. We can't
+// directly use DeepEqual because some fields/slice orders change with every run.
+func checkGroupInfo(
+	groupInfo *GroupInfo, state string, group string, protocol string, clientIdToPartitions map[string][]TopicPartition) bool {
+	if groupInfo.Group != group ||
+		groupInfo.State != state ||
+		groupInfo.Error.Code() != ErrNoError ||
+		groupInfo.Protocol != protocol ||
+		// We can't check exactly the Broker information, but we add a check for the zero-value of the Host.
+		groupInfo.Broker.Host == "" ||
+		len(groupInfo.Members) != len(clientIdToPartitions) {
+		return false
+	}
+
+	for _, member := range groupInfo.Members {
+		if partitions, ok := clientIdToPartitions[member.ClientID]; !ok ||
+			!reflect.DeepEqual(partitions, member.MemberAssignment) {
+			return false
+		}
+	}
+
+	return true
+}
+
 var testMsgsInit = false
 var p0TestMsgs []*testmsgType // partition 0 test messages
 // pAllTestMsgs holds messages for various partitions including PartitionAny and  invalid partitions
@@ -1234,7 +1269,6 @@ func validateTopicResult(t *testing.T, result []TopicResult, expError map[string
 // TestAdminClient_DeleteGroups verifies the working of the DeleteGroups API in the admin client.
 // It does so by checking the offset of the consumer before (but after producing a message) and after deleting the
 // consumer group.
-// TODO: Change this test once DescribeGroup is available.
 func TestAdminClient_DeleteGroups(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -1248,40 +1282,23 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	ac := createAdminClient(t)
 	defer ac.Close()
 
+	// Check that our group is not present initially.
+	groups, err := ac.ListConsumerGroups(30 * time.Second)
+	if err != nil {
+		t.Errorf("Error listing consumer groups %s\n", err)
+		return
+	}
+
+	if findGroup(groups, groupID) != nil {
+		t.Errorf("Consumer group present before consumer created: %s\n", groupID)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	_, err := ac.CreateTopics(ctx, []TopicSpecification{{
-		Topic:         testconf.Topic,
-		NumPartitions: 1,
-	}})
-	if err != nil {
-		t.Errorf("Failed to create a topic: %s\n", err)
-		return
-	}
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
-
-	// Create producer and produce a message.
-	producer, err := NewProducer(config)
-	if err != nil {
-		t.Errorf("Failed to create Producer client: %s\n", err)
-		return
-	}
-	defer producer.Close()
-
-	err = producer.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-		Value:          []byte("This is my value"), Key: []byte("This is my key")},
-		nil)
-	if err != nil {
-		t.Errorf("Failed to produce message: %s\n", err)
-		return
-	}
-
 	// Create consumer
-	config = &ConfigMap{
+	config := &ConfigMap{
 		"bootstrap.servers":        testconf.Brokers,
 		"group.id":                 groupID,
 		"auto.offset.reset":        "earliest",
@@ -1305,36 +1322,27 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 		return
 	}
 
-	msg, err := consumer.ReadMessage(-1)
+	// This ReadMessage gives some time for the rebalance to happen.
+	_, err = consumer.ReadMessage(5 * time.Second)
+	if err != nil && err.(Error).Code() != ErrTimedOut {
+		t.Errorf("Failed while reading message: %s\n", err)
+		return
+	}
+
+	// Check that the group exists.
+	groups, err = ac.ListConsumerGroups(30 * time.Second)
 	if err != nil {
-		t.Errorf("Failed to read message: %s\n", err)
+		t.Errorf("Error listing consumer groups %s\n", err)
 		return
 	}
 
-	if _, err = consumer.StoreMessage(msg); err != nil {
-		t.Errorf("Failed to store message offset: %s", err)
-		return
-	}
-
-	if _, err = consumer.Commit(); err != nil {
-		t.Errorf("Failed to commit: %s\n", err)
+	if findGroup(groups, groupID) == nil {
+		t.Errorf("Consumer group %s should be present\n", groupID)
 		return
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-
-	// Check the committed offset for this consumer.
-	committedOffsets, err := consumer.Committed(
-		[]TopicPartition{{Topic: &testconf.Topic, Partition: 0}}, 30*1000)
-	if err != nil {
-		t.Errorf("Failed to get committed offset: %s\n", err)
-		return
-	}
-	if committedOffsets[0].Offset != 1 {
-		t.Errorf("Expected offset 1 for partition 0, but found %v", committedOffsets[0].Offset)
-		return
-	}
 
 	// Try deleting the group while consumer is active. It should fail.
 	result, err := ac.DeleteGroups(ctx, []string{groupID})
@@ -1378,28 +1386,228 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	}
 
 	// Check for the absence of the consumer group after deletion.
-	consumer, err = NewConsumer(config)
+	groups, err = ac.ListConsumerGroups(30 * time.Second)
+	if err != nil {
+		t.Errorf("Error listing consumer groups %s\n", err)
+		return
+	}
+
+	if findGroup(groups, groupID) != nil {
+		t.Errorf("Consumer group %s should not be present\n", groupID)
+		return
+	}
+}
+
+// TestAdminClient_ListAndDescribeGroups validates the working of the list consumer groups
+// and describe consumer group APIs of the admin client. We test the following situations:
+// 1. One consumer group with one client.
+// 2. One consumer group with two clients.
+// 3. Empty consumer group.
+func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	// Generating a new groupID to ensure a fresh group is created.
+	rand.Seed(time.Now().Unix())
+	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+	nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
+
+	clientID1 := "test.client.1"
+	clientID2 := "test.client.2"
+
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// Create a topic - we need to create here because we need 2 partitions.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         testconf.Topic,
+			NumPartitions: 2,
+		},
+	})
+	if err != nil {
+		t.Errorf("Topic creation failed with error %v", err)
+		return
+	}
+
+	// Delete the topic after the test is done.
+	defer func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{testconf.Topic})
+		if err != nil {
+			t.Errorf("Topic deletion failed with error %v", err)
+		}
+	}()
+
+	// Check the non-existence of consumer groups initially.
+	groups, err := ac.ListConsumerGroups(30 * time.Second)
+	if err != nil {
+		t.Errorf("Error listing consumer groups %s\n", err)
+		return
+	}
+
+	if findGroup(groups, groupID) != nil || findGroup(groups, nonExistentGroupID) != nil {
+		t.Errorf("Consumer groups %s and %s should not be present\n", groupID, nonExistentGroupID)
+		return
+	}
+
+	// 1. One consumer group with one client.
+	// Create the first consumer.
+	config := &ConfigMap{
+		"bootstrap.servers":             testconf.Brokers,
+		"group.id":                      groupID,
+		"auto.offset.reset":             "earliest",
+		"enable.auto.offset.store":      false,
+		"client.id":                     clientID1,
+		"partition.assignment.strategy": "range",
+	}
+	config.updateFromTestconf()
+	consumer1, err := NewConsumer(config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
 		return
 	}
-	defer consumer.Close()
+	consumer1Closed := false
+	defer func() {
+		if !consumer1Closed {
+			consumer1.Close()
+		}
+	}()
+	consumer1.Subscribe(testconf.Topic, nil)
 
-	// Calling Poll is required to trigger a rebalance.
-	consumer.Poll(1000)
+	// Call Poll to trigger a rebalance and give it enough time to finish.
+	consumer1.Poll(10 * 1000)
 
-	// Committed Offset should reset
-	committedOffsets, err = consumer.Committed(
-		[]TopicPartition{{Topic: &testconf.Topic, Partition: 0}}, 30*1000)
+	// Check the existence of the group.
+	groups, err = ac.ListConsumerGroups(30 * time.Second)
 	if err != nil {
-		t.Errorf("Failed to get committed offset after DeleteGroups(): %s\n", err)
+		t.Errorf("Error listing consumer groups %s\n", err)
 		return
 	}
-	if committedOffsets[0].Offset != OffsetInvalid {
-		t.Errorf("Expected offset unset for partition 0 after DeleteGroups(), but found %v", committedOffsets[0].Offset)
+
+	if findGroup(groups, groupID) == nil || findGroup(groups, nonExistentGroupID) != nil {
+		t.Errorf("Consumer groups %s should be present and %s should not be\n", groupID, nonExistentGroupID)
 		return
+	}
+
+	// Test the description of the consumer group.
+	groups, err = ac.DescribeConsumerGroups([]string{groupID}, 30*time.Second)
+	if err != nil {
+		t.Errorf("Error describing consumer groups %s\n", err)
+		return
+	}
+
+	if len(groups) != 1 {
+		t.Errorf("Describing one group should give exactly one result %s\n", err)
+		return
+	}
+
+	groupInfo := &groups[0]
+
+	clientIdToPartitions := make(map[string][]TopicPartition)
+	clientIdToPartitions[clientID1] = []TopicPartition{
+		{Topic: &testconf.Topic, Partition: 0, Offset: OffsetInvalid},
+		{Topic: &testconf.Topic, Partition: 1, Offset: OffsetInvalid},
+	}
+	if !checkGroupInfo(groupInfo, "Stable", groupID, "range", clientIdToPartitions) {
+		t.Errorf("Expected description for consumer group  %s is not same as actual: %v", groupID, groupInfo)
+		return
+	}
+
+	// 2. One consumer group with two clients.
+	// Add another consumer to the same group.
+	config = &ConfigMap{
+		"bootstrap.servers":             testconf.Brokers,
+		"group.id":                      groupID,
+		"auto.offset.reset":             "earliest",
+		"enable.auto.offset.store":      false,
+		"client.id":                     clientID2,
+		"partition.assignment.strategy": "range",
+	}
+	config.updateFromTestconf()
+	consumer2, err := NewConsumer(config)
+	if err != nil {
+		t.Errorf("Failed to create consumer: %s\n", err)
+		return
+	}
+	consumer2Closed := false
+	defer func() {
+		if !consumer2Closed {
+			consumer2.Close()
+		}
+	}()
+	consumer2.Subscribe(testconf.Topic, nil)
+
+	// Call Poll to start triggering the rebalance. Give it enough time to run
+	// that it becomes stable and keep polling in the meanwhile. An arbitrary limit
+	// of around 10*10 = 100s is set so we don't get stuck here.
+	for polled := 0; polled < 10; polled++ {
+		consumer2.Poll(5 * 1000)
+		consumer1.Poll(5 * 1000)
+		groups, err = ac.DescribeConsumerGroups(nil, 30*time.Second)
+		if err != nil {
+			t.Errorf("Error describing consumer groups %s\n", err)
+			return
+		}
+
+		groupInfo = findGroup(groups, groupID)
+		if groupInfo == nil {
+			t.Errorf("Consumer group %s should be present\n", groupID)
+			return
+		}
+		if groupInfo.State == "Stable" {
+			break
+		}
+	}
+
+	clientIdToPartitions[clientID1] = []TopicPartition{
+		{Topic: &testconf.Topic, Partition: 0, Offset: OffsetInvalid},
+	}
+	clientIdToPartitions[clientID2] = []TopicPartition{
+		{Topic: &testconf.Topic, Partition: 1, Offset: OffsetInvalid},
+	}
+	if !checkGroupInfo(groupInfo, "Stable", groupID, "range", clientIdToPartitions) {
+		t.Errorf("Expected description for consumer group  %s is not same as actual %v", groupInfo, groupInfo)
+		return
+	}
+
+	// 3. Empty consumer group.
+	// Close the existing consumers.
+	if consumer1.Close() != nil {
+		t.Errorf("Error closing the first consumer\n")
+		return
+	}
+	consumer1Closed = true
+
+	if consumer2.Close() != nil {
+		t.Errorf("Error closing the second consumer\n")
+		return
+	}
+	consumer2Closed = true
+
+	// Try describing an empty group.
+	groups, err = ac.DescribeConsumerGroups(nil, 30*time.Second)
+	if err != nil {
+		t.Errorf("Error describing consumer groups %s\n", err)
+		return
+	}
+
+	groupInfo = findGroup(groups, groupID)
+	if groupInfo == nil {
+		t.Errorf("Consumer group %s should be present\n", groupID)
+		return
+	}
+
+	clientIdToPartitions = make(map[string][]TopicPartition)
+	if !checkGroupInfo(groupInfo, "Empty", groupID, "", clientIdToPartitions) {
+		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupInfo)
 	}
 }
+
 func TestAdminTopics(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 
