@@ -27,4 +27,8 @@ func TestConfigWithAuthentication(t *testing.T) {
 
 	maybeFail("BasicAuthCredentialsSource", expect(c.BasicAuthCredentialsSource, "USER_INFO"))
 	maybeFail("BasicAuthUserInfo", expect(c.BasicAuthUserInfo, "username:password"))
+
+	c = NewConfigForAwsGlue("registry", "us-east-2")
+	maybeFail("AWSGlueSchemaRegistry", expect(c.RegistryName, "registry"))
+	maybeFail("AWSGlueRegion", expect(c.AwsRegion, "us-east-2"))
 }
