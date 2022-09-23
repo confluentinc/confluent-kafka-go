@@ -26,9 +26,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/soaktest"
+	"github.com/subhra/confluent-kafka-go/soaktest"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/subhra/confluent-kafka-go/kafka"
 )
 
 const endToEnd = "end.to.end."

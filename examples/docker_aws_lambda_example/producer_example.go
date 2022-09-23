@@ -26,7 +26,7 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/subhra/confluent-kafka-go/kafka"
 )
 
 var p *kafka.Producer

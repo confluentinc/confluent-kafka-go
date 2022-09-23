@@ -13,8 +13,8 @@ client.
 
 - **Reliability** - There are a lot of details to get right when writing an Apache Kafka
 client. We get them right in one place (librdkafka) and leverage this work
-across all of our clients (also [confluent-kafka-python](https://github.com/confluentinc/confluent-kafka-python)
-and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dotnet)).
+across all of our clients (also [confluent-kafka-python](https://github.com/subhra/confluent-kafka-python)
+and [confluent-kafka-dotnet](https://github.com/subhra/confluent-kafka-dotnet)).
 
 - **Supported** - Commercial support is offered by
 [Confluent](https://confluent.io/).
@@ -42,7 +42,7 @@ High-level balanced consumer
 ```golang
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/subhra/confluent-kafka-go/kafka"
 )
 
 func main() {
@@ -78,7 +78,7 @@ Producer
 ```golang
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/subhra/confluent-kafka-go/kafka"
 )
 
 func main() {
@@ -137,7 +137,7 @@ confluent-kafka-go.
 Import the `kafka` package from GitHub in your code:
 
 ```golang
-import "github.com/confluentinc/confluent-kafka-go/kafka"
+import "github.com/subhra/confluent-kafka-go/kafka"
 ```
 
 Build your project:
@@ -160,12 +160,12 @@ Install the client
 
 Manual install:
 ```bash
-go get -u github.com/confluentinc/confluent-kafka-go/kafka
+go get -u github.com/subhra/confluent-kafka-go/kafka
 ```
 
 Golang import:
 ```golang
-import "github.com/confluentinc/confluent-kafka-go/kafka"
+import "github.com/subhra/confluent-kafka-go/kafka"
 ```
 
 librdkafka

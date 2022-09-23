@@ -1,6 +1,6 @@
 language: go
 osx_image: xcode9.2
-go_import_path: github.com/confluentinc/confluent-kafka-go
+go_import_path: github.com/subhra/confluent-kafka-go
 env:
  global:
   - PATH="$PATH:$GOPATH/bin"
@@ -31,9 +31,9 @@ jobs:
    env:
    - EXPECT_LINK_INFO="dynamic"
    - BUILD_TYPE='-tags dynamic'
-   - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+   - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/subhra/confluent-kafka-go/tmp-build/lib/pkgconfig"
+   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/subhra/confluent-kafka-go/tmp-build/lib"
+   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/subhra/confluent-kafka-go/tmp-build/lib"
    - LIBRDKAFKA_VERSION=master
  - name: "Go 1.16 Linux dynamic librdkafka"
    if: tag is present
@@ -42,9 +42,9 @@ jobs:
    env:
    - EXPECT_LINK_INFO="dynamic"
    - BUILD_TYPE='-tags dynamic'
-   - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+   - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/subhra/confluent-kafka-go/tmp-build/lib/pkgconfig"
+   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/subhra/confluent-kafka-go/tmp-build/lib"
+   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/subhra/confluent-kafka-go/tmp-build/lib"
    - LIBRDKAFKA_VERSION=master
  - name: "Go 1.16 Windows bundled librdkafka"
    go: "1.16"

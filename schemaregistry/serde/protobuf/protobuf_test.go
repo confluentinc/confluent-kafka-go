@@ -19,9 +19,9 @@ package protobuf
 import (
 	"testing"
 
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry/test"
+	"github.com/subhra/confluent-kafka-go/schemaregistry"
+	"github.com/subhra/confluent-kafka-go/schemaregistry/serde"
+	"github.com/subhra/confluent-kafka-go/schemaregistry/test"
 	"google.golang.org/protobuf/proto"
 )
 

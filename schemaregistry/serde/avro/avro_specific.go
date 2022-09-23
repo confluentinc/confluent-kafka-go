@@ -26,8 +26,8 @@ import (
 	"github.com/actgardner/gogen-avro/v10/schema"
 	"github.com/actgardner/gogen-avro/v10/vm"
 	"github.com/actgardner/gogen-avro/v10/vm/types"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
+	"github.com/subhra/confluent-kafka-go/schemaregistry"
+	"github.com/subhra/confluent-kafka-go/schemaregistry/serde"
 )
 
 // SpecificSerializer represents a specific Avro serializer

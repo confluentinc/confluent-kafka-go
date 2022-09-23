@@ -144,8 +144,8 @@ Make sure to push to github before creating the tag to have CI tests pass.
 
 Put the new version in settings.sh of these two repos
 
-https://github.com/confluentinc/docs
+https://github.com/subhra/docs
 
-https://github.com/confluentinc/docs-platform
+https://github.com/subhra/docs-platform
 
 ### Don't forget tweeting it!

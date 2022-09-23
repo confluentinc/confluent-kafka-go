@@ -16,7 +16,7 @@
 
 package jsonschema
 
-import "github.com/confluentinc/confluent-kafka-go/schemaregistry/serde"
+import "github.com/subhra/confluent-kafka-go/schemaregistry/serde"
 
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {

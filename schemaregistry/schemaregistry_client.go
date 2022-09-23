@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/confluentinc/confluent-kafka-go/schemaregistry/cache"
+	"github.com/subhra/confluent-kafka-go/schemaregistry/cache"
 )
 
 /* Schema Registry API endpoints
@@ -188,7 +188,7 @@ var _ Client = new(client)
 
 // Client is an interface for clients interacting with the Confluent Schema Registry.
 // The Schema Registry's REST interface is further explained in Confluent's Schema Registry API documentation
-// https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
+// https://github.com/subhra/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
 type Client interface {
 	Register(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error)

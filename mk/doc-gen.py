@@ -27,14 +27,14 @@ if __name__ == '__main__':
     tag = "v1.9.2"
     base_css = "https://go.dev/css"
     base_js = "https://go.dev/js"
-    base_src = "https://github.com/confluentinc/" + \
+    base_src = "https://github.com/subhra/" + \
                f"confluent-kafka-go/blob/{tag}"
     base_pkg = "https://pkg.go.dev"
     license = "https://go.dev/LICENSE"
 
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
-        'godoc -url=/pkg/github.com/confluentinc/' +
+        'godoc -url=/pkg/github.com/subhra/' +
         f'confluent-kafka-go/{package} ' +
         '| egrep -v "^using (GOPATH|module) mode"', shell=True)
 
