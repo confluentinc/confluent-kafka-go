@@ -4,6 +4,8 @@ go 1.13
 
 require (
 	github.com/actgardner/gogen-avro/v10 v10.2.1
+	github.com/aws/aws-sdk-go-v2/config v1.17.5
+	github.com/aws/aws-sdk-go-v2/service/glue v1.30.4
 	github.com/golang/protobuf v1.5.2
 	github.com/heetch/avro v0.3.1
 	github.com/invopop/jsonschema v0.4.0

@@ -1,24 +1,4 @@
-/**
- * Copyright 2022 Confluent Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-// Example function-based high-level Apache Kafka consumer
 package main
-
-// consumer_example implements a consumer using the non-channel Poll() API
-// to retrieve messages and events.
 
 import (
 	"fmt"
@@ -34,20 +14,22 @@ import (
 
 func main() {
 
-	if len(os.Args) < 5 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <schema-registry> <group> <topics..>\n",
+	if len(os.Args) < 6 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <schema-registry> <aws-region> <group> <topics..>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	url := os.Args[2]
-	group := os.Args[3]
-	topics := os.Args[4:]
+	registryName := os.Args[2]
+	awsRegion := os.Args[3]
+	group := os.Args[4]
+	topics := os.Args[5:]
+
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	c, err := kafka.NewConsumer(&kafka.ConfigMap{
+	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":  bootstrapServers,
 		"group.id":           group,
 		"session.timeout.ms": 6000,
@@ -58,10 +40,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Created Consumer %v\n", c)
+	fmt.Printf("Created Consumer %v\n", consumer)
 
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(url))
-
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfigForAwsGlue(registryName, awsRegion))
 	if err != nil {
 		fmt.Printf("Failed to create schema registry client: %s\n", err)
 		os.Exit(1)
@@ -73,16 +54,18 @@ func main() {
 		fmt.Printf("Failed to create deserializer: %s\n", err)
 		os.Exit(1)
 	}
+
 	deser.SubjectNameStrategy = func(topic string, serdeType serde.Type, schema schemaregistry.SchemaInfo) (string, error) {
 		return topic + ".proto", nil
 	}
-
-	// Register the Protobuf type so that Deserialize can be called.
-	// An alternative is to pass a pointer to an instance of the Protobuf type
-	// to the DeserializeInto method.
 	deser.ProtoRegistry.RegisterMessage((&User{}).ProtoReflect().Type())
 
-	err = c.SubscribeTopics(topics, nil)
+	err = consumer.SubscribeTopics(topics, nil)
+
+	if err != nil {
+		fmt.Printf("Failed to subcribe to topics: %s\n", err)
+		os.Exit(1)
+	}
 
 	run := true
 
@@ -92,7 +75,7 @@ func main() {
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
 		default:
-			ev := c.Poll(100)
+			ev := consumer.Poll(100)
 			if ev == nil {
 				continue
 			}
@@ -120,5 +103,5 @@ func main() {
 	}
 
 	fmt.Printf("Closing consumer\n")
-	c.Close()
+	consumer.Close()
 }

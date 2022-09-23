@@ -175,7 +175,7 @@ type subjectID struct {
 /* HTTP(S) Schema Registry Client and schema caches */
 type client struct {
 	sync.Mutex
-	restService      *restService
+	schemaService    schemaServiceHandler
 	schemaCache      cache.Cache
 	schemaCacheLock  sync.RWMutex
 	idCache          cache.Cache
@@ -226,9 +226,17 @@ func NewClient(conf *Config) (Client, error) {
 		return mock, nil
 	}
 
-	restService, err := newRestService(conf)
-	if err != nil {
-		return nil, err
+	var schemaService schemaServiceHandler
+	var err error
+
+	if urlConf != "" { // Confluent registry
+		restService, err := newRestService(conf)
+		if err != nil {
+			return nil, err
+		}
+		schemaService = restServiceHandler{restService: restService}
+	} else { //AWS glue registry
+		schemaService = awsGlueServiceHandler{awsGlueService: newAwsGlueService(conf)}
 	}
 
 	var schemaCache cache.Cache
@@ -253,10 +261,10 @@ func NewClient(conf *Config) (Client, error) {
 		versionCache = cache.NewMapCache()
 	}
 	handle := &client{
-		restService:  restService,
-		schemaCache:  schemaCache,
-		idCache:      idCache,
-		versionCache: versionCache,
+		schemaService: schemaService,
+		schemaCache:   schemaCache,
+		idCache:       idCache,
+		versionCache:  versionCache,
 	}
 	return handle, nil
 }
@@ -285,7 +293,7 @@ func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id
 	// another goroutine could have already put it in cache
 	idValue, ok = c.schemaCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.schemaService.register(subject, normalize, &metadata)
 		if err == nil {
 			c.schemaCache.Put(cacheKey, metadata.ID)
 		} else {
@@ -318,11 +326,7 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 	// another goroutine could have already put it in cache
 	infoValue, ok = c.idCache.Get(cacheKey)
 	if !ok {
-		if len(subject) > 0 {
-			err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
-		} else {
-			err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &metadata)
-		}
+		err = c.schemaService.getBySubjectAndID(subject, id, &metadata)
 		if err == nil {
 			newInfo = &SchemaInfo{
 				Schema:     metadata.Schema,
@@ -362,7 +366,7 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 	// another goroutine could have already put it in cache
 	idValue, ok = c.schemaCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.schemaService.getID(subject, normalize, &metadata)
 		if err == nil {
 			c.schemaCache.Put(cacheKey, metadata.ID)
 		} else {
@@ -378,7 +382,7 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
 // Returns SchemaMetadata object
 func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), "latest"), &result)
+	err = c.schemaService.getLatestSchemaMetadata(subject, &result)
 
 	return result, err
 }
@@ -386,7 +390,7 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
+	err = c.schemaService.getSchemaMetadata(subject, version, &result)
 
 	return result, err
 }
@@ -395,7 +399,7 @@ func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMe
 // Returns integer slice on success
 func (c *client) GetAllVersions(subject string) (results []int, err error) {
 	var result []int
-	err = c.restService.handleRequest(newRequest("GET", version, nil, url.PathEscape(subject)), &result)
+	err = c.schemaService.getAllVersions(subject, &result)
 
 	return result, err
 }
@@ -425,7 +429,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 	// another goroutine could have already put it in cache
 	versionValue, ok = c.versionCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.schemaService.getVersionFromSchema(subject, normalize, &metadata)
 		if err == nil {
 			c.versionCache.Put(cacheKey, metadata.Version)
 		} else {
@@ -442,7 +446,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 // Returns a string slice containing all registered subjects
 func (c *client) GetAllSubjects() ([]string, error) {
 	var result []string
-	err := c.restService.handleRequest(newRequest("GET", subject, nil), &result)
+	err := c.schemaService.getAllSubjects(&result)
 
 	return result, err
 }
@@ -475,7 +479,7 @@ func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, e
 	}
 	c.idCacheLock.Unlock()
 	var result []int
-	err = c.restService.handleRequest(newRequest("DELETE", subjectsDelete, nil, url.PathEscape(subject), permanent), &result)
+	err = c.schemaService.deleteSubject(subject, permanent, &result)
 	return result, err
 }
 
@@ -512,7 +516,7 @@ func (c *client) DeleteSubjectVersion(subject string, version int, permanent boo
 	}
 	c.versionCacheLock.Unlock()
 	var result int
-	err = c.restService.handleRequest(newRequest("DELETE", versionsDelete, nil, url.PathEscape(subject), version, permanent), &result)
+	err = c.schemaService.deleteSubjectVersion(subject, version, permanent, &result)
 	return result, err
 
 }
@@ -590,7 +594,7 @@ func (c *Compatibility) ParseString(val string) error {
 // Returns compatibility level string upon success
 func (c *client) GetCompatibility(subject string) (compatibility Compatibility, err error) {
 	var result compatibilityLevel
-	err = c.restService.handleRequest(newRequest("GET", subjectConfig, nil, url.PathEscape(subject)), &result)
+	err = c.schemaService.getCompatibility(subject, &result)
 
 	return result.Compatibility, err
 }
@@ -601,7 +605,7 @@ func (c *client) UpdateCompatibility(subject string, update Compatibility) (comp
 	result := compatibilityLevel{
 		CompatibilityUpdate: update,
 	}
-	err = c.restService.handleRequest(newRequest("PUT", subjectConfig, &result, url.PathEscape(subject)), &result)
+	err = c.schemaService.updateCompatibility(subject, &result)
 
 	return result.CompatibilityUpdate, err
 }
@@ -614,7 +618,7 @@ func (c *client) TestCompatibility(subject string, version int, schema SchemaInf
 		SchemaInfo: schema,
 	}
 
-	err = c.restService.handleRequest(newRequest("POST", compatibility, &candidate, url.PathEscape(subject), version), &result)
+	err = c.schemaService.testCompatibility(subject, version, &candidate, &result)
 
 	return result.Compatible, err
 }
@@ -623,7 +627,7 @@ func (c *client) TestCompatibility(subject string, version int, schema SchemaInf
 // Returns global(default) compatibility level
 func (c *client) GetDefaultCompatibility() (compatibility Compatibility, err error) {
 	var result compatibilityLevel
-	err = c.restService.handleRequest(newRequest("GET", config, nil), &result)
+	err = c.schemaService.getDefaultCompatibility(&result)
 
 	return result.Compatibility, err
 }
@@ -634,7 +638,7 @@ func (c *client) UpdateDefaultCompatibility(update Compatibility) (compatibility
 	result := compatibilityLevel{
 		CompatibilityUpdate: update,
 	}
-	err = c.restService.handleRequest(newRequest("PUT", config, &result), &result)
+	err = c.schemaService.updateDefaultCompatibility(&result)
 
 	return result.CompatibilityUpdate, err
 }
