@@ -136,6 +136,12 @@ type Producer struct {
 
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
+
+	// To make sure we are not receiving from the produce channel the same
+	// time as reading its length, an intent to read the length must be
+	// communicated on this channel by sending `true`, and `false` when
+	// done. See Len().
+	lenIntentChan chan bool
 }
 
 // String returns a human readable name for a Producer instance
@@ -325,7 +331,12 @@ func (p *Producer) ProduceChannel() chan *Message {
 // as well as delivery reports queued for the application.
 // Includes messages on ProduceChannel.
 func (p *Producer) Len() int {
-	return len(p.produceChannel) + len(p.events) + int(C.rd_kafka_outq_len(p.handle.rk))
+	// This will block indefinitely if Close() has been called before calling Len(). But no
+	// method should be called after Close().
+	p.lenIntentChan <- true
+	sum := len(p.produceChannel) + len(p.events) + int(C.rd_kafka_outq_len(p.handle.rk))
+	p.lenIntentChan <- false
+	return sum
 }
 
 // Flush and wait for outstanding messages and requests to complete delivery.
@@ -523,6 +534,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.events = make(chan Event, eventsChanSize)
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
+	p.lenIntentChan = make(chan bool)
 
 	if logsChanEnable {
 		p.handle.setupLogQueue(logsChan, p.pollerTermChan)
@@ -553,11 +565,39 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 // channel_producer serves the ProduceChannel channel
 func channelProducer(p *Producer) {
-	for m := range p.produceChannel {
-		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
-		if err != nil {
-			m.TopicPartition.Error = err
-			p.events <- m
+	for {
+		// If both a new message, and a length intent are available, select
+		// works on a uniform pseudo-random selection, so we will eventually
+		// allow the length intent to go through.
+		select {
+		case m, ok := <-p.produceChannel:
+			if !ok {
+				// Break loop after channel is closed and empty.
+				return
+			}
+			if m == nil {
+				panic("nil message received on ProduceChannel")
+			}
+			err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
+			if err != nil {
+				m.TopicPartition.Error = err
+				p.events <- m
+			}
+		case lenIntent := <-p.lenIntentChan:
+			// If the first message we receive across calls to Len() is not `true`,
+			// then it means that someone is using the lenIntentChan incorrectly.
+			if lenIntent != true {
+				break
+			}
+			waitingForLens := 1
+			for waitingForLens > 0 {
+				lenIntent = <-p.lenIntentChan
+				if lenIntent {
+					waitingForLens += 1
+				} else {
+					waitingForLens -= 1
+				}
+			}
 		}
 	}
 }
@@ -571,48 +611,79 @@ func channelBatchProducer(p *Producer) {
 	totMsgCnt := 0
 	totBatchCnt := 0
 
-	for m := range p.produceChannel {
-		buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
-		bufferedCnt++
+	for {
+		// If both a new message, and a length intent are available, select
+		// works on a uniform pseudo-random selection, so we will eventually
+		// allow the length intent to go through.
+		select {
+		case m, ok := <-p.produceChannel:
+			if !ok {
+				// Break loop after channel is closed and empty.
+				return
+			}
+			if m == nil {
+				panic("nil message received on ProduceChannel")
+			}
+			if m.TopicPartition.Topic == nil {
+				panic(fmt.Sprintf("message without Topic received on ProduceChannel: %v", m))
+			}
+			buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
+			bufferedCnt++
 
-	loop2:
-		for true {
-			select {
-			case m, ok := <-p.produceChannel:
-				if !ok {
+		loop2:
+			for true {
+				select {
+				case m, ok := <-p.produceChannel:
+					if !ok {
+						break loop2
+					}
+					if m == nil {
+						panic("nil message received on ProduceChannel")
+					}
+					if m.TopicPartition.Topic == nil {
+						panic(fmt.Sprintf("message without Topic received on ProduceChannel: %v", m))
+					}
+					buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
+					bufferedCnt++
+					if bufferedCnt >= batchSize {
+						break loop2
+					}
+				default:
 					break loop2
 				}
-				if m == nil {
-					panic("nil message received on ProduceChannel")
-				}
-				if m.TopicPartition.Topic == nil {
-					panic(fmt.Sprintf("message without Topic received on ProduceChannel: %v", m))
-				}
-				buffered[*m.TopicPartition.Topic] = append(buffered[*m.TopicPartition.Topic], m)
-				bufferedCnt++
-				if bufferedCnt >= batchSize {
-					break loop2
-				}
-			default:
-				break loop2
 			}
-		}
 
-		totBatchCnt++
-		totMsgCnt += len(buffered)
+			totBatchCnt++
+			totMsgCnt += len(buffered)
 
-		for topic, buffered2 := range buffered {
-			err := p.produceBatch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
-			if err != nil {
-				for _, m = range buffered2 {
-					m.TopicPartition.Error = err
-					p.events <- m
+			for topic, buffered2 := range buffered {
+				err := p.produceBatch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
+				if err != nil {
+					for _, m = range buffered2 {
+						m.TopicPartition.Error = err
+						p.events <- m
+					}
 				}
 			}
-		}
 
-		buffered = make(map[string][]*Message)
-		bufferedCnt = 0
+			buffered = make(map[string][]*Message)
+			bufferedCnt = 0
+		case lenIntent := <-p.lenIntentChan:
+			// If the first message we receive across calls to Len() is not `true`,
+			// then it means that someone is using the lenIntentChan incorrectly.
+			if lenIntent != true {
+				break
+			}
+			waitingForLens := 1
+			for waitingForLens > 0 {
+				lenIntent = <-p.lenIntentChan
+				if lenIntent {
+					waitingForLens += 1
+				} else {
+					waitingForLens -= 1
+				}
+			}
+		}
 	}
 }
 

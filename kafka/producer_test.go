@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -720,4 +721,63 @@ func runProducerDeliveryReportFieldTest(t *testing.T, config *ConfigMap, fn func
 	if r > 0 {
 		t.Errorf("Expected empty queue after Flush, still has %d", r)
 	}
+}
+
+// TestProducerLenWithProduceChannel tests whether Len() works fine while using
+// the ProduceChannel, using a MockCluster.
+func TestProducerLenWithProduceChannel(t *testing.T) {
+	mc, err := NewMockCluster(1)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	defer mc.Close()
+
+	runTestProducerLenWithProduceChannel(t, mc.BootstrapServers(), false, 10000)
+	runTestProducerLenWithProduceChannel(t, mc.BootstrapServers(), true, 10000)
+}
+
+func runTestProducerLenWithProduceChannel(t *testing.T, bootstrapServers string, batch bool, numMessages int) {
+	p, err := NewProducer(&ConfigMap{
+		"bootstrap.servers": bootstrapServers,
+		"go.batch.producer": batch,
+	})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	topic := "gotest"
+	value := "test"
+
+	// Produce `numMessages` messages to the produce channel, with a microsecond gap between each.
+	var wg sync.WaitGroup
+	wg.Add(numMessages)
+	go func() {
+		for i := 0; i < numMessages; i++ {
+			p.ProduceChannel() <- &Message{TopicPartition: TopicPartition{Topic: &topic, Partition: PartitionAny}, Value: []byte(value)}
+			wg.Done()
+			time.Sleep(time.Microsecond)
+		}
+	}()
+
+	// Despite the messages being produced at a high rate, we should be able to get the length
+	// within a short amount of time.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+
+	lengthObtained := make(chan bool)
+	go func() {
+		p.Len()
+		lengthObtained <- true
+	}()
+
+	select {
+	case <-ctx.Done():
+		t.Errorf("Timed out while calling Len on Producer")
+		return
+	case <-lengthObtained:
+		// no action needed, just end the select.
+	}
+
+	wg.Wait()
+	p.Close()
 }
