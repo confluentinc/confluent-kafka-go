@@ -140,13 +140,17 @@ type GroupInfo struct {
 	Group string
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
+	// Group state
+	State string
+	// Protocol type: "consumer" or "" for simple consumer groups.
+	ProtocolType string
+	// Is a simple consumer group
+	IsSimpleConsumerGroup bool
 
 	// The following fields are not populated in case of listing a group.
 	// They are populated only while describing a group:
 
-	// Group state
-	State string
-	// Protocol type (partition assignor)
+	// Protocol (partition assignor)
 	Protocol string
 	// Broker information (coordinator)
 	Broker BrokerMetadata
@@ -185,8 +189,8 @@ func (g GroupInfo) String() string {
 		return g.Group
 	}
 
-	return fmt.Sprintf("%s {State=%s, Protocol=%s, Broker=%s, Members=%v}",
-		g.Group, g.State, g.Protocol, g.Broker, g.Members)
+	return fmt.Sprintf("%s {State=%s, IsSimpleConsumerGroup=%v, ProtocolType=%s, Protocol=%s, Broker=%s, Members=%v}",
+		g.Group, g.State, g.IsSimpleConsumerGroup, g.ProtocolType, g.Protocol, g.Broker, g.Members)
 }
 
 // TopicSpecification holds parameters for creating a new topic.
@@ -788,11 +792,13 @@ func (a *AdminClient) cToGroupInfos(cGroupInfoList *C.struct_rd_kafka_group_list
 		cGroupInfo := C.group_list_group_info_by_idx(cGroupInfoList, C.size_t(count), C.size_t(i))
 		result[i].Group = C.GoString(cGroupInfo.group)
 		result[i].Error = newCErrorFromString(cGroupInfo.err, "error while listing group")
+		result[i].State = C.GoString(cGroupInfo.state)
+		result[i].ProtocolType = C.GoString(cGroupInfo.protocol_type)
+		result[i].IsSimpleConsumerGroup = cGroupInfo.is_simple_consumer_group != 0
 		if groupNamesOnly {
 			continue
 		}
 
-		result[i].State = C.GoString(cGroupInfo.state)
 		result[i].Protocol = C.GoString(cGroupInfo.protocol)
 		result[i].Broker = BrokerMetadata{
 			ID:   int32(cGroupInfo.broker.id),
@@ -1992,7 +1998,7 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 func (a *AdminClient) ListConsumerGroups(timeout time.Duration) (result []GroupInfo, err error) {
 	// Call librdkafka's implementation of the method.
 	var cGroupInfoList *C.struct_rd_kafka_group_list
-	cErr := C.rd_kafka_list_consumer_groups(a.handle.rk, &cGroupInfoList, C.int(durationToMilliseconds(timeout)))
+	cErr := C.rd_kafka_list_consumer_groups(a.handle.rk, &cGroupInfoList, nil, C.int(durationToMilliseconds(timeout)))
 	err = newError(cErr)
 	if err.(Error).Code() == ErrNoError {
 		err = nil

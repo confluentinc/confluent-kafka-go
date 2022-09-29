@@ -51,20 +51,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	groups, err := a.ListConsumerGroups(timeout)
+	groupInfos, err := a.ListConsumerGroups(timeout)
 	if err != nil {
 		fmt.Printf("Failed to list groups: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Print results
-	for _, group := range groups {
-		fmt.Printf("%s", group.Group)
-		if group.Error.Code() != kafka.ErrNoError {
-			fmt.Printf(" (%s)\n", group.Error)
-		} else {
-			fmt.Println()
-		}
+	fmt.Printf("A total of %d consumer groups listed:\n", len(groupInfos))
+	for _, groupInfo := range groupInfos {
+		fmt.Println(groupInfo)
 	}
 
 	a.Close()
