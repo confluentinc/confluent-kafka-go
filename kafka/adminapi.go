@@ -134,6 +134,49 @@ type GroupMemberInfo struct {
 	MemberAssignment []TopicPartition
 }
 
+// ConsumerGroupState represents a consumer group state
+type ConsumerGroupState int
+
+const (
+	// ConsumerGroupStateUnknown - Unknown ConsumerGroupState
+	ConsumerGroupStateUnknown = ConsumerGroupState(C.RD_KAFKA_CGRP_STATE_UNKNOWN)
+	// ConsumerGroupStatePreparingReblance - preparing rebalance
+	ConsumerGroupStatePreparingReblance = ConsumerGroupState(C.RD_KAFKA_CGRP_STATE_PREPARING_REBALANCE)
+	// ConsumerGroupStateCompletingRebalance - completing rebalance
+	ConsumerGroupStateCompletingRebalance = ConsumerGroupState(C.RD_KAFKA_CGRP_STATE_COMPLETING_REBALANCE)
+	// ConsumerGroupStateStable - stable
+	ConsumerGroupStateStable = ConsumerGroupState(C.RD_KAFKA_CGRP_STATE_STABLE)
+	// ConsumerGroupStateDead - dead group
+	ConsumerGroupStateDead = ConsumerGroupState(C.RD_KAFKA_CGRP_STATE_DEAD)
+	// ConsumerGroupStateEmpty - empty group
+	ConsumerGroupStateEmpty = ConsumerGroupState(C.RD_KAFKA_CGRP_STATE_EMPTY)
+)
+
+// String returns the human-readable representation of a consumer_group_state
+func (t ConsumerGroupState) String() string {
+	return C.GoString(C.rd_kafka_consumer_group_state_name(C.rd_kafka_consumer_group_state_t(t)))
+}
+
+// ConsumerGroupStateFromString translates a consumer group state name/string to
+// a ConsumerGroupStateFromString value.
+func ConsumerGroupStateFromString(stateString string) (ConsumerGroupState, error) {
+	cStr := C.CString(stateString)
+	defer C.free(unsafe.Pointer(cStr))
+	state := ConsumerGroupState(C.rd_kafka_consumer_group_state_code(cStr))
+	if state == ConsumerGroupStateUnknown {
+		// TODO(milind): not sure if Unknown state is an error or not, since the broker is also
+		// allowed to return it.
+		return state, NewError(ErrInvalidArg, "Unknown consumer group state", false)
+	}
+	return state, nil
+}
+
+// ListConsumerGroupsOptions contains the options for ListConsumerGroups
+type ListConsumerGroupsOptions struct {
+	// The states to list the groups for.
+	States []ConsumerGroupState
+}
+
 // GroupInfo provides information about a consumer group.
 type GroupInfo struct {
 	// Group name
@@ -141,7 +184,7 @@ type GroupInfo struct {
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
 	// Group state
-	State string
+	State ConsumerGroupState
 	// Protocol type: "consumer" or "" for simple consumer groups.
 	ProtocolType string
 	// Is a simple consumer group
@@ -183,9 +226,11 @@ func (g GroupInfo) String() string {
 		return fmt.Sprintf("%s (%s)", g.Group, g.Error.str)
 	}
 
-	// g.State being "" is the best way to see if the group was just listed, in which case
-	// we just want the group name.
-	if g.State == "" {
+	// At this point I am not sure how we tell what sort of a request it was... Describe or List.
+	// This is a best-effort guess - if Broker.Host is nil, then we are most likely just
+	// listing the group, and need only the group name.
+	// TODO(Milind): is there a better way for this?
+	if g.Broker.Host == "" {
 		return g.Group
 	}
 
@@ -792,7 +837,7 @@ func (a *AdminClient) cToGroupInfos(cGroupInfoList *C.struct_rd_kafka_group_list
 		cGroupInfo := C.group_list_group_info_by_idx(cGroupInfoList, C.size_t(count), C.size_t(i))
 		result[i].Group = C.GoString(cGroupInfo.group)
 		result[i].Error = newCErrorFromString(cGroupInfo.err, "error while listing group")
-		result[i].State = C.GoString(cGroupInfo.state)
+		result[i].State = ConsumerGroupState(cGroupInfo.state_code)
 		result[i].ProtocolType = C.GoString(cGroupInfo.protocol_type)
 		result[i].IsSimpleConsumerGroup = cGroupInfo.is_simple_consumer_group != 0
 		if groupNamesOnly {
@@ -1988,6 +2033,8 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 // ListConsumerGroups lists client groups in cluster.
 //
 // Parameters:
+//  * `options` - is the struct of options to be passed while listing
+//     the groups. Can be set to nil.
 //  * `timeout` - is the (approximate) maximum time to wait for response
 //     from brokers and must be a positive value.
 //
@@ -1995,10 +2042,28 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 // error that is not `nil` for client level errors.
 // Each GroupInfo returned will always have the `Group` field populated, and the `Error`
 // field populated in case of an error. The other fields will NOT be populated.
-func (a *AdminClient) ListConsumerGroups(timeout time.Duration) (result []GroupInfo, err error) {
+func (a *AdminClient) ListConsumerGroups(options *ListConsumerGroupsOptions, timeout time.Duration) (result []GroupInfo, err error) {
+	// Convert Go ListConsumerGroupsOptions to C list_consumer_groups_options.
+	var cListConsumerGroupOptions *C.rd_kafka_list_consumer_groups_options_t = nil
+	if options != nil && len(options.States) != 0 {
+		cStates := make([]C.rd_kafka_consumer_group_state_t, len(options.States))
+		for idx, state := range options.States {
+			cStates[idx] = C.rd_kafka_consumer_group_state_t(state)
+		}
+		cListConsumerGroupOptions =
+			C.rd_kafka_list_consumer_groups_options_new(
+				(*C.rd_kafka_consumer_group_state_t)(&cStates[0]),
+				C.size_t(len(cStates)))
+		defer C.rd_kafka_list_consumer_groups_options_destroy(cListConsumerGroupOptions)
+	}
+
 	// Call librdkafka's implementation of the method.
 	var cGroupInfoList *C.struct_rd_kafka_group_list
-	cErr := C.rd_kafka_list_consumer_groups(a.handle.rk, &cGroupInfoList, nil, C.int(durationToMilliseconds(timeout)))
+	cErr := C.rd_kafka_list_consumer_groups(
+		a.handle.rk,
+		&cGroupInfoList,
+		cListConsumerGroupOptions,
+		C.int(durationToMilliseconds(timeout)))
 	err = newError(cErr)
 	if err.(Error).Code() == ErrNoError {
 		err = nil

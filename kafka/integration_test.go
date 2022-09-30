@@ -86,13 +86,16 @@ func findGroup(groups []GroupInfo, group string) *GroupInfo {
 // checkGroupInfo is a helper function to check the validity of a GroupInfo. We can't
 // directly use DeepEqual because some fields/slice orders change with every run.
 func checkGroupInfo(
-	groupInfo *GroupInfo, state string, group string, protocol string, clientIdToPartitions map[string][]TopicPartition) bool {
+	groupInfo *GroupInfo, state ConsumerGroupState, group string, protocol string, clientIdToPartitions map[string][]TopicPartition) bool {
 	if groupInfo.Group != group ||
 		groupInfo.State != state ||
 		groupInfo.Error.Code() != ErrNoError ||
 		groupInfo.Protocol != protocol ||
 		// We can't check exactly the Broker information, but we add a check for the zero-value of the Host.
 		groupInfo.Broker.Host == "" ||
+		// We will run all our tests on non-simple consumer groups only.
+		groupInfo.IsSimpleConsumerGroup ||
+		groupInfo.ProtocolType != "consumer" ||
 		len(groupInfo.Members) != len(clientIdToPartitions) {
 		return false
 	}
@@ -1283,7 +1286,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	defer ac.Close()
 
 	// Check that our group is not present initially.
-	groups, err := ac.ListConsumerGroups(30 * time.Second)
+	groups, err := ac.ListConsumerGroups(nil, 30*time.Second)
 	if err != nil {
 		t.Errorf("Error listing consumer groups %s\n", err)
 		return
@@ -1330,7 +1333,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	}
 
 	// Check that the group exists.
-	groups, err = ac.ListConsumerGroups(30 * time.Second)
+	groups, err = ac.ListConsumerGroups(nil, 30*time.Second)
 	if err != nil {
 		t.Errorf("Error listing consumer groups %s\n", err)
 		return
@@ -1386,7 +1389,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	}
 
 	// Check for the absence of the consumer group after deletion.
-	groups, err = ac.ListConsumerGroups(30 * time.Second)
+	groups, err = ac.ListConsumerGroups(nil, 30*time.Second)
 	if err != nil {
 		t.Errorf("Error listing consumer groups %s\n", err)
 		return
@@ -1408,9 +1411,10 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	// Generating a new groupID to ensure a fresh group is created.
+	// Generating a new topic/groupID to ensure a fresh group/topic is created.
 	rand.Seed(time.Now().Unix())
 	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
 	nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
 
 	clientID1 := "test.client.1"
@@ -1424,7 +1428,7 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 	defer cancel()
 	_, err := ac.CreateTopics(ctx, []TopicSpecification{
 		{
-			Topic:         testconf.Topic,
+			Topic:         topic,
 			NumPartitions: 2,
 		},
 	})
@@ -1437,14 +1441,14 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 	defer func() {
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_, err = ac.DeleteTopics(ctx, []string{testconf.Topic})
+		_, err = ac.DeleteTopics(ctx, []string{topic})
 		if err != nil {
 			t.Errorf("Topic deletion failed with error %v", err)
 		}
 	}()
 
 	// Check the non-existence of consumer groups initially.
-	groups, err := ac.ListConsumerGroups(30 * time.Second)
+	groups, err := ac.ListConsumerGroups(nil, 30*time.Second)
 	if err != nil {
 		t.Errorf("Error listing consumer groups %s\n", err)
 		return
@@ -1477,13 +1481,13 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 			consumer1.Close()
 		}
 	}()
-	consumer1.Subscribe(testconf.Topic, nil)
+	consumer1.Subscribe(topic, nil)
 
 	// Call Poll to trigger a rebalance and give it enough time to finish.
 	consumer1.Poll(10 * 1000)
 
 	// Check the existence of the group.
-	groups, err = ac.ListConsumerGroups(30 * time.Second)
+	groups, err = ac.ListConsumerGroups(nil, 30*time.Second)
 	if err != nil {
 		t.Errorf("Error listing consumer groups %s\n", err)
 		return
@@ -1510,10 +1514,10 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 
 	clientIdToPartitions := make(map[string][]TopicPartition)
 	clientIdToPartitions[clientID1] = []TopicPartition{
-		{Topic: &testconf.Topic, Partition: 0, Offset: OffsetInvalid},
-		{Topic: &testconf.Topic, Partition: 1, Offset: OffsetInvalid},
+		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
+		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
 	}
-	if !checkGroupInfo(groupInfo, "Stable", groupID, "range", clientIdToPartitions) {
+	if !checkGroupInfo(groupInfo, ConsumerGroupStateStable, groupID, "range", clientIdToPartitions) {
 		t.Errorf("Expected description for consumer group  %s is not same as actual: %v", groupID, groupInfo)
 		return
 	}
@@ -1540,11 +1544,13 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 			consumer2.Close()
 		}
 	}()
-	consumer2.Subscribe(testconf.Topic, nil)
+	consumer2.Subscribe(topic, nil)
 
 	// Call Poll to start triggering the rebalance. Give it enough time to run
 	// that it becomes stable and keep polling in the meanwhile. An arbitrary limit
 	// of around 10*10 = 100s is set so we don't get stuck here.
+	// TODO(milind): do we need this or not, not sure, but I was having some trouble
+	// when I just did consumer2.Poll(...).
 	for polled := 0; polled < 10; polled++ {
 		consumer2.Poll(5 * 1000)
 		consumer1.Poll(5 * 1000)
@@ -1559,18 +1565,18 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 			t.Errorf("Consumer group %s should be present\n", groupID)
 			return
 		}
-		if groupInfo.State == "Stable" {
+		if groupInfo.State == ConsumerGroupStateStable {
 			break
 		}
 	}
 
 	clientIdToPartitions[clientID1] = []TopicPartition{
-		{Topic: &testconf.Topic, Partition: 0, Offset: OffsetInvalid},
+		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
 	}
 	clientIdToPartitions[clientID2] = []TopicPartition{
-		{Topic: &testconf.Topic, Partition: 1, Offset: OffsetInvalid},
+		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
 	}
-	if !checkGroupInfo(groupInfo, "Stable", groupID, "range", clientIdToPartitions) {
+	if !checkGroupInfo(groupInfo, ConsumerGroupStateStable, groupID, "range", clientIdToPartitions) {
 		t.Errorf("Expected description for consumer group  %s is not same as actual %v", groupInfo, groupInfo)
 		return
 	}
@@ -1603,8 +1609,38 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 	}
 
 	clientIdToPartitions = make(map[string][]TopicPartition)
-	if !checkGroupInfo(groupInfo, "Empty", groupID, "", clientIdToPartitions) {
+	if !checkGroupInfo(groupInfo, ConsumerGroupStateEmpty, groupID, "", clientIdToPartitions) {
 		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupInfo)
+	}
+
+	// Try listing the Empty consumer group, and make sure that the States option
+	// works while listing.
+	groups, err = ac.ListConsumerGroups(&ListConsumerGroupsOptions{
+		States: []ConsumerGroupState{ConsumerGroupStateEmpty},
+	}, 30*time.Second)
+	if err != nil {
+		t.Errorf("Error listing consumer groups %s\n", err)
+		return
+	}
+
+	groupInfo = findGroup(groups, groupID)
+	if groupInfo == nil {
+		t.Errorf("Consumer group %s should be present\n", groupID)
+		return
+	}
+
+	groups, err = ac.ListConsumerGroups(&ListConsumerGroupsOptions{
+		States: []ConsumerGroupState{ConsumerGroupStateStable},
+	}, 30*time.Second)
+	if err != nil {
+		t.Errorf("Error listing consumer groups %s\n", err)
+		return
+	}
+
+	groupInfo = findGroup(groups, groupID)
+	if groupInfo != nil {
+		t.Errorf("Consumer group %s should not be present\n", groupID)
+		return
 	}
 }
 
