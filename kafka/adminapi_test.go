@@ -703,7 +703,13 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 
-	listres, err := a.ListConsumerGroups(time.Second)
+	state, err := ConsumerGroupStateFromString("Stable")
+	if err != nil || state != ConsumerGroupStateStable {
+		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
+	}
+	listres, err := a.ListConsumerGroups(&ListConsumerGroupsOptions{
+		States: []ConsumerGroupState{state},
+	}, time.Second)
 	if listres != nil || err == nil {
 		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v", listres, err)
 	}
