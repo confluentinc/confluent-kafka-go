@@ -19,6 +19,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -32,6 +33,7 @@ import (
 import "C"
 
 var testconf struct {
+	Docker       bool
 	Brokers      string
 	Topic        string
 	GroupID      string
@@ -41,14 +43,27 @@ var testconf struct {
 	conf         ConfigMap
 }
 
+// Command line flags accepted by tests
+var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
+
+// testconfSetup does checks if will be bringing up containers for testing
+// automatically, or if we will be using the bootstrap servers from the
+// testconf file.
+func testconfInit() {
+	if usingDocker != nil && *usingDocker {
+		testconf.Docker = true
+		testconf.Brokers = "localhost:9092"
+	}
+}
+
 // testconf_read reads the test suite config file testconf.json which must
 // contain at least Brokers and Topic string properties.
 // Returns true if the testconf was found and usable, false if no such file, or panics
 // if the file format is wrong.
 func testconfRead() bool {
 	cf, err := os.Open("testconf.json")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%% testconf.json not found - ignoring test\n")
+	if err != nil && !testconf.Docker {
+		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
 		return false
 	}
 
@@ -65,7 +80,7 @@ func testconfRead() bool {
 
 	cf.Close()
 
-	if testconf.Brokers[0] == '$' {
+	if !testconf.Docker && testconf.Brokers[0] == '$' {
 		// Read broker list from environment variable
 		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
 	}

@@ -27,6 +27,9 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go"
 )
 
 // producer test control
@@ -1208,6 +1211,38 @@ func TestProducerConsumerHeaders(t *testing.T) {
 	}
 
 	c.Close()
+
+}
+
+type AdminTestSuite struct {
+	suite.Suite
+	compose *testcontainers.LocalDockerCompose
+}
+
+func (ats *AdminTestSuite) SetupSuite() {
+	testconfInit()
+	if !testconf.Docker {
+		return
+	}
+	ats.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
+	execErr := ats.compose.WithCommand([]string{"up", "-d"}).Invoke()
+	if err := execErr.Error; err != nil {
+		ats.T().Fatal(execErr)
+	}
+	// It takes some time after the containers come up for them to be ready.
+	time.Sleep(20 * time.Second)
+}
+
+func (ats *AdminTestSuite) SetupTest() {
+	if !testconfRead() {
+		ats.T().Skipf("Missing testconf.json and docker container")
+	}
+}
+
+func (ats *AdminTestSuite) TearDownSuite() {
+	if testconf.Docker && ats.compose != nil {
+		ats.compose.Down()
+	}
 }
 
 func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
@@ -1228,7 +1263,8 @@ func validateTopicResult(t *testing.T, result []TopicResult, expError map[string
 	}
 }
 
-func TestAdminTopics(t *testing.T) {
+func (ats *AdminTestSuite) TestAdminTopics() {
+	t := ats.T()
 	rand.Seed(time.Now().Unix())
 
 	a := createAdminClient(t)
@@ -1439,7 +1475,8 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 	}
 }
 
-func TestAdminConfig(t *testing.T) {
+func (ats *AdminTestSuite) TestAdminConfig() {
+	t := ats.T()
 	rand.Seed(time.Now().Unix())
 
 	a := createAdminClient(t)
@@ -1556,14 +1593,11 @@ func TestAdminConfig(t *testing.T) {
 	if topicResult[0].Error.Code() != ErrNoError {
 		t.Fatalf("Failed to delete topic %s: %s", topic, topicResult[0].Error)
 	}
-
 }
 
 //Test AdminClient GetMetadata API
-func TestAdminGetMetadata(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (ats *AdminTestSuite) TestAdminGetMetadata() {
+	t := ats.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	config.updateFromTestconf()
@@ -1589,14 +1623,11 @@ func TestAdminGetMetadata(t *testing.T) {
 		return
 	}
 	t.Logf("Meta data for admin client: %v\n", metaData)
-
 }
 
 // Test AdminClient ClusterID.
-func TestAdminClient_ClusterID(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (ats *AdminTestSuite) TestAdminClient_ClusterID() {
+	t := ats.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := config.updateFromTestconf(); err != nil {
@@ -1623,10 +1654,8 @@ func TestAdminClient_ClusterID(t *testing.T) {
 }
 
 // Test AdminClient ControllerID.
-func TestAdminClient_ControllerID(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (ats *AdminTestSuite) TestAdminClient_ControllerID() {
+	t := ats.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := config.updateFromTestconf(); err != nil {
@@ -1656,10 +1685,8 @@ func TestAdminClient_ControllerID(t *testing.T) {
 	t.Logf("ControllerID: %d\n", controllerID)
 }
 
-func TestAdminACLs(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (ats *AdminTestSuite) TestAdminACLs() {
+	t := ats.T()
 
 	rand.Seed(time.Now().Unix())
 	topic := testconf.Topic
@@ -1848,4 +1875,8 @@ func TestAdminACLs(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
+}
+
+func TestAdminClient(t *testing.T) {
+	suite.Run(t, new(AdminTestSuite))
 }
