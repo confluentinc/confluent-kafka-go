@@ -20,7 +20,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
@@ -48,8 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	timeout := time.Second * 30
-	groupInfos, err := a.DescribeConsumerGroups(groups, timeout)
+	groupInfos, err := a.DescribeConsumerGroups(groups)
 	if err != nil {
 		fmt.Printf("Failed to describe groups: %s\n", err)
 		os.Exit(1)
