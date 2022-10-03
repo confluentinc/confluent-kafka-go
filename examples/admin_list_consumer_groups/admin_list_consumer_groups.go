@@ -29,19 +29,19 @@ import (
 func main() {
 
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> [<timeout_seconds> = 30]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> [<timeout_seconds> = infinite]\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
 
-	timeout := time.Second * 30
+	timeout_parsed := -1
+	var err error
 	if len(os.Args) > 2 {
-		timeout_parsed, err := strconv.Atoi(os.Args[2])
+		timeout_parsed, err = strconv.Atoi(os.Args[2])
 		if err != nil {
 			fmt.Printf("Error parsing the timeout %s\n: %s", os.Args[2], err)
 		}
-		timeout = time.Duration(timeout_parsed) * time.Second
 	}
 
 	// Create a new AdminClient.
@@ -51,7 +51,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	groupInfos, err := a.ListConsumerGroups(timeout)
+	var groupInfos []kafka.GroupInfo
+	if timeout_parsed == -1 {
+		groupInfos, err = a.ListConsumerGroups()
+	} else {
+		timeout := time.Duration(timeout_parsed) * time.Second
+		groupInfos, err = a.ListConsumerGroups(kafka.SetListConsumerGroupsOptionRequestTimeout(timeout))
+	}
+
 	if err != nil {
 		fmt.Printf("Failed to list groups: %s\n", err)
 		os.Exit(1)

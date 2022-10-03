@@ -707,9 +707,9 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	if err != nil || state != ConsumerGroupStateStable {
 		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
 	}
-	listres, err := a.ListConsumerGroups(&ListConsumerGroupsOptions{
-		States: []ConsumerGroupState{state},
-	}, time.Second)
+	listres, err := a.ListConsumerGroups(
+		SetListConsumerGroupsOptionConsumerGroupState([]ConsumerGroupState{state}),
+		SetListConsumerGroupsOptionRequestTimeout(time.Second))
 	if listres != nil || err == nil {
 		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v", listres, err)
 	}
@@ -717,7 +717,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		t.Fatalf("Expected ErrTimedOut, got %v", err)
 	}
 
-	descres, err := a.DescribeConsumerGroups(nil, time.Second)
+	descres, err := a.DescribeConsumerGroups(nil, SetDescribeConsumerGroupsOptionRequestTimeout(time.Second))
 	if descres != nil || err == nil {
 		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v", descres, err)
 	}

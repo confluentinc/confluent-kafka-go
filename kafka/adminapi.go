@@ -171,12 +171,6 @@ func ConsumerGroupStateFromString(stateString string) (ConsumerGroupState, error
 	return state, nil
 }
 
-// ListConsumerGroupsOptions contains the options for ListConsumerGroups
-type ListConsumerGroupsOptions struct {
-	// The states to list the groups for.
-	States []ConsumerGroupState
-}
-
 // GroupInfo provides information about a consumer group.
 type GroupInfo struct {
 	// Group name
@@ -2035,25 +2029,16 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 // Parameters:
 //  * `options` - is the struct of options to be passed while listing
 //     the groups. Can be set to nil.
-//  * `timeout` - is the (approximate) maximum time to wait for response
-//     from brokers and must be a positive value.
+//  * `options` - options for the list consumer group operation.
 //
 // Returns a slice of GroupInfo, each element of which corresponds to a group, plus an
 // error that is not `nil` for client level errors.
 // Each GroupInfo returned will always have the `Group` field populated, and the `Error`
 // field populated in case of an error. The other fields will NOT be populated.
-func (a *AdminClient) ListConsumerGroups(options *ListConsumerGroupsOptions, timeout time.Duration) (result []GroupInfo, err error) {
-	// Convert Go ListConsumerGroupsOptions to C list_consumer_groups_options.
-	var cListConsumerGroupOptions *C.rd_kafka_list_consumer_groups_options_t = nil
-	if options != nil && len(options.States) != 0 {
-		cStates := make([]C.rd_kafka_consumer_group_state_t, len(options.States))
-		for idx, state := range options.States {
-			cStates[idx] = C.rd_kafka_consumer_group_state_t(state)
-		}
-		cListConsumerGroupOptions =
-			C.rd_kafka_list_consumer_groups_options_new(
-				(*C.rd_kafka_consumer_group_state_t)(&cStates[0]),
-				C.size_t(len(cStates)))
+func (a *AdminClient) ListConsumerGroups(options ...ListConsumerGroupsOption) (result []GroupInfo, err error) {
+	// Convert Go []ListConsumerGroupsOption to C list_consumer_groups_options.
+	cListConsumerGroupOptions := listConsumerGroupsOptionsSetup(options)
+	if cListConsumerGroupOptions != nil {
 		defer C.rd_kafka_list_consumer_groups_options_destroy(cListConsumerGroupOptions)
 	}
 
@@ -2062,8 +2047,7 @@ func (a *AdminClient) ListConsumerGroups(options *ListConsumerGroupsOptions, tim
 	cErr := C.rd_kafka_list_consumer_groups(
 		a.handle.rk,
 		&cGroupInfoList,
-		cListConsumerGroupOptions,
-		C.int(durationToMilliseconds(timeout)))
+		cListConsumerGroupOptions)
 	err = newError(cErr)
 	if err.(Error).Code() == ErrNoError {
 		err = nil
@@ -2088,13 +2072,12 @@ func (a *AdminClient) ListConsumerGroups(options *ListConsumerGroupsOptions, tim
 // Parameters:
 //  * `groups` - is the slice of groups that we need to describe. This is optional, and nil
 //     means that all groups will be described.
-//  * `timeout` - is the (approximate) maximum time to wait for response
-//     from brokers and must be a positive value.
+//  * `options` - options for the describe consumer group operation.
 //
 // Returns a slice of GroupInfo, each element of which corresponds to a group, plus an
 // error that is not `nil` for client level errors.
 // Each GroupInfo returned will haved the `Error` field populated in case of any error.
-func (a *AdminClient) DescribeConsumerGroups(groups []string, timeout time.Duration) (result []GroupInfo, err error) {
+func (a *AdminClient) DescribeConsumerGroups(groups []string, options ...DescribeConsumerGroupsOption) (result []GroupInfo, err error) {
 	// Convert group names into char** required by the implementation.
 	cGroupNameList := make([]*C.char, len(groups))
 	cGroupNameCount := C.size_t(len(groups))
@@ -2109,6 +2092,12 @@ func (a *AdminClient) DescribeConsumerGroups(groups []string, timeout time.Durat
 		cGroupNameListPtr = ((**C.char)(&cGroupNameList[0]))
 	}
 
+	// Convert Go []DescribeConsumerGroupsOption] to C describe_consumer_groups_options.
+	cDescribeConsumerGroupOptions := describeConsumerGroupsOptionsSetup(options)
+	if cDescribeConsumerGroupOptions != nil {
+		defer C.rd_kafka_describe_consumer_groups_options_destroy(cDescribeConsumerGroupOptions)
+	}
+
 	// Call librdkafka's implementation of the method.
 	var cGroupInfoList *C.struct_rd_kafka_group_list
 	cErr := C.rd_kafka_describe_consumer_groups(
@@ -2116,7 +2105,7 @@ func (a *AdminClient) DescribeConsumerGroups(groups []string, timeout time.Durat
 		cGroupNameListPtr,
 		cGroupNameCount,
 		&cGroupInfoList,
-		C.int(durationToMilliseconds(timeout)))
+		cDescribeConsumerGroupOptions)
 	err = newError(cErr)
 	if err.(Error).Code() == ErrNoError {
 		err = nil
