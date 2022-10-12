@@ -136,6 +136,9 @@ type Producer struct {
 
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
+
+	// checks if Producer has been closed or not.
+	isClosed bool
 }
 
 // String returns a human readable name for a Producer instance
@@ -148,9 +151,20 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
+// verifyProducer verifies if Producer can be used
+func (p *Producer) verifyProducer() bool {
+	if p == nil || p.isClosed {
+		return false
+	}
+	return true
+}
+
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")
+	}
+	if p.verifyProducer() == false {
+		return newErrorFromString(ErrState, "not a valid Producer state.")
 	}
 
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
@@ -364,6 +378,8 @@ func (p *Producer) Close() {
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
+
+	p.isClosed = true
 }
 
 const (
@@ -523,6 +539,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.events = make(chan Event, eventsChanSize)
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
+	p.isClosed = false
 
 	if logsChanEnable {
 		p.handle.setupLogQueue(logsChan, p.pollerTermChan)
