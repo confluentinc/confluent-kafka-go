@@ -4,3 +4,4 @@
 tmp-build
 .DS_Store
 .idea
+kafka/test_certs/

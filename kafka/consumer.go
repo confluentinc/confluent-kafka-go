@@ -18,7 +18,6 @@ package kafka
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"math"
 	"time"
@@ -28,7 +27,6 @@ import (
 /*
 #include <stdlib.h>
 #include "select_rdkafka.h"
-#include "tlscb_thunk.h"
 
 
 static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafka_topic_partition_list_t *rktparlist, int idx) {
@@ -617,20 +615,6 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 	eventsChanSize := v.(int)
 
-	v, err = confCopy.extract("go.tls.config", nil)
-	if err != nil {
-		return nil, err
-	}
-	if v != nil {
-		c.handle.tlsConfig = v.(*tls.Config)
-		v, err = confCopy.get("ssl.endpoint.identification.algorithm", "none")
-		if err != nil {
-			return nil, err
-		}
-		identAlgo := v.(string)
-		c.handle.verifyBrokerDNS = identAlgo == "https"
-	}
-
 	logsChanEnable, logsChan, err := confCopy.extractLogConfig()
 	if err != nil {
 		return nil, err
@@ -646,9 +630,6 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_REBALANCE|C.RD_KAFKA_EVENT_OFFSET_COMMIT|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
 	c.handle.setupGlobalCgoMap()
 	C.rd_kafka_conf_set_opaque(cConf, c.handle.globalCgoPointer)
-	if c.handle.tlsConfig != nil {
-		C.cgo_rd_kafka_conf_set_tls_callbacks(cConf)
-	}
 
 	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, cConf, cErrstr, 256)
 	if c.handle.rk == nil {
@@ -1064,7 +1045,7 @@ func (c *Consumer) handleRebalanceEvent(rkev *C.rd_kafka_event_t) (retval Event)
 }
 
 // MemberID returns this client's broker-assigned group member id.
-func(c *Consumer) MemberID() string {
+func (c *Consumer) MemberID() string {
 	cMemberId := C.rd_kafka_memberid(c.handle.rk)
 	defer C.rd_kafka_mem_free(c.handle.rk, unsafe.Pointer(cMemberId))
 	return C.GoString(cMemberId)

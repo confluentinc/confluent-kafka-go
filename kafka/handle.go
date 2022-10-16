@@ -18,8 +18,6 @@ package kafka
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"strings"
 	"sync"
@@ -195,11 +193,6 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
-
-	tlsConfig       *tls.Config
-	intermediates   *x509.CertPool
-	tlsLock         sync.RWMutex
-	verifyBrokerDNS bool
 }
 
 func (h *handle) String() string {
@@ -221,7 +214,6 @@ func (h *handle) setup() {
 	h.rkqtAssignedPartitions = make(map[topicPartitionKey]*C.rd_kafka_queue_t)
 	h.cgomap = make(map[unsafe.Pointer]cgoif)
 	h.cgoTokenCache = make(chan unsafe.Pointer, 32)
-	h.intermediates = x509.NewCertPool()
 	h.name = C.GoString(C.rd_kafka_name(h.rk))
 	if h.msgFields == nil {
 		h.msgFields = newMessageFields()
