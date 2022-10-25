@@ -179,6 +179,41 @@ func TestProducerAPIs(t *testing.T) {
 	if offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
+
+	p.Close()
+	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
+		Value: []byte("Producer Validation"), Key: []byte("This is my key")},
+		nil)
+	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
+	offsets, err = p.OffsetsForTimes([]TopicPartition{{Topic: &topic2, Offset: 12345}}, 100)
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s for offsets", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s for offsets", expectedErr)
+	}
+
+	p = nil
+	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
+		Value: []byte("Producer Validation"), Key: []byte("This is my key")},
+		nil)
+	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
+	offsets, err = p.OffsetsForTimes([]TopicPartition{{Topic: &topic2, Offset: 12345}}, 100)
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s for offsets", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s for offsets", expectedErr)
+	}
+
 }
 
 // TestPurgeAPI test if messages are purged successfully
@@ -220,6 +255,25 @@ func TestPurgeAPI(t *testing.T) {
 	}
 
 	close(purgeDrChan)
+
+	unreachableProducer.Close()
+	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
+	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
+
+	unreachableProducer = nil
+	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
+	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
+
 }
 
 // TestProducerBufferSafety verifies issue #24, passing any type of memory backed buffer
@@ -320,6 +374,37 @@ func TestProducerOAuthBearerConfig(t *testing.T) {
 	}
 
 	p.Close()
+	err = p.SetOAuthBearerToken(OAuthBearerToken{
+		TokenValue: "aaaa",
+		Expiration: time.Now().Add(time.Second * time.Duration(60)),
+		Principal:  "gotest",
+	})
+	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
+
+	p = nil
+	err = p.SetOAuthBearerToken(OAuthBearerToken{
+		TokenValue: "aaaa",
+		Expiration: time.Now().Add(time.Second * time.Duration(60)),
+		Principal:  "gotest",
+	})
+	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
+	err = p.SetOAuthBearerTokenFailure("A token failure test")
+	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Producer should have thrown err : %s", expectedErr)
+	} else {
+		t.Logf("Producer throwed err : %s", expectedErr)
+	}
 }
 
 func TestProducerLog(t *testing.T) {
@@ -563,6 +648,83 @@ func TestTransactionalAPI(t *testing.T) {
 	}
 
 	p.Close()
+
+	for iter := 0; iter < 2; iter++ {
+
+		if iter == 2 {
+			// Last iteration, pass p as nil
+			p = nil
+		}
+
+		ctx = context.TODO()
+		what := "BeginTransaction"
+		err = p.BeginTransaction()
+
+		t.Logf("%s() returned '%v'", what, err)
+		expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+
+		// SendOffsetsToTransaction
+		what = "SendOffsetsToTransaction"
+		topic := "myTopic"
+		cgmd, err := NewTestConsumerGroupMetadata("myConsumerGroup")
+		if err != nil {
+			t.Fatalf("Failed to create group metadata: %v", err)
+		}
+		err = p.SendOffsetsToTransaction(ctx,
+			[]TopicPartition{
+				{Topic: &topic, Partition: 1, Offset: 123},
+				{Topic: &topic, Partition: 0, Offset: 4567890},
+			},
+			cgmd)
+		t.Logf("%s() returned '%v'", what, err)
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+
+		what = "SendOffsetsToTransaction(nil offsets)"
+		err = p.SendOffsetsToTransaction(ctx, nil, cgmd)
+		t.Logf("%s() returned '%v'", what, err)
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+
+		what = "SendOffsetsToTransaction(empty offsets, empty group)"
+		cgmdEmpty, err := NewTestConsumerGroupMetadata("")
+		if err != nil {
+			t.Fatalf("Failed to create group metadata: %v", err)
+		}
+		err = p.SendOffsetsToTransaction(ctx, []TopicPartition{}, cgmdEmpty)
+		t.Logf("%s() returned '%v'", what, err)
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+
+		what = "SendOffsetsToTransaction(empty offsets)"
+		err = p.SendOffsetsToTransaction(ctx, []TopicPartition{}, cgmd)
+		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+
+		// AbortTransaction
+		what = "AbortTransaction"
+		err = p.AbortTransaction(ctx)
+		t.Logf("%s() returned '%v'", what, err)
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+
+		// CommitTransaction
+		what = "CommitTransaction"
+		err = p.CommitTransaction(ctx)
+		t.Logf("%s() returned '%v'", what, err)
+		if err != expectedErr {
+			t.Errorf("Producer should have thrown err : %s", expectedErr)
+		}
+	}
 }
 
 // TestProducerDeliveryReportFields tests the `go.delivery.report.fields` config setting
