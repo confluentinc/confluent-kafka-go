@@ -45,6 +45,18 @@ func TestMetadataAPIs(t *testing.T) {
 	}
 
 	p.Close()
+	metadata, err = p.GetMetadata(nil, true, 10)
+	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Expected GetMetadata to throw  error : %s", expectedErr)
+	}
+
+	p = nil
+	metadata, err = p.GetMetadata(nil, true, 10)
+	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
+	if err != expectedErr {
+		t.Errorf("Expected GetMetadata to throw  error : %s", expectedErr)
+	}
 
 	c, err := NewConsumer(&ConfigMap{"group.id": "gotest"})
 	if err != nil {
