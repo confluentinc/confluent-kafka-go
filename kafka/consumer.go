@@ -907,3 +907,8 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	return nil
 }
+
+// SaslSetCredentials (re)sets the SASL credentials on this consumer.
+func (c *Consumer) SaslSetCredentials(username, password string) error {
+	return saslSetCredentials(c.handle.rk, username, password)
+}

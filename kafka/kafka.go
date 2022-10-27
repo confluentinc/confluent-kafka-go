@@ -252,6 +252,7 @@
 package kafka
 
 import (
+	"errors"
 	"fmt"
 	// Make sure librdkafka_vendor/ sub-directory is included in vendor pulls.
 	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka_vendor"
@@ -372,4 +373,23 @@ func LibraryVersion() (int, string) {
 	ver := (int)(C.rd_kafka_version())
 	verstr := C.GoString(C.rd_kafka_version_str())
 	return ver, verstr
+}
+
+// saslSetCredentials (re)sets the SASL PLAIN credentials on a Kafka client.
+func saslSetCredentials(rk *C.rd_kafka_t, username, password string) error {
+	cUsername := C.CString(username)
+	defer C.free(unsafe.Pointer(cUsername))
+	cPassword := C.CString(password)
+	defer C.free(unsafe.Pointer(cPassword))
+
+	err := C.rd_kafka_sasl_set_credentials(rk, cUsername, cPassword)
+	if err == nil {
+		return nil
+	}
+
+	defer C.free(unsafe.Pointer(err))
+	cErrMsg := C.rd_kafka_error_string(err)
+	defer C.free(unsafe.Pointer(cErrMsg))
+
+	return errors.New(C.GoString(cErrMsg))
 }

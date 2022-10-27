@@ -916,3 +916,8 @@ func (p *Producer) AbortTransaction(ctx context.Context) error {
 
 	return nil
 }
+
+// SaslSetCredentials (re)sets the SASL credentials on this producer.
+func (p *Producer) SaslSetCredentials(username, password string) error {
+	return saslSetCredentials(p.handle.rk, username, password)
+}
