@@ -78,9 +78,10 @@ func main() {
 		fmt.Printf("%s %s: %s:\n", result.Type, result.Name, result.Error)
 		for _, entry := range result.Config {
 			// Truncate the value to 60 chars, if needed, for nicer formatting.
-			fmt.Printf("%60s = %-60.60s   %-20s Read-only:%v Sensitive:%v\n",
+			fmt.Printf("%60s = %-60.60s   %-20s Read-only:%v Sensitive:%v Default:%v\n",
 				entry.Name, entry.Value, entry.Source,
-				entry.IsReadOnly, entry.IsSensitive)
+				entry.IsReadOnly, entry.IsSensitive,
+				entry.IsDefault)
 		}
 	}
 

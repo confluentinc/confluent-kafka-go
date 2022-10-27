@@ -271,6 +271,8 @@ type ConfigEntryResult struct {
 	Source ConfigSource
 	// IsReadOnly indicates whether the configuration entry can be altered.
 	IsReadOnly bool
+	// IsDefault indicates whether the value is at its default.
+	IsDefault bool
 	// IsSensitive indicates whether the configuration entry contains sensitive information, in which case the value will be unset.
 	IsSensitive bool
 	// IsSynonym indicates whether the configuration entry is a synonym for another configuration property.
@@ -293,6 +295,7 @@ func configEntryResultFromC(cEntry *C.rd_kafka_ConfigEntry_t) (entry ConfigEntry
 	}
 	entry.Source = ConfigSource(C.rd_kafka_ConfigEntry_source(cEntry))
 	entry.IsReadOnly = cint2bool(C.rd_kafka_ConfigEntry_is_read_only(cEntry))
+	entry.IsDefault = cint2bool(C.rd_kafka_ConfigEntry_is_default(cEntry))
 	entry.IsSensitive = cint2bool(C.rd_kafka_ConfigEntry_is_sensitive(cEntry))
 	entry.IsSynonym = cint2bool(C.rd_kafka_ConfigEntry_is_synonym(cEntry))
 
