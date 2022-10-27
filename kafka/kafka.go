@@ -252,7 +252,6 @@
 package kafka
 
 import (
-	"errors"
 	"fmt"
 	// Make sure librdkafka_vendor/ sub-directory is included in vendor pulls.
 	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka_vendor"
@@ -375,21 +374,21 @@ func LibraryVersion() (int, string) {
 	return ver, verstr
 }
 
-// saslSetCredentials (re)sets the SASL PLAIN credentials on a Kafka client.
-func saslSetCredentials(rk *C.rd_kafka_t, username, password string) error {
+// setSaslCredentials sets the SASL credentials used for the specified Kafka client.
+// The new credentials will overwrite the old ones (which were set when creating the
+// client or by a previous call to setSaslCredentials). The new credentials will be
+// used the next time the client needs to establish a connection to the broker. This
+// function will *not* break existing broker connections that were established with the
+// old credentials. This method applies only to the SASL PLAIN and SCRAM mechanisms.
+func setSaslCredentials(rk *C.rd_kafka_t, username, password string) error {
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
 	cPassword := C.CString(password)
 	defer C.free(unsafe.Pointer(cPassword))
 
-	err := C.rd_kafka_sasl_set_credentials(rk, cUsername, cPassword)
-	if err == nil {
-		return nil
+	if err := C.rd_kafka_sasl_set_credentials(rk, cUsername, cPassword); err != nil {
+		return newErrorFromCErrorDestroy(err)
 	}
 
-	defer C.free(unsafe.Pointer(err))
-	cErrMsg := C.rd_kafka_error_string(err)
-	defer C.free(unsafe.Pointer(cErrMsg))
-
-	return errors.New(C.GoString(cErrMsg))
+	return nil
 }

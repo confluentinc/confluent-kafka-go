@@ -908,7 +908,12 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 	return nil
 }
 
-// SaslSetCredentials (re)sets the SASL credentials on this consumer.
-func (c *Consumer) SaslSetCredentials(username, password string) error {
-	return saslSetCredentials(c.handle.rk, username, password)
+// SetSaslCredentials sets the SASL credentials used for this consumer. The new credentials
+// will overwrite the old ones (which were set when creating the consumer or by a previous
+// call to SetSaslCredentials). The new credentials will be used the next time the
+// consumer needs to establish a connection to the broker. This method will *not*
+// break existing broker connections that were established with the old credentials.
+// This method applies only to the SASL PLAIN and SCRAM mechanisms.
+func (c *Consumer) SetSaslCredentials(username, password string) error {
+	return setSaslCredentials(c.handle.rk, username, password)
 }
