@@ -19,6 +19,7 @@ package schemaregistry
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -171,6 +172,9 @@ func configureTLS(conf *Config, tlsConf *tls.Config) error {
 		caCert, err := ioutil.ReadFile(caFile)
 		if err != nil {
 			return err
+		}
+		if tlsConf.RootCAs == nil {
+			tlsConf.RootCAs = x509.NewCertPool()
 		}
 		tlsConf.RootCAs.AppendCertsFromPEM(caCert)
 		if err != nil {
