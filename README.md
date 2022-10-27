@@ -220,6 +220,32 @@ with `-tags dynamic`.
 
 **confluent-kafka-go requires librdkafka v1.9.0 or later.**
 
+Static builds on Linux
+----------------------
+
+Since we are using `cgo`, Go builds a dynamically linked library even when using
+the prebuilt, statically-compiled librdkafka as described in the **librdkafka**
+chapter.
+
+For `glibc` based systems, if the system where the client is being compiled is
+different from the target system, especially when the target system is older,
+there is a `glibc` version error when trying to run the compiled client.
+
+Unfortunately, if we try building a statically linked binary, it doesn't solve the problem,
+since there is no way to have truly static builds using `glibc`. This is
+because there are some functions in `glibc`, like `getaddrinfo` which need the shared
+version of the library even when the code is compiled statically.
+
+One way around this is to either use a container/VM to build the binary, or install
+an older version of `glibc` on the system where the client is being compiled.
+
+The other way is using `musl` to create truly static builds for Linux. To do this,
+[install it for your system](https://wiki.musl-libc.org/getting-started.html).
+
+Static compilation command, meant to be used alongside the prebuilt librdkafka bundle:
+```bash
+CC=/path/to/musl-gcc go build --ldflags '-linkmode external -extldflags "-static"' -tags musl
+```
 
 API Strands
 ===========
