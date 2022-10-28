@@ -204,10 +204,7 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
-	err = c.Close()
-	if err != nil {
-		t.Errorf("Close failed: %s", err)
-	}
+	c.Close()
 }
 
 func TestConsumerSubscription(t *testing.T) {
@@ -417,9 +414,7 @@ func TestConsumerLog(t *testing.T) {
 
 	<-time.After(time.Second * 3)
 
-	if err := c.Close(); err != nil {
-		t.Fatal("Failed to close consumer.")
-	}
+	c.Close()
 
 	for expectedLog, found := range expectedLogs {
 		if !found {

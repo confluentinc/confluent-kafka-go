@@ -415,7 +415,7 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 
 // Close Consumer instance.
 // The object is no longer usable after this call.
-func (c *Consumer) Close() (err error) {
+func (c *Consumer) Close() {
 
 	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
 	close(c.readerTermChan)
@@ -437,8 +437,6 @@ func (c *Consumer) Close() (err error) {
 	c.handle.cleanup()
 
 	C.rd_kafka_destroy(c.handle.rk)
-
-	return nil
 }
 
 // NewConsumer creates a new high-level Consumer instance.
