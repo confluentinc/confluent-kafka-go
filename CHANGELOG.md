@@ -1,5 +1,11 @@
 # Confluent's Golang client for Apache Kafka
 
+## v1.9.3
+
+This is a maintenaince release:
+
+ * Added SetSaslCredentials wrapper for librdkafka rd_kafka_sasl_set_credentials.
+
 
 ## v1.9.2
 
