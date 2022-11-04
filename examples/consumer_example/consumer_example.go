@@ -50,10 +50,13 @@ func main() {
 		// when using localhost brokers on OSX, since the OSX resolver
 		// will return the IPv6 addresses first.
 		// You typically don't need to specify this configuration property.
-		"broker.address.family":    "v4",
-		"group.id":                 group,
-		"session.timeout.ms":       6000,
-		"auto.offset.reset":        "earliest",
+		"broker.address.family": "v4",
+		"group.id":              group,
+		// Start reading from the first message of each assigned
+		// partition if there are no previously committed offsets
+		// for this group.
+		"auto.offset.reset": "earliest",
+		// Whether or not we store offsets automatically.
 		"enable.auto.offset.store": false,
 	})
 
@@ -81,11 +84,35 @@ func main() {
 
 			switch e := ev.(type) {
 			case *kafka.Message:
+				// Process the message received.
 				fmt.Printf("%% Message on %s:\n%s\n",
 					e.TopicPartition, string(e.Value))
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
+
+				// Storing an offset means passing it to the consumer client,
+				// which stores it in-memory without sending it to the broker.
+				// Commiting an offset means that we are sending offsets to the
+				// broker. We can commit arbitrary offsets, or the offsets we
+				// have stored previously.
+				//
+				// We generally follow a two-phase process of storing offsets,
+				// and then committing them. Each of these steps can be left for
+				// the consumer to do automatically, or be done manually.
+				// See enable.auto.offset.store, enable.auto.commit.
+				//
+				// For this example, we have set enable.auto.offset.store to
+				// false, and enable.auto.commit is true by default. We have to
+				// store the offsets manually, and the consumer takes care of
+				// committing them periodically.
+				//
+				// By storing the offsets manually after completely processing
+				// each message, we can ensure atleast once processing. If we
+				// crash in the middle of processing the message, we can be
+				// certain that the offset pertaining to that message won't have
+				// been committed, and so, we will process that message again
+				// on restarting this process.
 				_, err := c.StoreMessage(e)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%% Error storing offset after message %s:\n",
