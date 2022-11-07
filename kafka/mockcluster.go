@@ -16,7 +16,10 @@
 
 package kafka
 
-import "unsafe"
+import (
+	"time"
+	"unsafe"
+)
 
 /*
 #include <stdlib.h>
@@ -35,6 +38,8 @@ type MockCluster struct {
 // NewMockCluster provides a mock Kafka cluster with a configurable
 // number of brokers that support a reasonable subset of Kafka protocol
 // operations, error injection, etc.
+//
+// The broker ids will start at 1 up to and including brokerCount.
 //
 // Mock clusters provide localhost listeners that can be used as the bootstrap
 // servers by multiple Kafka client instances.
@@ -75,6 +80,12 @@ func NewMockCluster(brokerCount int) (*MockCluster, error) {
 // BootstrapServers returns the bootstrap.servers property for this MockCluster
 func (mc *MockCluster) BootstrapServers() string {
 	return C.GoString(C.rd_kafka_mock_cluster_bootstraps(mc.mcluster))
+}
+
+// SetRoundtripDuration sets the broker round-trip-time delay for the given broker.
+func (mc *MockCluster) SetRoundtripDuration(brokerId int, duration time.Duration) {
+	durationInMillis := C.int(duration.Milliseconds())
+	C.rd_kafka_mock_broker_set_rtt(mc.mcluster, C.int(brokerId), durationInMillis)
 }
 
 // Close and destroy the MockCluster
