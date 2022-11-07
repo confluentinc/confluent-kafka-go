@@ -56,7 +56,7 @@ func (c *Consumer) String() string {
 	return c.handle.String()
 }
 
-// verifyProducer verifies if Producer can be used
+// verifyConsumer verifies if Producer can be used
 func (c *Consumer) verifyConsumer() bool {
 	if c == nil || c.isClosed {
 		return false
