@@ -30,6 +30,11 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
+	stateErr := Error{
+		code: ErrState,
+		str:  "not a valid adminClient state.",
+	}
+
 	topic := "testWithDefaultValue"
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
@@ -46,6 +51,14 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create AdminClient %v", err)
 	}
+
+	closedClient, err := NewAdminClient(&conf)
+	if err != nil {
+		t.Fatalf("Failed to create AdminClient %v", err)
+	}
+	closedClient.Close()
+
+	var nilClient *AdminClient = nil
 
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
@@ -64,6 +77,32 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 	}
 	t.Logf("Succeed to create topic %v\n", res)
 
+	_, err = closedClient.CreateTopics(
+		ctx,
+		[]TopicSpecification{
+			{
+				Topic:             topic,
+				NumPartitions:     -1,
+				ReplicationFactor: -1,
+			},
+		})
+	if err != stateErr {
+		t.Errorf("AdminClient should have throwed : %s", stateErr)
+	}
+
+	_, err = nilClient.CreateTopics(
+		ctx,
+		[]TopicSpecification{
+			{
+				Topic:             topic,
+				NumPartitions:     -1,
+				ReplicationFactor: -1,
+			},
+		})
+	if err != stateErr {
+		t.Errorf("AdminClient should have throwed : %s", stateErr)
+	}
+
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 	res, err = adminClient.DeleteTopics(ctx, []string{topic})
@@ -72,6 +111,16 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 		t.Fatalf("Failed to delete topic %v, err: %v", topic, err)
 	}
 	t.Logf("Succeed to delete topic %v\n", res)
+
+	_, err = closedClient.DeleteTopics(ctx, []string{topic})
+	if err != stateErr {
+		t.Errorf("AdminClient should have throwed : %s", stateErr)
+	}
+
+	_, err = nilClient.DeleteTopics(ctx, []string{topic})
+	if err != stateErr {
+		t.Errorf("AdminClient should have throwed : %s", stateErr)
+	}
 
 	adminClient.Close()
 }
