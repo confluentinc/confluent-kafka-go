@@ -60,6 +60,7 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
+	closedConsumer.Close()
 
 	t.Logf("Consumer %s", c)
 	t.Logf("Consumer %s", closedConsumer)
@@ -371,6 +372,7 @@ func TestConsumerSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
+	closedConsumer.Close()
 
 	var nilConsumer *Consumer = nil
 
@@ -425,6 +427,7 @@ func TestConsumerAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
+	closedConsumer.Close()
 
 	var nilConsumer *Consumer = nil
 
