@@ -50,10 +50,14 @@ func main() {
 		// when using localhost brokers on OSX, since the OSX resolver
 		// will return the IPv6 addresses first.
 		// You typically don't need to specify this configuration property.
-		"broker.address.family":    "v4",
-		"group.id":                 group,
-		"session.timeout.ms":       6000,
-		"auto.offset.reset":        "earliest",
+		"broker.address.family": "v4",
+		"group.id":              group,
+		"session.timeout.ms":    6000,
+		// Start reading from the first message of each assigned
+		// partition if there are no previously committed offsets
+		// for this group.
+		"auto.offset.reset": "earliest",
+		// Whether or not we store offsets automatically.
 		"enable.auto.offset.store": false,
 	})
 
@@ -81,11 +85,19 @@ func main() {
 
 			switch e := ev.(type) {
 			case *kafka.Message:
+				// Process the message received.
 				fmt.Printf("%% Message on %s:\n%s\n",
 					e.TopicPartition, string(e.Value))
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
+
+				// We can store the offsets of the messages manually or let
+				// the library do it automatically based on the setting
+				// enable.auto.offset.store. Once an offset is stored, the
+				// library takes care of periodically committing it to broker.
+				// By storing the offsets manually after completely processing
+				// each message, we can ensure atleast once processing.
 				_, err := c.StoreMessage(e)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%% Error storing offset after message %s:\n",
