@@ -42,8 +42,6 @@ High-level balanced consumer
 ```golang
 import (
 	"fmt"
-	"os"
-	"os/signal"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -63,21 +61,17 @@ func main() {
 
 	c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
 
-	sig := make(chan os.Signal, 1)
-	// get notified by signal when interrupted and break the consuming loop
-	signal.Notify(sig, os.Interrupt)
-	closed := false
-	go func() {
-		<-sig
-		closed = true
-	}()
+	// A signal handler or similar could be used to set this to false to break the loop.
+	run := true
 
-	for !closed {
-		msg, err := c.ReadMessage(100 * time.Millisecond)
+	for run {
+		msg, err := c.ReadMessage(time.Second)
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
-		} else {
+		} else if err.(kafka.Error).Code() != kafka.ErrTimedOut {
 			// The client will automatically try to recover from all errors.
+			// kafka.ErrTimedOut is not considered an error because it is
+			// raised by ReadMessage on timeout.
 			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
 		}
 	}
