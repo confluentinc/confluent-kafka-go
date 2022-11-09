@@ -41,6 +41,7 @@ Cons:
 
  * Double queueing: messages are first queued in the channel (size is configurable)
    and then inside librdkafka.
+ * Flushing issues if using channel based producer due to a known bug in the implementation.
 
 See [producer_channel_example](producer_channel_example)
 
