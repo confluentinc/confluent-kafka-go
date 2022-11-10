@@ -30,12 +30,6 @@ import (
 
 // TestConsumerAPIs dry-tests most Consumer APIs, no broker is needed.
 func TestConsumerAPIs(t *testing.T) {
-
-	stateErr := Error{
-		code: ErrState,
-		str:  "not a valid consumer state.",
-	}
-
 	c, err := NewConsumer(&ConfigMap{})
 	if err == nil {
 		t.Fatalf("Expected NewConsumer() to fail without group.id")
@@ -50,29 +44,17 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-
-	closedConsumer, err := NewConsumer(&ConfigMap{
-		"group.id":                 "gotest",
-		"socket.timeout.ms":        10,
-		"session.timeout.ms":       10,
-		"enable.auto.offset.store": false, // permit StoreOffsets()
-	})
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
-	closedConsumer.Close()
-
 	t.Logf("Consumer %s", c)
-	t.Logf("Consumer %s", closedConsumer)
+	testConsumerAPIs(t, c, nil)
+	stateErr := getOperationNotAllowedErrorForClosedClient()
+	testConsumerAPIs(t, c, stateErr)
 
-	err = c.Subscribe("gotest", nil)
-	if err != nil {
+}
+
+func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
+	err := c.Subscribe("gotest", nil)
+	if err != errCheck {
 		t.Errorf("Subscribe failed: %s", err)
-	}
-
-	err = closedConsumer.Subscribe("gotest", nil)
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	err = c.SubscribeTopics([]string{"gotest1", "gotest2"},
@@ -80,42 +62,23 @@ func TestConsumerAPIs(t *testing.T) {
 			t.Logf("%s", ev)
 			return nil
 		})
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("SubscribeTopics failed: %s", err)
 	}
 
-	err = closedConsumer.SubscribeTopics([]string{"gotest1", "gotest2"},
-		func(my_c *Consumer, ev Event) error {
-			t.Logf("%s", ev)
-			return nil
-		})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
 	_, err = c.Commit()
-	if err != nil && err.(Error).Code() != ErrNoOffset {
+	if err != errCheck && err.(Error).Code() != ErrNoOffset {
 		t.Errorf("Commit() failed: %s", err)
 	}
 
-	_, err = closedConsumer.Commit()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
 	err = c.Unsubscribe()
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Unsubscribe failed: %s", err)
-	}
-
-	err = closedConsumer.Unsubscribe()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	topic := "gotest"
 	stored, err := c.StoreOffsets([]TopicPartition{{Topic: &topic, Partition: 0, Offset: 1}})
-	if err != nil && err.(Error).Code() != ErrUnknownPartition {
+	if err != errCheck && err.(Error).Code() != ErrUnknownPartition {
 		t.Errorf("StoreOffsets() failed: %s", err)
 		toppar := stored[0]
 		if toppar.Error != nil && toppar.Error.(Error).Code() == ErrUnknownPartition {
@@ -124,18 +87,13 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 	var empty []TopicPartition
 	stored, err = c.StoreOffsets(empty)
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("StoreOffsets(empty) failed: %s", err)
-	}
-
-	_, err = closedConsumer.StoreOffsets(empty)
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	// test StoreMessage doesn't fail either
 	stored, err = c.StoreMessage(&Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0, Offset: 1}})
-	if err != nil && err.(Error).Code() != ErrUnknownPartition {
+	if err != errCheck && err.(Error).Code() != ErrUnknownPartition {
 		t.Errorf("StoreMessage() failed: %s", err)
 		toppar := stored[0]
 		if toppar.Error != nil && toppar.Error.(Error).Code() == ErrUnknownPartition {
@@ -143,67 +101,34 @@ func TestConsumerAPIs(t *testing.T) {
 		}
 	}
 
-	_, err = closedConsumer.StoreMessage(&Message{TopicPartition: TopicPartition{Topic: &topic, Partition: 0, Offset: 1}})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
 	topic1 := "gotest1"
 	topic2 := "gotest2"
 	err = c.Assign([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
-	if err != stateErr {
+	if err != errCheck {
 		t.Errorf("Assign failed: %s", err)
 	}
 
-	err = closedConsumer.Assign([]TopicPartition{{Topic: &topic1, Partition: 2},
-		{Topic: &topic2, Partition: 1}})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
-	// We provide a very small timeout for Seek, to test that the timeout is
-	// ignored.
-	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1)
-	if err != stateErr {
+	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1000)
+	if err != errCheck {
 		t.Errorf("Seek failed: %s", err)
-	}
-
-	err = closedConsumer.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1)
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	// Pause & Resume
 	err = c.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Pause failed: %s", err)
 	}
 	err = c.Resume([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Resume failed: %s", err)
 	}
 
-	err = closedConsumer.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
-		{Topic: &topic2, Partition: 1}})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-	err = closedConsumer.Resume([]TopicPartition{{Topic: &topic1, Partition: 2},
-		{Topic: &topic2, Partition: 1}})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
 	err = c.Unassign()
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Unassign failed: %s", err)
-	}
-	err = closedConsumer.Unassign()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	// Incremental Assign & Unassign
@@ -213,18 +138,8 @@ func TestConsumerAPIs(t *testing.T) {
 		{Topic: &topic1, Partition: 10, Offset: OffsetInvalid},
 		{Topic: &topic2, Partition: 30},
 	})
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("IncrementalAssign failed: %s", err)
-	}
-
-	err = closedConsumer.IncrementalAssign([]TopicPartition{
-		{Topic: &topic1, Partition: 9, Offset: 1},
-		{Topic: &topic2, Partition: 40, Offset: OffsetEnd},
-		{Topic: &topic1, Partition: 10, Offset: OffsetInvalid},
-		{Topic: &topic2, Partition: 30},
-	})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	err = c.IncrementalUnassign([]TopicPartition{
@@ -232,44 +147,26 @@ func TestConsumerAPIs(t *testing.T) {
 		{Topic: &topic2, Partition: 40},
 		{Topic: &topic1, Partition: 10},
 	})
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("IncrementalUnassign failed: %s", err)
 	}
 
-	err = closedConsumer.IncrementalUnassign([]TopicPartition{
-		{Topic: &topic2, Partition: 30},
-		{Topic: &topic2, Partition: 40},
-		{Topic: &topic1, Partition: 10},
-	})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
 	assignment, err := c.Assignment()
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Assignment (after incremental) failed: %s", err)
-	}
-	_, err = closedConsumer.Assignment()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	t.Logf("(Incremental) Assignment: %s\n", assignment)
-	if len(assignment) != 1 ||
+	if !c.isClosed && (len(assignment) != 1 ||
 		*assignment[0].Topic != topic1 ||
-		assignment[0].Partition != 9 {
+		assignment[0].Partition != 9) {
 		t.Errorf("(Incremental) Assignment mismatch: %v", assignment)
 	}
 
 	// ConsumerGroupMetadata
 	_, err = c.GetConsumerGroupMetadata()
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Expected valid ConsumerGroupMetadata: %v", err)
-	}
-
-	_, err = closedConsumer.GetConsumerGroupMetadata()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	_, err = NewTestConsumerGroupMetadata("mygroup")
@@ -281,10 +178,12 @@ func TestConsumerAPIs(t *testing.T) {
 	// OffsetsForTimes
 	offsets, err := c.OffsetsForTimes([]TopicPartition{{Topic: &topic, Offset: 12345}}, 100)
 	t.Logf("OffsetsForTimes() returned Offsets %s and error %s\n", offsets, err)
-	if err == nil {
+	if !c.isClosed && err == nil {
 		t.Errorf("OffsetsForTimes() should have failed\n")
+	} else if c.isClosed && err != errCheck {
+		t.Errorf("OffsetsForTimes() should have thrown %v but throwed %v", errCheck, err)
 	}
-	if offsets != nil {
+	if !c.isClosed && offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
@@ -294,84 +193,36 @@ func TestConsumerAPIs(t *testing.T) {
 		{Topic: &topic, Partition: 5},
 	})
 	t.Logf("Position() returned Offsets %s and error %v\n", offsets, err)
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Position() should not have failed\n")
 	}
-	if offsets == nil {
+	if !c.isClosed && offsets == nil {
 		t.Errorf("Position() should not have returned nil\n")
-	}
-
-	_, err = closedConsumer.Position([]TopicPartition{
-		{Topic: &topic, Partition: 10},
-		{Topic: &topic, Partition: 5},
-	})
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	// Committed
 	offsets, err = c.Committed([]TopicPartition{{Topic: &topic, Partition: 5}}, 10)
 	t.Logf("Committed() returned Offsets %s and error %s\n", offsets, err)
-	if err == nil {
+	if !c.isClosed && err == nil {
 		t.Errorf("Committed() should have failed\n")
+	} else if c.isClosed && err != errCheck {
+		t.Errorf("Committed() should have thrown %v but throwed %v", errCheck, err)
 	}
-	if offsets != nil {
+	if !c.isClosed && offsets != nil {
 		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
-	_, err = closedConsumer.Committed([]TopicPartition{{Topic: &topic, Partition: 5}}, 10)
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
-	// Test timeouts using ReadMessage.
-	msg, err := c.ReadMessage(time.Millisecond)
-	t.Logf("ReadMessage() returned message %s and error %s\n", msg, err)
-
-	// Check both ErrTimedOut and IsTimeout() to ensure they're consistent.
-	if err == nil || !err.(Error).IsTimeout() {
-		t.Errorf("ReadMessage() should time out, instead got %s\n", err)
-	}
-	if err == nil || err.(Error).Code() != ErrTimedOut {
-		t.Errorf("ReadMessage() should time out, instead got %s\n", err)
-	}
-	if msg != nil {
-		t.Errorf("ReadMessage() should not return a message in case of error\n")
-	}
-
 	err = c.Close()
-	if err != nil {
+	if err != errCheck {
 		t.Errorf("Close failed: %s", err)
 	}
-
-	// Tests the SetSaslCredentials call to ensure that the API does not crash.
-	c.SetSaslCredentials("username", "password")
 }
 
 func TestConsumerSubscription(t *testing.T) {
-
-	stateErr := Error{
-		code: ErrState,
-		str:  "not a valid consumer state.",
-	}
-
 	c, err := NewConsumer(&ConfigMap{"group.id": "gotest"})
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-
-	closedConsumer, err := NewConsumer(&ConfigMap{
-		"group.id":                 "gotest",
-		"socket.timeout.ms":        10,
-		"session.timeout.ms":       10,
-		"enable.auto.offset.store": false, // permit StoreOffsets()
-	})
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
-	closedConsumer.Close()
-
-	var nilConsumer *Consumer = nil
 
 	topics := []string{"gotest1", "gotest2", "gotest3"}
 	sort.Strings(topics)
@@ -384,16 +235,6 @@ func TestConsumerSubscription(t *testing.T) {
 	subscription, err := c.Subscription()
 	if err != nil {
 		t.Fatalf("Subscription() failed: %s", err)
-	}
-
-	_, err = closedConsumer.Subscription()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
-	}
-
-	_, err = nilConsumer.Subscription()
-	if err != stateErr {
-		t.Errorf("Consumer should have throwed : %s", stateErr)
 	}
 
 	sort.Strings(subscription)
@@ -414,20 +255,11 @@ func TestConsumerAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
+	testConsumerAssignment(t, c, nil)
+	testConsumerAssignment(t, c, getOperationNotAllowedErrorForClosedClient())
+}
 
-	closedConsumer, err := NewConsumer(&ConfigMap{
-		"group.id":                 "gotest",
-		"socket.timeout.ms":        10,
-		"session.timeout.ms":       10,
-		"enable.auto.offset.store": false, // permit StoreOffsets()
-	})
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
-	closedConsumer.Close()
-
-	var nilConsumer *Consumer = nil
-
+func testConsumerAssignment(t *testing.T, c *Consumer, errCheck error) {
 	topic0 := "topic0"
 	topic1 := "topic1"
 	partitions := TopicPartitions{
@@ -436,13 +268,13 @@ func TestConsumerAssignment(t *testing.T) {
 		{Topic: &topic0, Partition: 2}}
 	sort.Sort(partitions)
 
-	err = c.Assign(partitions)
-	if err != nil {
+	err := c.Assign(partitions)
+	if err != errCheck {
 		t.Fatalf("Assign failed: %s", err)
 	}
 
 	assignment, err := c.Assignment()
-	if err != nil {
+	if err != errCheck {
 		t.Fatalf("Assignment() failed: %s", err)
 	}
 
@@ -466,35 +298,20 @@ func TestConsumerAssignment(t *testing.T) {
 		duration := time.Since(start)
 
 		t.Logf("ReadMessage(%v) ret %v and %v in %v", tmout, m, err, duration)
-		if m != nil || err == nil {
+		if c.isClosed && err != errCheck {
+			t.Errorf("Expected ReadMessage to fail with error %v, but failed with %v", errCheck, err)
+		} else if !c.isClosed && (m != nil || err == nil) {
 			t.Errorf("Expected ReadMessage to fail: %v, %v", m, err)
 		}
-		if err.(Error).Code() != ErrTimedOut {
+		if !c.isClosed && err.(Error).Code() != ErrTimedOut {
 			t.Errorf("Expected ReadMessage to fail with ErrTimedOut, not %v", err)
 		}
-		if !err.(Error).IsTimeout() {
-			t.Errorf("Expected ReadMessage to fail with a timeout error, not %v", err)
-		}
 
-		stateErr := Error{
-			code: ErrState,
-			str:  "not a valid consumer state.",
-		}
-		_, err = closedConsumer.ReadMessage(tmout)
-		if err != stateErr {
-			t.Errorf("Consumer should have throwed : %s", stateErr)
-		}
-
-		_, err = nilConsumer.ReadMessage(tmout)
-		if err != stateErr {
-			t.Errorf("Consumer should have throwed : %s", stateErr)
-		}
-
-		if tmout == 0 {
+		if !c.isClosed && tmout == 0 {
 			if duration.Seconds() > 0.1 {
 				tmoutFunc("Expected ReadMessage(%v) to fail after max 100ms, not %v", tmout, duration)
 			}
-		} else if tmout > 0 {
+		} else if !c.isClosed && tmout > 0 {
 			if duration.Seconds() < tmout.Seconds()*0.75 || duration.Seconds() > tmout.Seconds()*1.25 {
 				tmoutFunc("Expected ReadMessage() to fail after %v -+25%%, not %v", tmout, duration)
 			}
@@ -505,11 +322,14 @@ func TestConsumerAssignment(t *testing.T) {
 	// is a pointer to a string rather than a string and the pointer
 	// will differ between partitions and assignment.
 	// Instead do a simple stringification + string compare.
-	if fmt.Sprintf("%v", assignment) != fmt.Sprintf("%v", partitions) {
+	if !c.isClosed && (fmt.Sprintf("%v", assignment) != fmt.Sprintf("%v", partitions)) {
 		t.Fatalf("Assignment() %v does not match original partitions %v",
 			assignment, partitions)
 	}
-	c.Close()
+	err = c.Close()
+	if err != errCheck {
+		t.Errorf("Close failed: %s", err)
+	}
 }
 
 func TestConsumerOAuthBearerConfig(t *testing.T) {
