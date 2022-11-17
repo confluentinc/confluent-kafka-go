@@ -20,4 +20,19 @@ spec:
     whitelist:
       branches:
       - master
-      - "/^v\\d+\\.\\d+\\.x$/"
+      - main
+      - /^v\d+\.\d+\.x$/
+  custom_permissions: true
+  debug_permissions:
+  - empty
+  - default_branch
+  - non_default_branch
+  - pull_request
+  - forked_pull_request
+  - tag
+  attach_permissions:
+  - default_branch
+  - non_default_branch
+  - pull_request
+  - forked_pull_request
+  - tag
