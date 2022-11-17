@@ -26,6 +26,7 @@ global_job_config:
       - checkout
       - make install-vault
       - . mk-include/bin/vault-setup
+      - . vault-sem-get-secret aws_credentials
       - . vault-sem-get-secret gitconfig
       - . vault-sem-get-secret ssh_id_rsa
       - . vault-sem-get-secret ssh_config
@@ -33,7 +34,6 @@ global_job_config:
       - . vault-sem-get-secret artifactory-docker-helm
       - . vault-sem-get-secret maven-settings
       - . vault-sem-get-secret cpd_gcloud
-      - . vault-sem-get-secret aws_credentials
       - . vault-sem-get-secret testbreak-reporting
       - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
       - . vault-sem-get-secret dockerhub-semaphore-cred-ro
