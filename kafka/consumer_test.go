@@ -45,10 +45,11 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 	t.Logf("Consumer %s", c)
-	testConsumerAPIs(t, c, nil)
-	stateErr := getOperationNotAllowedErrorForClosedClient()
-	testConsumerAPIs(t, c, stateErr)
 
+	testConsumerAPIs(t, c, nil)
+
+	// testing the API's with closed consumer.
+	testConsumerAPIs(t, c, getOperationNotAllowedErrorForClosedClient())
 }
 
 func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
@@ -256,6 +257,7 @@ func TestConsumerAssignment(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 	testConsumerAssignment(t, c, nil)
+	// testConsumerAssignment on closed Consumer
 	testConsumerAssignment(t, c, getOperationNotAllowedErrorForClosedClient())
 }
 

@@ -181,24 +181,75 @@ func TestProducerAPIs(t *testing.T) {
 	}
 
 	p.Close()
-	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic2, Partition: 0},
-		Value: []byte("Producer Validation"), Key: []byte("This is my key")},
-		nil)
-	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
-	offsets, err = p.OffsetsForTimes([]TopicPartition{{Topic: &topic2, Offset: 12345}}, 100)
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s for offsets", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s for offsets", expectedErr)
-	}
-
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
 	p.SetSaslCredentials("username", "password")
+}
+
+// Test on Closed Producer
+func TestOnClosedProducer(t *testing.T) {
+	p, err := NewProducer(&ConfigMap{
+		"socket.timeout.ms":         10,
+		"message.timeout.ms":        10,
+		"go.delivery.report.fields": "key,value,headers"})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	t.Logf("Producer %s", p)
+
+	p.Close()
+
+	topic1 := "gotest"
+
+	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
+		Value: []byte("Producer Validation"), Key: []byte("This is my key")},
+		nil)
+	expectedErr := getOperationNotAllowedErrorForClosedClient()
+	if err != expectedErr {
+		t.Errorf("Produce should have thrown : %s, but got %s", expectedErr, err)
+	}
+	_, err = p.OffsetsForTimes([]TopicPartition{{Topic: &topic1, Offset: 12345}}, 100)
+	if err != expectedErr {
+		t.Errorf("OffsetsForTimes should have thrown : %s, but got %s", expectedErr, err)
+	}
+	err = p.SetOAuthBearerToken(OAuthBearerToken{
+		TokenValue: "aaaa",
+		Expiration: time.Now().Add(time.Second * time.Duration(60)),
+		Principal:  "gotest",
+	})
+	if err != expectedErr {
+		t.Errorf("SetOAuthBearerToken should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	ctx := context.TODO()
+	err = p.BeginTransaction()
+	if err != expectedErr {
+		t.Errorf("BeginTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	// SendOffsetsToTransaction
+	topic := "myTopic"
+	cgmd, err := NewTestConsumerGroupMetadata("myConsumerGroup")
+	err = p.SendOffsetsToTransaction(ctx,
+		[]TopicPartition{
+			{Topic: &topic, Partition: 1, Offset: 123},
+			{Topic: &topic, Partition: 0, Offset: 4567890},
+		},
+		cgmd)
+	if err != expectedErr {
+		t.Errorf("SendOffsetsToTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	// AbortTransaction
+	err = p.AbortTransaction(ctx)
+	if err != expectedErr {
+		t.Errorf("AbortTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	// CommitTransaction
+	err = p.CommitTransaction(ctx)
+	if err != expectedErr {
+		t.Errorf("CommitTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
 }
 
 // TestPurgeAPI test if messages are purged successfully
@@ -240,25 +291,6 @@ func TestPurgeAPI(t *testing.T) {
 	}
 
 	close(purgeDrChan)
-
-	unreachableProducer.Close()
-	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
-	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
-
-	unreachableProducer = nil
-	err = unreachableProducer.Purge(PurgeInFlight | PurgeQueue)
-	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
-
 }
 
 // TestProducerBufferSafety verifies issue #24, passing any type of memory backed buffer
@@ -359,37 +391,6 @@ func TestProducerOAuthBearerConfig(t *testing.T) {
 	}
 
 	p.Close()
-	err = p.SetOAuthBearerToken(OAuthBearerToken{
-		TokenValue: "aaaa",
-		Expiration: time.Now().Add(time.Second * time.Duration(60)),
-		Principal:  "gotest",
-	})
-	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
-
-	p = nil
-	err = p.SetOAuthBearerToken(OAuthBearerToken{
-		TokenValue: "aaaa",
-		Expiration: time.Now().Add(time.Second * time.Duration(60)),
-		Principal:  "gotest",
-	})
-	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
-	err = p.SetOAuthBearerTokenFailure("A token failure test")
-	expectedErr = Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
 }
 
 func TestProducerLog(t *testing.T) {
@@ -644,83 +645,6 @@ func TestTransactionalAPI(t *testing.T) {
 	}
 
 	p.Close()
-
-	for iter := 0; iter < 2; iter++ {
-
-		if iter == 2 {
-			// Last iteration, pass p as nil
-			p = nil
-		}
-
-		ctx = context.TODO()
-		what := "BeginTransaction"
-		err = p.BeginTransaction()
-
-		t.Logf("%s() returned '%v'", what, err)
-		expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-
-		// SendOffsetsToTransaction
-		what = "SendOffsetsToTransaction"
-		topic := "myTopic"
-		cgmd, err := NewTestConsumerGroupMetadata("myConsumerGroup")
-		if err != nil {
-			t.Fatalf("Failed to create group metadata: %v", err)
-		}
-		err = p.SendOffsetsToTransaction(ctx,
-			[]TopicPartition{
-				{Topic: &topic, Partition: 1, Offset: 123},
-				{Topic: &topic, Partition: 0, Offset: 4567890},
-			},
-			cgmd)
-		t.Logf("%s() returned '%v'", what, err)
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-
-		what = "SendOffsetsToTransaction(nil offsets)"
-		err = p.SendOffsetsToTransaction(ctx, nil, cgmd)
-		t.Logf("%s() returned '%v'", what, err)
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-
-		what = "SendOffsetsToTransaction(empty offsets, empty group)"
-		cgmdEmpty, err := NewTestConsumerGroupMetadata("")
-		if err != nil {
-			t.Fatalf("Failed to create group metadata: %v", err)
-		}
-		err = p.SendOffsetsToTransaction(ctx, []TopicPartition{}, cgmdEmpty)
-		t.Logf("%s() returned '%v'", what, err)
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-
-		what = "SendOffsetsToTransaction(empty offsets)"
-		err = p.SendOffsetsToTransaction(ctx, []TopicPartition{}, cgmd)
-		t.Logf("%s() returned '%v' in %.2fs", what, err, duration)
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-
-		// AbortTransaction
-		what = "AbortTransaction"
-		err = p.AbortTransaction(ctx)
-		t.Logf("%s() returned '%v'", what, err)
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-
-		// CommitTransaction
-		what = "CommitTransaction"
-		err = p.CommitTransaction(ctx)
-		t.Logf("%s() returned '%v'", what, err)
-		if err != expectedErr {
-			t.Errorf("Producer should have thrown err : %s", expectedErr)
-		}
-	}
 }
 
 // TestProducerDeliveryReportFields tests the `go.delivery.report.fields` config setting

@@ -68,11 +68,4 @@ func TestFatalErrorClient(t *testing.T) {
 	}
 
 	p.Close()
-	err = p.GetFatalError()
-	expectedErr := Error{code: ErrState, str: "not a valid Producer state."}
-	if err != expectedErr {
-		t.Errorf("Producer should have thrown err : %s", expectedErr)
-	} else {
-		t.Logf("Producer throwed err : %s", expectedErr)
-	}
 }
