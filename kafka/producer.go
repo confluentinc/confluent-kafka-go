@@ -136,6 +136,16 @@ type Producer struct {
 
 	// Terminates the poller() goroutine
 	pollerTermChan chan bool
+
+	// checks if Producer has been closed or not.
+	isClosed bool
+}
+
+func (p *Producer) verifyClient() error {
+	if p.isClosed {
+		return getOperationNotAllowedErrorForClosedClient()
+	}
+	return nil
 }
 
 // String returns a human readable name for a Producer instance
@@ -282,6 +292,10 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 // api.version.request=true, and broker >= 0.11.0.0.
 // Returns an error if message could not be enqueued.
 func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	return p.produce(msg, 0, deliveryChan)
 }
 
@@ -364,6 +378,8 @@ func (p *Producer) Close() {
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
+
+	p.isClosed = true
 }
 
 const (
@@ -405,6 +421,10 @@ const (
 //
 // Returns nil on success, ErrInvalidArg if the purge flags are invalid or unknown.
 func (p *Producer) Purge(flags int) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	cErr := C.rd_kafka_purge(p.handle.rk, C.int(flags))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cErr)
@@ -523,6 +543,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.events = make(chan Event, eventsChanSize)
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
+	p.isClosed = false
 
 	if logsChanEnable {
 		p.handle.setupLogQueue(logsChan, p.pollerTermChan)
@@ -639,12 +660,20 @@ func poller(p *Producer, termChan chan bool) {
 // else information about all topics is returned.
 // GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (p *Producer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	err := p.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return getMetadata(p, topic, allTopics, timeoutMs)
 }
 
 // QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
 // and partition.
 func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
+	err = p.verifyClient()
+	if err != nil {
+		return 0, 0, err
+	}
 	return queryWatermarkOffsets(p, topic, partition, timeoutMs)
 }
 
@@ -664,11 +693,19 @@ func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 // Duplicate Topic+Partitions are not supported.
 // Per-partition errors may be returned in the `.Error` field.
 func (p *Producer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
+	err = p.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return offsetsForTimes(p, times, timeoutMs)
 }
 
 // GetFatalError returns an Error object if the client instance has raised a fatal error, else nil.
 func (p *Producer) GetFatalError() error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	return getFatalError(p)
 }
 
@@ -689,6 +726,10 @@ func (p *Producer) TestFatalError(code ErrorCode, str string) ErrorCode {
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (p *Producer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	return p.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
@@ -700,6 +741,10 @@ func (p *Producer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 // 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	return p.handle.setOAuthBearerTokenFailure(errstr)
 }
 
@@ -741,6 +786,10 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 // by calling `err.(kafka.Error).IsRetriable()`, or whether a fatal
 // error has been raised by calling `err.(kafka.Error).IsFatal()`.
 func (p *Producer) InitTransactions(ctx context.Context) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	cError := C.rd_kafka_init_transactions(p.handle.rk,
 		cTimeoutFromContext(ctx))
 	if cError != nil {
@@ -771,6 +820,10 @@ func (p *Producer) InitTransactions(ctx context.Context) error {
 // Any produce call outside an on-going transaction, or for a failed
 // transaction, will fail.
 func (p *Producer) BeginTransaction() error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	cError := C.rd_kafka_begin_transaction(p.handle.rk)
 	if cError != nil {
 		return newErrorFromCErrorDestroy(cError)
@@ -816,6 +869,10 @@ func (p *Producer) BeginTransaction() error {
 // `err.(kafka.Error).TxnRequiresAbort()` or `err.(kafka.Error).IsFatal()`
 // respectively.
 func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []TopicPartition, consumerMetadata *ConsumerGroupMetadata) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	var cOffsets *C.rd_kafka_topic_partition_list_t
 	if offsets != nil {
 		cOffsets = newCPartsFromTopicPartitions(offsets)
@@ -872,6 +929,10 @@ func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []Topic
 // `err.(kafka.Error).TxnRequiresAbort()` or `err.(kafka.Error).IsFatal()`
 // respectively.
 func (p *Producer) CommitTransaction(ctx context.Context) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	cError := C.rd_kafka_commit_transaction(p.handle.rk,
 		cTimeoutFromContext(ctx))
 	if cError != nil {
@@ -908,6 +969,10 @@ func (p *Producer) CommitTransaction(ctx context.Context) error {
 // by calling `err.(kafka.Error).IsRetriable()`, or whether a fatal error
 // has been raised by calling `err.(kafka.Error).IsFatal()`.
 func (p *Producer) AbortTransaction(ctx context.Context) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	cError := C.rd_kafka_abort_transaction(p.handle.rk,
 		cTimeoutFromContext(ctx))
 	if cError != nil {
