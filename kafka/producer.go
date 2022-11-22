@@ -916,3 +916,13 @@ func (p *Producer) AbortTransaction(ctx context.Context) error {
 
 	return nil
 }
+
+// SetSaslCredentials sets the SASL credentials used for this producer. The new credentials
+// will overwrite the old ones (which were set when creating the producer or by a previous
+// call to SetSaslCredentials). The new credentials will be used the next time this
+// producer needs to authenticate to a broker. This method will not disconnect
+// existing broker connections that were established with the old credentials.
+// This method applies only to the SASL PLAIN and SCRAM mechanisms.
+func (p *Producer) SetSaslCredentials(username, password string) error {
+	return setSaslCredentials(p.handle.rk, username, password)
+}

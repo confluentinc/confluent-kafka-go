@@ -373,3 +373,22 @@ func LibraryVersion() (int, string) {
 	verstr := C.GoString(C.rd_kafka_version_str())
 	return ver, verstr
 }
+
+// setSaslCredentials sets the SASL credentials used for the specified Kafka client.
+// The new credentials will overwrite the old ones (which were set when creating the
+// client or by a previous call to setSaslCredentials). The new credentials will be
+// used the next time the client needs to establish a connection to the broker. This
+// function will *not* break existing broker connections that were established with the
+// old credentials. This method applies only to the SASL PLAIN and SCRAM mechanisms.
+func setSaslCredentials(rk *C.rd_kafka_t, username, password string) error {
+	cUsername := C.CString(username)
+	defer C.free(unsafe.Pointer(cUsername))
+	cPassword := C.CString(password)
+	defer C.free(unsafe.Pointer(cPassword))
+
+	if err := C.rd_kafka_sasl_set_credentials(rk, cUsername, cPassword); err != nil {
+		return newErrorFromCErrorDestroy(err)
+	}
+
+	return nil
+}
