@@ -1542,6 +1542,17 @@ func (a *AdminClient) DeleteACLs(ctx context.Context, aclBindingFilters ACLBindi
 	return
 }
 
+// SetSaslCredentials sets the SASL credentials used for this admin client.
+// The new credentials will overwrite the old ones (which were set when creating
+// the admin client or by a previous call to SetSaslCredentials). The new
+// credentials will be used the next time the admin client needs to authenticate
+// to a broker. This method will not disconnect existing broker connections that
+// were established with the old credentials.
+// This method applies only to the SASL PLAIN and SCRAM mechanisms.
+func (a *AdminClient) SetSaslCredentials(username, password string) error {
+	return setSaslCredentials(a.handle.rk, username, password)
+}
+
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
 	if a.isDerived {

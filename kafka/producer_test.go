@@ -179,6 +179,9 @@ func TestProducerAPIs(t *testing.T) {
 	if offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
+
+	// Tests the SetSaslCredentials call to ensure that the API does not crash.
+	p.SetSaslCredentials("username", "password")
 }
 
 // TestPurgeAPI test if messages are purged successfully
