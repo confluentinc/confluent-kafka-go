@@ -57,7 +57,10 @@ func main() {
 		panic(err)
 	}
 
-	c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
+	err = c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
+        if err != nil {
+            panic(err)
+        }
 
 	for {
 		msg, err := c.ReadMessage(-1)
@@ -65,7 +68,7 @@ func main() {
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
 		} else {
 			// The client will automatically try to recover from all errors.
-			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
+			fmt.Printf("Failed to read message: %v (%v)\n", err, msg)
 		}
 	}
 
@@ -107,10 +110,13 @@ func main() {
 	// Produce messages to topic (asynchronously)
 	topic := "myTopic"
 	for _, word := range []string{"Welcome", "to", "the", "Confluent", "Kafka", "Golang", "client"} {
-		p.Produce(&kafka.Message{
+		err = p.Produce(&kafka.Message{
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Value:          []byte(word),
 		}, nil)
+		if err != nil {
+                    fmt.Printf("Message could not be enqueued: %v\n", err)
+                }
 	}
 
 	// Wait for message deliveries before shutting down
