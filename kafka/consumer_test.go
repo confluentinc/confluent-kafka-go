@@ -208,6 +208,9 @@ func TestConsumerAPIs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Close failed: %s", err)
 	}
+
+	// Tests the SetSaslCredentials call to ensure that the API does not crash.
+	c.SetSaslCredentials("username", "password")
 }
 
 func TestConsumerSubscription(t *testing.T) {

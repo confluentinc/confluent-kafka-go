@@ -729,5 +729,9 @@ func TestAdminAPIs(t *testing.T) {
 	}
 
 	testAdminAPIs("Derived from same Producer", a, t)
+
+	// Tests the SetSaslCredentials call to ensure that the API does not crash.
+	a.SetSaslCredentials("username", "password")
+
 	a.Close()
 }
