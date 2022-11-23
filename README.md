@@ -42,6 +42,8 @@ High-level balanced consumer
 ```golang
 import (
 	"fmt"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
@@ -59,12 +61,17 @@ func main() {
 
 	c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
 
-	for {
-		msg, err := c.ReadMessage(-1)
+	// A signal handler or similar could be used to set this to false to break the loop.
+	run := true
+
+	for run {
+		msg, err := c.ReadMessage(time.Second)
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
-		} else {
+		} else if err.(kafka.Error).Code() != kafka.ErrTimedOut {
 			// The client will automatically try to recover from all errors.
+			// kafka.ErrTimedOut is not considered an error because it is
+			// raised by ReadMessage on timeout.
 			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
 		}
 	}
