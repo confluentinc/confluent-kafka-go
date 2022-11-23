@@ -111,7 +111,9 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 				msg.Value = ([]byte)(line)
 			}
 
-			p.ProduceChannel() <- &msg
+			if err = p.Produce(&msg, nil); err != nil {
+				fmt.Fprintf(os.Stderr, "%% Produce error: %v\n", err)
+			}
 		}
 	}
 
@@ -130,57 +132,63 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 
 	fmt.Fprintf(os.Stderr, "%% Created Consumer %v\n", c)
 
-	c.SubscribeTopics(topics, nil)
+	c.SubscribeTopics(topics, func(c *kafka.Consumer, ev kafka.Event) error {
+		var err error = nil
+		switch e := ev.(type) {
+		case kafka.AssignedPartitions:
+			fmt.Fprintf(os.Stderr, "%% %v\n", e)
+			err = c.Assign(e.Partitions)
+			partitionCnt = len(e.Partitions)
+			eofCnt = 0
+		case kafka.RevokedPartitions:
+			fmt.Fprintf(os.Stderr, "%% %v\n", e)
+			err = c.Unassign()
+			partitionCnt = 0
+			eofCnt = 0
+		}
+		return err
+	})
 
 	run := true
 
+	go func() {
+		sig := <-sigs
+		fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
+		run = false
+	}()
+
 	for run == true {
-		select {
-
-		case sig := <-sigs:
-			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
-			run = false
-
-		case ev := <-c.Events():
-			switch e := ev.(type) {
-			case kafka.AssignedPartitions:
-				fmt.Fprintf(os.Stderr, "%% %v\n", e)
-				c.Assign(e.Partitions)
-				partitionCnt = len(e.Partitions)
-				eofCnt = 0
-			case kafka.RevokedPartitions:
-				fmt.Fprintf(os.Stderr, "%% %v\n", e)
-				c.Unassign()
-				partitionCnt = 0
-				eofCnt = 0
-			case *kafka.Message:
-				if verbosity >= 2 {
-					fmt.Fprintf(os.Stderr, "%% %v:\n", e.TopicPartition)
-				}
-				if keyDelim != "" {
-					if e.Key != nil {
-						fmt.Printf("%s%s", string(e.Key), keyDelim)
-					} else {
-						fmt.Printf("%s", keyDelim)
-					}
-				}
-				fmt.Println(string(e.Value))
-			case kafka.PartitionEOF:
-				fmt.Fprintf(os.Stderr, "%% Reached %v\n", e)
-				eofCnt++
-				if exitEOF && eofCnt >= partitionCnt {
-					run = false
-				}
-			case kafka.Error:
-				// Errors should generally be considered as informational, the client will try to automatically recover
-				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
-			case kafka.OffsetsCommitted:
-				if verbosity >= 2 {
-					fmt.Fprintf(os.Stderr, "%% %v\n", e)
-				}
-			default:
-				fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
+		ev := c.Poll(1000)
+		switch e := ev.(type) {
+		case *kafka.Message:
+			if verbosity >= 2 {
+				fmt.Fprintf(os.Stderr, "%% %v:\n", e.TopicPartition)
 			}
+			if keyDelim != "" {
+				if e.Key != nil {
+					fmt.Printf("%s%s", string(e.Key), keyDelim)
+				} else {
+					fmt.Printf("%s", keyDelim)
+				}
+			}
+			fmt.Println(string(e.Value))
+		case kafka.PartitionEOF:
+			fmt.Fprintf(os.Stderr, "%% Reached %v\n", e)
+			eofCnt++
+			if exitEOF && eofCnt >= partitionCnt {
+				run = false
+			}
+		case kafka.Error:
+			// Errors should generally be considered as informational, the client will try to automatically recover.
+			fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
+		case kafka.OffsetsCommitted:
+			if verbosity >= 2 {
+				fmt.Fprintf(os.Stderr, "%% %v\n", e)
+			}
+		case nil:
+			// Ignore, Poll() timed out.
+		default:
+			fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
 		}
 	}
 

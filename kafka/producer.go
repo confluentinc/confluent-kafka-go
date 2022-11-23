@@ -317,21 +317,25 @@ func (p *Producer) Logs() chan LogEvent {
 }
 
 // ProduceChannel returns the produce *Message channel (write)
+//
+// Deprecated: ProduceChannel (channel based producer) is deprecated in favour
+// of Produce().
+// Flush() and Len() are not guaranteed to be reliable with ProduceChannel.
 func (p *Producer) ProduceChannel() chan *Message {
 	return p.produceChannel
 }
 
 // Len returns the number of messages and requests waiting to be transmitted to the broker
 // as well as delivery reports queued for the application.
-// Includes messages on ProduceChannel.
+// BUG: Tries to include messages on ProduceChannel, but it's not guaranteed to be reliable.
 func (p *Producer) Len() int {
 	return len(p.produceChannel) + len(p.events) + int(C.rd_kafka_outq_len(p.handle.rk))
 }
 
 // Flush and wait for outstanding messages and requests to complete delivery.
-// Includes messages on ProduceChannel.
 // Runs until value reaches zero or on timeoutMs.
 // Returns the number of outstanding events still un-flushed.
+// BUG: Tries to include messages on ProduceChannel, but it's not guaranteed to be reliable.
 func (p *Producer) Flush(timeoutMs int) int {
 	termChan := make(chan bool) // unused stand-in termChan
 
