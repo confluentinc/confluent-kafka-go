@@ -127,6 +127,12 @@ func (e Error) IsRetriable() bool {
 	return e.retriable
 }
 
+// IsTimeout returns true if the error is a timeout error.
+// A timeout error indicates that the operation timed out locally.
+func (e Error) IsTimeout() bool {
+	return e.code == ErrTimedOut || e.code == ErrTimedOutQueue
+}
+
 // TxnRequiresAbort returns true if the error is an abortable transaction error
 // that requires the application to abort the current transaction with
 // AbortTransaction() and start a new transaction with BeginTransaction()
