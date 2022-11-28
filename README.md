@@ -68,10 +68,10 @@ func main() {
 		msg, err := c.ReadMessage(time.Second)
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
-		} else if err.(kafka.Error).Code() != kafka.ErrTimedOut {
+		} else if !err.(kafka.Error).IsTimeout() {
 			// The client will automatically try to recover from all errors.
-			// kafka.ErrTimedOut is not considered an error because it is
-			// raised by ReadMessage on timeout.
+			// Timeout is not considered an error because it is raised by
+			// ReadMessage in absence of messages.
 			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
 		}
 	}

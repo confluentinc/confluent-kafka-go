@@ -204,6 +204,21 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
+	// Test timeouts using ReadMessage.
+	msg, err := c.ReadMessage(time.Millisecond)
+	t.Logf("ReadMessage() returned message %s and error %s\n", msg, err)
+
+	// Check both ErrTimedOut and IsTimeout() to ensure they're consistent.
+	if err == nil || !err.(Error).IsTimeout() {
+		t.Errorf("ReadMessage() should time out, instead got %s\n", err)
+	}
+	if err == nil || err.(Error).Code() != ErrTimedOut {
+		t.Errorf("ReadMessage() should time out, instead got %s\n", err)
+	}
+	if msg != nil {
+		t.Errorf("ReadMessage() should not return a message in case of error\n")
+	}
+
 	err = c.Close()
 	if err != nil {
 		t.Errorf("Close failed: %s", err)
@@ -294,6 +309,9 @@ func TestConsumerAssignment(t *testing.T) {
 		}
 		if err.(Error).Code() != ErrTimedOut {
 			t.Errorf("Expected ReadMessage to fail with ErrTimedOut, not %v", err)
+		}
+		if !err.(Error).IsTimeout() {
+			t.Errorf("Expected ReadMessage to fail with a timeout error, not %v", err)
 		}
 
 		if tmout == 0 {

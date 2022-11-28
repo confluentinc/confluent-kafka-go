@@ -17,7 +17,12 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
    will be used for subsequent (new) connections to a broker.
  * Channel based producer (Producer `ProduceChannel()`) and channel based
    consumer (Consumer `Events()`) are deprecated.
+<<<<<<< HEAD
 >>>>>>> 87e0198 (Deprecate channel based clients (#894))
+=======
+ * Added `IsTimeout()` on Error type. This is a convenience method that checks
+   if the error is due to a timeout.
+>>>>>>> 921537f (Add IsTimeout method to Error (#903))
 
 
 ## v1.9.2
