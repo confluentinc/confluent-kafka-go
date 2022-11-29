@@ -327,6 +327,9 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 // consumerTest consumes messages from a pre-primed (produced to) topic.
 // assignmentStrategy may be "" to use the default strategy.
 func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
 
 	if msgcnt == 0 {
 		createTestMessages()

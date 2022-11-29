@@ -57,7 +57,7 @@ func camelCase(s string) string {
 // librdkafka error codes.
 // This function is not intended for public use.
 func WriteErrorCodes(f *os.File) {
-	f.WriteString("package kafka\n")
+	f.WriteString("package kafka\n\n")
 	now := time.Now()
 	f.WriteString(fmt.Sprintf("// Copyright 2016-%d Confluent Inc.\n", now.Year()))
 	f.WriteString(fmt.Sprintf("// AUTOMATICALLY GENERATED ON %v USING librdkafka %s\n",
@@ -78,7 +78,7 @@ type ErrorCode int
 
 // String returns a human readable representation of an error code
 func (c ErrorCode) String() string {
-      return C.GoString(C.rd_kafka_err2str(C.rd_kafka_resp_err_t(c)))
+	return C.GoString(C.rd_kafka_err2str(C.rd_kafka_resp_err_t(c)))
 }
 
 const (
@@ -102,8 +102,8 @@ const (
 		errname = strings.Replace(errname, "Eof", "EOF", -1)
 		errname = strings.Replace(errname, "Id", "ID", -1)
 
-		f.WriteString(fmt.Sprintf("    // %s %s\n", errname, desc))
-		f.WriteString(fmt.Sprintf("    %s ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_%s)\n",
+		f.WriteString(fmt.Sprintf("\t// %s %s\n", errname, desc))
+		f.WriteString(fmt.Sprintf("\t%s ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_%s)\n",
 			errname, orig))
 	}
 
