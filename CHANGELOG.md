@@ -11,6 +11,9 @@ This is a maintenance release:
    consumer (Consumer `Events()`) are deprecated.
  * Added `IsTimeout()` on Error type. This is a convenience method that checks
    if the error is due to a timeout.
+ * The timeout parameter on `Seek()` is now ignored and an infinite timeout is
+   used, the method will block until the fetcher state is updated (typically
+   within microseconds).
 
 
 ## v1.9.2
