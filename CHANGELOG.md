@@ -1,5 +1,10 @@
 # Confluent's Golang client for Apache Kafka
 
+## vNext
+
+ * Added Consumer `SeekPartitions()` method to seek multiple partitions at
+   once and deprecated `Seek()`.
+
 ## v2.0.2
 
 This is a feature release:

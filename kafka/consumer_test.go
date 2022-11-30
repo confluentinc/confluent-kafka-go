@@ -115,6 +115,25 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		t.Errorf("Seek() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
+	// SeekPartitions
+	seekedPartitions, err := c.SeekPartitions([]TopicPartition{})
+	if err == nil {
+		t.Errorf("SeekPartitions(empty) succeeded when it should fail")
+	}
+
+	seekedPartitions, err = c.SeekPartitions([]TopicPartition{
+		{Topic: &topic, Partition: 0, Offset: -1},
+		{Topic: &topic, Partition: 1, Offset: 1},
+	})
+	if err != nil {
+		t.Errorf("SeekPartitions() failed: %s", err)
+	}
+	if len(seekedPartitions) != 2 {
+		t.Errorf(
+			"SeekedPartitions() seekedPartitions length %d should be 2",
+			len(seekedPartitions))
+	}
+
 	// Pause & Resume
 	err = c.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
