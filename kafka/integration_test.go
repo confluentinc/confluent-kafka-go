@@ -1213,6 +1213,81 @@ func TestProducerConsumerHeaders(t *testing.T) {
 	c.Close()
 }
 
+// TestConsumerSeekPartitions tests seeking of partitions using SeekPartitions().
+func TestConsumerSeekPartitions(t *testing.T) {
+	if !testconfRead() {
+		t.Skipf("Missing testconf.json")
+	}
+
+	numMessages := 10 // should be more than or equal to 2.
+
+	// Produce `numMessages` messages to Topic.
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	conf.updateFromTestconf()
+
+	producer, err := NewProducer(&conf)
+	if err != nil {
+		t.Fatalf("Failed to create producer: %s", err)
+	}
+
+	for idx := 0; idx < numMessages; idx++ {
+		if err = producer.Produce(&Message{
+			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		}, nil); err != nil {
+			t.Fatalf("Failed to produce message: %s", err)
+		}
+	}
+
+	producer.Flush(10 * 1000)
+	producer.Close()
+
+	// Assign partition, seek to `numMessages`/2, and check by reading the message.
+	conf = ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+		"group.id":          testconf.GroupID,
+		"auto.offset.reset": "end",
+	}
+	conf.updateFromTestconf()
+
+	consumer, err := NewConsumer(&conf)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %s", err)
+	}
+
+	tps := []TopicPartition{
+		{Topic: &testconf.Topic, Partition: 0},
+	}
+	err = consumer.Assign(tps)
+	if err != nil {
+		t.Fatalf("Failed to assign partition: %s", err)
+	}
+
+	tps[0].Offset = Offset(numMessages / 2)
+	seekedPartitions, err := consumer.SeekPartitions(tps)
+	if err != nil {
+		t.Errorf("SeekPartitions failed: %s", err)
+	}
+	if len(seekedPartitions) != len(tps) {
+		t.Errorf(
+			"SeekPartitions should return result for %d partitions, %d returned",
+			len(tps), len(seekedPartitions))
+	}
+	for _, seekedPartition := range seekedPartitions {
+		if seekedPartition.Error != nil {
+			t.Errorf("Seek error for partition %v", seekedPartition)
+		}
+	}
+
+	msg, err := consumer.ReadMessage(10 * time.Second)
+	if err != nil {
+		t.Fatalf("ReadMessage failed: %s", err)
+	}
+	if msg.TopicPartition.Offset != Offset(numMessages/2) {
+		t.Errorf("Expected offset of read message is %d, got %d",
+			numMessages/2, msg.TopicPartition.Offset)
+	}
+}
+
 func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
 	for _, res := range result {
 		exp, ok := expError[res.Topic]

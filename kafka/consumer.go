@@ -321,6 +321,7 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 // a starting offset for each partition.
 //
 // Returns an error on failure or nil otherwise.
+// Deprecated: Seek is deprecated in favour of SeekPartitions().
 func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 	rkt := c.handle.getRkt(*partition.Topic)
 	cErr := C.rd_kafka_seek(rkt,
@@ -331,6 +332,32 @@ func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 		return newError(cErr)
 	}
 	return nil
+}
+
+// SeekPartitions seeks the given topic partitions to the per-partition offset
+// stored in the .Offset field of each partition.
+//
+// The offset may be either absolute (>= 0) or a logical offset (e.g. OffsetEnd).
+//
+// SeekPartitions() may only be used for partitions already being consumed
+// (through Assign() or implicitly through a self-rebalanced Subscribe()).
+// To set the starting offset it is preferred to use Assign() in a
+// kafka.AssignedPartitions handler and provide a starting offset for each
+// partition.
+//
+// Returns an error on failure or nil otherwise. Individual partition errors
+// should be checked in the per-partition .Error field.
+func (c *Consumer) SeekPartitions(partitions []TopicPartition) ([]TopicPartition, error) {
+	cPartitions := newCPartsFromTopicPartitions(partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+
+	cErr := C.rd_kafka_seek_partitions(
+		c.handle.rk, cPartitions, -1 /* infinite timeout */)
+	if cErr != nil {
+		return nil, newErrorFromCErrorDestroy(cErr)
+	}
+
+	return newTopicPartitionsFromCparts(cPartitions), nil
 }
 
 // Poll the consumer for messages or events.

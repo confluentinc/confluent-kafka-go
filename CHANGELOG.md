@@ -14,6 +14,8 @@ This is a maintenance release:
  * The timeout parameter on `Seek()` is now ignored and an infinite timeout is
    used, the method will block until the fetcher state is updated (typically
    within microseconds).
+ * Added Consumer `SeekPartitions()` method to seek multiple partitions at
+   once and deprecated `Seek()`.
 
 
 ## v1.9.2
