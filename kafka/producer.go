@@ -739,6 +739,8 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 //            On timeout the operation may continue in the background,
 //            depending on state, and it is okay to call `InitTransactions()`
 //            again.
+//            Providing a nil context or a context without a deadline uses
+//            the timeout 2*transaction.timeout.ms.
 //
 // Returns nil on success or an error on failure.
 // Check whether the returned error object permits retrying
