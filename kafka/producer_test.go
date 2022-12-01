@@ -383,11 +383,12 @@ func TestProducerLog(t *testing.T) {
 
 // TestTransactionalAPI test the transactional producer API
 func TestTransactionalAPI(t *testing.T) {
-	p, err := NewProducer(&ConfigMap{
+	conf := ConfigMap{
 		"bootstrap.servers":      "127.0.0.1:65533",
 		"transactional.id":       "test",
 		"transaction.timeout.ms": "4000",
-	})
+	}
+	p, err := NewProducer(&conf)
 	if err != nil {
 		t.Fatalf("Failed to create transactional producer: %v", err)
 	}
@@ -420,10 +421,10 @@ func TestTransactionalAPI(t *testing.T) {
 
 	//
 	// Call InitTransactions() without timeout, which makes it
-	// default to the transaction.timeout.ms.
+	// default to the 2*transaction.timeout.ms.
 	// NOTE: cancelling the context currently does not work.
 	//
-	maxDuration, err = time.ParseDuration("4s") // transaction.tiemout.ms
+	maxDuration, err = time.ParseDuration("8s") // 2*transaction.timeout.ms
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -458,9 +459,19 @@ func TestTransactionalAPI(t *testing.T) {
 			maxDuration.Seconds(), duration)
 	}
 
+	p.Close()
+
+	// We need to recreate the producer, because the previous producer can
+	// never call anything except InitTransactions until it is succesful.
+	// Since we don't have a real broker, the call will never be successful.
+	p, err = NewProducer(&conf)
+	if err != nil {
+		t.Fatalf("Failed to create transactional producer: %v", err)
+	}
+
 	//
 	// All sub-sequent APIs should fail (unless otherwise noted)
-	// since InitTransactions() has not succeeded.
+	// since InitTransactions() has not been called.
 	//
 	maxDuration, err = time.ParseDuration("1s") // Should fail quickly, not by timeout
 	if err != nil {
