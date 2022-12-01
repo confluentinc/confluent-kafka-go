@@ -105,7 +105,9 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Assign failed: %s", err)
 	}
 
-	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1000)
+	// We provide a very small timeout for Seek, to test that the timeout is
+	// ignored.
+	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1)
 	if err != nil {
 		t.Errorf("Seek failed: %s", err)
 	}
