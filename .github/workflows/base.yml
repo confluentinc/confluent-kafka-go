@@ -1,0 +1,75 @@
+name: check
+on: [push, pull_request]
+jobs:
+  # The build and test job builds librdkafka, a dynamically linked version of
+  # the go client, and then runs all the tests which don't require a broker.
+  # We also build the documentation (which also tests out error generation).
+  # We can't use prebuilt librdkafka since it might not contain changes from
+  # master, and so, we have to keep the build, test, and docs steps in one job
+  # to avoid needing to build librdkafka repeatedly.
+  build-test-doc:
+    runs-on: ubuntu-latest
+    steps:
+      # Setup repositories and dependencies for confluent-kafka-go
+      # Two checkouts are needed - the argumentless version which checks out
+      # confluent-kafka-go, and the other, which checks out librdkafka.
+      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with:
+          repository: edenhill/librdkafka
+          path: './librdkafka'
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+      # We use go1.14, which is the lowest supported version.
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '=1.14'
+      - run: |
+          cd $HOME
+          go get golang.org/x/tools/cmd/godoc
+      - run: pip install beautifulsoup4
+      - run: |
+          sudo apt update
+          sudo apt install -y libcurl4-openssl-dev libssl-dev libsasl2-dev libzstd-dev
+      - run: |
+          cd librdkafka
+          ./configure --install-deps --enable-devel --disable-lz4-ext --prefix=/usr
+          make
+          sudo make install
+      # Build
+      - run: |
+          cd kafka
+          go build -tags dynamic ./...
+      # Docs
+      - run: |
+          export GOTAGS="-tags dynamic"
+          make -f mk/Makefile docs
+      # Tests
+      - run: |
+          cd kafka
+          go test -v -timeout 2m -tags dynamic
+
+  # The format job runs gofmt and lists all errors in detail.
+  # We exclude build_ files -- we develop on go1.18, gofmt by default changes
+  # +build to go:build, but since we wish to support go1.14+, we can't make this
+  # change yet, this feature was introduced in go1.17.
+  # This should be changed whenever we bump up go version to be >=1.17.
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '=1.18'
+      - run: |
+          cd kafka
+          lines=$(gofmt -l . | grep -v 'build_' | wc -l) || true
+          if [[ $lines -ne 0 ]]; then
+            echo "$lines formatting error(s)"
+            for f in $(gofmt -l . | grep -v 'build_'); do
+              echo "$f :"
+              gofmt -d $f
+            done
+            exit 1
+          fi

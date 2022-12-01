@@ -17,7 +17,7 @@ docs: generr
 	mk/doc-gen.py schemaregistry > schemaregistry/api.html
 
 generr:
-	(cd kafka/go_rdkafka_generr && go install)
+	(cd kafka/go_rdkafka_generr && go install $(GOTAGS))
 	(cd kafka && go generate ./...)
 
 %:
