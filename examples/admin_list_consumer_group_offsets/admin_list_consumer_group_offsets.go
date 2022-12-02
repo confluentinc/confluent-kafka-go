@@ -74,7 +74,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	res, err := ac.ListConsumerGroupOffsets(ctx, gps, kafka.SetAdminRequireStable(requireStable))
+	res, err := ac.ListConsumerGroupOffsets(ctx, gps, kafka.SetAdminRequireStableOffsets(requireStable))
 	if err != nil {
 		panic(err)
 	}

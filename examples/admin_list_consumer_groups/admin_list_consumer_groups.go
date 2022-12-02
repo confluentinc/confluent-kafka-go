@@ -18,9 +18,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -29,18 +29,23 @@ import (
 func main() {
 
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> [<timeout_seconds> = infinite]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr,
+			"Usage: %s <bootstrap-servers> [<state1> <state2> ...]\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-
-	timeout_parsed := -1
-	var err error
+	var states []kafka.ConsumerGroupState
 	if len(os.Args) > 2 {
-		timeout_parsed, err = strconv.Atoi(os.Args[2])
-		if err != nil {
-			fmt.Printf("Error parsing the timeout %s\n: %s", os.Args[2], err)
+		statesStr := os.Args[2:]
+		for _, stateStr := range statesStr {
+			state, err := kafka.ConsumerGroupStateFromString(stateStr)
+			if err != nil {
+				fmt.Fprintf(os.Stderr,
+					"Given state %s is not a valid state\n", stateStr)
+				os.Exit(1)
+			}
+			states = append(states, state)
 		}
 	}
 
@@ -50,25 +55,26 @@ func main() {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
 		os.Exit(1)
 	}
+	defer a.Close()
 
-	var groupInfos []kafka.GroupInfo
-	if timeout_parsed == -1 {
-		groupInfos, err = a.ListConsumerGroups()
-	} else {
-		timeout := time.Duration(timeout_parsed) * time.Second
-		groupInfos, err = a.ListConsumerGroups(kafka.SetListConsumerGroupsOptionRequestTimeout(timeout))
-	}
+	// Call ListConsumerGroups.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	listGroupRes, err := a.ListConsumerGroups(
+		ctx, kafka.SetAdminConsumerGroupStates(states))
 
-	if err != nil {
-		fmt.Printf("Failed to list groups: %s\n", err)
+	if err != nil || len(listGroupRes.Errors) > 0 {
+		fmt.Printf("Failed to list groups: %s %v\n", err, listGroupRes.Errors)
 		os.Exit(1)
 	}
 
 	// Print results
-	fmt.Printf("A total of %d consumer groups listed:\n", len(groupInfos))
-	for _, groupInfo := range groupInfos {
-		fmt.Println(groupInfo)
+	groups := listGroupRes.ConsumerGroupListings
+	fmt.Printf("A total of %d consumer group(s) listed:\n", len(groups))
+	for _, group := range groups {
+		fmt.Printf("GroupId: %s\n", group.GroupId)
+		fmt.Printf("State: %s\n", group.State)
+		fmt.Printf("IsSimpleConsumerGroup: %v\n", group.IsSimpleConsumerGroup)
+		fmt.Println()
 	}
-
-	a.Close()
 }

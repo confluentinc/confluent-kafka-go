@@ -18,18 +18,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
 
-	if len(os.Args) < 2 {
+	if len(os.Args) < 3 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> [group1 group2 ....]\nIf no groups are specified, all groups are listed\n",
+			"Usage: %s <bootstrap-servers> <group1> [<group2> ...]\n",
 			os.Args[0])
 		os.Exit(1)
 	}
@@ -46,18 +48,28 @@ func main() {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
 		os.Exit(1)
 	}
+	defer a.Close()
 
-	groupInfos, err := a.DescribeConsumerGroups(groups)
+	// Call DescribeConsumerGroups.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	groupInfos, err := a.DescribeConsumerGroups(ctx, groups)
 	if err != nil {
 		fmt.Printf("Failed to describe groups: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Print results
-	fmt.Printf("A total of %d consumer groups described:\n", len(groupInfos))
-	for _, groupInfo := range groupInfos {
-		fmt.Println(groupInfo)
+	fmt.Printf("A total of %d consumer group(s) described:\n\n", len(groupInfos))
+	for _, g := range groupInfos {
+		fmt.Printf("GroupId: %s\n"+
+			"Error: %s\n"+
+			"IsSimpleConsumerGroup: %v\n"+
+			"PartitionAssignor: %s\n"+
+			"State: %s\n"+
+			"Coordinator: %+v\n"+
+			"Members: %+v\n\n",
+			g.GroupId, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
+			g.State, g.Coordinator, g.Members)
 	}
-
-	a.Close()
 }

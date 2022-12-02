@@ -662,7 +662,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 				},
 			},
 		},
-		SetAdminRequireStable(false))
+		SetAdminRequireStableOffsets(false))
 	if lres != nil || err == nil {
 		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v", lres, err)
 	}
@@ -707,22 +707,39 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	if err != nil || state != ConsumerGroupStateStable {
 		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
 	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
 	listres, err := a.ListConsumerGroups(
-		SetListConsumerGroupsOptionConsumerGroupState([]ConsumerGroupState{state}),
-		SetListConsumerGroupsOptionRequestTimeout(time.Second))
-	if listres != nil || err == nil {
+		ctx, SetAdminRequestTimeout(time.Second),
+		SetAdminConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateStable}))
+	if err == nil {
 		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v", listres, err)
 	}
-	if err.(Error).Code() != ErrTimedOut {
-		t.Fatalf("Expected ErrTimedOut, got %v", err)
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 
-	descres, err := a.DescribeConsumerGroups(nil, SetDescribeConsumerGroupsOptionRequestTimeout(time.Second))
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err := a.DescribeConsumerGroups(
+		ctx, nil, SetAdminRequestTimeout(time.Second))
 	if descres != nil || err == nil {
 		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v", descres, err)
 	}
-	if err.(Error).Code() != ErrTimedOut {
-		t.Fatalf("Expected ErrTimedOut, got %v", err)
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg with empty groups list, but got %s", err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err = a.DescribeConsumerGroups(
+		ctx, []string{"test"}, SetAdminRequestTimeout(time.Second))
+	if descres != nil || err == nil {
+		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v", descres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
 	}
 
 	testAdminAPIsCreateACLs(what, a, t)
