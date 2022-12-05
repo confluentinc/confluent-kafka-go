@@ -40,6 +40,9 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 		t.Fatalf("Failed to create AdminClient %v", err)
 	}
 	testAdminAPIWithDefaultValue(t, adminClient, nil)
+
+	// adminClient will be closed at the end of above function. So we don't need to close explicitly
+	// to test on closed adminClient.
 	testAdminAPIWithDefaultValue(t, adminClient, getOperationNotAllowedErrorForClosedClient())
 
 }
@@ -76,11 +79,16 @@ func testAdminAPIWithDefaultValue(t *testing.T, a *AdminClient, errCheck error) 
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 	res, err = a.DeleteTopics(ctx, []string{topic})
-	if err != nil {
-		a.Close()
-		t.Fatalf("Failed to delete topic %v, err: %v", topic, err)
+	if err != errCheck {
+		t.Errorf("DeleteTopics() failed to return expected result")
+		if !a.isClosed {
+			a.Close()
+			t.Fatalf("Failed to delete topics %v\n", err)
+		}
 	}
-	t.Logf("Succeed to delete topic %v\n", res)
+	if !a.isClosed {
+		t.Logf("Succeed to delete topic %v\n", res)
+	}
 
 	a.Close()
 }
