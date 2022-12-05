@@ -43,7 +43,8 @@ func main() {
 		"bootstrap.servers": args[1],
 	})
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to create Admin client: %s\n", err)
+		os.Exit(1)
 	}
 	defer ac.Close()
 
@@ -72,12 +73,13 @@ func main() {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	res, err := ac.AlterConsumerGroupOffsets(ctx, gps)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to alter consumer group offsets: %s\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("AlterConsumerGroupOffsets result: %v\n", res)

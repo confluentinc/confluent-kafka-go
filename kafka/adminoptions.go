@@ -238,10 +238,6 @@ func (ao AdminOptionRequireStableOffsets) apply(cOptions *C.rd_kafka_AdminOption
 		return nil
 	}
 
-	cErrstrSize := C.size_t(512)
-	cErrstr := (*C.char)(C.malloc(cErrstrSize))
-	defer C.free(unsafe.Pointer(cErrstr))
-
 	cError := C.rd_kafka_AdminOptions_set_require_stable_offsets(
 		cOptions, bool2cint(ao.val))
 	if cError != nil {
@@ -404,7 +400,7 @@ type ListConsumerGroupsOption interface {
 
 // ListConsumerGroupOffsetsAdminOption - see setter.
 //
-// See SetAdminRequestTimeout, SetAdminRequireStable.
+// See SetAdminRequestTimeout, SetAdminRequireStableOffsets.
 type ListConsumerGroupOffsetsAdminOption interface {
 	supportsListConsumerGroupOffsets()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error

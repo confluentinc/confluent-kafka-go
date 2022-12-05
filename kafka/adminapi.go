@@ -176,8 +176,8 @@ func ConsumerGroupStateFromString(stateString string) (ConsumerGroupState, error
 	defer C.free(unsafe.Pointer(cStr))
 	state := ConsumerGroupState(C.rd_kafka_consumer_group_state_code(cStr))
 	if state == ConsumerGroupStateUnknown {
-		// TODO(milind): not sure if Unknown state is an error or not, since the broker is also
-		// allowed to return it.
+		// TODO(milind): not sure if Unknown state is an error or not, since the
+		// broker is also allowed to return it.
 		return state, NewError(ErrInvalidArg, "Unknown consumer group state", false)
 	}
 	return state, nil
@@ -221,7 +221,9 @@ type MemberAssignment struct {
 // MemberDescription represents the description of a consumer group member.
 type MemberDescription struct {
 	// Client id.
-	CientId string
+	ClientId string
+	// Group instance id.
+	GroupInstanceId string
 	// Consumer id.
 	ConsumerId string
 	// Group member host.
@@ -777,13 +779,14 @@ func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t
 }
 
 // cToGroupResults converts a C group_result_t array to Go GroupResult list.
-func (a *AdminClient) cToGroupResults(cGroupRes **C.rd_kafka_group_result_t, cCnt C.size_t) (result []GroupResult, err error) {
+func (a *AdminClient) cToGroupResults(
+	cGroupRes **C.rd_kafka_group_result_t, cCnt C.size_t) (result []GroupResult, err error) {
 	result = make([]GroupResult, int(cCnt))
 
-	for i := 0; i < int(cCnt); i++ {
-		cGroup := C.group_result_by_idx(cGroupRes, cCnt, C.size_t(i))
-		result[i].Group = C.GoString(C.rd_kafka_group_result_name(cGroup))
-		result[i].Error = newErrorFromCError(C.rd_kafka_group_result_error(cGroup))
+	for idx := 0; idx < int(cCnt); idx++ {
+		cGroup := C.group_result_by_idx(cGroupRes, cCnt, C.size_t(idx))
+		result[idx].Group = C.GoString(C.rd_kafka_group_result_name(cGroup))
+		result[idx].Error = newErrorFromCError(C.rd_kafka_group_result_error(cGroup))
 	}
 
 	return result, nil
@@ -849,15 +852,16 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 				memberAssignment.TopicPartitions = newTopicPartitionsFromCparts(cToppars)
 			}
 			members[midx] = MemberDescription{
-				CientId: C.GoString(
+				ClientId: C.GoString(
 					C.rd_kafka_MemberDescription_client_id(cMember)),
+				GroupInstanceId: C.GoString(
+					C.rd_kafka_MemberDescription_group_instance_id(cMember)),
 				ConsumerId: C.GoString(
 					C.rd_kafka_MemberDescription_consumer_id(cMember)),
 				Host: C.GoString(
 					C.rd_kafka_MemberDescription_host(cMember)),
 				MemberAssignment: memberAssignment,
 			}
-
 		}
 
 		result[idx] = ConsumerGroupDescription{
@@ -1175,68 +1179,6 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options
 	cTopicRes := C.rd_kafka_DeleteTopics_result_topics(cRes, &cCnt)
 
 	return a.cToTopicResults(cTopicRes, cCnt)
-}
-
-// DeleteGroups deletes a batch of consumer groups.
-// Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `groups` - A slice of groupIDs to delete.
-//  * `options` - Delete groups admin options.
-//
-// Returns a slice of GroupResults, with group-level errors, (if any) contained inside; and
-// an error that is not nil for client level errors.
-func (a *AdminClient) DeleteGroups(ctx context.Context, groups []string, options ...DeleteGroupsAdminOption) (result []GroupResult, err error) {
-	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
-
-	// Convert Go DeleteGroups to C DeleteGroups
-	for i, group := range groups {
-		cGroups[i] = C.rd_kafka_DeleteGroup_new(C.CString(group))
-		if cGroups[i] == nil {
-			return nil, newErrorFromString(ErrInvalidArg,
-				fmt.Sprintf("Invalid arguments for group %s", group))
-		}
-
-		defer C.rd_kafka_DeleteGroup_destroy(cGroups[i])
-	}
-
-	// Convert Go AdminOptions (if any) to C AdminOptions
-	genericOptions := make([]AdminOption, len(options))
-	for i := range options {
-		genericOptions[i] = options[i]
-	}
-	cOptions, err := adminOptionsSetup(
-		a.handle, C.RD_KAFKA_ADMIN_OP_DELETEGROUPS, genericOptions)
-	if err != nil {
-		return nil, err
-	}
-	defer C.rd_kafka_AdminOptions_destroy(cOptions)
-
-	// Create temporary queue for async operation
-	cQueue := C.rd_kafka_queue_new(a.handle.rk)
-	defer C.rd_kafka_queue_destroy(cQueue)
-
-	// Asynchronous call
-	C.rd_kafka_DeleteGroups(
-		a.handle.rk,
-		(**C.rd_kafka_DeleteGroup_t)(&cGroups[0]),
-		C.size_t(len(cGroups)),
-		cOptions,
-		cQueue)
-
-	// Wait for result, error or context timeout
-	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEGROUPS_RESULT)
-	if err != nil {
-		return nil, err
-	}
-	defer C.rd_kafka_event_destroy(rkev)
-
-	cRes := C.rd_kafka_event_DeleteGroups_result(rkev)
-
-	// Convert result from C to Go
-	var cCnt C.size_t
-	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
-
-	return a.cToGroupResults(cGroupRes, cCnt)
 }
 
 // CreatePartitions creates additional partitions for topics.
@@ -2078,6 +2020,68 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	cGroups := C.rd_kafka_AlterConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
 
 	return a.cToGroupTopicPartitions(cGroups, cGroupCount), nil
+}
+
+// DeleteGroups deletes a batch of consumer groups.
+// Parameters:
+//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//  * `groups` - A slice of groupIDs to delete.
+//  * `options` - Delete groups admin options.
+//
+// Returns a slice of GroupResults, with group-level errors, (if any) contained inside; and
+// an error that is not nil for client level errors.
+func (a *AdminClient) DeleteGroups(ctx context.Context, groups []string, options ...DeleteGroupsAdminOption) (result []GroupResult, err error) {
+	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
+
+	// Convert Go DeleteGroups to C DeleteGroups
+	for i, group := range groups {
+		cGroups[i] = C.rd_kafka_DeleteGroup_new(C.CString(group))
+		if cGroups[i] == nil {
+			return nil, newErrorFromString(ErrInvalidArg,
+				fmt.Sprintf("Invalid arguments for group %s", group))
+		}
+
+		defer C.rd_kafka_DeleteGroup_destroy(cGroups[i])
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DELETEGROUPS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_DeleteGroups(
+		a.handle.rk,
+		(**C.rd_kafka_DeleteGroup_t)(&cGroups[0]),
+		C.size_t(len(cGroups)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEGROUPS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DeleteGroups_result(rkev)
+
+	// Convert result from C to Go
+	var cCnt C.size_t
+	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
+
+	return a.cToGroupResults(cGroupRes, cCnt)
 }
 
 // DescribeConsumerGroups describes groups from cluster as specified by the

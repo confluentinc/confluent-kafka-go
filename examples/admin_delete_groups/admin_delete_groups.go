@@ -41,13 +41,15 @@ func main() {
 		"bootstrap.servers": args[1],
 	})
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to create Admin client: %s\n", err)
+		os.Exit(1)
 	}
 	defer ac.Close()
 
 	timeoutSec, err := strconv.Atoi(args[2])
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to parse timeout: %s\n", err)
+		os.Exit(1)
 	}
 
 	groups := args[3:]
@@ -55,9 +57,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	res, err := ac.DeleteGroups(ctx, groups, kafka.SetAdminRequestTimeout(time.Duration(timeoutSec)*time.Second))
+	res, err := ac.DeleteGroups(ctx, groups,
+		kafka.SetAdminRequestTimeout(time.Duration(timeoutSec)*time.Second))
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to delete groups: %s\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("DeleteGroups result: %v\n", res)
