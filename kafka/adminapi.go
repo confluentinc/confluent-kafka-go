@@ -808,11 +808,6 @@ func (a *AdminClient) cToConsumerGroupResults(
 
 // cToTopicResults converts a C topic_result_t array to Go TopicResult list.
 func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCnt C.size_t) (result []TopicResult, err error) {
-	err = a.verifyClient()
-	if err != nil {
-		return nil, err
-	}
-
 	result = make([]TopicResult, int(cCnt))
 
 	for i := 0; i < int(cCnt); i++ {
@@ -1932,9 +1927,14 @@ func (a *AdminClient) SetSaslCredentials(username, password string) error {
 
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
+	if a.isClosed {
+		return
+	}
+
 	if a.isDerived {
 		// Derived AdminClient needs no cleanup.
 		a.handle = &handle{}
+		a.isClosed = true
 		return
 	}
 
