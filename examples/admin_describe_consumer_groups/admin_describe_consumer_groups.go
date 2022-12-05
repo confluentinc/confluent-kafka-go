@@ -27,7 +27,6 @@ import (
 )
 
 func main() {
-
 	if len(os.Args) < 3 {
 		fmt.Fprintf(
 			os.Stderr,
@@ -37,10 +36,7 @@ func main() {
 	}
 
 	bootstrapServers := os.Args[1]
-	var groups []string
-	if len(os.Args) > 2 {
-		groups = os.Args[2:]
-	}
+	groups := os.Args[2:]
 
 	// Create a new AdminClient.
 	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})

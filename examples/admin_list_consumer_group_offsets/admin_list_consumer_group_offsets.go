@@ -39,7 +39,9 @@ func main() {
 
 	requireStable, err := strconv.ParseBool(args[3])
 	if err != nil {
-		panic(err)
+		fmt.Printf(
+			"Failed to parse value of require_stable %s: %s\n", args[3], err)
+		os.Exit(1)
 	}
 
 	// Create new AdminClient.
@@ -47,7 +49,8 @@ func main() {
 		"bootstrap.servers": args[1],
 	})
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to create Admin client: %s\n", err)
+		os.Exit(1)
 	}
 	defer ac.Close()
 
@@ -55,7 +58,8 @@ func main() {
 	for i := 4; i+1 < len(args); i += 2 {
 		partition, err := strconv.ParseInt(args[i+1], 10, 32)
 		if err != nil {
-			panic(err)
+			fmt.Printf("Failed to parse partition %s: %s\n", args[i+1], err)
+			os.Exit(1)
 		}
 
 		partitions = append(partitions, kafka.TopicPartition{
@@ -74,9 +78,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	res, err := ac.ListConsumerGroupOffsets(ctx, gps, kafka.SetAdminRequireStableOffsets(requireStable))
+	res, err := ac.ListConsumerGroupOffsets(
+		ctx, gps, kafka.SetAdminRequireStableOffsets(requireStable))
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to list consumer group offsets %s\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("ListConsumerGroupOffset result: %v\n", res)

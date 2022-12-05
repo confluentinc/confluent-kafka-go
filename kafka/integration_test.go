@@ -97,7 +97,8 @@ func findConsumerGroupDescription(groups []ConsumerGroupDescription, group strin
 // checkGroupDesc is a helper function to check the validity of a ConsumerGroupDescription.
 // We can't directly use DeepEqual because some fields/slice orders change with every run.
 func checkGroupDesc(
-	groupDesc *ConsumerGroupDescription, state ConsumerGroupState, group string, protocol string, clientIdToPartitions map[string][]TopicPartition) bool {
+	groupDesc *ConsumerGroupDescription, state ConsumerGroupState, group string,
+	protocol string, clientIdToPartitions map[string][]TopicPartition) bool {
 	if groupDesc.GroupId != group ||
 		groupDesc.State != state ||
 		groupDesc.Error.Code() != ErrNoError ||
@@ -111,7 +112,7 @@ func checkGroupDesc(
 	}
 
 	for _, member := range groupDesc.Members {
-		if partitions, ok := clientIdToPartitions[member.CientId]; !ok ||
+		if partitions, ok := clientIdToPartitions[member.ClientId]; !ok ||
 			!reflect.DeepEqual(partitions, member.MemberAssignment.TopicPartitions) {
 			return false
 		}
