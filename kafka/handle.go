@@ -77,6 +77,9 @@ type Handle interface {
 
 	// gethandle() returns the internal handle struct pointer
 	gethandle() *handle
+
+	// verifyClient() returns the validity of client
+	verifyClient() error
 }
 
 // Common instance handle for both Producer and Consumer

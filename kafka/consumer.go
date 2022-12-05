@@ -47,6 +47,15 @@ type Consumer struct {
 	rebalanceCb        RebalanceCb
 	appReassigned      bool
 	appRebalanceEnable bool // SerializerConfig setting
+
+	isClosed bool
+}
+
+func (c *Consumer) verifyClient() error {
+	if c.isClosed {
+		return getOperationNotAllowedErrorForClosedClient()
+	}
+	return nil
 }
 
 // Strings returns a human readable name for a Consumer instance
@@ -62,12 +71,20 @@ func (c *Consumer) gethandle() *handle {
 // Subscribe to a single topic
 // This replaces the current subscription
 func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
+	err := c.verifyClient()
+	if err != nil {
+		return err
+	}
 	return c.SubscribeTopics([]string{topic}, rebalanceCb)
 }
 
 // SubscribeTopics subscribes to the provided list of topics.
 // This replaces the current subscription.
 func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	ctopics := C.rd_kafka_topic_partition_list_new(C.int(len(topics)))
 	defer C.rd_kafka_topic_partition_list_destroy(ctopics)
 
@@ -89,6 +106,10 @@ func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (er
 
 // Unsubscribe from the current subscription, if any.
 func (c *Consumer) Unsubscribe() (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	C.rd_kafka_unsubscribe(c.handle.rk)
 	return nil
 }
@@ -103,6 +124,10 @@ func (c *Consumer) Unsubscribe() (err error) {
 //
 // This replaces the current assignment.
 func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	c.appReassigned = true
 
 	cparts := newCPartsFromTopicPartitions(partitions)
@@ -118,6 +143,10 @@ func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 
 // Unassign the current set of partitions to consume.
 func (c *Consumer) Unassign() (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	c.appReassigned = true
 
 	e := C.rd_kafka_assign(c.handle.rk, nil)
@@ -139,6 +168,10 @@ func (c *Consumer) Unassign() (err error) {
 //
 // The new partitions must not be part of the current assignment.
 func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	c.appReassigned = true
 
 	cparts := newCPartsFromTopicPartitions(partitions)
@@ -159,6 +192,10 @@ func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
 //
 // The removed partitions must be part of the current assignment.
 func (c *Consumer) IncrementalUnassign(partitions []TopicPartition) (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	c.appReassigned = true
 
 	cparts := newCPartsFromTopicPartitions(partitions)
@@ -247,6 +284,10 @@ func (c *Consumer) commit(offsets []TopicPartition) (committedOffsets []TopicPar
 // This is a blocking call.
 // Returns the committed offsets on success.
 func (c *Consumer) Commit() ([]TopicPartition, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return c.commit(nil)
 }
 
@@ -254,6 +295,10 @@ func (c *Consumer) Commit() ([]TopicPartition, error) {
 // This is a blocking call.
 // Returns the committed offsets on success.
 func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	if m.TopicPartition.Error != nil {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't commit errored message")
 	}
@@ -266,6 +311,10 @@ func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 // This is a blocking call.
 // Returns the committed offsets on success.
 func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return c.commit(offsets)
 }
 
@@ -277,6 +326,10 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 // an error and a list of offsets is returned. Each offset can be checked for
 // specific errors via its `.Error` member.
 func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []TopicPartition, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	coffsets := newCPartsFromTopicPartitions(offsets)
 	defer C.rd_kafka_topic_partition_list_destroy(coffsets)
 
@@ -295,6 +348,10 @@ func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []Topic
 // StoreMessage stores offset based on the provided message.
 // This is a convenience method that uses StoreOffsets to do the actual work.
 func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	if m.TopicPartition.Error != nil {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't store errored message")
 	}
@@ -308,12 +365,11 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 
 // Seek seeks the given topic partitions using the offset from the TopicPartition.
 //
-// The ignoredTimeoutMs parameter is ignored. Instead, this method blocks until
-// the fetcher state is updated for the given partition with the new offset.
-// This guarantees that no previously fetched messages for the old offset (or
-// fetch position) will be passed to the application once this call returns.
-// It will still take some time after the method returns until messages are
-// fetched at the new offset.
+// If timeoutMs is not 0 the call will wait this long for the
+// seek to be performed. If the timeout is reached the internal state
+// will be unknown and this function returns ErrTimedOut.
+// If timeoutMs is 0 it will initiate the seek but return
+// immediately without any error reporting (e.g., async).
 //
 // Seek() may only be used for partitions already being consumed
 // (through Assign() or implicitly through a self-rebalanced Subscribe()).
@@ -321,12 +377,16 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 // a starting offset for each partition.
 //
 // Returns an error on failure or nil otherwise.
-func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
+func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
+	err := c.verifyClient()
+	if err != nil {
+		return err
+	}
 	rkt := c.handle.getRkt(*partition.Topic)
 	cErr := C.rd_kafka_seek(rkt,
 		C.int32_t(partition.Partition),
 		C.int64_t(partition.Offset),
-		C.int(-1))
+		C.int(timeoutMs))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cErr)
 	}
@@ -347,9 +407,6 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 }
 
 // Events returns the Events channel (if enabled)
-//
-// Deprecated: Events (channel based consumer) is deprecated in favour
-// of Poll().
 func (c *Consumer) Events() chan Event {
 	return c.events
 }
@@ -368,7 +425,7 @@ func (c *Consumer) Logs() chan LogEvent {
 // a new message or error. `timeout` may be set to -1 for
 // indefinite wait.
 //
-// Timeout is returned as (nil, err) where `err.(kafka.Error).IsTimeout() == true`.
+// Timeout is returned as (nil, err) where err is `err.(kafka.Error).Code() == kafka.ErrTimedOut`.
 //
 // Messages are returned as (msg, nil),
 // while general errors are returned as (nil, err),
@@ -378,6 +435,10 @@ func (c *Consumer) Logs() chan LogEvent {
 // All other event types, such as PartitionEOF, AssignedPartitions, etc, are silently discarded.
 //
 func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 
 	var absTimeout time.Time
 	var timeoutMs int
@@ -420,7 +481,10 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
-
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
 	close(c.readerTermChan)
 	c.handle.waitGroup.Wait()
@@ -441,6 +505,8 @@ func (c *Consumer) Close() (err error) {
 	c.handle.cleanup()
 
 	C.rd_kafka_destroy(c.handle.rk)
+
+	c.isClosed = true
 
 	return nil
 }
@@ -485,6 +551,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	c := &Consumer{}
+	c.isClosed = false
 
 	v, err := confCopy.extract("go.application.rebalance.enable", false)
 	if err != nil {
@@ -575,11 +642,19 @@ func consumerReader(c *Consumer, termChan chan bool) {
 // else information about all topics is returned.
 // GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
 // QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return 0, 0, err
+	}
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }
 
@@ -588,6 +663,10 @@ func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 // The low offset is populated every statistics.interval.ms if that value is set.
 // OffsetInvalid will be returned if there is no cached offset for either value.
 func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return 0, 0, err
+	}
 	return getWatermarkOffsets(c, topic, partition)
 }
 
@@ -607,11 +686,19 @@ func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high
 // Duplicate Topic+Partitions are not supported.
 // Per-partition errors may be returned in the `.Error` field.
 func (c *Consumer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return offsetsForTimes(c, times, timeoutMs)
 }
 
 // Subscription returns the current subscription as set by Subscribe()
 func (c *Consumer) Subscription() (topics []string, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	var cTopics *C.rd_kafka_topic_partition_list_t
 
 	cErr := C.rd_kafka_subscription(c.handle.rk, &cTopics)
@@ -633,6 +720,10 @@ func (c *Consumer) Subscription() (topics []string, err error) {
 
 // Assignment returns the current partition assignments
 func (c *Consumer) Assignment() (partitions []TopicPartition, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	var cParts *C.rd_kafka_topic_partition_list_t
 
 	cErr := C.rd_kafka_assignment(c.handle.rk, &cParts)
@@ -648,6 +739,10 @@ func (c *Consumer) Assignment() (partitions []TopicPartition, err error) {
 
 // Committed retrieves committed offsets for the given set of partitions
 func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_committed(c.handle.rk, cparts, C.int(timeoutMs))
@@ -665,6 +760,10 @@ func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offset
 // The consume position is the next message to read from the partition.
 // i.e., the offset of the last message seen by the application + 1.
 func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartition, err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_position(c.handle.rk, cparts)
@@ -681,6 +780,10 @@ func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartiti
 // (if `go.events.channel.enable` has been set) will NOT be purged by
 // this call, set `go.events.channel.size` accordingly.
 func (c *Consumer) Pause(partitions []TopicPartition) (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_pause_partitions(c.handle.rk, cparts)
@@ -692,6 +795,10 @@ func (c *Consumer) Pause(partitions []TopicPartition) (err error) {
 
 // Resume consumption for the provided list of partitions
 func (c *Consumer) Resume(partitions []TopicPartition) (err error) {
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_resume_partitions(c.handle.rk, cparts)
@@ -712,6 +819,10 @@ func (c *Consumer) Resume(partitions []TopicPartition) (err error) {
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
+	err := c.verifyClient()
+	if err != nil {
+		return err
+	}
 	return c.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
@@ -723,6 +834,10 @@ func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 // 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
+	err := c.verifyClient()
+	if err != nil {
+		return err
+	}
 	return c.handle.setOAuthBearerTokenFailure(errstr)
 }
 
@@ -768,6 +883,10 @@ func deserializeConsumerGroupMetadata(serialized []byte) (*C.rd_kafka_consumer_g
 // This object should be passed to the transactional producer's
 // SendOffsetsToTransaction() API.
 func (c *Consumer) GetConsumerGroupMetadata() (*ConsumerGroupMetadata, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	cgmd := C.rd_kafka_consumer_group_metadata(c.handle.rk)
 	if cgmd == nil {
 		return nil, NewError(ErrState, "Consumer group metadata not available", false)
