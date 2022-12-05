@@ -180,8 +180,76 @@ func TestProducerAPIs(t *testing.T) {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
+	p.Close()
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
 	p.SetSaslCredentials("username", "password")
+}
+
+// Test on Closed Producer
+func TestOnClosedProducer(t *testing.T) {
+	p, err := NewProducer(&ConfigMap{
+		"socket.timeout.ms":         10,
+		"message.timeout.ms":        10,
+		"go.delivery.report.fields": "key,value,headers"})
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	t.Logf("Producer %s", p)
+
+	p.Close()
+
+	topic1 := "gotest"
+
+	err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
+		Value: []byte("Producer Validation"), Key: []byte("This is my key")},
+		nil)
+	expectedErr := getOperationNotAllowedErrorForClosedClient()
+	if err != expectedErr {
+		t.Errorf("Produce should have thrown : %s, but got %s", expectedErr, err)
+	}
+	_, err = p.OffsetsForTimes([]TopicPartition{{Topic: &topic1, Offset: 12345}}, 100)
+	if err != expectedErr {
+		t.Errorf("OffsetsForTimes should have thrown : %s, but got %s", expectedErr, err)
+	}
+	err = p.SetOAuthBearerToken(OAuthBearerToken{
+		TokenValue: "aaaa",
+		Expiration: time.Now().Add(time.Second * time.Duration(60)),
+		Principal:  "gotest",
+	})
+	if err != expectedErr {
+		t.Errorf("SetOAuthBearerToken should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	ctx := context.TODO()
+	err = p.BeginTransaction()
+	if err != expectedErr {
+		t.Errorf("BeginTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	// SendOffsetsToTransaction
+	topic := "myTopic"
+	cgmd, err := NewTestConsumerGroupMetadata("myConsumerGroup")
+	err = p.SendOffsetsToTransaction(ctx,
+		[]TopicPartition{
+			{Topic: &topic, Partition: 1, Offset: 123},
+			{Topic: &topic, Partition: 0, Offset: 4567890},
+		},
+		cgmd)
+	if err != expectedErr {
+		t.Errorf("SendOffsetsToTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	// AbortTransaction
+	err = p.AbortTransaction(ctx)
+	if err != expectedErr {
+		t.Errorf("AbortTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
+
+	// CommitTransaction
+	err = p.CommitTransaction(ctx)
+	if err != expectedErr {
+		t.Errorf("CommitTransaction should have thrown err : %s, but got %s", expectedErr, err)
+	}
 }
 
 // TestPurgeAPI test if messages are purged successfully
