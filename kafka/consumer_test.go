@@ -110,7 +110,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		t.Errorf("Assign failed: %s", err)
 	}
 
-	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1000)
+	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1)
 	if err != errCheck {
 		t.Errorf("Seek failed: %s", err)
 	}
@@ -213,9 +213,30 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
+	if !c.isClosed {
+		msg, err := c.ReadMessage(time.Millisecond)
+		t.Logf("ReadMessage() returned message %s and error %s\n", msg, err)
+
+		// Check both ErrTimedOut and IsTimeout() to ensure they're consistent.
+		if err == nil || !err.(Error).IsTimeout() {
+			t.Errorf("ReadMessage() should time out, instead got %s\n", err)
+		}
+		if err == nil || err.(Error).Code() != ErrTimedOut {
+			t.Errorf("ReadMessage() should time out, instead got %s\n", err)
+		}
+		if msg != nil {
+			t.Errorf("ReadMessage() should not return a message in case of error\n")
+		}
+	}
+
 	err = c.Close()
 	if err != errCheck {
 		t.Errorf("Close failed: %s", err)
+	}
+
+	// Tests the SetSaslCredentials call to ensure that the API does not crash.
+	if !c.isClosed {
+		c.SetSaslCredentials("username", "password")
 	}
 }
 
