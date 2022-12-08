@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -155,6 +156,10 @@ func configureTLS(conf *Config, tlsConf *tls.Config) error {
 
 	var err error
 	if certFile != "" {
+		if keyFile == "" {
+			return errors.New(
+				"SslKeyLocation needs to be provided if using SslCertificateLocation")
+		}
 		var cert tls.Certificate
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
@@ -173,12 +178,10 @@ func configureTLS(conf *Config, tlsConf *tls.Config) error {
 		if err != nil {
 			return err
 		}
-		if tlsConf.RootCAs == nil {
-			tlsConf.RootCAs = x509.NewCertPool()
-		}
-		tlsConf.RootCAs.AppendCertsFromPEM(caCert)
-		if err != nil {
-			return err
+
+		tlsConf.RootCAs = x509.NewCertPool()
+		if !tlsConf.RootCAs.AppendCertsFromPEM(caCert) {
+			return fmt.Errorf("could not parse certificate from %s", caFile)
 		}
 	}
 
