@@ -113,6 +113,16 @@ func (ao AdminOptionRequestTimeout) supportsAlterConfigs() {
 }
 func (ao AdminOptionRequestTimeout) supportsDescribeConfigs() {
 }
+
+func (ao AdminOptionRequestTimeout) supportsCreateACLs() {
+}
+
+func (ao AdminOptionRequestTimeout) supportsDescribeACLs() {
+}
+
+func (ao AdminOptionRequestTimeout) supportsDeleteACLs() {
+}
+
 func (ao AdminOptionRequestTimeout) supportsDeleteGroups() {
 }
 func (ao AdminOptionRequestTimeout) supportsListConsumerGroupOffsets() {
@@ -174,15 +184,6 @@ func (ao AdminOptionValidateOnly) supportsCreateTopics() {
 func (ao AdminOptionValidateOnly) supportsCreatePartitions() {
 }
 func (ao AdminOptionValidateOnly) supportsAlterConfigs() {
-}
-
-func (ao AdminOptionRequestTimeout) supportsCreateACLs() {
-}
-
-func (ao AdminOptionRequestTimeout) supportsDescribeACLs() {
-}
-
-func (ao AdminOptionRequestTimeout) supportsDeleteACLs() {
 }
 
 func (ao AdminOptionValidateOnly) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
