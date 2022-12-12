@@ -1891,12 +1891,16 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 
 	// Convert Go GroupTopicPartitions to C ListConsumerGroupOffsets.
 	for i, groupPartitions := range groupsPartitions {
-		// We don't need to destroy this list because
-		// rd_kafka_ListConsumerGroupOffsets_destroy takes care of it.
+		// We need to destroy this list because rd_kafka_ListConsumerGroupOffsets_new
+		// creates a copy of it.
 		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
+		defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+
+		cGroupID := C.CString(groupPartitions.Group)
+		defer C.free(unsafe.Pointer(cGroupID))
 
 		cGroupsPartitions[i] =
-			C.rd_kafka_ListConsumerGroupOffsets_new(C.CString(groupPartitions.Group), cPartitions)
+			C.rd_kafka_ListConsumerGroupOffsets_new(cGroupID, cPartitions)
 		defer C.rd_kafka_ListConsumerGroupOffsets_destroy(cGroupsPartitions[i])
 	}
 
@@ -1972,12 +1976,16 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 
 	// Convert Go GroupTopicPartitions to C AlterConsumerGroupOffsets.
 	for idx, groupPartitions := range groupsPartitions {
-		// We don't need to destroy this list because rd_kafka_AlterConsumerGroupOffsets_destroy
-		// takes care of it.
+		// We need to destroy this list because rd_kafka_AlterConsumerGroupOffsets_new
+		// creates a copy of it.
 		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
+		defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+
+		cGroupID := C.CString(groupPartitions.Group)
+		defer C.free(unsafe.Pointer(cGroupID))
 
 		cGroupsPartitions[idx] =
-			C.rd_kafka_AlterConsumerGroupOffsets_new(C.CString(groupPartitions.Group), cPartitions)
+			C.rd_kafka_AlterConsumerGroupOffsets_new(cGroupID, cPartitions)
 		defer C.rd_kafka_AlterConsumerGroupOffsets_destroy(cGroupsPartitions[idx])
 	}
 
@@ -2035,7 +2043,10 @@ func (a *AdminClient) DeleteGroups(ctx context.Context, groups []string, options
 
 	// Convert Go DeleteGroups to C DeleteGroups
 	for i, group := range groups {
-		cGroups[i] = C.rd_kafka_DeleteGroup_new(C.CString(group))
+		cGroupID := C.CString(group)
+		defer C.free(unsafe.Pointer(cGroupID))
+
+		cGroups[i] = C.rd_kafka_DeleteGroup_new(cGroupID)
 		if cGroups[i] == nil {
 			return nil, newErrorFromString(ErrInvalidArg,
 				fmt.Sprintf("Invalid arguments for group %s", group))
