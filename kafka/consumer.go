@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -335,10 +336,11 @@ func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 
 // Poll the consumer for messages or events.
 //
-// Will block for at most timeoutMs milliseconds
+// # Will block for at most timeoutMs milliseconds
 //
 // The following callbacks may be triggered:
-//   Subscribe()'s rebalanceCb
+//
+//	Subscribe()'s rebalanceCb
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
@@ -376,44 +378,8 @@ func (c *Consumer) Logs() chan LogEvent {
 // msg.TopicPartition provides partition-specific information (such as topic, partition and offset).
 //
 // All other event types, such as PartitionEOF, AssignedPartitions, etc, are silently discarded.
-//
 func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
-
-	var absTimeout time.Time
-	var timeoutMs int
-
-	if timeout > 0 {
-		absTimeout = time.Now().Add(timeout)
-		timeoutMs = (int)(timeout.Seconds() * 1000.0)
-	} else {
-		timeoutMs = (int)(timeout)
-	}
-
-	for {
-		ev := c.Poll(timeoutMs)
-
-		switch e := ev.(type) {
-		case *Message:
-			if e.TopicPartition.Error != nil {
-				return e, e.TopicPartition.Error
-			}
-			return e, nil
-		case Error:
-			return nil, e
-		default:
-			// Ignore other event types
-		}
-
-		if timeout > 0 {
-			// Calculate remaining time
-			timeoutMs = int(math.Max(0.0, absTimeout.Sub(time.Now()).Seconds()*1000.0))
-		}
-
-		if timeoutMs == 0 && ev == nil {
-			return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
-		}
-
-	}
+	return c.pollMessage(context.Background(), timeout)
 
 }
 
@@ -450,14 +416,15 @@ func (c *Consumer) Close() (err error) {
 // conf is a *ConfigMap with standard librdkafka configuration properties.
 //
 // Supported special configuration properties:
-//   go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
-//                                        If set to true the app must handle the AssignedPartitions and
-//                                        RevokedPartitions events and call Assign() and Unassign()
-//                                        respectively.
-//   go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
-//   go.events.channel.size (int, 1000) - Events() channel size
-//   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
-//   go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
+//
+//	go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
+//	                                     If set to true the app must handle the AssignedPartitions and
+//	                                     RevokedPartitions events and call Assign() and Unassign()
+//	                                     respectively.
+//	go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
+//	go.events.channel.size (int, 1000) - Events() channel size
+//	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
+//	go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
 //
 // WARNING: Due to the buffering nature of channels (and queues in general) the
 // use of the events channel risks receiving outdated events and
@@ -920,4 +887,51 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (c *Consumer) SetSaslCredentials(username, password string) error {
 	return setSaslCredentials(c.handle.rk, username, password)
+}
+
+// ReadMessageWithContext like ReadMessage, but with context support
+func (c *Consumer) ReadMessageWithContext(ctx context.Context, timeout time.Duration) (*Message, error) {
+	return c.pollMessage(ctx, timeout)
+}
+
+func (c *Consumer) pollMessage(ctx context.Context, timeout time.Duration) (*Message, error) {
+	var absTimeout time.Time
+	var timeoutMs int
+
+	if timeout > 0 {
+		absTimeout = time.Now().Add(timeout)
+		timeoutMs = (int)(timeout.Seconds() * 1000.0)
+	} else {
+		timeoutMs = (int)(timeout)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			ev := c.Poll(timeoutMs)
+
+			switch e := ev.(type) {
+			case *Message:
+				if e.TopicPartition.Error != nil {
+					return e, e.TopicPartition.Error
+				}
+				return e, nil
+			case Error:
+				return nil, e
+			default:
+				// Ignore other event types
+			}
+
+			if timeout > 0 {
+				// Calculate remaining time
+				timeoutMs = int(math.Max(0.0, absTimeout.Sub(time.Now()).Seconds()*1000.0))
+			}
+
+			if timeoutMs == 0 && ev == nil {
+				return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
+			}
+		}
+	}
 }
