@@ -151,8 +151,8 @@ type ConsumerGroupState int
 const (
 	// ConsumerGroupStateUnknown - Unknown ConsumerGroupState
 	ConsumerGroupStateUnknown = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN)
-	// ConsumerGroupStatePreparingReblance - preparing rebalance
-	ConsumerGroupStatePreparingReblance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE)
+	// ConsumerGroupStatePreparingRebalance - preparing rebalance
+	ConsumerGroupStatePreparingRebalance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE)
 	// ConsumerGroupStateCompletingRebalance - completing rebalance
 	ConsumerGroupStateCompletingRebalance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE)
 	// ConsumerGroupStateStable - stable
@@ -175,11 +175,6 @@ func ConsumerGroupStateFromString(stateString string) (ConsumerGroupState, error
 	cStr := C.CString(stateString)
 	defer C.free(unsafe.Pointer(cStr))
 	state := ConsumerGroupState(C.rd_kafka_consumer_group_state_code(cStr))
-	if state == ConsumerGroupStateUnknown {
-		// TODO(milind): not sure if Unknown state is an error or not, since the
-		// broker is also allowed to return it.
-		return state, NewError(ErrInvalidArg, "Unknown consumer group state", false)
-	}
 	return state, nil
 }
 
@@ -187,7 +182,7 @@ func ConsumerGroupStateFromString(stateString string) (ConsumerGroupState, error
 // group.
 type ConsumerGroupListing struct {
 	// Group id.
-	GroupId string
+	GroupID string
 	// Is a simple consumer group.
 	IsSimpleConsumerGroup bool
 	// Group state.
@@ -196,20 +191,10 @@ type ConsumerGroupListing struct {
 
 // ListConsumerGroupsResult represents ListConsumerGroups results and errors.
 type ListConsumerGroupsResult struct {
-	// List of valid ConsumerGroupListing.
-	ConsumerGroupListings []ConsumerGroupListing
+	// List of valid ConsumerGroupListings.
+	Valid []ConsumerGroupListing
 	// List of errors.
 	Errors []error
-}
-
-// Node represents a Kafka broker.
-type Node struct {
-	// Node id.
-	Id int
-	// Node host.
-	Host string
-	// Node port.
-	Port int
 }
 
 // MemberAssignment represents the assignment of a consumer group member.
@@ -221,22 +206,22 @@ type MemberAssignment struct {
 // MemberDescription represents the description of a consumer group member.
 type MemberDescription struct {
 	// Client id.
-	ClientId string
+	ClientID string
 	// Group instance id.
-	GroupInstanceId string
+	GroupInstanceID string
 	// Consumer id.
-	ConsumerId string
+	ConsumerID string
 	// Group member host.
 	Host string
 	// Member assignment.
-	MemberAssignment MemberAssignment
+	Assignment MemberAssignment
 }
 
 // ConsumerGroupDescription represents the result of DescribeConsumerGroups for
 // a single group.
 type ConsumerGroupDescription struct {
 	// Group id.
-	GroupId string
+	GroupID string
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
 	// Is a simple consumer group
@@ -818,7 +803,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 		cGroup := C.ConsumerGroupDescription_by_idx(
 			cGroups, cGroupCount, C.size_t(idx))
 
-		groupId := C.GoString(
+		groupID := C.GoString(
 			C.rd_kafka_ConsumerGroupDescription_group_id(cGroup))
 		err := newErrorFromCError(
 			C.rd_kafka_ConsumerGroupDescription_error(cGroup))
@@ -831,7 +816,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
 		coordinator := Node{
-			Id:   int(C.rd_kafka_Node_id(cNode)),
+			ID:   int(C.rd_kafka_Node_id(cNode)),
 			Host: C.GoString(C.rd_kafka_Node_host(cNode)),
 			Port: int(C.rd_kafka_Node_port(cNode)),
 		}
@@ -852,20 +837,20 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 				memberAssignment.TopicPartitions = newTopicPartitionsFromCparts(cToppars)
 			}
 			members[midx] = MemberDescription{
-				ClientId: C.GoString(
+				ClientID: C.GoString(
 					C.rd_kafka_MemberDescription_client_id(cMember)),
-				GroupInstanceId: C.GoString(
+				GroupInstanceID: C.GoString(
 					C.rd_kafka_MemberDescription_group_instance_id(cMember)),
-				ConsumerId: C.GoString(
+				ConsumerID: C.GoString(
 					C.rd_kafka_MemberDescription_consumer_id(cMember)),
 				Host: C.GoString(
 					C.rd_kafka_MemberDescription_host(cMember)),
-				MemberAssignment: memberAssignment,
+				Assignment: memberAssignment,
 			}
 		}
 
 		result[idx] = ConsumerGroupDescription{
-			GroupId:               groupId,
+			GroupID:               groupID,
 			Error:                 err,
 			IsSimpleConsumerGroup: isSimple,
 			PartitionAssignor:     paritionAssignor,
@@ -891,7 +876,7 @@ func (a *AdminClient) cToConsumerGroupListings(
 			C.rd_kafka_ConsumerGroupListing_state(cGroup))
 
 		result[idx] = ConsumerGroupListing{
-			GroupId: C.GoString(
+			GroupID: C.GoString(
 				C.rd_kafka_ConsumerGroupListing_group_id(cGroup)),
 			State: state,
 			IsSimpleConsumerGroup: cint2bool(
@@ -1861,7 +1846,210 @@ func (a *AdminClient) Close() {
 	C.rd_kafka_destroy(a.handle.rk)
 }
 
-// ListConsumerGroupOffsets fetches the offsets for topic partition(s) for consumer group(s).
+// ListConsumerGroups lists the consumer groups available in the cluster.
+//
+// Parameters:
+//  * `ctx` - context with the maximum amount of time to block, or nil for
+//    indefinite.
+//  * `options` - ListConsumerGroupsAdminOption options.
+// Returns a ListConsumerGroupsResult, which contains a slice corresponding to
+// each group in the cluster and a slice of errors encountered while listing.
+// Additionally, an error that is not nil for client-level errors is returned.
+// Both the returned error, and the errors slice should be checked.
+func (a *AdminClient) ListConsumerGroups(
+	ctx context.Context,
+	options ...ListConsumerGroupsAdminOption) (result ListConsumerGroupsResult, err error) {
+	result = ListConsumerGroupsResult{}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle,
+		C.RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_ListConsumerGroups (asynchronous).
+	C.rd_kafka_ListConsumerGroups(
+		a.handle.rk,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_LISTCONSUMERGROUPS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_ListConsumerGroups_result(rkev)
+
+	// Convert result and broker errors from C to Go.
+	var cGroupCount C.size_t
+	cGroups := C.rd_kafka_ListConsumerGroups_result_valid(cRes, &cGroupCount)
+	result.Valid = a.cToConsumerGroupListings(cGroups, cGroupCount)
+
+	var cErrsCount C.size_t
+	cErrs := C.rd_kafka_ListConsumerGroups_result_errors(cRes, &cErrsCount)
+	if cErrsCount == 0 {
+		return result, nil
+	}
+
+	result.Errors = a.cToErrorList(cErrs, cErrsCount)
+	return result, nil
+}
+
+// DescribeConsumerGroups describes groups from cluster as specified by the
+// groups list.
+//
+// Parameters:
+//  * `ctx` - context with the maximum amount of time to block, or nil for
+//    indefinite.
+//  * `groups` - Slice of groups to describe. This should not be nil/empty.
+//  * `options` - DescribeConsumerGroupsAdminOption options.
+//
+// Returns a slice of ConsumerGroupDescriptions corresponding to the input
+// groups, plus an error that is not `nil` for client level errors. Individual
+// ConsumerGroupDescriptions inside the slice should also be checked for errors.
+func (a *AdminClient) DescribeConsumerGroups(
+	ctx context.Context, groups []string,
+	options ...DescribeConsumerGroupsAdminOption) (result []ConsumerGroupDescription, err error) {
+
+	// Convert group names into char** required by the implementation.
+	cGroupNameList := make([]*C.char, len(groups))
+	cGroupNameCount := C.size_t(len(groups))
+
+	for idx, group := range groups {
+		cGroupNameList[idx] = C.CString(group)
+		defer C.free(unsafe.Pointer(cGroupNameList[idx]))
+	}
+
+	var cGroupNameListPtr **C.char
+	if cGroupNameCount > 0 {
+		cGroupNameListPtr = ((**C.char)(&cGroupNameList[0]))
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBECONSUMERGROUPS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
+	C.rd_kafka_DescribeConsumerGroups(
+		a.handle.rk,
+		cGroupNameListPtr,
+		cGroupNameCount,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBECONSUMERGROUPS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeConsumerGroups_result(rkev)
+
+	// Convert result from C to Go.
+	var cGroupCount C.size_t
+	cGroups := C.rd_kafka_DescribeConsumerGroups_result_groups(cRes, &cGroupCount)
+	result = a.cToConsumerGroupDescriptions(cGroups, cGroupCount)
+
+	return result, nil
+}
+
+// DeleteConsumerGroups deletes a batch of consumer groups.
+// Parameters:
+//  * `ctx` - context with the maximum amount of time to block, or nil for
+//    indefinite.
+//  * `groups` - A slice of groupIDs to delete.
+//  * `options` - DeleteConsumerGroupsAdminOption options.
+//
+// Returns a slice of GroupResults, with group-level errors, (if any) contained
+// inside; and an error that is not nil for client level errors.
+func (a *AdminClient) DeleteConsumerGroups(
+	ctx context.Context,
+	groups []string, options ...DeleteConsumerGroupsAdminOption) (result []GroupResult, err error) {
+	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
+
+	// Convert Go DeleteGroups to C DeleteGroups
+	for i, group := range groups {
+		cGroupID := C.CString(group)
+		defer C.free(unsafe.Pointer(cGroupID))
+
+		cGroups[i] = C.rd_kafka_DeleteGroup_new(cGroupID)
+		if cGroups[i] == nil {
+			return nil, newErrorFromString(ErrInvalidArg,
+				fmt.Sprintf("Invalid arguments for group %s", group))
+		}
+
+		defer C.rd_kafka_DeleteGroup_destroy(cGroups[i])
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DELETEGROUPS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_DeleteGroups(
+		a.handle.rk,
+		(**C.rd_kafka_DeleteGroup_t)(&cGroups[0]),
+		C.size_t(len(cGroups)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEGROUPS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DeleteGroups_result(rkev)
+
+	// Convert result from C to Go
+	var cCnt C.size_t
+	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
+
+	return a.cToGroupResults(cGroupRes, cCnt)
+}
+
+// ListConsumerGroupOffsets fetches the offsets for topic partition(s) for
+// consumer group(s).
 //
 // Parameters:
 //  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
@@ -1869,11 +2057,12 @@ func (a *AdminClient) Close() {
 //     has the id of a consumer group, and a slice of the TopicPartitions we
 //     need to fetch the offsets for.
 //     Currently, the size of `groupsPartitions` has to be exactly one.
-//  * `options` - ListConsumerGroupOffsets options.
+//  * `options` - ListConsumerGroupOffsetsAdminOption options.
 //
-// Returns a slice of GroupTopicPartitions corresponding to the input slice, plus an error that
-// is not `nil` for client level errors. Individual TopicPartitions inside each of
-// the GroupTopicPartitions should also be checked for errors.
+// Returns a slice of GroupTopicPartitions corresponding to the input slice,
+// plus an error that is not `nil` for client level errors. Individual
+// TopicPartitions inside each of the GroupTopicPartitions should also be
+// checked for errors.
 func (a *AdminClient) ListConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []GroupTopicPartitions,
 	options ...ListConsumerGroupOffsetsAdminOption) (result []GroupTopicPartitions, err error) {
@@ -1949,10 +2138,12 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 // consumer group(s).
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `groupsPartitions` - a slice of GroupTopicPartitions, each element of which has the id
-//     of a consumer group, and a slice of the TopicPartitions we need to alter the offsets for.
-//     Currently, the size of `groupsPartitions` has to be exactly one.
+//  * `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//  * `groupsPartitions` - a slice of GroupTopicPartitions, each element of
+//     which has the id of a consumer group, and a slice of the TopicPartitions
+//     we need to alter the offsets for. Currently, the size of
+//     `groupsPartitions` has to be exactly one.
 //  * `options` - AlterConsumerGroupOffsetsAdminOption options.
 //
 // Returns a slice of GroupTopicPartitions corresponding to the input slice,
@@ -1979,7 +2170,6 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 		// We need to destroy this list because rd_kafka_AlterConsumerGroupOffsets_new
 		// creates a copy of it.
 		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
-		defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
 
 		cGroupID := C.CString(groupPartitions.Group)
 		defer C.free(unsafe.Pointer(cGroupID))
@@ -2028,205 +2218,6 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	cGroups := C.rd_kafka_AlterConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
 
 	return a.cToGroupTopicPartitions(cGroups, cGroupCount), nil
-}
-
-// DeleteGroups deletes a batch of consumer groups.
-// Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `groups` - A slice of groupIDs to delete.
-//  * `options` - Delete groups admin options.
-//
-// Returns a slice of GroupResults, with group-level errors, (if any) contained inside; and
-// an error that is not nil for client level errors.
-func (a *AdminClient) DeleteGroups(ctx context.Context, groups []string, options ...DeleteGroupsAdminOption) (result []GroupResult, err error) {
-	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
-
-	// Convert Go DeleteGroups to C DeleteGroups
-	for i, group := range groups {
-		cGroupID := C.CString(group)
-		defer C.free(unsafe.Pointer(cGroupID))
-
-		cGroups[i] = C.rd_kafka_DeleteGroup_new(cGroupID)
-		if cGroups[i] == nil {
-			return nil, newErrorFromString(ErrInvalidArg,
-				fmt.Sprintf("Invalid arguments for group %s", group))
-		}
-
-		defer C.rd_kafka_DeleteGroup_destroy(cGroups[i])
-	}
-
-	// Convert Go AdminOptions (if any) to C AdminOptions
-	genericOptions := make([]AdminOption, len(options))
-	for i := range options {
-		genericOptions[i] = options[i]
-	}
-	cOptions, err := adminOptionsSetup(
-		a.handle, C.RD_KAFKA_ADMIN_OP_DELETEGROUPS, genericOptions)
-	if err != nil {
-		return nil, err
-	}
-	defer C.rd_kafka_AdminOptions_destroy(cOptions)
-
-	// Create temporary queue for async operation
-	cQueue := C.rd_kafka_queue_new(a.handle.rk)
-	defer C.rd_kafka_queue_destroy(cQueue)
-
-	// Asynchronous call
-	C.rd_kafka_DeleteGroups(
-		a.handle.rk,
-		(**C.rd_kafka_DeleteGroup_t)(&cGroups[0]),
-		C.size_t(len(cGroups)),
-		cOptions,
-		cQueue)
-
-	// Wait for result, error or context timeout
-	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEGROUPS_RESULT)
-	if err != nil {
-		return nil, err
-	}
-	defer C.rd_kafka_event_destroy(rkev)
-
-	cRes := C.rd_kafka_event_DeleteGroups_result(rkev)
-
-	// Convert result from C to Go
-	var cCnt C.size_t
-	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
-
-	return a.cToGroupResults(cGroupRes, cCnt)
-}
-
-// DescribeConsumerGroups describes groups from cluster as specified by the
-// groups list.
-//
-// Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for
-//    indefinite.
-//  * `groups` - Slice of groups to describe. This should not be nil/empty.
-//  * `options` - DescribeConsumerGroupsOption options.
-//
-// Returns a slice of ConsumerGroupDescriptions corresponding to the input
-// groups, plus an error that is not `nil` for client level errors. Individual
-// ConsumerGroupDescriptions inside the slice should also be checked for errors.
-func (a *AdminClient) DescribeConsumerGroups(
-	ctx context.Context, groups []string,
-	options ...DescribeConsumerGroupsOption) (result []ConsumerGroupDescription, err error) {
-
-	// Convert group names into char** required by the implementation.
-	cGroupNameList := make([]*C.char, len(groups))
-	cGroupNameCount := C.size_t(len(groups))
-
-	for idx, group := range groups {
-		cGroupNameList[idx] = C.CString(group)
-		defer C.free(unsafe.Pointer(cGroupNameList[idx]))
-	}
-
-	var cGroupNameListPtr **C.char
-	if cGroupNameCount > 0 {
-		cGroupNameListPtr = ((**C.char)(&cGroupNameList[0]))
-	}
-
-	// Convert Go AdminOptions (if any) to C AdminOptions.
-	genericOptions := make([]AdminOption, len(options))
-	for i := range options {
-		genericOptions[i] = options[i]
-	}
-	cOptions, err := adminOptionsSetup(
-		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBECONSUMERGROUPS, genericOptions)
-	if err != nil {
-		return nil, err
-	}
-	defer C.rd_kafka_AdminOptions_destroy(cOptions)
-
-	// Create temporary queue for async operation.
-	cQueue := C.rd_kafka_queue_new(a.handle.rk)
-	defer C.rd_kafka_queue_destroy(cQueue)
-
-	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
-	C.rd_kafka_DescribeConsumerGroups(
-		a.handle.rk,
-		cGroupNameListPtr,
-		cGroupNameCount,
-		cOptions,
-		cQueue)
-
-	// Wait for result, error or context timeout.
-	rkev, err := a.waitResult(
-		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBECONSUMERGROUPS_RESULT)
-	if err != nil {
-		return nil, err
-	}
-	defer C.rd_kafka_event_destroy(rkev)
-
-	cRes := C.rd_kafka_event_DescribeConsumerGroups_result(rkev)
-
-	// Convert result from C to Go.
-	var cGroupCount C.size_t
-	cGroups := C.rd_kafka_DescribeConsumerGroups_result_groups(cRes, &cGroupCount)
-	result = a.cToConsumerGroupDescriptions(cGroups, cGroupCount)
-
-	return result, nil
-}
-
-// ListConsumerGroups lists the consumer groups available in the cluster.
-//
-// Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for
-//    indefinite.
-//  * `options` - ListConsumerGroupsOption options.
-// Returns a ListConsumerGroupsResult, which contains a slice corresponding to
-// each group in the cluster and a slice of errors encountered while listing.
-// Additionally, an error that is not nil for client-level errors is returned.
-// Both the returned error, and the errors slice should be checked.
-func (a *AdminClient) ListConsumerGroups(
-	ctx context.Context,
-	options ...ListConsumerGroupsOption) (result ListConsumerGroupsResult, err error) {
-	result = ListConsumerGroupsResult{}
-
-	// Convert Go AdminOptions (if any) to C AdminOptions.
-	genericOptions := make([]AdminOption, len(options))
-	for i := range options {
-		genericOptions[i] = options[i]
-	}
-	cOptions, err := adminOptionsSetup(a.handle,
-		C.RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS, genericOptions)
-	if err != nil {
-		return result, err
-	}
-	defer C.rd_kafka_AdminOptions_destroy(cOptions)
-
-	// Create temporary queue for async operation.
-	cQueue := C.rd_kafka_queue_new(a.handle.rk)
-	defer C.rd_kafka_queue_destroy(cQueue)
-
-	// Call rd_kafka_ListConsumerGroups (asynchronous).
-	C.rd_kafka_ListConsumerGroups(
-		a.handle.rk,
-		cOptions,
-		cQueue)
-
-	// Wait for result, error or context timeout.
-	rkev, err := a.waitResult(
-		ctx, cQueue, C.RD_KAFKA_EVENT_LISTCONSUMERGROUPS_RESULT)
-	if err != nil {
-		return result, err
-	}
-	defer C.rd_kafka_event_destroy(rkev)
-
-	cRes := C.rd_kafka_event_ListConsumerGroups_result(rkev)
-
-	// Convert result and broker errors from C to Go.
-	var cGroupCount C.size_t
-	cGroups := C.rd_kafka_ListConsumerGroups_result_valid(cRes, &cGroupCount)
-	result.ConsumerGroupListings = a.cToConsumerGroupListings(cGroups, cGroupCount)
-
-	var cErrsCount C.size_t
-	cErrs := C.rd_kafka_ListConsumerGroups_result_errors(cRes, &cErrsCount)
-	if cErrsCount == 0 {
-		return result, nil
-	}
-
-	result.Errors = a.cToErrorList(cErrs, cErrsCount)
-	return result, nil
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance

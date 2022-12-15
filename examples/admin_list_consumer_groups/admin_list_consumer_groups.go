@@ -63,18 +63,28 @@ func main() {
 	listGroupRes, err := a.ListConsumerGroups(
 		ctx, kafka.SetAdminConsumerGroupStates(states))
 
-	if err != nil || len(listGroupRes.Errors) > 0 {
-		fmt.Printf("Failed to list groups: %s %v\n", err, listGroupRes.Errors)
+	if err != nil {
+		fmt.Printf("Failed to list groups with client-level error %s\n", err)
 		os.Exit(1)
 	}
 
 	// Print results
-	groups := listGroupRes.ConsumerGroupListings
+	groups := listGroupRes.Valid
 	fmt.Printf("A total of %d consumer group(s) listed:\n", len(groups))
 	for _, group := range groups {
-		fmt.Printf("GroupId: %s\n", group.GroupId)
+		fmt.Printf("GroupId: %s\n", group.GroupID)
 		fmt.Printf("State: %s\n", group.State)
 		fmt.Printf("IsSimpleConsumerGroup: %v\n", group.IsSimpleConsumerGroup)
 		fmt.Println()
+	}
+
+	errs := listGroupRes.Errors
+	if len(errs) == 0 {
+		return
+	}
+
+	fmt.Printf("A total of %d error(s) while listing:\n", len(errs))
+	for _, err := range errs {
+		fmt.Println(err)
 	}
 }

@@ -57,12 +57,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	res, err := ac.DeleteGroups(ctx, groups,
+	res, err := ac.DeleteConsumerGroups(ctx, groups,
 		kafka.SetAdminRequestTimeout(time.Duration(timeoutSec)*time.Second))
 	if err != nil {
 		fmt.Printf("Failed to delete groups: %s\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("DeleteGroups result: %v\n", res)
+	fmt.Printf("DeleteConsumerGroups result: %+v\n", res)
 }

@@ -65,7 +65,7 @@ func main() {
 			"State: %s\n"+
 			"Coordinator: %+v\n"+
 			"Members: %+v\n\n",
-			g.GroupId, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
+			g.GroupID, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
 			g.State, g.Coordinator, g.Members)
 	}
 }
