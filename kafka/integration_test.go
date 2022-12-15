@@ -76,7 +76,7 @@ func msgtrackerStart(t *testing.T, expectedCnt int) (mt msgtracker) {
 // from a slice of ConsumerGroupListings, and nil otherwise.
 func findConsumerGroupListing(groups []ConsumerGroupListing, group string) *ConsumerGroupListing {
 	for _, groupInfo := range groups {
-		if groupInfo.GroupId == group {
+		if groupInfo.GroupID == group {
 			return &groupInfo
 		}
 	}
@@ -87,7 +87,7 @@ func findConsumerGroupListing(groups []ConsumerGroupListing, group string) *Cons
 // from a slice of ConsumerGroupDescription, and nil otherwise.
 func findConsumerGroupDescription(groups []ConsumerGroupDescription, group string) *ConsumerGroupDescription {
 	for _, groupInfo := range groups {
-		if groupInfo.GroupId == group {
+		if groupInfo.GroupID == group {
 			return &groupInfo
 		}
 	}
@@ -98,8 +98,8 @@ func findConsumerGroupDescription(groups []ConsumerGroupDescription, group strin
 // We can't directly use DeepEqual because some fields/slice orders change with every run.
 func checkGroupDesc(
 	groupDesc *ConsumerGroupDescription, state ConsumerGroupState, group string,
-	protocol string, clientIdToPartitions map[string][]TopicPartition) bool {
-	if groupDesc.GroupId != group ||
+	protocol string, clientIDToPartitions map[string][]TopicPartition) bool {
+	if groupDesc.GroupID != group ||
 		groupDesc.State != state ||
 		groupDesc.Error.Code() != ErrNoError ||
 		groupDesc.PartitionAssignor != protocol ||
@@ -107,13 +107,13 @@ func checkGroupDesc(
 		groupDesc.Coordinator.Host == "" ||
 		// We will run all our tests on non-simple consumer groups only.
 		groupDesc.IsSimpleConsumerGroup ||
-		len(groupDesc.Members) != len(clientIdToPartitions) {
+		len(groupDesc.Members) != len(clientIDToPartitions) {
 		return false
 	}
 
 	for _, member := range groupDesc.Members {
-		if partitions, ok := clientIdToPartitions[member.ClientId]; !ok ||
-			!reflect.DeepEqual(partitions, member.MemberAssignment.TopicPartitions) {
+		if partitions, ok := clientIDToPartitions[member.ClientID]; !ok ||
+			!reflect.DeepEqual(partitions, member.Assignment.TopicPartitions) {
 			return false
 		}
 	}
@@ -1280,10 +1280,10 @@ func validateTopicResult(t *testing.T, result []TopicResult, expError map[string
 	}
 }
 
-// TestAdminClient_DeleteGroups verifies the working of the DeleteGroups API in the admin client.
-// It does so by checking the offset of the consumer before (but after producing a message) and after deleting the
-// consumer group.
-func TestAdminClient_DeleteGroups(t *testing.T) {
+// TestAdminClient_DeleteConsumerGroups verifies the working of the
+// DeleteConsumerGroups API in the admin client.
+// It does so by listing consumer groups before/after deletion.
+func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
 	}
@@ -1305,7 +1305,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 		return
 	}
 
-	if findConsumerGroupListing(listGroupResult.ConsumerGroupListings, groupID) != nil {
+	if findConsumerGroupListing(listGroupResult.Valid, groupID) != nil {
 		t.Errorf("Consumer group present before consumer created: %s\n", groupID)
 		return
 	}
@@ -1354,7 +1354,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 		return
 	}
 
-	if findConsumerGroupListing(listGroupResult.ConsumerGroupListings, groupID) == nil {
+	if findConsumerGroupListing(listGroupResult.Valid, groupID) == nil {
 		t.Errorf("Consumer group %s should be present\n", groupID)
 		return
 	}
@@ -1363,9 +1363,9 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	defer cancel()
 
 	// Try deleting the group while consumer is active. It should fail.
-	result, err := ac.DeleteGroups(ctx, []string{groupID})
+	result, err := ac.DeleteConsumerGroups(ctx, []string{groupID})
 	if err != nil {
-		t.Errorf("DeleteGroups() failed: %s", err)
+		t.Errorf("DeleteConsumerGroups() failed: %s", err)
 		return
 	}
 
@@ -1375,7 +1375,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	}
 
 	if result[0].Error.code != ErrNonEmptyGroup {
-		t.Errorf("Encountered the wrong error after calling DeleteGroups %s", result[0].Error)
+		t.Errorf("Encountered the wrong error after calling DeleteConsumerGroups %s", result[0].Error)
 		return
 	}
 
@@ -1387,9 +1387,9 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	consumerClosed = true
 
 	// Delete the consumer group now.
-	result, err = ac.DeleteGroups(ctx, []string{groupID})
+	result, err = ac.DeleteConsumerGroups(ctx, []string{groupID})
 	if err != nil {
-		t.Errorf("DeleteGroups() failed: %s", err)
+		t.Errorf("DeleteConsumerGroups() failed: %s", err)
 		return
 	}
 
@@ -1399,7 +1399,7 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 	}
 
 	if result[0].Error.code != ErrNoError {
-		t.Errorf("Encountered an error after calling DeleteGroups %s", result[0].Error)
+		t.Errorf("Encountered an error after calling DeleteConsumerGroups %s", result[0].Error)
 		return
 	}
 
@@ -1412,18 +1412,19 @@ func TestAdminClient_DeleteGroups(t *testing.T) {
 		return
 	}
 
-	if findConsumerGroupListing(listGroupResult.ConsumerGroupListings, groupID) != nil {
+	if findConsumerGroupListing(listGroupResult.Valid, groupID) != nil {
 		t.Errorf("Consumer group %s should not be present\n", groupID)
 		return
 	}
 }
 
-// TestAdminClient_ListAndDescribeGroups validates the working of the list consumer groups
-// and describe consumer group APIs of the admin client. We test the following situations:
+// TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
+// list consumer groups and describe consumer group APIs of the admin client.
+//  We test the following situations:
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
 // 3. Empty consumer group.
-func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
+func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
 	}
@@ -1473,7 +1474,7 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		return
 	}
 
-	groups := listGroupResult.ConsumerGroupListings
+	groups := listGroupResult.Valid
 	if findConsumerGroupListing(groups, groupID) != nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
 		t.Errorf("Consumer groups %s and %s should not be present\n", groupID, nonExistentGroupID)
 		return
@@ -1514,7 +1515,7 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
 		return
 	}
-	groups = listGroupResult.ConsumerGroupListings
+	groups = listGroupResult.Valid
 
 	if findConsumerGroupListing(groups, groupID) == nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
 		t.Errorf("Consumer groups %s should be present and %s should not be\n", groupID, nonExistentGroupID)
@@ -1538,12 +1539,12 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 
 	groupDesc := &groupDescs[0]
 
-	clientIdToPartitions := make(map[string][]TopicPartition)
-	clientIdToPartitions[clientID1] = []TopicPartition{
+	clientIDToPartitions := make(map[string][]TopicPartition)
+	clientIDToPartitions[clientID1] = []TopicPartition{
 		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
 		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
 	}
-	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIdToPartitions) {
+	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIDToPartitions) {
 		t.Errorf("Expected description for consumer group  %s is not same as actual: %v", groupID, groupDesc)
 		return
 	}
@@ -1595,13 +1596,13 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		time.Sleep(time.Second)
 	}
 
-	clientIdToPartitions[clientID1] = []TopicPartition{
+	clientIDToPartitions[clientID1] = []TopicPartition{
 		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
 	}
-	clientIdToPartitions[clientID2] = []TopicPartition{
+	clientIDToPartitions[clientID2] = []TopicPartition{
 		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
 	}
-	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIdToPartitions) {
+	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIDToPartitions) {
 		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupDesc)
 		return
 	}
@@ -1635,8 +1636,8 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		return
 	}
 
-	clientIdToPartitions = make(map[string][]TopicPartition)
-	if !checkGroupDesc(groupDesc, ConsumerGroupStateEmpty, groupID, "", clientIdToPartitions) {
+	clientIDToPartitions = make(map[string][]TopicPartition)
+	if !checkGroupDesc(groupDesc, ConsumerGroupStateEmpty, groupID, "", clientIDToPartitions) {
 		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupDesc)
 	}
 
@@ -1651,9 +1652,9 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
 		return
 	}
-	groups = listGroupResult.ConsumerGroupListings
+	groups = listGroupResult.Valid
 
-	groupInfo := findConsumerGroupListing(listGroupResult.ConsumerGroupListings, groupID)
+	groupInfo := findConsumerGroupListing(listGroupResult.Valid, groupID)
 	if groupInfo == nil {
 		t.Errorf("Consumer group %s should be present\n", groupID)
 		return
@@ -1668,7 +1669,7 @@ func TestAdminClient_ListAndDescribeGroups(t *testing.T) {
 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
 		return
 	}
-	groups = listGroupResult.ConsumerGroupListings
+	groups = listGroupResult.Valid
 
 	groupInfo = findConsumerGroupListing(groups, groupID)
 	if groupInfo != nil {
@@ -2299,10 +2300,10 @@ func TestAdminACLs(t *testing.T) {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
-// TestAdminClient_AlterListConsumerGroupOffsets tests the APIs ListConsumerGroupOffsets
-// and AlterConsumerGroupOffsets.
-// They are checked by producing to a topic, and consuming it, and then listing, modifying
-// and again listing the offset for that topic partition.
+// TestAdminClient_AlterListConsumerGroupOffsets tests the APIs
+// ListConsumerGroupOffsets and AlterConsumerGroupOffsets.
+// They are checked by producing to a topic, and consuming it, and then listing,
+// modifying, and again listing the offset for that topic partition.
 func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")

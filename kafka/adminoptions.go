@@ -123,15 +123,15 @@ func (ao AdminOptionRequestTimeout) supportsDescribeACLs() {
 func (ao AdminOptionRequestTimeout) supportsDeleteACLs() {
 }
 
-func (ao AdminOptionRequestTimeout) supportsDeleteGroups() {
+func (ao AdminOptionRequestTimeout) supportsListConsumerGroups() {
+}
+func (ao AdminOptionRequestTimeout) supportsDescribeConsumerGroups() {
+}
+func (ao AdminOptionRequestTimeout) supportsDeleteConsumerGroups() {
 }
 func (ao AdminOptionRequestTimeout) supportsListConsumerGroupOffsets() {
 }
 func (ao AdminOptionRequestTimeout) supportsAlterConsumerGroupOffsets() {
-}
-func (ao AdminOptionRequestTimeout) supportsListConsumerGroups() {
-}
-func (ao AdminOptionRequestTimeout) supportsDescribeConsumerGroups() {
 }
 
 func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
@@ -261,12 +261,12 @@ func SetAdminRequireStableOffsets(val bool) (ao AdminOptionRequireStableOffsets)
 	return ao
 }
 
-// AdminOptionRequireStableOffsets decides if the broker should return stable
-// offsets (transaction-committed).
+// AdminOptionConsumerGroupStates decides groups in which state(s) should be
+// listed.
 //
-// Default: false
+// Default: nil (lists groups in all states).
 //
-// Valid for ListConsumerGroupOffsets.
+// Valid for ListConsumerGroups.
 type AdminOptionConsumerGroupStates struct {
 	isSet bool
 	val   []ConsumerGroupState
@@ -299,10 +299,10 @@ func (ao AdminOptionConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOptions
 	return nil
 }
 
-// SetAdminConsumerGroupStates decides what states to query for while listing
-// groups.
+// SetAdminConsumerGroupStates decides groups in which state(s) should be
+// listed.
 //
-// Default: nil (all states)
+// Default: nil (lists groups in all states).
 //
 // Valid for ListConsumerGroups.
 func SetAdminConsumerGroupStates(val []ConsumerGroupState) (ao AdminOptionConsumerGroupStates) {
@@ -324,14 +324,6 @@ type CreateTopicsAdminOption interface {
 // See SetAdminRequestTimeout, SetAdminOperationTimeout.
 type DeleteTopicsAdminOption interface {
 	supportsDeleteTopics()
-	apply(cOptions *C.rd_kafka_AdminOptions_t) error
-}
-
-// DeleteGroupsAdminOption - see setters.
-//
-// See SetAdminRequestTimeout.
-type DeleteGroupsAdminOption interface {
-	supportsDeleteGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
@@ -375,14 +367,6 @@ type DescribeACLsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
-// DescribeConsumerGroupsOption - see setter.
-//
-// See SetAdminRequestTimeout.
-type DescribeConsumerGroupsOption interface {
-	supportsDescribeConsumerGroups()
-	apply(cOptions *C.rd_kafka_AdminOptions_t) error
-}
-
 // DeleteACLsAdminOption - see setter.
 //
 // See SetAdminRequestTimeout
@@ -391,11 +375,27 @@ type DeleteACLsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
-// ListConsumerGroupsOption - see setter.
+// ListConsumerGroupsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminConsumerGroupStates.
+type ListConsumerGroupsAdminOption interface {
+	supportsListConsumerGroups()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DescribeConsumerGroupsAdminOption - see setter.
 //
 // See SetAdminRequestTimeout.
-type ListConsumerGroupsOption interface {
-	supportsListConsumerGroups()
+type DescribeConsumerGroupsAdminOption interface {
+	supportsDescribeConsumerGroups()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DeleteConsumerGroupsAdminOption - see setters.
+//
+// See SetAdminRequestTimeout.
+type DeleteConsumerGroupsAdminOption interface {
+	supportsDeleteConsumerGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 

@@ -85,5 +85,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("ListConsumerGroupOffset result: %v\n", res)
+	fmt.Printf("ListConsumerGroupOffset result: %+v\n", res)
 }

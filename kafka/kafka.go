@@ -253,9 +253,10 @@ package kafka
 
 import (
 	"fmt"
+	"unsafe"
+
 	// Make sure librdkafka_vendor/ sub-directory is included in vendor pulls.
 	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka_vendor"
-	"unsafe"
 )
 
 /*
@@ -314,6 +315,20 @@ func (tps TopicPartitions) Less(i, j int) bool {
 
 func (tps TopicPartitions) Swap(i, j int) {
 	tps[i], tps[j] = tps[j], tps[i]
+}
+
+// Node represents a Kafka broker.
+type Node struct {
+	// Node id.
+	ID int
+	// Node host.
+	Host string
+	// Node port.
+	Port int
+}
+
+func (n Node) String() string {
+	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
 }
 
 // new_cparts_from_TopicPartitions creates a new C rd_kafka_topic_partition_list_t
