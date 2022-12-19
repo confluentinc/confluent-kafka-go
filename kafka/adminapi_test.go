@@ -431,7 +431,7 @@ func testAdminAPIsListConsumerGroups(
 	defer cancel()
 	listres, err := a.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(time.Second),
-		SetAdminConsumerGroupStates([]ConsumerGroupState{state}))
+		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}))
 	if err == nil {
 		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v",
 			listres, err)
