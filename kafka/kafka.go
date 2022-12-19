@@ -267,6 +267,13 @@ import (
 static rd_kafka_topic_partition_t *_c_rdkafka_topic_partition_list_entry(rd_kafka_topic_partition_list_t *rktparlist, int idx) {
    return idx < rktparlist->cnt ? &rktparlist->elems[idx] : NULL;
 }
+
+static const rd_kafka_group_result_t *
+group_result_by_idx (const rd_kafka_group_result_t **groups, size_t cnt, size_t idx) {
+    if (idx >= cnt)
+      return NULL;
+    return groups[idx];
+}
 */
 import "C"
 
@@ -331,6 +338,24 @@ func (n Node) String() string {
 	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
 }
 
+// GroupTopicPartitions represents a consumer group's TopicPartitions.
+type GroupTopicPartitions struct {
+	// Group name
+	Group string
+	// Partitions list
+	Partitions []TopicPartition
+}
+
+func (gtp GroupTopicPartitions) String() string {
+	res := gtp.Group
+	res += "[ "
+	for _, tp := range gtp.Partitions {
+		res += tp.String() + " "
+	}
+	res += "]"
+	return res
+}
+
 // new_cparts_from_TopicPartitions creates a new C rd_kafka_topic_partition_list_t
 // from a TopicPartition array.
 func newCPartsFromTopicPartitions(partitions []TopicPartition) (cparts *C.rd_kafka_topic_partition_list_t) {
@@ -379,6 +404,24 @@ func newTopicPartitionsFromCparts(cparts *C.rd_kafka_topic_partition_list_t) (pa
 	}
 
 	return partitions
+}
+
+// cToGroupTopicPartitions converts a C rd_kafka_group_result_t array to a
+// GroupTopicPartitions slice.
+func (a *AdminClient) cToGroupTopicPartitions(
+	cGroupResults **C.rd_kafka_group_result_t,
+	cGroupCount C.size_t) (result []GroupTopicPartitions) {
+	result = make([]GroupTopicPartitions, uint(cGroupCount))
+
+	for i := uint(0); i < uint(cGroupCount); i++ {
+		cGroupResult := C.group_result_by_idx(cGroupResults, cGroupCount, C.size_t(i))
+		cGroupPartitions := C.rd_kafka_group_result_partitions(cGroupResult)
+		result[i] = GroupTopicPartitions{
+			Group:      C.GoString(C.rd_kafka_group_result_name(cGroupResult)),
+			Partitions: newTopicPartitionsFromCparts(cGroupPartitions),
+		}
+	}
+	return
 }
 
 // LibraryVersion returns the underlying librdkafka library version as a

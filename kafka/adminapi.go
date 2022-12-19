@@ -236,6 +236,22 @@ type ConsumerGroupDescription struct {
 	Members []MemberDescription
 }
 
+// ListConsumerGroupOffsetsResult represents the result of a
+// ListConsumerGroupOffsets operation.
+type ListConsumerGroupOffsetsResult struct {
+	// A slice of GroupTopicPartitions, each element represents a group's
+	// TopicPartitions and Offsets.
+	GroupsTopicPartitions []GroupTopicPartitions
+}
+
+// AlterConsumerGroupOffsetsResult represents the result of a
+// AlterConsumerGroupOffsets operation.
+type AlterConsumerGroupOffsetsResult struct {
+	// A slice of GroupTopicPartitions, each element represents a group's
+	// TopicPartitions and Offsets.
+	GroupsTopicPartitions []GroupTopicPartitions
+}
+
 // TopicSpecification holds parameters for creating a new topic.
 // TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 type TopicSpecification struct {
@@ -690,14 +706,6 @@ type DescribeACLsResult struct {
 // DeleteACLsResult provides delete ACLs result or error information.
 type DeleteACLsResult = DescribeACLsResult
 
-// GroupTopicPartitions represents a consumer group's TopicPartitions.
-type GroupTopicPartitions struct {
-	// Group name
-	Group string
-	// Partitions list
-	Partitions []TopicPartition
-}
-
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -831,7 +839,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			cMemberAssignment :=
 				C.rd_kafka_MemberDescription_assignment(cMember)
 			cToppars :=
-				C.rd_kafka_MemberAssignment_topic_partitions(cMemberAssignment)
+				C.rd_kafka_MemberAssignment_partitions(cMemberAssignment)
 			memberAssignment := MemberAssignment{}
 			if cToppars != nil {
 				memberAssignment.TopicPartitions = newTopicPartitionsFromCparts(cToppars)
@@ -1607,22 +1615,6 @@ func (a *AdminClient) cToDeleteACLsResults(cDeleteACLsResResponse **C.rd_kafka_D
 	return
 }
 
-// cToGroupTopicPartitions converts a C rd_kafka_group_result_t array to a GroupTopicPartitions slice.
-func (a *AdminClient) cToGroupTopicPartitions(
-	cGroupResults **C.rd_kafka_group_result_t, cGroupCount C.size_t) (result []GroupTopicPartitions) {
-	result = make([]GroupTopicPartitions, uint(cGroupCount))
-
-	for i := uint(0); i < uint(cGroupCount); i++ {
-		cGroupResult := C.group_result_by_idx(cGroupResults, cGroupCount, C.size_t(i))
-		cGroupPartitions := C.rd_kafka_group_result_partitions(cGroupResult)
-		result[i] = GroupTopicPartitions{
-			Group:      C.GoString(C.rd_kafka_group_result_name(cGroupResult)),
-			Partitions: newTopicPartitionsFromCparts(cGroupPartitions),
-		}
-	}
-	return
-}
-
 // CreateACLs creates one or more ACL bindings.
 //
 // Parameters:
@@ -2059,19 +2051,21 @@ func (a *AdminClient) DeleteConsumerGroups(
 //     Currently, the size of `groupsPartitions` has to be exactly one.
 //  * `options` - ListConsumerGroupOffsetsAdminOption options.
 //
-// Returns a slice of GroupTopicPartitions corresponding to the input slice,
-// plus an error that is not `nil` for client level errors. Individual
-// TopicPartitions inside each of the GroupTopicPartitions should also be
-// checked for errors.
+// Returns a ListConsumerGroupOffsetsResult, containing a slice of
+// GroupTopicPartitions corresponding to the input slice, plus an error that is
+// not `nil` for client level errors. Individual TopicPartitions inside each of
+// the GroupTopicPartitions should also be checked for errors.
 func (a *AdminClient) ListConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []GroupTopicPartitions,
-	options ...ListConsumerGroupOffsetsAdminOption) (result []GroupTopicPartitions, err error) {
+	options ...ListConsumerGroupOffsetsAdminOption) (lcgor ListConsumerGroupOffsetsResult, err error) {
+	lcgor.GroupsTopicPartitions = nil
+
 	// For now, we only support one group at a time given as a single element of
 	// groupsPartitions.
 	// Code has been written so that only this if-guard needs to be removed when
 	// we add support for multiple GroupTopicPartitions.
 	if len(groupsPartitions) != 1 {
-		return nil, fmt.Errorf(
+		return lcgor, fmt.Errorf(
 			"expected length of groupsPartitions is 1, got %d", len(groupsPartitions))
 	}
 
@@ -2101,7 +2095,7 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	cOptions, err := adminOptionsSetup(
 		a.handle, C.RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS, genericOptions)
 	if err != nil {
-		return nil, err
+		return lcgor, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -2121,7 +2115,7 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT)
 	if err != nil {
-		return nil, err
+		return lcgor, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -2130,8 +2124,9 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	// Convert result from C to Go.
 	var cGroupCount C.size_t
 	cGroups := C.rd_kafka_ListConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
+	lcgor.GroupsTopicPartitions = a.cToGroupTopicPartitions(cGroups, cGroupCount)
 
-	return a.cToGroupTopicPartitions(cGroups, cGroupCount), nil
+	return lcgor, nil
 }
 
 // AlterConsumerGroupOffsets alters the offsets for topic partition(s) for
@@ -2146,24 +2141,28 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 //     `groupsPartitions` has to be exactly one.
 //  * `options` - AlterConsumerGroupOffsetsAdminOption options.
 //
-// Returns a slice of GroupTopicPartitions corresponding to the input slice,
-// plus an error that is not `nil` for client level errors. Individual
-// TopicPartitions inside each of the GroupTopicPartitions should also be
-// checked for errors.
+// Returns a AlterConsumerGroupOffsetsResult, containng slice of
+// GroupTopicPartitions corresponding to the input slice, plus an error that is
+// not `nil` for client level errors. Individual TopicPartitions inside each of
+// the GroupTopicPartitions should also be checked for errors.
 // This will succeed at the partition level only if the group is not actively
 // subscribed to the corresponding topic(s).
 func (a *AdminClient) AlterConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []GroupTopicPartitions,
-	options ...AlterConsumerGroupOffsetsAdminOption) (result []GroupTopicPartitions, err error) {
+	options ...AlterConsumerGroupOffsetsAdminOption) (acgor AlterConsumerGroupOffsetsResult, err error) {
+	acgor.GroupsTopicPartitions = nil
+
 	// For now, we only support one group at a time given as a single element of groupsPartitions.
 	// Code has been written so that only this if-guard needs to be removed when we add support for
 	// multiple GroupTopicPartitions.
 	if len(groupsPartitions) != 1 {
-		return nil, fmt.Errorf(
-			"expected length of groupsPartitions is 1, got %d", len(groupsPartitions))
+		return acgor, fmt.Errorf(
+			"expected length of groupsPartitions is 1, got %d",
+			len(groupsPartitions))
 	}
 
-	cGroupsPartitions := make([]*C.rd_kafka_AlterConsumerGroupOffsets_t, len(groupsPartitions))
+	cGroupsPartitions := make(
+		[]*C.rd_kafka_AlterConsumerGroupOffsets_t, len(groupsPartitions))
 
 	// Convert Go GroupTopicPartitions to C AlterConsumerGroupOffsets.
 	for idx, groupPartitions := range groupsPartitions {
@@ -2187,7 +2186,7 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	cOptions, err := adminOptionsSetup(
 		a.handle, C.RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS, genericOptions)
 	if err != nil {
-		return nil, err
+		return acgor, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -2207,7 +2206,7 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT)
 	if err != nil {
-		return nil, err
+		return acgor, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -2216,8 +2215,9 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	// Convert result from C to Go.
 	var cGroupCount C.size_t
 	cGroups := C.rd_kafka_AlterConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
+	acgor.GroupsTopicPartitions = a.cToGroupTopicPartitions(cGroups, cGroupCount)
 
-	return a.cToGroupTopicPartitions(cGroups, cGroupCount), nil
+	return acgor, nil
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance

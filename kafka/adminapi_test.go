@@ -502,7 +502,7 @@ func testAdminAPIsListConsumerGroupOffsets(
 			},
 		},
 		SetAdminRequireStableOffsets(false))
-	if lres != nil || err == nil {
+	if lres.GroupsTopicPartitions != nil || err == nil {
 		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
 			lres, err)
 	}
@@ -530,7 +530,7 @@ func testAdminAPIsAlterConsumerGroupOffsets(
 				},
 			},
 		})
-	if ares != nil || err == nil {
+	if ares.GroupsTopicPartitions != nil || err == nil {
 		t.Fatalf("Expected AlterConsumerGroupOffsets to fail, but got result: %v, err: %v",
 			ares, err)
 	}
