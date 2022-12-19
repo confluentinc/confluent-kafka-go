@@ -827,7 +827,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 
 		for midx := 0; midx < membersCount; midx++ {
 			cMember :=
-				C.rd_kafka_ConsumerGroupDescription_member(cGroup, C.int(midx))
+				C.rd_kafka_ConsumerGroupDescription_member(cGroup, C.size_t(midx))
 			cMemberAssignment :=
 				C.rd_kafka_MemberDescription_assignment(cMember)
 			cToppars :=

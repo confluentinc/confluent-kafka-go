@@ -261,21 +261,21 @@ func SetAdminRequireStableOffsets(val bool) (ao AdminOptionRequireStableOffsets)
 	return ao
 }
 
-// AdminOptionConsumerGroupStates decides groups in which state(s) should be
+// AdminOptionMatchConsumerGroupStates decides groups in which state(s) should be
 // listed.
 //
 // Default: nil (lists groups in all states).
 //
 // Valid for ListConsumerGroups.
-type AdminOptionConsumerGroupStates struct {
+type AdminOptionMatchConsumerGroupStates struct {
 	isSet bool
 	val   []ConsumerGroupState
 }
 
-func (ao AdminOptionConsumerGroupStates) supportsListConsumerGroups() {
+func (ao AdminOptionMatchConsumerGroupStates) supportsListConsumerGroups() {
 }
 
-func (ao AdminOptionConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
+func (ao AdminOptionMatchConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet || ao.val == nil {
 		return nil
 	}
@@ -289,7 +289,7 @@ func (ao AdminOptionConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOptions
 	}
 
 	cStatesPtr := ((*C.rd_kafka_consumer_group_state_t)(&cStates[0]))
-	cError := C.rd_kafka_AdminOptions_set_consumer_group_states(
+	cError := C.rd_kafka_AdminOptions_set_match_consumer_group_states(
 		cOptions, cStatesPtr, cStatesCount)
 	if cError != nil {
 		C.rd_kafka_AdminOptions_destroy(cOptions)
@@ -299,13 +299,13 @@ func (ao AdminOptionConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOptions
 	return nil
 }
 
-// SetAdminConsumerGroupStates decides groups in which state(s) should be
+// SetAdminMatchConsumerGroupStates decides groups in which state(s) should be
 // listed.
 //
 // Default: nil (lists groups in all states).
 //
 // Valid for ListConsumerGroups.
-func SetAdminConsumerGroupStates(val []ConsumerGroupState) (ao AdminOptionConsumerGroupStates) {
+func SetAdminMatchConsumerGroupStates(val []ConsumerGroupState) (ao AdminOptionMatchConsumerGroupStates) {
 	ao.isSet = true
 	ao.val = val
 	return ao
@@ -377,7 +377,7 @@ type DeleteACLsAdminOption interface {
 
 // ListConsumerGroupsAdminOption - see setter.
 //
-// See SetAdminRequestTimeout, SetAdminConsumerGroupStates.
+// See SetAdminRequestTimeout, SetAdminMatchConsumerGroupStates.
 type ListConsumerGroupsAdminOption interface {
 	supportsListConsumerGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error

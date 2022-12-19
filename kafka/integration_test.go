@@ -1581,7 +1581,9 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	consumer1.Poll(5 * 1000)
 	isGroupStable := false
 	for !isGroupStable {
-		groupDescs, err = ac.DescribeConsumerGroups(context.Background(), []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+		ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		groupDescs, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
 		if err != nil {
 			t.Errorf("Error describing consumer groups %s\n", err)
 			return
@@ -1647,7 +1649,7 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	defer cancel()
 	listGroupResult, err = ac.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(30*time.Second),
-		SetAdminConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateEmpty}))
+		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateEmpty}))
 	if err != nil || len(listGroupResult.Errors) > 0 {
 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
 		return
@@ -1664,7 +1666,7 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	defer cancel()
 	listGroupResult, err = ac.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(30*time.Second),
-		SetAdminConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateStable}))
+		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateStable}))
 	if err != nil || len(listGroupResult.Errors) > 0 {
 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
 		return
@@ -2315,11 +2317,12 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	defer ac.Close()
 
 	// Create a topic.
+	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := ac.CreateTopics(ctx, []TopicSpecification{
 		{
-			Topic:         testconf.Topic,
+			Topic:         topic,
 			NumPartitions: 1,
 		},
 	})
@@ -2332,7 +2335,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	defer func() {
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_, err = ac.DeleteTopics(ctx, []string{testconf.Topic})
+		_, err = ac.DeleteTopics(ctx, []string{topic})
 		if err != nil {
 			t.Errorf("Topic deletion failed with error %v", err)
 		}
@@ -2350,7 +2353,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 
 	for i := 0; i < numMsgs; i++ {
 		if err = producer.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 			Value:          []byte("Value"),
 		}, nil); err != nil {
 			t.Errorf("Produce failed with error %v", err)
@@ -2378,7 +2381,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 		}
 	}()
 
-	if err = consumer.Subscribe(testconf.Topic, nil); err != nil {
+	if err = consumer.Subscribe(topic, nil); err != nil {
 		t.Errorf("Consumer could not subscribe to the topic with an error %v", err)
 		return
 	}
@@ -2409,7 +2412,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 			Group: testconf.GroupID,
 			Partitions: []TopicPartition{
 				{
-					Topic:     &testconf.Topic,
+					Topic:     &topic,
 					Partition: 0,
 					Offset:    Offset(numMsgs - 1),
 				},
@@ -2441,7 +2444,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	result, err = ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
 		{
 			Group:      testconf.GroupID,
-			Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0}},
+			Partitions: []TopicPartition{{Topic: &topic, Partition: 0}},
 		},
 	})
 	if err != nil {
@@ -2457,7 +2460,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	groupTopicParitions := result[0]
 	expectedResult := GroupTopicPartitions{
 		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: Offset(numMsgs)}},
+		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs)}},
 	}
 	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
 		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
@@ -2472,7 +2475,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 			Group: testconf.GroupID,
 			Partitions: []TopicPartition{
 				{
-					Topic:     &testconf.Topic,
+					Topic:     &topic,
 					Partition: 0,
 					Offset:    Offset(numMsgs - 1),
 				},
@@ -2492,7 +2495,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	groupTopicParitions = result[0]
 	expectedResult = GroupTopicPartitions{
 		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
+		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
 	}
 	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
 		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
@@ -2506,7 +2509,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	result, err = ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
 		{
 			Group:      testconf.GroupID,
-			Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0}},
+			Partitions: []TopicPartition{{Topic: &topic, Partition: 0}},
 		},
 	})
 	if err != nil {
@@ -2522,7 +2525,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	groupTopicParitions = result[0]
 	expectedResult = GroupTopicPartitions{
 		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &testconf.Topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
+		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
 	}
 	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
 		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",

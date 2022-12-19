@@ -61,7 +61,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	listGroupRes, err := a.ListConsumerGroups(
-		ctx, kafka.SetAdminConsumerGroupStates(states))
+		ctx, kafka.SetAdminMatchConsumerGroupStates(states))
 
 	if err != nil {
 		fmt.Printf("Failed to list groups with client-level error %s\n", err)
