@@ -1,5 +1,8 @@
 # Information for confluent-kafka-go developers
 
+*Go 1.16* Since the package does not currently use modules, export
+`GO111MODULE=off` or prepend it to all commands.
+
 Whenever librdkafka error codes are updated make sure to run generate
 before building:
 
@@ -9,12 +12,10 @@ before building:
 ```
 
 
-
-
 ## Testing
 
 Some of the tests included in this directory, the benchmark and integration tests in particular,
-require an existing Kafka cluster and a testconf.json configuration file to
+require an existing Kafka cluster and a `testconf.json` configuration file to
 provide tests with bootstrap brokers, topic name, etc.
 
 The format of testconf.json is a JSON object:
@@ -30,16 +31,19 @@ See testconf-example.json for an example and full set of available options.
 
 To run unit-tests:
 ```
+$ cd kafka
 $ go test
 ```
 
 To run benchmark tests:
 ```
+$ cd kafka
 $ go test -bench .
 ```
 
 For the code coverage:
 ```
+$ cd kafka
 $ go test -coverprofile=coverage.out -bench=.
 $ go tool cover -func=coverage.out
 ```
@@ -50,7 +54,7 @@ $ go tool cover -func=coverage.out
 Different build types are supported through Go build tags (`-tags ..`),
 these tags should be specified on the **application** build/get/install command.
 
- * By default the bundled platform-specific static build of librdkafka will
+ * By default, the bundled platform-specific static build of librdkafka will
    be used. This works out of the box on Mac OSX and glibc-based Linux distros,
    such as Ubuntu and CentOS.
  * `-tags musl` - must be specified when building on/for musl-based Linux
