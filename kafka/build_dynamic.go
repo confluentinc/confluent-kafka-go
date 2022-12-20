@@ -1,5 +1,4 @@
-// Note upstream specifies a dynamic build tag for this file, but we want to build with dynamic
-// linking to librdkafka always, so I removed it.
+// +build dynamic
 
 package kafka
 

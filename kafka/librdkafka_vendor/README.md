@@ -3,9 +3,9 @@
 confluent-kafka-go bundles prebuilt statically linked
 versions of librdkafka for the following platforms:
 
- * MacOSX x64      (aka Darwin)
+ * MacOSX x64, arm64 (aka Darwin)
  * Linux glibc x64 (Ubuntu, CentOS, etc)
- * Linux musl x64  (Alpine)
+ * Linux musl x64 (Alpine)
 
 ## Import static librdkafka bundle
 
