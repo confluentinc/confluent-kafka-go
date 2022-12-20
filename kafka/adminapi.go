@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -720,7 +721,7 @@ func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err erro
 func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err error) {
 	err = a.verifyClient()
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 
 	responseChan := make(chan int32, 1)
@@ -1641,21 +1642,20 @@ func (a *AdminClient) SetSaslCredentials(username, password string) error {
 
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
-	if a.isClosed {
+	var newValue uint32 = 1
+	currentValue := atomic.LoadUint32((*uint32)(unsafe.Pointer(&a.isClosed)))
+	if !atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&a.isClosed)), currentValue, newValue) {
 		return
 	}
-
 	if a.isDerived {
 		// Derived AdminClient needs no cleanup.
 		a.handle = &handle{}
-		a.isClosed = true
 		return
 	}
 
 	a.handle.cleanup()
 
 	C.rd_kafka_destroy(a.handle.rk)
-	a.isClosed = true
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance

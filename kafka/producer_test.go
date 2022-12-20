@@ -180,9 +180,13 @@ func TestProducerAPIs(t *testing.T) {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
 	}
 
-	p.Close()
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
-	p.SetSaslCredentials("username", "password")
+	err = p.SetSaslCredentials("username", "password")
+	if err != nil {
+		t.Errorf("SetSaslCredentials failed: %s", err)
+	}
+
+	p.Close()
 }
 
 // Test on Closed Producer
