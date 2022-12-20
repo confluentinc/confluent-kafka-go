@@ -235,8 +235,9 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	}
 
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
-	if !c.isClosed {
-		c.SetSaslCredentials("username", "password")
+	err = c.SetSaslCredentials("username", "password")
+	if err != errCheck {
+		t.Errorf("SetSaslCredentials failed: %s", err)
 	}
 }
 

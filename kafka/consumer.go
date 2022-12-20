@@ -19,6 +19,7 @@ package kafka
 import (
 	"fmt"
 	"math"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -485,11 +486,12 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
-
-	err = c.verifyClient()
-	if err != nil {
-		return err
+	var newValue uint32 = 1
+	currentValue := atomic.LoadUint32((*uint32)(unsafe.Pointer(&c.isClosed)))
+	if !atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&c.isClosed)), currentValue, newValue) {
+		return getOperationNotAllowedErrorForClosedClient()
 	}
+
 	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
 	close(c.readerTermChan)
 	c.handle.waitGroup.Wait()
@@ -510,8 +512,6 @@ func (c *Consumer) Close() (err error) {
 	c.handle.cleanup()
 
 	C.rd_kafka_destroy(c.handle.rk)
-
-	c.isClosed = true
 
 	return nil
 }
@@ -659,7 +659,7 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
 	err = c.verifyClient()
 	if err != nil {
-		return 0, 0, err
+		return -1, -1, err
 	}
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }
@@ -671,7 +671,7 @@ func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error) {
 	err = c.verifyClient()
 	if err != nil {
-		return 0, 0, err
+		return -1, -1, err
 	}
 	return getWatermarkOffsets(c, topic, partition)
 }
@@ -1044,5 +1044,9 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 // existing broker connections that were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (c *Consumer) SetSaslCredentials(username, password string) error {
+	err := c.verifyClient()
+	if err != nil {
+		return err
+	}
 	return setSaslCredentials(c.handle.rk, username, password)
 }

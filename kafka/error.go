@@ -165,5 +165,5 @@ func testFatalError(H Handle, code ErrorCode, str string) ErrorCode {
 }
 
 func getOperationNotAllowedErrorForClosedClient() error {
-	return newErrorFromString(ErrState, "Operation not allowed on closed client.")
+	return newErrorFromString(ErrState, "Operation not allowed on closed client")
 }
