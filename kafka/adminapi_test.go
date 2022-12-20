@@ -30,26 +30,33 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	topic := "testWithDefaultValue"
-
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := conf.updateFromTestconf(); err != nil {
 		t.Fatalf("Failed to update test configuration: %v\n", err)
-	}
-
-	expDuration, err := time.ParseDuration("30s")
-	if err != nil {
-		t.Fatalf("Failed to Parse Duration: %s", err)
 	}
 
 	adminClient, err := NewAdminClient(&conf)
 	if err != nil {
 		t.Fatalf("Failed to create AdminClient %v", err)
 	}
+	testAdminAPIWithDefaultValue(t, adminClient, nil)
+
+	// adminClient will be closed at the end of above function. So we don't need to close explicitly
+	// to test on closed adminClient.
+	testAdminAPIWithDefaultValue(t, adminClient, getOperationNotAllowedErrorForClosedClient())
+
+}
+
+func testAdminAPIWithDefaultValue(t *testing.T, a *AdminClient, errCheck error) {
+	topic := "testWithDefaultValue"
+	expDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("Failed to Parse Duration: %s", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
-	res, err := adminClient.CreateTopics(
+	res, err := a.CreateTopics(
 		ctx,
 		[]TopicSpecification{
 			{
@@ -58,22 +65,32 @@ func TestAdminAPIWithDefaultValue(t *testing.T) {
 				ReplicationFactor: -1,
 			},
 		})
-	if err != nil {
-		adminClient.Close()
-		t.Fatalf("Failed to create topics %v\n", err)
+	if err != errCheck {
+		t.Errorf("CreateTopics() failed to return expected result")
+		if !a.isClosed {
+			a.Close()
+			t.Fatalf("Failed to create topics %v\n", err)
+		}
 	}
-	t.Logf("Succeed to create topic %v\n", res)
+	if !a.isClosed {
+		t.Logf("Succeed to create topic %v\n", res)
+	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
-	res, err = adminClient.DeleteTopics(ctx, []string{topic})
-	if err != nil {
-		adminClient.Close()
-		t.Fatalf("Failed to delete topic %v, err: %v", topic, err)
+	res, err = a.DeleteTopics(ctx, []string{topic})
+	if err != errCheck {
+		t.Errorf("DeleteTopics() failed to return expected result")
+		if !a.isClosed {
+			a.Close()
+			t.Fatalf("Failed to delete topics %v\n", err)
+		}
 	}
-	t.Logf("Succeed to delete topic %v\n", res)
+	if !a.isClosed {
+		t.Logf("Succeed to delete topic %v\n", res)
+	}
 
-	adminClient.Close()
+	a.Close()
 }
 
 func testAdminAPIsCreateACLs(what string, a *AdminClient, t *testing.T) {
