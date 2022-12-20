@@ -365,11 +365,12 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 
 // Seek seeks the given topic partitions using the offset from the TopicPartition.
 //
-// If timeoutMs is not 0 the call will wait this long for the
-// seek to be performed. If the timeout is reached the internal state
-// will be unknown and this function returns ErrTimedOut.
-// If timeoutMs is 0 it will initiate the seek but return
-// immediately without any error reporting (e.g., async).
+// The ignoredTimeoutMs parameter is ignored. Instead, this method blocks until
+// the fetcher state is updated for the given partition with the new offset.
+// This guarantees that no previously fetched messages for the old offset (or
+// fetch position) will be passed to the application once this call returns.
+// It will still take some time after the method returns until messages are
+// fetched at the new offset.
 //
 // Seek() may only be used for partitions already being consumed
 // (through Assign() or implicitly through a self-rebalanced Subscribe()).
@@ -377,7 +378,7 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 // a starting offset for each partition.
 //
 // Returns an error on failure or nil otherwise.
-func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
+func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 	err := c.verifyClient()
 	if err != nil {
 		return err
@@ -386,7 +387,7 @@ func (c *Consumer) Seek(partition TopicPartition, timeoutMs int) error {
 	cErr := C.rd_kafka_seek(rkt,
 		C.int32_t(partition.Partition),
 		C.int64_t(partition.Offset),
-		C.int(timeoutMs))
+		C.int(-1))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cErr)
 	}
@@ -407,6 +408,9 @@ func (c *Consumer) Poll(timeoutMs int) (event Event) {
 }
 
 // Events returns the Events channel (if enabled)
+//
+// Deprecated: Events (channel based consumer) is deprecated in favour
+// of Poll().
 func (c *Consumer) Events() chan Event {
 	return c.events
 }
@@ -425,7 +429,7 @@ func (c *Consumer) Logs() chan LogEvent {
 // a new message or error. `timeout` may be set to -1 for
 // indefinite wait.
 //
-// Timeout is returned as (nil, err) where err is `err.(kafka.Error).Code() == kafka.ErrTimedOut`.
+// Timeout is returned as (nil, err) where `err.(kafka.Error).IsTimeout() == true`.
 //
 // Messages are returned as (msg, nil),
 // while general errors are returned as (nil, err),
@@ -481,6 +485,7 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
+
 	err = c.verifyClient()
 	if err != nil {
 		return err
