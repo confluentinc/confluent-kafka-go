@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -371,6 +372,12 @@ func (p *Producer) Flush(timeoutMs int) int {
 // Close a Producer instance.
 // The Producer object or its channels are no longer usable after this call.
 func (p *Producer) Close() {
+	var newValue uint32 = 1
+	currentValue := atomic.LoadUint32((*uint32)(unsafe.Pointer(&p.isClosed)))
+	if !atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&p.isClosed)), currentValue, newValue) {
+		return
+	}
+
 	// Wait for poller() (signaled by closing pollerTermChan)
 	// and channel_producer() (signaled by closing ProduceChannel)
 	close(p.pollerTermChan)
@@ -382,8 +389,6 @@ func (p *Producer) Close() {
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
-
-	p.isClosed = true
 }
 
 const (
@@ -676,7 +681,7 @@ func (p *Producer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
 	err = p.verifyClient()
 	if err != nil {
-		return 0, 0, err
+		return -1, -1, err
 	}
 	return queryWatermarkOffsets(p, topic, partition, timeoutMs)
 }
