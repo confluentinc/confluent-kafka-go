@@ -1,6 +1,8 @@
 Confluent's Golang Client for Apache Kafka<sup>TM</sup>
 =====================================================
 
+> Zendesk-developers: please refer to the following zendesk-specific docs [here](./ZENDESK.md) as well.
+
 **confluent-kafka-go** is Confluent's Golang client for [Apache Kafka](http://kafka.apache.org/) and the
 [Confluent Platform](https://www.confluent.io/product/compare/).
 
