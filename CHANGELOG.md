@@ -14,6 +14,7 @@ This is a maintenance release:
  * The timeout parameter on `Seek()` is now ignored and an infinite timeout is
    used, the method will block until the fetcher state is updated (typically
    within microseconds).
+ * The minimum version of Go supported has been changed from 1.11 to 1.14.
 
 
 ## v1.9.2
