@@ -133,12 +133,12 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.11+ and librdkafka 1.9.0+.
+Supports Go 1.14+ and librdkafka 1.9.0+.
 
 Using Go Modules
 ----------------
 
-Starting with Go 1.13, you can use [Go Modules](https://blog.golang.org/using-go-modules) to install
+You can use [Go Modules](https://blog.golang.org/using-go-modules) to install
 confluent-kafka-go.
 
 Import the `kafka` package from GitHub in your code:

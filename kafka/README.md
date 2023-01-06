@@ -1,13 +1,21 @@
 # Information for confluent-kafka-go developers
 
-Whenever librdkafka error codes are updated make sure to run generate
+## Development process
+
+1. Use go1.18 (and related tooling) for development on confluent-kafka-go.
+2. Make sure to run `gofmt` and `go vet` on your code.
+3. While there is no hard-limit, try to keep your line length under 80
+   characters.
+3. [Test](#testing) your changes and create a PR.
+
+
+NOTE: Whenever librdkafka error codes are updated make sure to run generate
 before building:
 
 ```
   $ make -f mk/Makefile generr
   $ go build ./...
 ```
-
 
 
 
