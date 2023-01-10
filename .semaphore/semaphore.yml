@@ -12,6 +12,7 @@ env_vars:
 
 task:
   - name: before_install
+    commands:
       - if [[ $SEMAPHORE_PLATFORM_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
       - if [[ $SEMAPHORE_PLATFORM_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y ; fi
       - if [[ $SEMAPHORE_PLATFORM_NAME == linux ]]; then sudo apt-get update -q ; fi
@@ -19,17 +20,13 @@ task:
       - rm -rf tmp-build
       - if [[ -n $SEMAPHORE_PLATFORM_NAME ]]; then bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
       - go get -u golang.org/x/lint/golint && touch .do_lint
-      - |-
-          case $SEMAPHORE_PLATFORM_NAME in
-            windows)
-              ./mk/setup-msys2-mingw64.sh
-              export PATH=/C/tools/msys64/mingw64/bin:$PATH
-              export MAKE=mingw32-make  # so that Autotools can find it
-          esac
+      - if [ $SEMAPHORE_PLATFORM_NAME == "windows" ]; then ./mk/setup-msys2-mingw64.sh export PATH=/C/tools/msys64/mingw64/bin:$PATH export MAKE=mingw32-make; fi
   - name: install
+    commands:
       - for dir in kafka examples ; do (cd $dir && go get ${BUILD_TYPE} ./...) ; done
       - for dir in kafka examples ; do (cd $dir && go install ${BUILD_TYPE} ./...) ; done
   - name: script
+    commands:
       # should be replaced with golangci-lint
       - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
       - for dir in kafka ; do (cd $dir && go test -timeout 180s -v ${BUILD_TYPE} ./...) ; done
@@ -38,73 +35,70 @@ task:
       - (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
 
 blocks:
-  - name: "Go 1.16 OSX bundled librdkafka"
-    task:
-      go_version: "1.16"
-      os: osx
-      env:
-        - EXPECT_LINK_INFO="static"
-      ref:
-        - before_install
-        - install
-        - script
-  - name: "Go 1.16 Linux bundled librdkafka"
-    task:
-      go_version: "1.16"
-      os: linux
-      env:
-        - EXPECT_LINK_INFO="static"
-      ref:
-        - before_install
-        - install
-        - script
-  - name: "Go 1.16 Linux arm64 bundled librdkafka"
-    task:
-      if: tag is present
-      go_version: "1.16"
-      os: linux
-      arch: arm64
-      env:
-        - EXPECT_LINK_INFO="static"
-      ref:
-        - before_install
-        - install
-        - script
-  - name: "Go 1.16 OSX dynamic bundled librdkafka"
-    task:
-      if: tag is present
-      go_version: "1.16"
-      os: osx
-      env:
-        - EXPECT_LINK_INFO="dynamic"
-        - BUILD_TYPE='-tags dynamic'
-        - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-        - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-        - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-        - LIBRDKAFKA_VERSION=master
-      ref:
-        - before_install
-        - install
-        - script
-  - name: "Go 1.16 Linux dynamic librdkafka"
-    task:
-      if: tag is present
-      go_version: "1.16"
-      os: linux
-      env:
-        - EXPECT_LINK_INFO="dynamic"
-        - BUILD_TYPE='-tags dynamic'
-        - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-        - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-        - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-        - LIBRDKAFKA_VERSION=master
-      ref:
-        - before_install
-        - install
-        - script
-  - name: "Go 1.16 Windows bundled librdkafka"
-    task:
-      go_version: "1.16"
-      os: windows
-      env:
-        - EXPECT_LINK_INFO="static"
+  - name: "Build Scenarios"
+    jobs:
+      - name: "Go 1.16 OSX bundled librdkafka"
+        go_version: "1.16"
+        os: osx
+        env:
+          - EXPECT_LINK_INFO="static"
+        task:
+            - before_install
+            - install
+            - script
+      - name: "Go 1.16 Linux bundled librdkafka"
+        go_version: "1.16"
+        os: linux
+        env:
+          - EXPECT_LINK_INFO="static"
+        task:
+            - before_install
+            - install
+            - script
+      - name: "Go 1.16 Linux arm64 bundled librdkafka"
+        if: tag is present
+        go_version: "1.16"
+        os: linux
+        arch: arm64
+        env:
+          - EXPECT_LINK_INFO="static"
+        task:
+            - before_install
+            - install
+            - script
+      - name: "Go 1.16 OSX dynamic bundled librdkafka"
+        if: tag is present
+        go_version: "1.16"
+        os: osx
+        env:
+          - EXPECT_LINK_INFO="dynamic"
+          - BUILD_TYPE='-tags dynamic'
+          - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+          - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          - LIBRDKAFKA_VERSION=master
+        task:
+            - before_install
+            - install
+            - script
+      - name: "Go 1.16 Linux dynamic librdkafka"
+        if: tag is present
+        go_version: "1.16"
+        os: linux
+        env:
+          - EXPECT_LINK_INFO="dynamic"
+          - BUILD_TYPE='-tags dynamic'
+          - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+          - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          - LIBRDKAFKA_VERSION=master
+        task:
+            - before_install
+            - install
+            - script
+      - name: "Go 1.16 Windows bundled librdkafka"
+        task:
+          go_version: "1.16"
+          os: windows
+          env:
+            - EXPECT_LINK_INFO="static"
