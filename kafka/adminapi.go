@@ -931,11 +931,6 @@ func (a *AdminClient) cToErrorList(
 
 // cConfigResourceToResult converts a C ConfigResource result array to Go ConfigResourceResult
 func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t, cCnt C.size_t) (result []ConfigResourceResult, err error) {
-	err = a.verifyClient()
-	if err != nil {
-		return nil, err
-	}
-
 	result = make([]ConfigResourceResult, int(cCnt))
 
 	for i := 0; i < int(cCnt); i++ {
@@ -1539,11 +1534,6 @@ func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
 
 // aclBindingToC converts a Go ACLBinding struct to a C rd_kafka_AclBinding_t
 func (a *AdminClient) aclBindingToC(aclBinding *ACLBinding, cErrstr *C.char, cErrstrSize C.size_t) (result *C.rd_kafka_AclBinding_t, err error) {
-	err = a.verifyClient()
-	if err != nil {
-		return nil, err
-	}
-
 	var cName, cPrincipal, cHost *C.char
 	cName, cPrincipal, cHost = nil, nil, nil
 	if len(aclBinding.Name) > 0 {
@@ -1579,11 +1569,6 @@ func (a *AdminClient) aclBindingToC(aclBinding *ACLBinding, cErrstr *C.char, cEr
 
 // aclBindingFilterToC converts a Go ACLBindingFilter struct to a C rd_kafka_AclBindingFilter_t
 func (a *AdminClient) aclBindingFilterToC(aclBindingFilter *ACLBindingFilter, cErrstr *C.char, cErrstrSize C.size_t) (result *C.rd_kafka_AclBindingFilter_t, err error) {
-	err = a.verifyClient()
-	if err != nil {
-		return nil, err
-	}
-
 	var cName, cPrincipal, cHost *C.char
 	cName, cPrincipal, cHost = nil, nil, nil
 	if len(aclBindingFilter.Name) > 0 {
@@ -1645,11 +1630,6 @@ func (a *AdminClient) cToACLBindings(cACLBindings **C.rd_kafka_AclBinding_t, acl
 
 // cToCreateACLResults converts a C acl_result_t array to Go CreateACLResult list.
 func (a *AdminClient) cToCreateACLResults(cCreateAclsRes **C.rd_kafka_acl_result_t, aclCnt C.size_t) (result []CreateACLResult, err error) {
-	err = a.verifyClient()
-	if err != nil {
-		return nil, err
-	}
-
 	result = make([]CreateACLResult, uint(aclCnt))
 
 	for i := uint(0); i < uint(aclCnt); i++ {
