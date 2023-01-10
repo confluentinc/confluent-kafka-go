@@ -1,5 +1,5 @@
 version: v1.0
-name: go project
+name: build and test
 
 agent:
   machine:
@@ -20,12 +20,12 @@ task:
       - if [[ -n $SEMAPHORE_PLATFORM_NAME ]]; then bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
       - go get -u golang.org/x/lint/golint && touch .do_lint
       - |-
-      case $SEMAPHORE_PLATFORM_NAME in
-      windows)
-      ./mk/setup-msys2-mingw64.sh
-      export PATH=/C/tools/msys64/mingw64/bin:$PATH
-      export MAKE=mingw32-make  # so that Autotools can find it
-      esac
+        case $SEMAPHORE_PLATFORM_NAME in
+          windows)
+            ./mk/setup-msys2-mingw64.sh
+            export PATH=/C/tools/msys64/mingw64/bin:$PATH
+            export MAKE=mingw32-make  # so that Autotools can find it
+        esac
   - name: install
       - for dir in kafka examples ; do (cd $dir && go get ${BUILD_TYPE} ./...) ; done
       - for dir in kafka examples ; do (cd $dir && go install ${BUILD_TYPE} ./...) ; done
