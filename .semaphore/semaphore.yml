@@ -86,7 +86,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-arm64-2
+          type: s1-prod-ubuntu20-04-arm64-1
       prologue:
         commands:
           - sem-version go 1.16
@@ -110,7 +110,9 @@ blocks:
           type: s1-prod-windows
       prologue:
         commands:
-          - sem-version go 1.16
+          - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
+          - msiexec /i go.msi /quiet
+          - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
           - rm -rf tmp-build
           - go get -u golang.org/x/lint/golint && touch .do_lint
           - ./mk/setup-msys2-mingw64.sh
