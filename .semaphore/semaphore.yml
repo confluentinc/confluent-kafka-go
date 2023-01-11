@@ -1,14 +1,17 @@
 version: v1.0
 name: build and test
-
 agent:
   machine:
     type: xcode9.2
-  language: go
-  go_import_path: github.com/confluentinc/confluent-kafka-go
+    runtime: go1.16
 
-env_vars:
-  PATH: "$PATH:$GOPATH/bin"
+environment:
+  - GOPATH
+  - PATH: "$PATH:$GOPATH/bin"
+
+commands:
+  - go mod init github.com/confluentinc/confluent-kafka-go
+  - go mod download
 
 task:
   - name: before_install
@@ -36,9 +39,9 @@ task:
 
 blocks:
   - name: "Build Scenarios"
+    parallelism: 6
     jobs:
       - name: "Go 1.16 OSX bundled librdkafka"
-        go_version: "1.16"
         os: osx
         env:
           - EXPECT_LINK_INFO="static"
@@ -47,7 +50,6 @@ blocks:
             - install
             - script
       - name: "Go 1.16 Linux bundled librdkafka"
-        go_version: "1.16"
         os: linux
         env:
           - EXPECT_LINK_INFO="static"
@@ -57,7 +59,6 @@ blocks:
             - script
       - name: "Go 1.16 Linux arm64 bundled librdkafka"
         if: tag is present
-        go_version: "1.16"
         os: linux
         arch: arm64
         env:
@@ -68,7 +69,6 @@ blocks:
             - script
       - name: "Go 1.16 OSX dynamic bundled librdkafka"
         if: tag is present
-        go_version: "1.16"
         os: osx
         env:
           - EXPECT_LINK_INFO="dynamic"
@@ -83,7 +83,6 @@ blocks:
             - script
       - name: "Go 1.16 Linux dynamic librdkafka"
         if: tag is present
-        go_version: "1.16"
         os: linux
         env:
           - EXPECT_LINK_INFO="dynamic"
@@ -97,8 +96,10 @@ blocks:
             - install
             - script
       - name: "Go 1.16 Windows bundled librdkafka"
+        os: windows
+        env:
+          - EXPECT_LINK_INFO="static"
         task:
-          go_version: "1.16"
-          os: windows
-          env:
-            - EXPECT_LINK_INFO="static"
+          - before_install
+          - install
+          - script
