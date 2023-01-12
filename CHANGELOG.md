@@ -1,15 +1,23 @@
 # Confluent's Golang client for Apache Kafka
 
-## v1.9.3
+## v2.0.0
 
 This is a maintenance release:
 
+<<<<<<< HEAD
  * Bundles librdkafka v1.9.3.
  * Built-in support for Linux / arm64. (#818).
 
 confluent-kafka-go is based on librdkafka v1.9.3, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.3)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+=======
+ * Added SetSaslCredentials. This new method (on the Producer, Consumer, and
+   AdminClient) allows modifying the stored SASL PLAIN/SCRAM credentials that
+   will be used for subsequent (new) connections to a broker.
+ * Channel based producer (Producer `ProduceChannel()`) and channel based
+   consumer (Consumer `Events()`) are deprecated.
+>>>>>>> 87e0198 (Deprecate channel based clients (#894))
 
 
 ## v1.9.2
