@@ -3,6 +3,7 @@ name: 'confluent-kafka-go build pipeline'
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
+
 global_job_config:
   prologue:
     commands:
