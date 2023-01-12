@@ -2407,7 +2407,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	// Try altering offsets without closing the consumer - this should give an error.
 	// The error should be on a TopicPartition level, and not on the `err` level.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	aresult, err := ac.AlterConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+	aresult, err := ac.AlterConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
 		{
 			Group: testconf.GroupID,
 			Partitions: []TopicPartition{
@@ -2424,9 +2424,9 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 		return
 	}
 
-	if len(aresult.GroupsTopicPartitions) != 1 ||
-		len(aresult.GroupsTopicPartitions[0].Partitions) != 1 ||
-		aresult.GroupsTopicPartitions[0].Partitions[0].Error == nil {
+	if len(aresult.ConsumerGroupsTopicPartitions) != 1 ||
+		len(aresult.ConsumerGroupsTopicPartitions[0].Partitions) != 1 ||
+		aresult.ConsumerGroupsTopicPartitions[0].Partitions[0].Error == nil {
 		t.Errorf("Unexpected result while altering offset, expected non-nil error in topic partition, got %v", aresult)
 		return
 	}
@@ -2441,7 +2441,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	// List offsets for our group/partition.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	lresult, err := ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+	lresult, err := ac.ListConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
 		{
 			Group:      testconf.GroupID,
 			Partitions: []TopicPartition{{Topic: &topic, Partition: 0}},
@@ -2452,15 +2452,15 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 		return
 	}
 
-	if lresult.GroupsTopicPartitions == nil ||
-		len(lresult.GroupsTopicPartitions) != 1 {
+	if lresult.ConsumerGroupsTopicPartitions == nil ||
+		len(lresult.ConsumerGroupsTopicPartitions) != 1 {
 		t.Errorf("Result length %d doesn't match expected length of 1",
-			len(lresult.GroupsTopicPartitions))
+			len(lresult.ConsumerGroupsTopicPartitions))
 		return
 	}
 
-	groupTopicParitions := lresult.GroupsTopicPartitions[0]
-	expectedResult := GroupTopicPartitions{
+	groupTopicParitions := lresult.ConsumerGroupsTopicPartitions[0]
+	expectedResult := ConsumerGroupTopicPartitions{
 		Group:      testconf.GroupID,
 		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs)}},
 	}
@@ -2472,7 +2472,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 
 	// Alter offsets for our group/partitions.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	aresult, err = ac.AlterConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+	aresult, err = ac.AlterConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
 		{
 			Group: testconf.GroupID,
 			Partitions: []TopicPartition{
@@ -2489,15 +2489,15 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 		return
 	}
 
-	if aresult.GroupsTopicPartitions == nil ||
-		len(aresult.GroupsTopicPartitions) != 1 {
+	if aresult.ConsumerGroupsTopicPartitions == nil ||
+		len(aresult.ConsumerGroupsTopicPartitions) != 1 {
 		t.Errorf("Result length %d doesn't match expected length of 1",
-			len(aresult.GroupsTopicPartitions))
+			len(aresult.ConsumerGroupsTopicPartitions))
 		return
 	}
 
-	groupTopicParitions = aresult.GroupsTopicPartitions[0]
-	expectedResult = GroupTopicPartitions{
+	groupTopicParitions = aresult.ConsumerGroupsTopicPartitions[0]
+	expectedResult = ConsumerGroupTopicPartitions{
 		Group:      testconf.GroupID,
 		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
 	}
@@ -2510,7 +2510,7 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 	// Check altered offsets using ListConsumerGroupOffsets.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	lresult, err = ac.ListConsumerGroupOffsets(ctx, []GroupTopicPartitions{
+	lresult, err = ac.ListConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
 		{
 			Group:      testconf.GroupID,
 			Partitions: []TopicPartition{{Topic: &topic, Partition: 0}},
@@ -2521,15 +2521,15 @@ func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
 		return
 	}
 
-	if lresult.GroupsTopicPartitions == nil ||
-		len(lresult.GroupsTopicPartitions) != 1 {
+	if lresult.ConsumerGroupsTopicPartitions == nil ||
+		len(lresult.ConsumerGroupsTopicPartitions) != 1 {
 		t.Errorf("Result length %d doesn't match expected length of 1",
-			len(lresult.GroupsTopicPartitions))
+			len(lresult.ConsumerGroupsTopicPartitions))
 		return
 	}
 
-	groupTopicParitions = lresult.GroupsTopicPartitions[0]
-	expectedResult = GroupTopicPartitions{
+	groupTopicParitions = lresult.ConsumerGroupsTopicPartitions[0]
+	expectedResult = ConsumerGroupTopicPartitions{
 		Group:      testconf.GroupID,
 		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
 	}

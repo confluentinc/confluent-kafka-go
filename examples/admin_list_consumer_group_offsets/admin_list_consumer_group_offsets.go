@@ -68,7 +68,7 @@ func main() {
 		})
 	}
 
-	gps := []kafka.GroupTopicPartitions{
+	gps := []kafka.ConsumerGroupTopicPartitions{
 		{
 			Group:      args[2],
 			Partitions: partitions,

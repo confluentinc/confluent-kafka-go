@@ -224,7 +224,7 @@ type ConsumerGroupDescription struct {
 	GroupID string
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
-	// Is a simple consumer group
+	// Is a simple consumer group.
 	IsSimpleConsumerGroup bool
 	// Partition assignor identifier.
 	PartitionAssignor string
@@ -236,20 +236,27 @@ type ConsumerGroupDescription struct {
 	Members []MemberDescription
 }
 
+// DescribeConsumerGroupsResult represents the result of a
+// DescribeConsumerGroups call.
+type DescribeConsumerGroupsResult struct {
+	// Slice of ConsumerGroupDescription.
+	ConsumerGroupDescriptions []ConsumerGroupDescription
+}
+
 // ListConsumerGroupOffsetsResult represents the result of a
 // ListConsumerGroupOffsets operation.
 type ListConsumerGroupOffsetsResult struct {
-	// A slice of GroupTopicPartitions, each element represents a group's
+	// A slice of ConsumerGroupTopicPartitions, each element represents a group's
 	// TopicPartitions and Offsets.
-	GroupsTopicPartitions []GroupTopicPartitions
+	ConsumerGroupsTopicPartitions []ConsumerGroupTopicPartitions
 }
 
 // AlterConsumerGroupOffsetsResult represents the result of a
 // AlterConsumerGroupOffsets operation.
 type AlterConsumerGroupOffsetsResult struct {
-	// A slice of GroupTopicPartitions, each element represents a group's
+	// A slice of ConsumerGroupTopicPartitions, each element represents a group's
 	// TopicPartitions and Offsets.
-	GroupsTopicPartitions []GroupTopicPartitions
+	ConsumerGroupsTopicPartitions []ConsumerGroupTopicPartitions
 }
 
 // TopicSpecification holds parameters for creating a new topic.
@@ -1914,11 +1921,12 @@ func (a *AdminClient) ListConsumerGroups(
 // ConsumerGroupDescriptions inside the slice should also be checked for errors.
 func (a *AdminClient) DescribeConsumerGroups(
 	ctx context.Context, groups []string,
-	options ...DescribeConsumerGroupsAdminOption) (result []ConsumerGroupDescription, err error) {
+	options ...DescribeConsumerGroupsAdminOption) (result DescribeConsumerGroupsResult, err error) {
 
 	// Convert group names into char** required by the implementation.
 	cGroupNameList := make([]*C.char, len(groups))
 	cGroupNameCount := C.size_t(len(groups))
+	describeResult := DescribeConsumerGroupsResult{}
 
 	for idx, group := range groups {
 		cGroupNameList[idx] = C.CString(group)
@@ -1938,7 +1946,7 @@ func (a *AdminClient) DescribeConsumerGroups(
 	cOptions, err := adminOptionsSetup(
 		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBECONSUMERGROUPS, genericOptions)
 	if err != nil {
-		return nil, err
+		return describeResult, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -1958,7 +1966,7 @@ func (a *AdminClient) DescribeConsumerGroups(
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBECONSUMERGROUPS_RESULT)
 	if err != nil {
-		return nil, err
+		return describeResult, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -1967,9 +1975,9 @@ func (a *AdminClient) DescribeConsumerGroups(
 	// Convert result from C to Go.
 	var cGroupCount C.size_t
 	cGroups := C.rd_kafka_DescribeConsumerGroups_result_groups(cRes, &cGroupCount)
-	result = a.cToConsumerGroupDescriptions(cGroups, cGroupCount)
+	describeResult.ConsumerGroupDescriptions = a.cToConsumerGroupDescriptions(cGroups, cGroupCount)
 
-	return result, nil
+	return describeResult, nil
 }
 
 // DeleteConsumerGroups deletes a batch of consumer groups.
@@ -2045,25 +2053,25 @@ func (a *AdminClient) DeleteConsumerGroups(
 //
 // Parameters:
 //  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `groupsPartitions` - a slice of GroupTopicPartitions, each element of which
+//  * `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of which
 //     has the id of a consumer group, and a slice of the TopicPartitions we
 //     need to fetch the offsets for.
 //     Currently, the size of `groupsPartitions` has to be exactly one.
 //  * `options` - ListConsumerGroupOffsetsAdminOption options.
 //
 // Returns a ListConsumerGroupOffsetsResult, containing a slice of
-// GroupTopicPartitions corresponding to the input slice, plus an error that is
+// ConsumerGroupTopicPartitions corresponding to the input slice, plus an error that is
 // not `nil` for client level errors. Individual TopicPartitions inside each of
-// the GroupTopicPartitions should also be checked for errors.
+// the ConsumerGroupTopicPartitions should also be checked for errors.
 func (a *AdminClient) ListConsumerGroupOffsets(
-	ctx context.Context, groupsPartitions []GroupTopicPartitions,
+	ctx context.Context, groupsPartitions []ConsumerGroupTopicPartitions,
 	options ...ListConsumerGroupOffsetsAdminOption) (lcgor ListConsumerGroupOffsetsResult, err error) {
-	lcgor.GroupsTopicPartitions = nil
+	lcgor.ConsumerGroupsTopicPartitions = nil
 
 	// For now, we only support one group at a time given as a single element of
 	// groupsPartitions.
 	// Code has been written so that only this if-guard needs to be removed when
-	// we add support for multiple GroupTopicPartitions.
+	// we add support for multiple ConsumerGroupTopicPartitions.
 	if len(groupsPartitions) != 1 {
 		return lcgor, fmt.Errorf(
 			"expected length of groupsPartitions is 1, got %d", len(groupsPartitions))
@@ -2072,7 +2080,7 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	cGroupsPartitions := make([]*C.rd_kafka_ListConsumerGroupOffsets_t,
 		len(groupsPartitions))
 
-	// Convert Go GroupTopicPartitions to C ListConsumerGroupOffsets.
+	// Convert Go ConsumerGroupTopicPartitions to C ListConsumerGroupOffsets.
 	for i, groupPartitions := range groupsPartitions {
 		// We need to destroy this list because rd_kafka_ListConsumerGroupOffsets_new
 		// creates a copy of it.
@@ -2124,7 +2132,7 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	// Convert result from C to Go.
 	var cGroupCount C.size_t
 	cGroups := C.rd_kafka_ListConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
-	lcgor.GroupsTopicPartitions = a.cToGroupTopicPartitions(cGroups, cGroupCount)
+	lcgor.ConsumerGroupsTopicPartitions = a.cToConsumerGroupTopicPartitions(cGroups, cGroupCount)
 
 	return lcgor, nil
 }
@@ -2135,26 +2143,26 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 // Parameters:
 //  * `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//  * `groupsPartitions` - a slice of GroupTopicPartitions, each element of
+//  * `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of
 //     which has the id of a consumer group, and a slice of the TopicPartitions
 //     we need to alter the offsets for. Currently, the size of
 //     `groupsPartitions` has to be exactly one.
 //  * `options` - AlterConsumerGroupOffsetsAdminOption options.
 //
 // Returns a AlterConsumerGroupOffsetsResult, containng slice of
-// GroupTopicPartitions corresponding to the input slice, plus an error that is
+// ConsumerGroupTopicPartitions corresponding to the input slice, plus an error that is
 // not `nil` for client level errors. Individual TopicPartitions inside each of
-// the GroupTopicPartitions should also be checked for errors.
+// the ConsumerGroupTopicPartitions should also be checked for errors.
 // This will succeed at the partition level only if the group is not actively
 // subscribed to the corresponding topic(s).
 func (a *AdminClient) AlterConsumerGroupOffsets(
-	ctx context.Context, groupsPartitions []GroupTopicPartitions,
+	ctx context.Context, groupsPartitions []ConsumerGroupTopicPartitions,
 	options ...AlterConsumerGroupOffsetsAdminOption) (acgor AlterConsumerGroupOffsetsResult, err error) {
-	acgor.GroupsTopicPartitions = nil
+	acgor.ConsumerGroupsTopicPartitions = nil
 
 	// For now, we only support one group at a time given as a single element of groupsPartitions.
 	// Code has been written so that only this if-guard needs to be removed when we add support for
-	// multiple GroupTopicPartitions.
+	// multiple ConsumerGroupTopicPartitions.
 	if len(groupsPartitions) != 1 {
 		return acgor, fmt.Errorf(
 			"expected length of groupsPartitions is 1, got %d",
@@ -2164,7 +2172,7 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	cGroupsPartitions := make(
 		[]*C.rd_kafka_AlterConsumerGroupOffsets_t, len(groupsPartitions))
 
-	// Convert Go GroupTopicPartitions to C AlterConsumerGroupOffsets.
+	// Convert Go ConsumerGroupTopicPartitions to C AlterConsumerGroupOffsets.
 	for idx, groupPartitions := range groupsPartitions {
 		// We need to destroy this list because rd_kafka_AlterConsumerGroupOffsets_new
 		// creates a copy of it.
@@ -2215,7 +2223,7 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	// Convert result from C to Go.
 	var cGroupCount C.size_t
 	cGroups := C.rd_kafka_AlterConsumerGroupOffsets_result_groups(cRes, &cGroupCount)
-	acgor.GroupsTopicPartitions = a.cToGroupTopicPartitions(cGroups, cGroupCount)
+	acgor.ConsumerGroupsTopicPartitions = a.cToConsumerGroupTopicPartitions(cGroups, cGroupCount)
 
 	return acgor, nil
 }

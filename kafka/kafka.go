@@ -338,15 +338,15 @@ func (n Node) String() string {
 	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
 }
 
-// GroupTopicPartitions represents a consumer group's TopicPartitions.
-type GroupTopicPartitions struct {
+// ConsumerGroupTopicPartitions represents a consumer group's TopicPartitions.
+type ConsumerGroupTopicPartitions struct {
 	// Group name
 	Group string
 	// Partitions list
 	Partitions []TopicPartition
 }
 
-func (gtp GroupTopicPartitions) String() string {
+func (gtp ConsumerGroupTopicPartitions) String() string {
 	res := gtp.Group
 	res += "[ "
 	for _, tp := range gtp.Partitions {
@@ -406,17 +406,17 @@ func newTopicPartitionsFromCparts(cparts *C.rd_kafka_topic_partition_list_t) (pa
 	return partitions
 }
 
-// cToGroupTopicPartitions converts a C rd_kafka_group_result_t array to a
-// GroupTopicPartitions slice.
-func (a *AdminClient) cToGroupTopicPartitions(
+// cToConsumerGroupTopicPartitions converts a C rd_kafka_group_result_t array to a
+// ConsumerGroupTopicPartitions slice.
+func (a *AdminClient) cToConsumerGroupTopicPartitions(
 	cGroupResults **C.rd_kafka_group_result_t,
-	cGroupCount C.size_t) (result []GroupTopicPartitions) {
-	result = make([]GroupTopicPartitions, uint(cGroupCount))
+	cGroupCount C.size_t) (result []ConsumerGroupTopicPartitions) {
+	result = make([]ConsumerGroupTopicPartitions, uint(cGroupCount))
 
 	for i := uint(0); i < uint(cGroupCount); i++ {
 		cGroupResult := C.group_result_by_idx(cGroupResults, cGroupCount, C.size_t(i))
 		cGroupPartitions := C.rd_kafka_group_result_partitions(cGroupResult)
-		result[i] = GroupTopicPartitions{
+		result[i] = ConsumerGroupTopicPartitions{
 			Group:      C.GoString(C.rd_kafka_group_result_name(cGroupResult)),
 			Partitions: newTopicPartitionsFromCparts(cGroupPartitions),
 		}

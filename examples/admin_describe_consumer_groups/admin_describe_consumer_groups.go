@@ -49,15 +49,16 @@ func main() {
 	// Call DescribeConsumerGroups.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	groupInfos, err := a.DescribeConsumerGroups(ctx, groups)
+	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups)
 	if err != nil {
 		fmt.Printf("Failed to describe groups: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Print results
-	fmt.Printf("A total of %d consumer group(s) described:\n\n", len(groupInfos))
-	for _, g := range groupInfos {
+	fmt.Printf("A total of %d consumer group(s) described:\n\n",
+		len(describeGroupsResult.ConsumerGroupDescriptions))
+	for _, g := range describeGroupsResult.ConsumerGroupDescriptions {
 		fmt.Printf("GroupId: %s\n"+
 			"Error: %s\n"+
 			"IsSimpleConsumerGroup: %v\n"+
