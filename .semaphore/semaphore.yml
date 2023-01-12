@@ -17,11 +17,11 @@ blocks:
           type: s1-prod-macos
       env_vars:
         - name: PKG_CONFIG_PATH
-          value: "/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+          value: "/usr/local/opt/openssl/lib/pkgconfig:$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
         - name: LD_LIBRARY_PATH
-          value: "$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          value: "$HOME/confluent-kafka-go/tmp-build/lib"
         - name: DYLD_LIBRARY_PATH
-          value: "$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          value: "$HOME/confluent-kafka-go/tmp-build/lib"
         - name: LIBRDKAFKA_VERSION
           value: master
       prologue:
@@ -51,11 +51,11 @@ blocks:
           type: s1-prod-ubuntu20-04-amd64-2
       env_vars:
         - name: PKG_CONFIG_PATH
-          value: "$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+          value: "$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
         - name: LD_LIBRARY_PATH
-          value: "$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          value: "$HOME/confluent-kafka-go/tmp-build/lib"
         - name: DYLD_LIBRARY_PATH
-          value: "$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+          value: "$HOME/confluent-kafka-go/tmp-build/lib"
         - name: LIBRDKAFKA_VERSION
           value: master
       prologue:
