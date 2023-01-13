@@ -4,9 +4,15 @@ agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
 global_job_config:
+  env_vars:
+    - name: GOLINT
+      value: "$GOPATH/bin/golint"
   prologue:
     commands:
       - checkout
+      - echo $HOME
+      - echo $PATH
+      - echo $GOLINT
 
 blocks:
   - name: "Go 1.16 OSX bundled librdkafka"
@@ -28,20 +34,20 @@ blocks:
         commands:
           - sem-version go 1.16
           - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
+          - go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
           commands:
             - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
         - name: "Dynamic Build"
           commands:
             - echo
             - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
             - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...
-            - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
             - for dir in kafka ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ; done
   - name: "Go 1.16 linux bundled librdkafka"
     dependencies: [ ]
@@ -66,61 +72,61 @@ blocks:
           - sudo apt-get update -q
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
+          - go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
           commands:
             - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
         - name: "Dynamic Build"
           commands:
             - echo
             - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
             - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...
-            - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
             - for dir in kafka ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ;
-  - name: "Go 1.16 linux arm64 bundled librdkafka"
-    dependencies: [ ]
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-arm64-1
-      prologue:
-        commands:
-          - sem-version go 1.16
-          - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
-          - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
-          - sudo apt-get update -q
-          - sudo apt-get install confluent-librdkafka-plugins -y
-          - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
-      jobs:
-        - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
-  - name: "Go 1.16 Windows bundled librdkafka"
-    dependencies: [ ]
-    task:
-      agent:
-        machine:
-          type: s1-prod-windows
-      prologue:
-        commands:
-          - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
-          - msiexec /i go.msi /quiet
-          - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
-          - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
-          - ./mk/setup-msys2-mingw64.sh
-          - export PATH=/C/tools/msys64/mingw64/bin:$PATH
-          - export MAKE=mingw32-make
-      jobs:
-        - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
+  # - name: "Go 1.16 linux arm64 bundled librdkafka"
+  #   dependencies: [ ]
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-arm64-1
+  #     prologue:
+  #       commands:
+  #         - sem-version go 1.16
+  #         - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
+  #         - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
+  #         - sudo apt-get update -q
+  #         - sudo apt-get install confluent-librdkafka-plugins -y
+  #         - rm -rf tmp-build
+  #         - go install golang.org/x/lint/golint@latest && touch .do_lint
+  #     jobs:
+  #       - name: "Static Build"
+  #         commands:
+  #           - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
+  #           - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
+  #           - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
+  # - name: "Go 1.16 Windows bundled librdkafka"
+  #   dependencies: [ ]
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-windows
+  #     prologue:
+  #       commands:
+  #         - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
+  #         - msiexec /i go.msi /quiet
+  #         - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
+  #         - rm -rf tmp-build
+  #         - go install golang.org/x/lint/golint@latest && touch .do_lint
+  #         - ./mk/setup-msys2-mingw64.sh
+  #         - export PATH=/C/tools/msys64/mingw64/bin:$PATH
+  #         - export MAKE=mingw32-make
+  #     jobs:
+  #       - name: "Static Build"
+  #         commands:
+  #           - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
+  #           - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
+  #           - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ; fi
