@@ -7,6 +7,7 @@ global_job_config:
   prologue:
     commands:
       - checkout
+      - echo $HOME
 
 blocks:
   - name: "Go 1.16 OSX bundled librdkafka"
