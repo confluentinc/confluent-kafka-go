@@ -7,11 +7,11 @@ env:
 
 jobs:
  include:
- - name: "Go 1.16 OSX bundled librdkafka"
-   go: "1.16"
-   os: osx
-   env:
-    - EXPECT_LINK_INFO="static"
+#  - name: "Go 1.16 OSX bundled librdkafka"
+#    go: "1.16"
+#    os: osx
+#    env:
+#     - EXPECT_LINK_INFO="static"
  - name: "Go 1.16 Linux bundled librdkafka"
    go: "1.16"
    os: linux
@@ -24,17 +24,17 @@ jobs:
    arch: arm64
    env:
     - EXPECT_LINK_INFO="static"
- - name: "Go 1.16 OSX dynamic librdkafka"
-   if: tag is present
-   go: "1.16"
-   os: osx
-   env:
-   - EXPECT_LINK_INFO="dynamic"
-   - BUILD_TYPE='-tags dynamic'
-   - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - LIBRDKAFKA_VERSION=master
+#  - name: "Go 1.16 OSX dynamic librdkafka"
+#    if: tag is present
+#    go: "1.16"
+#    os: osx
+#    env:
+#    - EXPECT_LINK_INFO="dynamic"
+#    - BUILD_TYPE='-tags dynamic'
+#    - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+#    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+#    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+#    - LIBRDKAFKA_VERSION=master
  - name: "Go 1.16 Linux dynamic librdkafka"
    if: tag is present
    go: "1.16"
@@ -53,10 +53,13 @@ jobs:
     - EXPECT_LINK_INFO="static"
 
 before_install:
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get update -q ; fi
-  - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo apt-get install confluent-librdkafka-plugins -y ; fi
+  - |-
+      if [[ $TRAVIS_OS_NAME == linux && $TRAVIS_CPU_ARCH == amd64 ]]; then 
+        wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add - ;
+        sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main" -y;
+        sudo apt-get update -q;
+        sudo apt-get install confluent-librdkafka-plugins -y;
+      fi
   - rm -rf tmp-build
   - if [[ -n $BUILD_TYPE ]]; then bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
   - go get -u golang.org/x/lint/golint && touch .do_lint

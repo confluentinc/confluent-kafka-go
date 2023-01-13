@@ -1,20 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.0.0
+## v1.9.3
 
 This is a maintenance release:
 
- * Added SetSaslCredentials. This new method (on the Producer, Consumer, and
-   AdminClient) allows modifying the stored SASL PLAIN/SCRAM credentials that
-   will be used for subsequent (new) connections to a broker.
- * Channel based producer (Producer `ProduceChannel()`) and channel based
-   consumer (Consumer `Events()`) are deprecated.
- * Added `IsTimeout()` on Error type. This is a convenience method that checks
-   if the error is due to a timeout.
- * The timeout parameter on `Seek()` is now ignored and an infinite timeout is
-   used, the method will block until the fetcher state is updated (typically
-   within microseconds).
- * The minimum version of Go supported has been changed from 1.11 to 1.14.
+ * Bundles librdkafka v1.9.3.
+ * Built-in support for Linux / arm64. (#818).
+
+confluent-kafka-go is based on librdkafka v1.9.3, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 
 ## v1.9.2

@@ -13,3 +13,9 @@ require (
 	google.golang.org/genproto v0.0.0-20220503193339-ba3ae3f07e29
 	google.golang.org/protobuf v1.28.0
 )
+
+retract (
+	v1.9.3-RC2
+	v1.9.3-RC1-test
+	v1.9.3-RC1
+)
