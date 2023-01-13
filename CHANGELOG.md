@@ -15,6 +15,25 @@ This is a maintenance release:
    used, the method will block until the fetcher state is updated (typically
    within microseconds).
  * The minimum version of Go supported has been changed from 1.11 to 1.14.
+ * [KIP-222](https://cwiki.apache.org/confluence/display/KAFKA/KIP-222+-+Add+Consumer+Group+operations+to+Admin+API)
+   Add Consumer Group operations to Admin API.
+ * [KIP-518](https://cwiki.apache.org/confluence/display/KAFKA/KIP-518%3A+Allow+listing+consumer+groups+per+state)
+   Allow listing consumer groups per state.
+ * [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484)
+   Partially implemented: support for AlterConsumerGroupOffsets.
+ * As result of the above KIPs, added (#TODO_ADD_PR)
+   - `ListConsumerGroups` Admin operation. Supports listing by state.
+   - `DescribeConsumerGroups` Admin operation. Supports multiple groups.
+   - `DeleteConsumerGroups` Admin operation. Supports multiple groups.
+   - `ListConsumerGroupOffsets` Admin operation. Currently, only supports
+      1 group with multiple partitions. Supports the `requireStable` option.
+   - `AlterConsumerGroupOffsets` Admin operation. Currently, only supports
+      1 group with multiple offsets.
+
+
+confluent-kafka-go is based on librdkafka v2.0.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v1.9.2
