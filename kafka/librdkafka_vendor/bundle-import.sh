@@ -50,9 +50,9 @@ setup_build() {
     local gpath="../build_${btype}.go"
     local dpath="librdkafka_${btype}.a"
 
-    if [[ $btype =~ ^glibc_linux(_arm64)?$ ]]; then
+    if [[ $btype =~ ^glibc_linux.*$ ]]; then
         build_tag="// +build !musl"
-    elif [[ $btype =~ ^musl_linux(_arm64)?$ ]]; then
+    elif [[ $btype =~ ^musl_linux.*$ ]]; then
         build_tag="// +build musl"
     fi
 
@@ -101,8 +101,13 @@ for f in rdkafka.h LICENSES.txt ; do
 done
 
 
-for btype in glibc_linux musl_linux glibc_linux_arm64 musl_linux_arm64 \
-             darwin_amd64 darwin_arm64 windows ; do
+for btype in glibc_linux_amd64 \
+                 glibc_linux_arm64 \
+                 musl_linux_amd64 \
+                 musl_linux_arm64 \
+                 darwin_amd64 \
+                 darwin_arm64 \
+                 windows ; do
     lib=$bdir/librdkafka_${btype}.a
     pc=${lib/%.a/.pc}
     [[ -f $lib ]] || (echo "Expected file $lib missing" ; exit 1)
