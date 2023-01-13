@@ -12,6 +12,7 @@ confluent-kafka-go is based on librdkafka v1.9.3, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
+
 ## v1.9.2
 
 This is a maintenance release:
