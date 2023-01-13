@@ -29,7 +29,7 @@ blocks:
         commands:
           - sem-version go 1.16
           - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
+          - go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
           commands:
@@ -67,7 +67,7 @@ blocks:
           - sudo apt-get update -q
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
+          - go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
           commands:
@@ -96,7 +96,7 @@ blocks:
           - sudo apt-get update -q
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
+          - go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
           commands:
@@ -115,7 +115,7 @@ blocks:
           - msiexec /i go.msi /quiet
           - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
           - rm -rf tmp-build
-          - go get -u golang.org/x/lint/golint && touch .do_lint
+          - go install golang.org/x/lint/golint@latest && touch .do_lint
           - ./mk/setup-msys2-mingw64.sh
           - export PATH=/C/tools/msys64/mingw64/bin:$PATH
           - export MAKE=mingw32-make
