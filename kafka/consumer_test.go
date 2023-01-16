@@ -226,8 +226,11 @@ func TestConsumerAPIs(t *testing.T) {
 		t.Errorf("Close failed: %s", err)
 	}
 
+	// TODO: currently it's not expected that any method is called after
+	// Close, can be enabled again after merging #901
+
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
-	c.SetSaslCredentials("username", "password")
+	// c.SetSaslCredentials("username", "password")
 }
 
 func TestConsumerSubscription(t *testing.T) {
