@@ -420,6 +420,125 @@ func testAdminAPIsDeleteACLs(what string, a *AdminClient, t *testing.T) {
 	}
 }
 
+func testAdminAPIsListConsumerGroups(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	state, err := ConsumerGroupStateFromString("Stable")
+	if err != nil || state != ConsumerGroupStateStable {
+		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	listres, err := a.ListConsumerGroups(
+		ctx, SetAdminRequestTimeout(time.Second),
+		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}))
+	if err == nil {
+		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v",
+			listres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+}
+
+func testAdminAPIsDescribeConsumerGroups(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err := a.DescribeConsumerGroups(
+		ctx, nil, SetAdminRequestTimeout(time.Second))
+	if descres.ConsumerGroupDescriptions != nil || err == nil {
+		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v",
+			descres, err)
+	}
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg with empty groups list, but got %s", err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err = a.DescribeConsumerGroups(
+		ctx, []string{"test"}, SetAdminRequestTimeout(time.Second))
+	if descres.ConsumerGroupDescriptions != nil || err == nil {
+		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v",
+			descres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+	}
+}
+
+func testAdminAPIsDeleteConsumerGroups(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	dgres, err := a.DeleteConsumerGroups(ctx, []string{"group1"},
+		SetAdminRequestTimeout(time.Second))
+	if dgres.GroupResults != nil || err == nil {
+		t.Fatalf("Expected DeleteGroups to fail, but got result: %v, err: %v",
+			dgres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+}
+
+func testAdminAPIsListConsumerGroupOffsets(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	topic := "topic"
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	lres, err := a.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				[]TopicPartition{
+					{
+						Topic:     &topic,
+						Partition: 0,
+					},
+				},
+			},
+		},
+		SetAdminRequireStableOffsets(false))
+	if lres.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			lres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+}
+
+func testAdminAPIsAlterConsumerGroupOffsets(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	topic := "topic"
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	ares, err := a.AlterConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				[]TopicPartition{
+					{
+						Topic:     &topic,
+						Partition: 0,
+						Offset:    10,
+					},
+				},
+			},
+		})
+	if ares.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected AlterConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			ares, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+}
+
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 
@@ -649,6 +768,13 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	testAdminAPIsCreateACLs(what, a, t)
 	testAdminAPIsDescribeACLs(what, a, t)
 	testAdminAPIsDeleteACLs(what, a, t)
+
+	testAdminAPIsListConsumerGroups(what, a, expDuration, t)
+	testAdminAPIsDescribeConsumerGroups(what, a, expDuration, t)
+	testAdminAPIsDeleteConsumerGroups(what, a, expDuration, t)
+
+	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)
+	testAdminAPIsAlterConsumerGroupOffsets(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
