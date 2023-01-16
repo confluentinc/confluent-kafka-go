@@ -243,6 +243,13 @@ type DescribeConsumerGroupsResult struct {
 	ConsumerGroupDescriptions []ConsumerGroupDescription
 }
 
+// DeleteConsumerGroupResult represents the result of a DeleteConsumerGroups
+// call.
+type DeleteConsumerGroupResult struct {
+	// Slice of GroupResult.
+	GroupResults []GroupResult
+}
+
 // ListConsumerGroupOffsetsResult represents the result of a
 // ListConsumerGroupOffsets operation.
 type ListConsumerGroupOffsetsResult struct {
@@ -1916,9 +1923,11 @@ func (a *AdminClient) ListConsumerGroups(
 //  * `groups` - Slice of groups to describe. This should not be nil/empty.
 //  * `options` - DescribeConsumerGroupsAdminOption options.
 //
-// Returns a slice of ConsumerGroupDescriptions corresponding to the input
-// groups, plus an error that is not `nil` for client level errors. Individual
-// ConsumerGroupDescriptions inside the slice should also be checked for errors.
+// Returns DescribeConsumerGroupsResult, which contains a slice of
+// ConsumerGroupDescriptions corresponding to the input groups, plus an error
+// that is not `nil` for client level errors. Individual
+// ConsumerGroupDescriptions inside the slice should also be checked for
+// errors.
 func (a *AdminClient) DescribeConsumerGroups(
 	ctx context.Context, groups []string,
 	options ...DescribeConsumerGroupsAdminOption) (result DescribeConsumerGroupsResult, err error) {
@@ -1987,12 +1996,14 @@ func (a *AdminClient) DescribeConsumerGroups(
 //  * `groups` - A slice of groupIDs to delete.
 //  * `options` - DeleteConsumerGroupsAdminOption options.
 //
-// Returns a slice of GroupResults, with group-level errors, (if any) contained
-// inside; and an error that is not nil for client level errors.
+// Returns a DeleteConsumerGroupResult containing a slice of GroupResults, with
+//  group-level errors, (if any) contained inside; and an error that is not nil
+//  for client level errors.
 func (a *AdminClient) DeleteConsumerGroups(
 	ctx context.Context,
-	groups []string, options ...DeleteConsumerGroupsAdminOption) (result []GroupResult, err error) {
+	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupResult, err error) {
 	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
+	deleteResult := DeleteConsumerGroupResult{}
 
 	// Convert Go DeleteGroups to C DeleteGroups
 	for i, group := range groups {
@@ -2001,7 +2012,7 @@ func (a *AdminClient) DeleteConsumerGroups(
 
 		cGroups[i] = C.rd_kafka_DeleteGroup_new(cGroupID)
 		if cGroups[i] == nil {
-			return nil, newErrorFromString(ErrInvalidArg,
+			return deleteResult, newErrorFromString(ErrInvalidArg,
 				fmt.Sprintf("Invalid arguments for group %s", group))
 		}
 
@@ -2016,7 +2027,7 @@ func (a *AdminClient) DeleteConsumerGroups(
 	cOptions, err := adminOptionsSetup(
 		a.handle, C.RD_KAFKA_ADMIN_OP_DELETEGROUPS, genericOptions)
 	if err != nil {
-		return nil, err
+		return deleteResult, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -2035,7 +2046,7 @@ func (a *AdminClient) DeleteConsumerGroups(
 	// Wait for result, error or context timeout
 	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_DELETEGROUPS_RESULT)
 	if err != nil {
-		return nil, err
+		return deleteResult, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -2045,7 +2056,8 @@ func (a *AdminClient) DeleteConsumerGroups(
 	var cCnt C.size_t
 	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
 
-	return a.cToGroupResults(cGroupRes, cCnt)
+	deleteResult.GroupResults, err = a.cToGroupResults(cGroupRes, cCnt)
+	return deleteResult, err
 }
 
 // ListConsumerGroupOffsets fetches the offsets for topic partition(s) for
@@ -2149,10 +2161,10 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 //     `groupsPartitions` has to be exactly one.
 //  * `options` - AlterConsumerGroupOffsetsAdminOption options.
 //
-// Returns a AlterConsumerGroupOffsetsResult, containng slice of
-// ConsumerGroupTopicPartitions corresponding to the input slice, plus an error that is
-// not `nil` for client level errors. Individual TopicPartitions inside each of
-// the ConsumerGroupTopicPartitions should also be checked for errors.
+// Returns a AlterConsumerGroupOffsetsResult, containing a slice of
+// ConsumerGroupTopicPartitions corresponding to the input slice, plus an error
+// that is not `nil` for client level errors. Individual TopicPartitions inside
+// each of the ConsumerGroupTopicPartitions should also be checked for errors.
 // This will succeed at the partition level only if the group is not actively
 // subscribed to the corresponding topic(s).
 func (a *AdminClient) AlterConsumerGroupOffsets(

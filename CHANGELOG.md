@@ -21,10 +21,10 @@ This is a maintenance release:
    Allow listing consumer groups per state.
  * [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484)
    Partially implemented: support for AlterConsumerGroupOffsets.
- * As result of the above KIPs, added (#TODO_ADD_PR)
+ * As result of the above KIPs, added (#923)
    - `ListConsumerGroups` Admin operation. Supports listing by state.
    - `DescribeConsumerGroups` Admin operation. Supports multiple groups.
-   - `DeleteConsumerGroups` Admin operation. Supports multiple groups (@santwanav).
+   - `DeleteConsumerGroups` Admin operation. Supports multiple groups (@vsantwana).
    - `ListConsumerGroupOffsets` Admin operation. Currently, only supports
       1 group with multiple partitions. Supports the `requireStable` option.
    - `AlterConsumerGroupOffsets` Admin operation. Currently, only supports

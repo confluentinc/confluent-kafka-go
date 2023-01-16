@@ -1368,14 +1368,15 @@ func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 		t.Errorf("DeleteConsumerGroups() failed: %s", err)
 		return
 	}
+	resultGroups := result.GroupResults
 
-	if len(result) != 1 || result[0].Group != groupID {
+	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
 		t.Errorf("Wrong group affected/no group affected")
 		return
 	}
 
-	if result[0].Error.code != ErrNonEmptyGroup {
-		t.Errorf("Encountered the wrong error after calling DeleteConsumerGroups %s", result[0].Error)
+	if resultGroups[0].Error.code != ErrNonEmptyGroup {
+		t.Errorf("Encountered the wrong error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
 		return
 	}
 
@@ -1392,14 +1393,15 @@ func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 		t.Errorf("DeleteConsumerGroups() failed: %s", err)
 		return
 	}
+	resultGroups = result.GroupResults
 
-	if len(result) != 1 || result[0].Group != groupID {
+	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
 		t.Errorf("Wrong group affected/no group affected")
 		return
 	}
 
-	if result[0].Error.code != ErrNoError {
-		t.Errorf("Encountered an error after calling DeleteConsumerGroups %s", result[0].Error)
+	if resultGroups[0].Error.code != ErrNoError {
+		t.Errorf("Encountered an error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
 		return
 	}
 
@@ -1525,13 +1527,14 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	// Test the description of the consumer group.
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	groupDescs, err := ac.DescribeConsumerGroups(
+	groupDescResult, err := ac.DescribeConsumerGroups(
 		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
 	if err != nil {
 		t.Errorf("Error describing consumer groups %s\n", err)
 		return
 	}
 
+	groupDescs := groupDescResult.ConsumerGroupDescriptions
 	if len(groupDescs) != 1 {
 		t.Errorf("Describing one group should give exactly one result %s\n", err)
 		return
@@ -1583,12 +1586,12 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	for !isGroupStable {
 		ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 		defer cancel()
-		groupDescs, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+		groupDescResult, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
 		if err != nil {
 			t.Errorf("Error describing consumer groups %s\n", err)
 			return
 		}
-
+		groupDescs = groupDescResult.ConsumerGroupDescriptions
 		groupDesc = findConsumerGroupDescription(groupDescs, groupID)
 		if groupDesc == nil {
 			t.Errorf("Consumer group %s should be present\n", groupID)
@@ -1626,7 +1629,9 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	// Try describing an empty group.
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	groupDescs, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+	groupDescResult, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+	groupDescs = groupDescResult.ConsumerGroupDescriptions
+
 	if err != nil {
 		t.Errorf("Error describing consumer groups %s\n", err)
 		return
