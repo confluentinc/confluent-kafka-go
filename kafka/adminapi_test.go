@@ -447,7 +447,7 @@ func testAdminAPIsDescribeConsumerGroups(
 	defer cancel()
 	descres, err := a.DescribeConsumerGroups(
 		ctx, nil, SetAdminRequestTimeout(time.Second))
-	if descres != nil || err == nil {
+	if descres.ConsumerGroupDescriptions != nil || err == nil {
 		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v",
 			descres, err)
 	}
@@ -459,7 +459,7 @@ func testAdminAPIsDescribeConsumerGroups(
 	defer cancel()
 	descres, err = a.DescribeConsumerGroups(
 		ctx, []string{"test"}, SetAdminRequestTimeout(time.Second))
-	if descres != nil || err == nil {
+	if descres.ConsumerGroupDescriptions != nil || err == nil {
 		t.Fatalf("Expected DescribeConsumerGroups to fail, but got result: %v, err: %v",
 			descres, err)
 	}
@@ -474,7 +474,7 @@ func testAdminAPIsDeleteConsumerGroups(
 	defer cancel()
 	dgres, err := a.DeleteConsumerGroups(ctx, []string{"group1"},
 		SetAdminRequestTimeout(time.Second))
-	if dgres != nil || err == nil {
+	if dgres.GroupResults != nil || err == nil {
 		t.Fatalf("Expected DeleteGroups to fail, but got result: %v, err: %v",
 			dgres, err)
 	}
