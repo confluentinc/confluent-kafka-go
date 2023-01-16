@@ -27,7 +27,7 @@ import (
 
 func testMessageFactorySpecific(subject string, name string) (interface{}, error) {
 	if subject != "topic1-value" {
-		return nil, errors.New("Message factory only handles topic1.")
+		return nil, errors.New("message factory only handles topic1")
 	}
 
 	switch name {
@@ -39,7 +39,7 @@ func testMessageFactorySpecific(subject string, name string) (interface{}, error
 		return &test.RecursiveUnionTestRecord{}, nil
 	}
 
-	return nil, errors.New("Schema not found.")
+	return nil, errors.New("schema not found")
 }
 
 func TestSpecificAvroSerdeWithSimple(t *testing.T) {
