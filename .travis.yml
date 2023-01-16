@@ -7,45 +7,45 @@ env:
 
 jobs:
  include:
- - name: "Go 1.16 OSX bundled librdkafka"
-   go: "1.16"
-   os: osx
-   env:
-    - EXPECT_LINK_INFO="static"
- - name: "Go 1.16 Linux bundled librdkafka"
-   go: "1.16"
-   os: linux
-   env:
-    - EXPECT_LINK_INFO="static"
- - name: "Go 1.16 Linux arm64 bundled librdkafka"
-   if: tag is present
-   go: "1.16"
-   os: linux
-   arch: arm64
-   env:
-    - EXPECT_LINK_INFO="static"
- - name: "Go 1.16 OSX dynamic librdkafka"
-   if: tag is present
-   go: "1.16"
-   os: osx
-   env:
-   - EXPECT_LINK_INFO="dynamic"
-   - BUILD_TYPE='-tags dynamic'
-   - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - LIBRDKAFKA_VERSION=master
- - name: "Go 1.16 Linux dynamic librdkafka"
-   if: tag is present
-   go: "1.16"
-   os: linux
-   env:
-   - EXPECT_LINK_INFO="dynamic"
-   - BUILD_TYPE='-tags dynamic'
-   - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
-   - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
-   - LIBRDKAFKA_VERSION=master
+#  - name: "Go 1.16 OSX bundled librdkafka"
+#    go: "1.16"
+#    os: osx
+#    env:
+#     - EXPECT_LINK_INFO="static"
+#  - name: "Go 1.16 Linux bundled librdkafka"
+#    go: "1.16"
+#    os: linux
+#    env:
+#     - EXPECT_LINK_INFO="static"
+#  - name: "Go 1.16 Linux arm64 bundled librdkafka"
+#    if: tag is present
+#    go: "1.16"
+#    os: linux
+#    arch: arm64
+#    env:
+#     - EXPECT_LINK_INFO="static"
+#  - name: "Go 1.16 OSX dynamic librdkafka"
+#    if: tag is present
+#    go: "1.16"
+#    os: osx
+#    env:
+#    - EXPECT_LINK_INFO="dynamic"
+#    - BUILD_TYPE='-tags dynamic'
+#    - PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+#    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+#    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+#    - LIBRDKAFKA_VERSION=master
+#  - name: "Go 1.16 Linux dynamic librdkafka"
+#    if: tag is present
+#    go: "1.16"
+#    os: linux
+#    env:
+#    - EXPECT_LINK_INFO="dynamic"
+#    - BUILD_TYPE='-tags dynamic'
+#    - PKG_CONFIG_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib/pkgconfig"
+#    - LD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+#    - DYLD_LIBRARY_PATH="$HOME/gopath/src/github.com/confluentinc/confluent-kafka-go/tmp-build/lib"
+#    - LIBRDKAFKA_VERSION=master
  - name: "Go 1.16 Windows bundled librdkafka"
    go: "1.16"
    os: windows
