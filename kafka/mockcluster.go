@@ -83,9 +83,9 @@ func (mc *MockCluster) BootstrapServers() string {
 }
 
 // SetRoundtripDuration sets the broker round-trip-time delay for the given broker.
-func (mc *MockCluster) SetRoundtripDuration(brokerId int, duration time.Duration) error {
+func (mc *MockCluster) SetRoundtripDuration(brokerID int, duration time.Duration) error {
 	durationInMillis := C.int(duration.Milliseconds())
-	cError := C.rd_kafka_mock_broker_set_rtt(mc.mcluster, C.int(brokerId), durationInMillis)
+	cError := C.rd_kafka_mock_broker_set_rtt(mc.mcluster, C.int(brokerID), durationInMillis)
 	if cError != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cError)
 	}
