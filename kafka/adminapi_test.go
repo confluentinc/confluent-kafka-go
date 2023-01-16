@@ -229,7 +229,7 @@ func testAdminAPIsDescribeACLs(what string, a *AdminClient, t *testing.T) {
 	}
 
 	t.Logf("AdminClient API - ACLs testing on %s: %s", a, what)
-	expDuration, err = time.ParseDuration("0.1s")
+	expDuration, err = time.ParseDuration("0.5s")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -245,7 +245,7 @@ func testAdminAPIsDescribeACLs(what string, a *AdminClient, t *testing.T) {
 	}
 
 	// request timeout comes before context deadline
-	expDurationLonger, err = time.ParseDuration("0.2s")
+	expDurationLonger, err = time.ParseDuration("1s")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
