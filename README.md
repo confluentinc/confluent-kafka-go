@@ -8,7 +8,7 @@ Confluent's Golang Client for Apache Kafka<sup>TM</sup>
 Features:
 
 - **High performance** - confluent-kafka-go is a lightweight wrapper around
-[librdkafka](https://github.com/edenhill/librdkafka), a finely tuned C
+[librdkafka](https://github.com/confluentinc/librdkafka), a finely tuned C
 client.
 
 - **Reliability** - There are a lot of details to get right when writing an Apache Kafka
@@ -213,7 +213,7 @@ repositories or using [Confluent's Deb repository](http://docs.confluent.io/curr
 
 Build from source:
 
-    git clone https://github.com/edenhill/librdkafka.git
+    git clone https://github.com/confluentinc/librdkafka.git
     cd librdkafka
     ./configure
     make
@@ -303,4 +303,4 @@ Make your changes, run `gofmt`, tests, etc, push your branch, create a PR, and [
 Confluent Cloud
 ===============
 
-For a step-by-step guide on using the Golang client with Confluent Cloud see [Getting Started with Apache Kafka and Golang](https://developer.confluent.io/get-started/go/) on [Confluent Developer](https://developer.confluent.io/). 
+For a step-by-step guide on using the Golang client with Confluent Cloud see [Getting Started with Apache Kafka and Golang](https://developer.confluent.io/get-started/go/) on [Confluent Developer](https://developer.confluent.io/).
