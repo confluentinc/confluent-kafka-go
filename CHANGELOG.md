@@ -32,7 +32,7 @@ This is a maintenance release:
 
 
 confluent-kafka-go is based on librdkafka v2.0.0, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
@@ -46,7 +46,7 @@ This is a maintenance release:
 
 
 confluent-kafka-go is based on librdkafka v1.9.2, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.2)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.9.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
@@ -59,7 +59,7 @@ This is a feature release:
 
 
 confluent-kafka-go is based on librdkafka v1.9.1, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.1)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.9.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
@@ -83,7 +83,7 @@ This is a feature release:
    needed (@jliunyu, #757).
 
 confluent-kafka-go is based on librdkafka v1.9.0, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.0)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.9.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
@@ -97,7 +97,7 @@ This is a maintenance release:
 
 
 confluent-kafka-go is based on librdkafka v1.8.2, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.2)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.8.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
@@ -123,7 +123,7 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
   now fixed.
 
 confluent-kafka-go is based on librdkafka v1.7.0, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.7.0)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.7.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
@@ -140,7 +140,7 @@ v1.6.1 is a feature release:
    now be used for multiple input partitions.
 
 confluent-kafka-go is based on and bundles librdkafka v1.6.1, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.6.0)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.6.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 ### Enhancements
@@ -165,6 +165,6 @@ v1.5.2 is a maintenance release with the following fixes and enhancements:
  - Documentation fixes
 
 confluent-kafka-go is based on librdkafka v1.5.2, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.5.2)
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v1.5.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 

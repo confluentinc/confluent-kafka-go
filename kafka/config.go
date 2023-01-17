@@ -34,7 +34,7 @@ import "C"
 type ConfigValue interface{}
 
 // ConfigMap is a map containing standard librdkafka configuration properties as documented in:
-// https://github.com/edenhill/librdkafka/tree/master/CONFIGURATION.md
+// https://github.com/confluentinc/librdkafka/tree/master/CONFIGURATION.md
 //
 // The special property "default.topic.config" (optional) is a ConfigMap
 // containing default topic configuration properties.

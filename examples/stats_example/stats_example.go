@@ -18,7 +18,7 @@
 // The Stats handling code is the same for Consumers and Producers.
 //
 // The definition of the emitted statistics JSON object can be found here:
-// https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
+// https://github.com/confluentinc/librdkafka/blob/master/STATISTICS.md
 package main
 
 import (
@@ -98,7 +98,7 @@ func main() {
 				// map to extract fields of interest.
 				// The definition of the statistics JSON
 				// object can be found here:
-				// https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
+				// https://github.com/confluentinc/librdkafka/blob/master/STATISTICS.md
 				var stats map[string]interface{}
 				json.Unmarshal([]byte(e.String()), &stats)
 				fmt.Printf("Stats: %v messages (%v bytes) messages consumed\n",
