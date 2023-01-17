@@ -111,7 +111,7 @@ blocks:
           - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
           - msiexec /i go.msi /quiet
           - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
-          - rm -rf tmp-build
+          - Remove-Item -Recurse -Force tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
           - ./mk/setup-msys2-mingw64.sh
           - export PATH=/C/tools/msys64/mingw64/bin:$PATH
