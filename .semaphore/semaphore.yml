@@ -117,7 +117,7 @@ blocks:
       jobs:
         - name: "Static Build"
           commands:
-            - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
+            - foreach ($dir in (Get-ChildItem -Directory -Path "examples")) {
                 Set-Location $dir.FullName
                 Start-Process go.exe -ArgumentList "get .\..." -NoNewWindow -Wait
               }
