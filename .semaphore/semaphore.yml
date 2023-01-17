@@ -117,7 +117,11 @@ blocks:
       jobs:
         - name: "Static Build"
           commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+            - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
+                Set-Location $dir.FullName
+                & go get .\...
+              }
+            - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
+                Set-Location $dir.FullName
+                & go install .\...
+              }
