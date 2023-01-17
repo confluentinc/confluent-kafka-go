@@ -474,7 +474,7 @@ func testAdminAPIsDeleteConsumerGroups(
 	defer cancel()
 	dgres, err := a.DeleteConsumerGroups(ctx, []string{"group1"},
 		SetAdminRequestTimeout(time.Second))
-	if dgres.GroupResults != nil || err == nil {
+	if dgres.ConsumerGroupResults != nil || err == nil {
 		t.Fatalf("Expected DeleteGroups to fail, but got result: %v, err: %v",
 			dgres, err)
 	}
