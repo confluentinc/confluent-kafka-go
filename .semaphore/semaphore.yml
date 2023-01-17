@@ -122,7 +122,7 @@ blocks:
                 Set-Location $dir.FullName
                 Start-Process go.exe -ArgumentList "get .\..." -NoNewWindow -Wait
               }
-            - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
+            - foreach ($dir in (Get-ChildItem -Directory -Path "examples")) {
                 Write-Host $dir.FullName
                 Set-Location $dir.FullName
                 Start-Process go.exe -ArgumentList "install .\..." -NoNewWindow -Wait
