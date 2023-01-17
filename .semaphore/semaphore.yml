@@ -100,27 +100,28 @@ blocks:
             - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
             - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
               ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-  # TODO: Disabled because uses PowerShell instead of sh
-  # - name: "Go 1.16 Windows bundled librdkafka"
-  #   dependencies: [ ]
-  #   task:
-  #     agent:
-  #       machine:
-  #         type: s1-prod-windows
-  #     prologue:
-  #       commands:
-  #         - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
-  #         - msiexec /i go.msi /quiet
-  #         - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
-  #         - rm -rf tmp-build
-  #         - go install golang.org/x/lint/golint@latest && touch .do_lint
-  #         - ./mk/setup-msys2-mingw64.sh
-  #         - export PATH=/C/tools/msys64/mingw64/bin:$PATH
-  #         - export MAKE=mingw32-make
-  #     jobs:
-  #       - name: "Static Build"
-  #         commands:
-  #           - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-  #           - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-  #           - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-  #             ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+  - name: "Go 1.16 Windows bundled librdkafka"
+    dependencies: [ ]
+    task:
+      agent:
+        machine:
+          type: s1-prod-windows
+      prologue:
+        commands:
+          - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
+          - msiexec /i go.msi /quiet
+          - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
+          - ./mk/setup-msys2-mingw64.sh
+          - $env:PATH = 'C:\tools\msys64\mingw64\bin;' + $env:PATH
+          - $env:MAKE = 'mingw32-make'
+      jobs:
+        - name: "Static Build"
+          commands:
+            - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
+                Set-Location $dir.FullName
+                & go get .\...
+              }
+            - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
+                Set-Location $dir.FullName
+                & go install .\...
+              }
