@@ -119,9 +119,9 @@ blocks:
           commands:
             - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
                 Set-Location $dir.FullName
-                & go get .\...
+                Start-Process go.exe -ArgumentList "get .\..." -NoNewWindow -Wait
               }
             - foreach ($dir in (Get-ChildItem -Directory -Path "kafka examples")) {
                 Set-Location $dir.FullName
-                & go install .\...
+                Start-Process go.exe -ArgumentList "install .\..." -NoNewWindow -Wait
               }
