@@ -129,16 +129,16 @@ func (t TopicResult) String() string {
 	return fmt.Sprintf("%s (%s)", t.Topic, t.Error.str)
 }
 
-// GroupResult provides per-group operation result (error) information.
-type GroupResult struct {
+// ConsumerGroupResult provides per-group operation result (error) information.
+type ConsumerGroupResult struct {
 	// Group name
 	Group string
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
 }
 
-// String returns a human-readable representation of a GroupResult.
-func (g GroupResult) String() string {
+// String returns a human-readable representation of a ConsumerGroupResult.
+func (g ConsumerGroupResult) String() string {
 	if g.Error.code == ErrNoError {
 		return g.Group
 	}
@@ -243,11 +243,11 @@ type DescribeConsumerGroupsResult struct {
 	ConsumerGroupDescriptions []ConsumerGroupDescription
 }
 
-// DeleteConsumerGroupResult represents the result of a DeleteConsumerGroups
+// DeleteConsumerGroupsResult represents the result of a DeleteConsumerGroups
 // call.
-type DeleteConsumerGroupResult struct {
-	// Slice of GroupResult.
-	GroupResults []GroupResult
+type DeleteConsumerGroupsResult struct {
+	// Slice of ConsumerGroupResult.
+	ConsumerGroupResults []ConsumerGroupResult
 }
 
 // ListConsumerGroupOffsetsResult represents the result of a
@@ -785,10 +785,10 @@ func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t
 	}
 }
 
-// cToGroupResults converts a C group_result_t array to Go GroupResult list.
-func (a *AdminClient) cToGroupResults(
-	cGroupRes **C.rd_kafka_group_result_t, cCnt C.size_t) (result []GroupResult, err error) {
-	result = make([]GroupResult, int(cCnt))
+// cToConsumerGroupResults converts a C group_result_t array to Go ConsumerGroupResult list.
+func (a *AdminClient) cToConsumerGroupResults(
+	cGroupRes **C.rd_kafka_group_result_t, cCnt C.size_t) (result []ConsumerGroupResult, err error) {
+	result = make([]ConsumerGroupResult, int(cCnt))
 
 	for idx := 0; idx < int(cCnt); idx++ {
 		cGroup := C.group_result_by_idx(cGroupRes, cCnt, C.size_t(idx))
@@ -1996,14 +1996,14 @@ func (a *AdminClient) DescribeConsumerGroups(
 //  * `groups` - A slice of groupIDs to delete.
 //  * `options` - DeleteConsumerGroupsAdminOption options.
 //
-// Returns a DeleteConsumerGroupResult containing a slice of GroupResults, with
+// Returns a DeleteConsumerGroupsResult containing a slice of ConsumerGroupResult, with
 //  group-level errors, (if any) contained inside; and an error that is not nil
 //  for client level errors.
 func (a *AdminClient) DeleteConsumerGroups(
 	ctx context.Context,
-	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupResult, err error) {
+	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupsResult, err error) {
 	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
-	deleteResult := DeleteConsumerGroupResult{}
+	deleteResult := DeleteConsumerGroupsResult{}
 
 	// Convert Go DeleteGroups to C DeleteGroups
 	for i, group := range groups {
@@ -2056,7 +2056,7 @@ func (a *AdminClient) DeleteConsumerGroups(
 	var cCnt C.size_t
 	cGroupRes := C.rd_kafka_DeleteGroups_result_groups(cRes, &cCnt)
 
-	deleteResult.GroupResults, err = a.cToGroupResults(cGroupRes, cCnt)
+	deleteResult.ConsumerGroupResults, err = a.cToConsumerGroupResults(cGroupRes, cCnt)
 	return deleteResult, err
 }
 
