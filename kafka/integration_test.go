@@ -1368,7 +1368,7 @@ func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 		t.Errorf("DeleteConsumerGroups() failed: %s", err)
 		return
 	}
-	resultGroups := result.GroupResults
+	resultGroups := result.ConsumerGroupResults
 
 	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
 		t.Errorf("Wrong group affected/no group affected")
@@ -1393,7 +1393,7 @@ func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 		t.Errorf("DeleteConsumerGroups() failed: %s", err)
 		return
 	}
-	resultGroups = result.GroupResults
+	resultGroups = result.ConsumerGroupResults
 
 	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
 		t.Errorf("Wrong group affected/no group affected")

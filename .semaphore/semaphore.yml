@@ -6,7 +6,7 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.0.0-RC4
+      value: v2.0.0
   prologue:
     commands:
       - checkout
@@ -42,7 +42,7 @@ blocks:
             - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
             - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
               ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ; done
+            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ; done
   - name: "Go 1.16 linux bundled librdkafka"
     dependencies: [ ]
     task:
@@ -77,7 +77,7 @@ blocks:
             - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
             - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
               ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...); done
+            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...); done
   - name: "Go 1.16 linux arm64 bundled librdkafka"
     dependencies: [ ]
     task:
