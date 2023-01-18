@@ -1,18 +1,45 @@
 version: v1.0
-name: 'confluent-kafka-go build pipeline'
+name: 'build-test-release'
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
+
 global_job_config:
-  env_vars:
-    - name: LIBRDKAFKA_VERSION
-      value: v2.0.0
+  secrets:
+    - name: vault_sem2_approle
   prologue:
     commands:
+      - chmod 400 ~/.ssh/id_rsa
+      - sem-version go 1.18
+      - export "GOPATH=$(go env GOPATH)"
+      - export "SEMAPHORE_GIT_DIR=${GOPATH}/src/github.com/confluentinc/${SEMAPHORE_PROJECT_NAME}"
+      - export "PATH=${GOPATH}/bin:${PATH}"
+      - mkdir -vp "${SEMAPHORE_GIT_DIR}" "${GOPATH}/bin"
+      - git config --global url."git@github.com:".insteadOf "https://github.com/"
       - checkout
+      - make install-vault
+      - . mk-include/bin/vault-setup
+      - . vault-sem-get-secret aws_credentials
+      - . vault-sem-get-secret gitconfig
+      - . vault-sem-get-secret ssh_id_rsa
+      - . vault-sem-get-secret ssh_config
+      - . vault-sem-get-secret netrc
+      - . vault-sem-get-secret artifactory-docker-helm
+      - . vault-sem-get-secret maven-settings
+      - . vault-sem-get-secret cpd_gcloud
+      - . vault-sem-get-secret testbreak-reporting
+      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
+      - . vault-sem-get-secret dockerhub-semaphore-cred-ro
+      - exec &> >(tee -a build.log)
+      - make init-ci
+  epilogue:
+    always:
+      commands:
+        - make epilogue-ci
+
 blocks:
   - name: "Go 1.16 OSX bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -31,8 +58,7 @@ blocks:
           commands:
             - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \ ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
         - name: "Dynamic Build"
           commands:
             - echo
@@ -40,11 +66,10 @@ blocks:
             - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
             - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \ ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
             - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ; done
   - name: "Go 1.16 linux bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -67,19 +92,17 @@ blocks:
           commands:
             - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \ ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
         - name: "Dynamic Build"
           commands:
             - echo
             - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
             - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \ ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
             - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...); done
   - name: "Go 1.16 linux arm64 bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -98,8 +121,7 @@ blocks:
           commands:
             - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
             - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \ ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
             - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v ./...); done
   # TODO: Disabled because uses PowerShell instead of sh
   # - name: "Go 1.16 Windows bundled librdkafka"
@@ -125,3 +147,10 @@ blocks:
   #           - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
   #           - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
   #             ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+auto_cancel:
+  running:
+    when: "branch != 'master'"
+
+execution_time_limit:
+  hours: 1
+
