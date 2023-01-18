@@ -127,3 +127,8 @@ blocks:
                 Set-Location $dir.FullName
                 Start-Process go.exe -ArgumentList "install .\..." -NoNewWindow -Wait
               }
+            - foreach ($dir in "kafka","schemaregistry") {
+                Write-Host $dir.FullName
+                Set-Location $dir.FullName
+                Start-Process go.exe -ArgumentList "test -timeout 180s -v .\..." -NoNewWindow -Wait
+              }
