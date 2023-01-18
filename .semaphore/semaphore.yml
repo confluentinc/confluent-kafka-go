@@ -28,21 +28,15 @@ blocks:
           # - go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: static
+          commands_file: semaphore_commands.sh
         - name: "Dynamic Build"
-          commands:
-            - echo
-            - echo $PKG_CONFIG_PATH
-            - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-            - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ; done
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: dynamic
+          commands_file: semaphore_commands.sh
   - name: "Go 1.16 linux bundled librdkafka"
     dependencies: [ ]
     task:
@@ -64,20 +58,15 @@ blocks:
           #- go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: static
+          commands_file: semaphore_commands.sh
         - name: "Dynamic Build"
-          commands:
-            - echo
-            - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-            - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...); done
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: dynamic
+          commands_file: semaphore_commands.sh
   - name: "Go 1.16 linux arm64 bundled librdkafka"
     dependencies: [ ]
     task:
@@ -95,11 +84,15 @@ blocks:
           #- go install golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
         - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: static
+          commands_file: semaphore_commands.sh
+        - name: "Dynamic Build"
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: dynamic
+          commands_file: semaphore_commands.sh
   - name: "Go 1.16 Windows bundled librdkafka"
     dependencies: [ ]
     task:
@@ -129,6 +122,6 @@ blocks:
               }
             - foreach ($dir in "kafka","schemaregistry") {
                 Write-Host $dir.FullName
-                Set-Location $dir.FullName
+                Set-Location $dir
                 Start-Process go.exe -ArgumentList "test -timeout 180s -v .\..." -NoNewWindow -Wait
               }
