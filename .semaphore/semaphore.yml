@@ -11,117 +11,140 @@ global_job_config:
     commands:
       - checkout
 blocks:
-  - name: "Go 1.16 OSX bundled librdkafka"
-    dependencies: [ ]
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos
-      prologue:
-        commands:
-          - export GOLINT="$GOPATH/bin/golint"
-          - export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
-          - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
-          - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
-          - sem-version go 1.16
-          - rm -rf tmp-build
-          # - go install golang.org/x/lint/golint@latest && touch .do_lint
-      jobs:
-        - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-        - name: "Dynamic Build"
-          commands:
-            - echo
-            - echo $PKG_CONFIG_PATH
-            - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-            - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...) ; done
-  - name: "Go 1.16 linux bundled librdkafka"
-    dependencies: [ ]
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-amd64-2
-      prologue:
-        commands:
-          - export GOLINT="$GOPATH/bin/golint"
-          - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
-          - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
-          - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
-          - sem-version go 1.16
-          - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
-          - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
-          - sudo apt-get update -q
-          - sudo apt-get install confluent-librdkafka-plugins -y
-          - rm -rf tmp-build
-          #- go install golang.org/x/lint/golint@latest && touch .do_lint
-      jobs:
-        - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-        - name: "Dynamic Build"
-          commands:
-            - echo
-            - bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-            - for dir in kafka examples ; do (cd $dir && go get -tags dynamic ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install -tags dynamic ./...); done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v -tags dynamic ./...); done
-  - name: "Go 1.16 linux arm64 bundled librdkafka"
-    dependencies: [ ]
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-arm64-1
-      prologue:
-        commands:
-          - sem-version go 1.16
-          - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
-          - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
-          - sudo apt-get update -q
-          #- sudo apt-get install confluent-librdkafka-plugins -y
-          - rm -rf tmp-build
-          #- go install golang.org/x/lint/golint@latest && touch .do_lint
-      jobs:
-        - name: "Static Build"
-          commands:
-            - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-            - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-            - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-              ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
-            - for dir in kafka schemaregistry ; do (cd $dir && go test -timeout 180s -v ./...); done
-  # TODO: Disabled because uses PowerShell instead of sh
-  # - name: "Go 1.16 Windows bundled librdkafka"
+  # - name: "Go 1.17 OSX bundled librdkafka"
   #   dependencies: [ ]
   #   task:
   #     agent:
   #       machine:
-  #         type: s1-prod-windows
+  #         type: s1-prod-macos
   #     prologue:
   #       commands:
-  #         - curl https://dl.google.com/go/go1.16.windows-amd64.msi -o go.msi
-  #         - msiexec /i go.msi /quiet
-  #         - setx /M PATH "%PATH%;%USERPROFILE%\go\bin"
+  #         - sem-version go 1.18
+  #         - export PATH="$PATH:$GOPATH/bin"
+  #         - export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
+  #         - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
+  #         - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
   #         - rm -rf tmp-build
   #         - go install golang.org/x/lint/golint@latest && touch .do_lint
-  #         - ./mk/setup-msys2-mingw64.sh
-  #         - export PATH=/C/tools/msys64/mingw64/bin:$PATH
-  #         - export MAKE=mingw32-make
   #     jobs:
   #       - name: "Static Build"
-  #         commands:
-  #           - for dir in kafka examples ; do (cd $dir && go get ./...) ; done
-  #           - for dir in kafka examples ; do (cd $dir && go install ./...) ; done
-  #           - if [[ -f .do_lint ]]; then $GOLINT -set_exit_status ./examples/... \
-  #             ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
+  #         env_vars:
+  #           - name: EXPECT_LINK_INFO
+  #             value: static
+  #         commands_file: semaphore_commands.sh
+  #       - name: "Dynamic Build"
+  #         env_vars:
+  #           - name: EXPECT_LINK_INFO
+  #             value: dynamic
+  #         commands_file: semaphore_commands.sh
+  # - name: "Go 1.17 linux bundled librdkafka"
+  #   dependencies: [ ]
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-amd64-2
+  #     prologue:
+  #       commands:
+  #         - sem-version go 1.17
+  #         - export PATH="$PATH:$GOPATH/bin"
+  #         - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
+  #         - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
+  #         - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
+  #         - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
+  #         - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
+  #         - sudo apt-get update -q
+  #         - sudo apt-get install confluent-librdkafka-plugins -y
+  #         - rm -rf tmp-build
+  #         - go install -v golang.org/x/lint/golint@latest && touch .do_lint
+  #     jobs:
+  #       - name: "Static Build"
+  #         env_vars:
+  #           - name: EXPECT_LINK_INFO
+  #             value: static
+  #         commands_file: semaphore_commands.sh
+  #       - name: "Dynamic Build"
+  #         env_vars:
+  #           - name: EXPECT_LINK_INFO
+  #             value: dynamic
+  #         commands_file: semaphore_commands.sh
+  # - name: "Go 1.17 linux arm64 bundled librdkafka"
+  #   dependencies: [ ]
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-arm64-1
+  #     prologue:
+  #       commands:
+  #         - sem-version go 1.17
+  #         - export PATH="$PATH:$GOPATH/bin"
+  #         - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
+  #         - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
+  #         - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
+  #         - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
+  #         - sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
+  #         - sudo apt-get update -q
+  #         #- sudo apt-get install confluent-librdkafka-plugins -y
+  #         - rm -rf tmp-build
+  #         - go install golang.org/x/lint/golint@latest && touch .do_lint
+  #     jobs:
+  #       - name: "Static Build"
+  #         env_vars:
+  #           - name: EXPECT_LINK_INFO
+  #             value: static
+  #         commands_file: semaphore_commands.sh
+  #       - name: "Dynamic Build"
+  #         env_vars:
+  #           - name: EXPECT_LINK_INFO
+  #             value: dynamic
+  #         commands_file: semaphore_commands.sh
+  - name: "Go 1.17 Windows bundled librdkafka"
+    dependencies: [ ]
+    task:
+      agent:
+        machine:
+          type: s1-prod-windows
+      prologue:
+        commands:
+          # Install Go
+          - cache restore win-go-1.17
+          - "& .\\mk\\setup-go.ps1"
+          - cache delete win-go-1.17
+          - cache store win-go-1.17 ($env:USERPROFILE + '\go')
+          - $env:PATH = $env:USERPROFILE + '\go\bin;' + $env:PATH
+          - cache restore msys2-x64
+          # Set up msys2
+          - ".\\mk\\setup-msys2.ps1"
+          - cache delete msys2-x64
+          - cache store msys2-x64 c:/msys64
+          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+          - $env:MAKE = 'mingw32-make'
+      jobs:
+        - name: "Static Build"
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: static
+            - name: CHERE_INVOKING
+              value: 'yes'
+            - name: MSYS2_PATH_TYPE
+              value: 'inherit'
+            - name: MSYSTEM
+              value: UCRT64
+          commands:
+            - bash -lc '.semaphore/semaphore_commands.sh'
+            #- Start-Process bash.exe -ArgumentList ".semaphore\semaphore_commands.sh" -NoNewWindow -Wait
+          # commands:
+          #   - foreach ($dir in (Get-ChildItem -Directory -Path "examples")) {
+          #       Write-Host $dir.FullName
+          #       Set-Location $dir.FullName
+          #       Start-Process go.exe -ArgumentList "get .\..." -NoNewWindow -Wait
+          #     }
+          #   - foreach ($dir in (Get-ChildItem -Directory -Path "examples")) {
+          #       Write-Host $dir.FullName
+          #       Set-Location $dir.FullName
+          #       Start-Process go.exe -ArgumentList "install .\..." -NoNewWindow -Wait
+          #     }
+          #   - foreach ($dir in "kafka","schemaregistry") {
+          #       Write-Host $dir
+          #       Set-Location $dir
+          #       Start-Process go.exe -ArgumentList "test -timeout 180s -v .\..." -NoNewWindow -Wait
+          #     }
