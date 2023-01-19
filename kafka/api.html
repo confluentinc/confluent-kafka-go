@@ -14,7 +14,7 @@
   <script defer="" src="https://go.dev/js/jquery.js">
   </script>
   <script>
-   var goVersion = "go1.18.2";
+   var goVersion = "go1.18.5";
   </script>
   <script defer="" src="https://go.dev/js/godocs.js">
   </script>
@@ -52,7 +52,7 @@
      <dl>
       <dd>
        <code>
-        import "github.com/confluentinc/confluent-kafka-go/kafka"
+        import "github.com/confluentinc/confluent-kafka-go/v2/kafka"
        </code>
       </dd>
      </dl>
@@ -1761,7 +1761,7 @@ or unspecified value (for all other cases)
     <pre>const <span id="PartitionAny">PartitionAny</span> = <a href="https://pkg.go.dev/builtin/#int32">int32</a>(<a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_PARTITION_UA">RD_KAFKA_PARTITION_UA</a>)</pre>
     <h2 id="LibraryVersion">
      func
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=16918:16953#L419">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=16921:16956#L419">
       LibraryVersion
      </a>
      <a class="permalink" href="#LibraryVersion">
@@ -4025,7 +4025,7 @@ a ConsumerGroupStateFromString value.
     </p>
     <h2 id="ConsumerGroupTopicPartitions">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=14090:14212#L332">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=14093:14215#L332">
       ConsumerGroupTopicPartitions
      </a>
      <a class="permalink" href="#ConsumerGroupTopicPartitions">
@@ -4044,7 +4044,7 @@ a ConsumerGroupStateFromString value.
 </pre>
     <h3 id="ConsumerGroupTopicPartitions.String">
      func (ConsumerGroupTopicPartitions)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=14214:14269#L339">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=14217:14272#L339">
       String
      </a>
      <a class="permalink" href="#ConsumerGroupTopicPartitions.String">
@@ -5165,7 +5165,7 @@ servers by multiple Kafka client instances.
     </p>
     <h2 id="Node">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13824:13918#L318">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13827:13921#L318">
       Node
      </a>
      <a class="permalink" href="#Node">
@@ -5186,7 +5186,7 @@ servers by multiple Kafka client instances.
 </pre>
     <h3 id="Node.String">
      func (Node)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13920:13949#L327">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13923:13952#L327">
       String
      </a>
      <a class="permalink" href="#Node.String">
@@ -6212,7 +6212,7 @@ a ResourceType value.
 </pre>
     <h2 id="TopicPartition">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=12914:13034#L275">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=12917:13037#L275">
       TopicPartition
      </a>
      <a class="permalink" href="#TopicPartition">
@@ -6232,7 +6232,7 @@ a ResourceType value.
 </pre>
     <h3 id="TopicPartition.String">
      func (TopicPartition)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13036:13075#L283">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13039:13078#L283">
       String
      </a>
      <a class="permalink" href="#TopicPartition.String">
@@ -6242,7 +6242,7 @@ a ResourceType value.
     <pre>func (p <a href="#TopicPartition">TopicPartition</a>) String() <a href="https://pkg.go.dev/builtin/#string">string</a></pre>
     <h2 id="TopicPartitions">
      type
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13404:13441#L298">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13407:13444#L298">
       TopicPartitions
      </a>
      <a class="permalink" href="#TopicPartitions">
@@ -6256,7 +6256,7 @@ the sort interface
     <pre>type TopicPartitions []<a href="#TopicPartition">TopicPartition</a></pre>
     <h3 id="TopicPartitions.Len">
      func (TopicPartitions)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13443:13479#L300">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13446:13482#L300">
       Len
      </a>
      <a class="permalink" href="#TopicPartitions.Len">
@@ -6266,7 +6266,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Len() <a href="https://pkg.go.dev/builtin/#int">int</a></pre>
     <h3 id="TopicPartitions.Less">
      func (TopicPartitions)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13502:13548#L304">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13505:13551#L304">
       Less
      </a>
      <a class="permalink" href="#TopicPartitions.Less">
@@ -6276,7 +6276,7 @@ the sort interface
     <pre>func (tps <a href="#TopicPartitions">TopicPartitions</a>) Less(i, j <a href="https://pkg.go.dev/builtin/#int">int</a>) <a href="https://pkg.go.dev/builtin/#bool">bool</a></pre>
     <h3 id="TopicPartitions.Swap">
      func (TopicPartitions)
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13709:13750#L313">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.0.0/kafka/kafka.go?s=13712:13753#L313">
       Swap
      </a>
      <a class="permalink" href="#TopicPartitions.Swap">
@@ -6347,7 +6347,7 @@ TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 }
 </pre>
     <div id="footer">
-     Build version go1.18.2.
+     Build version go1.18.5.
      <br/>
      Except as
      <a href="https://developers.google.com/site-policies#restrictions">
