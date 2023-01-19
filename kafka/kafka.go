@@ -256,7 +256,7 @@ import (
 	"unsafe"
 
 	// Make sure librdkafka_vendor/ sub-directory is included in vendor pulls.
-	_ "github.com/confluentinc/confluent-kafka-go/kafka/librdkafka_vendor"
+	_ "github.com/confluentinc/confluent-kafka-go/v2/kafka/librdkafka_vendor"
 )
 
 /*
