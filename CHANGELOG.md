@@ -2,7 +2,7 @@
 
 ## v2.0.0
 
-This is a maintenance release:
+This is a feature release:
 
  * Added SetSaslCredentials. This new method (on the Producer, Consumer, and
    AdminClient) allows modifying the stored SASL PLAIN/SCRAM credentials that
@@ -29,6 +29,18 @@ This is a maintenance release:
       1 group with multiple partitions. Supports the `requireStable` option.
    - `AlterConsumerGroupOffsets` Admin operation. Currently, only supports
       1 group with multiple offsets.
+  * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
+    a given mock broker (@kkoehler, #892).
+
+### Fixes
+
+  * The `SpecificDeserializer.Deserialize` method was not returning its result
+    result correctly, and was hence unusable. The return has been fixed (#849).
+  * The schema ID to use during serialization, specified in `SerializerConfig`,
+    was ignored. It is now used as expected (@perdue, #870).
+  * Creating a new schema registry client with an SSL CA Certificate led to a
+    panic. This was due to a `nil` pointer, fixed with proper initialization
+    (@HansK-p, @ju-popov, #878).
 
 
 confluent-kafka-go is based on librdkafka v2.0.0, see the
