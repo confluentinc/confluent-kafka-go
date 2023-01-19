@@ -57,7 +57,7 @@ if __name__ == '__main__':
         if href.endswith(".css"):
             t['href'] = convert_path(href, base_css, "/")
         elif href.startswith("/src/"):
-            t['href'] = convert_path(href, base_src, "/confluent-kafka-go/")
+            t['href'] = convert_path(href, base_src, "/confluent-kafka-go/v2/")
         elif href.startswith("/pkg/"):
             t['href'] = convert_path(href, base_pkg, "/pkg/")
         elif href == "/LICENSE":
