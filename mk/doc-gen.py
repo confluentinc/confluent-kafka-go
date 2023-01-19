@@ -35,7 +35,7 @@ if __name__ == '__main__':
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
         'godoc -url=/pkg/github.com/confluentinc/' +
-        f'confluent-kafka-go/{package} ' +
+        f'confluent-kafka-go/v2/{package} ' +
         '| egrep -v "^using (GOPATH|module) mode"', shell=True)
 
     # Parse HTML
