@@ -2,6 +2,8 @@
 Examples
 --------
 
+  [admin_alter_consumer_group_offsets](admin_alter_consumer_group_offsets) - Alter Consumer Group Offsets
+
   [admin_create_acls](admin_create_acls) - Create Access Control Lists
   
   [admin_create_topic](admin_create_topic) - Create a topic
@@ -10,9 +12,19 @@ Examples
   
   [admin_delete_topics](admin_delete_topics) - Delete some topics
   
+  [admin_delete_consumer_groups](admin_delete_consumer_groups) - Delete consumer groups
+
+  [admin_delete_topics](admin_delete_topics) - Delete topics
+
   [admin_describe_acls](admin_describe_acls) - Find Access Control Lists using a filter
   
   [admin_describe_config](admin_describe_config) - Describe broker, topic or group configs
+
+  [admin_describe_consumer_groups](admin_describe_consumer_groups) - Describe one or more consumer groups
+
+  [admin_list_consumer_group_offsets](admin_list_consumer_group_offsets) - List consumer group offsets
+
+  [admin_list_consumer_groups](admin_list_consumer_groups) - List consumer groups
   
   [avro_generic_consumer_example](avro_generic_consumer_example) - consumer with Schema Registry and Avro Generic Deserializer
 
