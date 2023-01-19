@@ -44,7 +44,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 func main() {
@@ -85,7 +85,7 @@ Producer
 ```golang
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 func main() {
@@ -144,7 +144,7 @@ confluent-kafka-go.
 Import the `kafka` package from GitHub in your code:
 
 ```golang
-import "github.com/confluentinc/confluent-kafka-go/kafka"
+import "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 ```
 
 Build your project:
@@ -167,12 +167,12 @@ Install the client
 
 Manual install:
 ```bash
-go get -u github.com/confluentinc/confluent-kafka-go/kafka
+go get -u github.com/confluentinc/confluent-kafka-go/v2/kafka
 ```
 
 Golang import:
 ```golang
-import "github.com/confluentinc/confluent-kafka-go/kafka"
+import "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 ```
 
 librdkafka
