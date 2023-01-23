@@ -24,8 +24,8 @@ if __name__ == '__main__':
         sys.exit(1)
     package = sys.argv[1]
 
-    tag = "v2.0.1"
-    major = tag.split(".")[0]  # e.g. v2
+    tag = "v2.0.2"
+    major = tag.split(".")[0] # e.g. v2
     base_css = "https://go.dev/css"
     base_js = "https://go.dev/js"
     base_src = "https://github.com/confluentinc/" + \
