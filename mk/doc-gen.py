@@ -24,18 +24,20 @@ if __name__ == '__main__':
         sys.exit(1)
     package = sys.argv[1]
 
-    tag = "v2.0.0"
+    tag = "v2.0.2"
+    major = tag.split(".")[0] # e.g. v2
     base_css = "https://go.dev/css"
     base_js = "https://go.dev/js"
     base_src = "https://github.com/confluentinc/" + \
                f"confluent-kafka-go/blob/{tag}"
     base_pkg = "https://pkg.go.dev"
     license = "https://go.dev/LICENSE"
+    module_path = f"confluent-kafka-go/{major}/"  # e.g. confluent-kafka-go/v2/
 
     # Use godoc client to extract our package docs
     html_in = subprocess.check_output(
         'godoc -url=/pkg/github.com/confluentinc/' +
-        f'confluent-kafka-go/{package} ' +
+        f'{module_path}{package} ' +
         '| egrep -v "^using (GOPATH|module) mode"', shell=True)
 
     # Parse HTML
@@ -57,7 +59,7 @@ if __name__ == '__main__':
         if href.endswith(".css"):
             t['href'] = convert_path(href, base_css, "/")
         elif href.startswith("/src/"):
-            t['href'] = convert_path(href, base_src, "/confluent-kafka-go/")
+            t['href'] = convert_path(href, base_src, module_path)
         elif href.startswith("/pkg/"):
             t['href'] = convert_path(href, base_pkg, "/pkg/")
         elif href == "/LICENSE":
