@@ -31,6 +31,7 @@ This is a feature release:
       1 group with multiple offsets.
   * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
     a given mock broker (@kkoehler, #892).
+  * Built-in support for Mac OSX M1 / arm64. (#818).
 
 ### Fixes
 
