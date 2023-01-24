@@ -31,7 +31,7 @@ This is a feature release:
       1 group with multiple offsets.
   * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
     a given mock broker (@kkoehler, #892).
-  * Built-in support for Mac OSX M1 / arm64. (#818).
+  * Built-in support for Linux/ arm64. (#933).
 
 ### Fixes
 
@@ -45,48 +45,17 @@ This is a feature release:
 
 ### Upgrade considerations
 
-#### Module Name Suffix
+  * OpenSSL 3.0.x upgrade in librdkafka requires a major version bump, as some legacy
+    ciphers need to be explicitly configured to continue working, but it is highly
+    recommended **not** to use them.
+    The rest of the API remains backward compatible, see the librdkafka release notes
+    below for details.
+  * As required by the Go module system, a suffix with the new major version has been
+    added to the module name, and package imports must reflect this change.
 
-As required by the Go module system, a suffix with the new major version has been
-added to the module name, and package imports must reflect this change.
 
-#### OpenSSL 3.0.x
-
-##### OpenSSL default ciphers
-
-The introduction of OpenSSL 3.0.x in the self-contained librdkafka bundles 
-changes the default set of available ciphers, in particular all obsolete
-or insecure ciphers and algorithms as listed in the
-OpenSSL [legacy](https://www.openssl.org/docs/man3.0/man7/OSSL_PROVIDER-legacy.html)
-manual page are now disabled by default.
-
-**WARNING**: These ciphers are disabled for security reasons and it is
-highly recommended NOT to use them.
-
-Should you need to use any of these old ciphers you'll need to explicitly
-enable the `legacy` provider by configuring `ssl.providers=default,legacy`
-on the librdkafka client.
-
-##### OpenSSL engines and providers
-
-OpenSSL 3.0.x deprecates the use of engines, which is being replaced by
-providers. As such librdkafka will emit a deprecation warning if
-`ssl.engine.location` is configured.
-
-OpenSSL providers may be configured with the new `ssl.providers`
-configuration property.
-
-#### Broker TLS certificate hostname verification
-
-The default value for `ssl.endpoint.identification.algorithm` has been
-changed from `none` (no hostname verification) to `https`, which enables
-broker hostname verification (to counter man-in-the-middle
-impersonation attacks) by default.
-
-To restore the previous behaviour, set `ssl.endpoint.identification.algorithm` to `none`.
-
-confluent-kafka-go is based on librdkafka v2.0.2, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.2)
+confluent-kafka-go is based on librdkafka v2.0.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
