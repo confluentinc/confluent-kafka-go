@@ -31,6 +31,7 @@ This is a feature release:
       1 group with multiple offsets.
   * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
     a given mock broker (@kkoehler, #892).
+  * Built-in support for Linux/ arm64. (#933).
 
 ### Fixes
 
@@ -42,10 +43,20 @@ This is a feature release:
     panic. This was due to a `nil` pointer, fixed with proper initialization
     (@HansK-p, @ju-popov, #878).
 
+### Upgrade considerations
+
+  * OpenSSL 3.0.x upgrade in librdkafka requires a major version bump, as some legacy
+    ciphers need to be explicitly configured to continue working, but it is highly
+    recommended **not** to use them.
+    The rest of the API remains backward compatible, see the librdkafka release notes
+    below for details.
+  * As required by the Go module system, a suffix with the new major version has been
+    added to the module name, and package imports must reflect this change.
+
 
 confluent-kafka-go is based on librdkafka v2.0.2, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.2)
-for a complete list of changes, enhancements, fixes and upgrade considerations.
+[librdkafka v2.0.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.0)
+and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 **Note**: There were no confluent-kafka-go v2.0.0 or v2.0.1 releases.
