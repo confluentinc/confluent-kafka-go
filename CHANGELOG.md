@@ -54,9 +54,9 @@ This is a feature release:
     added to the module name, and package imports must reflect this change.
 
 
-confluent-kafka-go is based on librdkafka v2.0.0, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.0)
-for a complete list of changes, enhancements, fixes and upgrade considerations.
+confluent-kafka-go is based on librdkafka v2.0.2, see the
+[librdkafka v2.0.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.0.0)
+and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 **Note**: There were no confluent-kafka-go v2.0.0 or v2.0.1 releases.
