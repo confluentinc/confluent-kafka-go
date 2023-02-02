@@ -182,7 +182,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	if !c.IsClosed() && err == nil {
 		t.Errorf("OffsetsForTimes() should have failed\n")
 	} else if c.IsClosed() && err != errCheck {
-		t.Errorf("OffsetsForTimes() should have thrown %v but throwed %v", errCheck, err)
+		t.Errorf("OffsetsForTimes() should have thrown %v but threw %v", errCheck, err)
 	}
 	if !c.IsClosed() && offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
@@ -195,7 +195,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	})
 	t.Logf("Position() returned Offsets %s and error %v\n", offsets, err)
 	if err != errCheck {
-		t.Errorf("Position() should have thrown %v but throwed %v", errCheck, err)
+		t.Errorf("Position() should have thrown %v but threw %v", errCheck, err)
 	}
 	if !c.IsClosed() && offsets == nil {
 		t.Errorf("Position() should not have returned nil\n")
@@ -207,7 +207,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	if !c.IsClosed() && err == nil {
 		t.Errorf("Committed() should have failed\n")
 	} else if c.IsClosed() && err != errCheck {
-		t.Errorf("Committed() should have thrown %v but throwed %v", errCheck, err)
+		t.Errorf("Committed() should have thrown %v but threw %v", errCheck, err)
 	}
 	if !c.IsClosed() && offsets != nil {
 		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
@@ -232,12 +232,12 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
 	err = c.SetSaslCredentials("username", "password")
 	if err != errCheck {
-		t.Errorf("SetSaslCredentials() should have thrown %v but throwed %v", errCheck, err)
+		t.Errorf("SetSaslCredentials() should have thrown %v but threw %v", errCheck, err)
 	}
 
 	err = c.Close()
 	if err != errCheck {
-		t.Errorf("Close() should have thrown %v but throwed %v", errCheck, err)
+		t.Errorf("Close() should have thrown %v but threw %v", errCheck, err)
 	}
 }
 
@@ -294,12 +294,12 @@ func testConsumerAssignment(t *testing.T, c *Consumer, errCheck error) {
 
 	err := c.Assign(partitions)
 	if err != errCheck {
-		t.Fatalf("Assign() should have thrown %v but throwed %v", errCheck, err)
+		t.Fatalf("Assign() should have thrown %v but threw %v", errCheck, err)
 	}
 
 	assignment, err := c.Assignment()
 	if err != errCheck {
-		t.Fatalf("Assignment() should have thrown %v but throwed %v", errCheck, err)
+		t.Fatalf("Assignment() should have thrown %v but threw %v", errCheck, err)
 	}
 
 	sort.Sort(TopicPartitions(assignment))
@@ -352,7 +352,7 @@ func testConsumerAssignment(t *testing.T, c *Consumer, errCheck error) {
 	}
 	err = c.Close()
 	if err != errCheck {
-		t.Errorf("Close() should have thrown %v but throwed %v", errCheck, err)
+		t.Errorf("Close() should have thrown %v but threw %v", errCheck, err)
 	}
 }
 
