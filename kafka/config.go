@@ -30,7 +30,8 @@ import (
 import "C"
 
 // ConfigValue supports the following types:
-//  bool, int, string, any type with the standard String() interface
+//
+//	bool, int, string, any type with the standard String() interface
 type ConfigValue interface{}
 
 // ConfigMap is a map containing standard librdkafka configuration properties as documented in:

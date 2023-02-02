@@ -31,7 +31,7 @@ func NewMapCache() *MapCache {
 // Get returns the cache value associated with key
 //
 // Parameters:
-//  * `key` - the key to retrieve
+//   - `key` - the key to retrieve
 //
 // Returns the value associated with key and a bool that is `false`
 // if the key was not found
@@ -43,8 +43,8 @@ func (c *MapCache) Get(key interface{}) (value interface{}, ok bool) {
 // Put puts a value in cache associated with key
 //
 // Parameters:
-//  * `key` - the key to put
-//  * `value` - the value to put
+//   - `key` - the key to put
+//   - `value` - the value to put
 func (c *MapCache) Put(key interface{}, value interface{}) {
 	c.entries[key] = value
 }
@@ -52,7 +52,7 @@ func (c *MapCache) Put(key interface{}, value interface{}) {
 // Delete deletes the cache entry associated with key
 //
 // Parameters:
-//  * `key` - the key to delete
+//   - `key` - the key to delete
 func (c *MapCache) Delete(key interface{}) {
 	delete(c.entries, key)
 }
