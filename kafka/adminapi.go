@@ -110,10 +110,7 @@ type AdminClient struct {
 
 // IsClosed returns boolean representing if client is closed or not
 func (a *AdminClient) IsClosed() bool {
-	if a.isClosed == 0 {
-		return false
-	}
-	return true
+	return atomic.LoadUint32(&a.isClosed) == 1
 }
 
 func (a *AdminClient) verifyClient() error {
@@ -1916,9 +1913,8 @@ func (a *AdminClient) SetSaslCredentials(username, password string) error {
 
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
-	var newValue uint32 = 1
 	currentValue := atomic.LoadUint32(&a.isClosed)
-	if !atomic.CompareAndSwapUint32(&a.isClosed, currentValue, newValue) {
+	if currentValue == 1 || !atomic.CompareAndSwapUint32(&a.isClosed, 0, 1) {
 		return
 	}
 	if a.isDerived {

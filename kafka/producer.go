@@ -144,10 +144,7 @@ type Producer struct {
 
 // IsClosed returns boolean representing if client is closed or not
 func (p *Producer) IsClosed() bool {
-	if p.isClosed == 0 {
-		return false
-	}
-	return true
+	return atomic.LoadUint32(&p.isClosed) == 1
 }
 
 func (p *Producer) verifyClient() error {
@@ -380,9 +377,8 @@ func (p *Producer) Flush(timeoutMs int) int {
 // Close a Producer instance.
 // The Producer object or its channels are no longer usable after this call.
 func (p *Producer) Close() {
-	var newValue uint32 = 1
 	currentValue := atomic.LoadUint32(&p.isClosed)
-	if !atomic.CompareAndSwapUint32(&p.isClosed, currentValue, newValue) {
+	if currentValue == 1 || !atomic.CompareAndSwapUint32(&p.isClosed, 0, 1) {
 		return
 	}
 
