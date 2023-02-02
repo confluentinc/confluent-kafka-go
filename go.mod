@@ -9,6 +9,9 @@ require (
 	github.com/invopop/jsonschema v0.4.0
 	github.com/jhump/protoreflect v1.12.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0
-	google.golang.org/genproto v0.0.0-20220503193339-ba3ae3f07e29
+	github.com/stretchr/testify v1.8.0
+	github.com/testcontainers/testcontainers-go v0.14.0
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
+	google.golang.org/genproto v0.0.0-20220617124728-180714bec0ad
 	google.golang.org/protobuf v1.28.0
 )
