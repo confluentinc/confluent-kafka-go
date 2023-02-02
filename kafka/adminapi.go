@@ -104,12 +104,19 @@ import "C"
 // AdminClient is derived from an existing Producer or Consumer
 type AdminClient struct {
 	handle    *handle
-	isDerived bool // Derived from existing client handle
-	isClosed  bool // to check if Admin Client is closed or not.
+	isDerived bool   // Derived from existing client handle
+	isClosed  uint32 // to check if Admin Client is closed or not.
+}
+
+func (a *AdminClient) IsClosed() bool {
+	if a.isClosed == 0 {
+		return false
+	}
+	return true
 }
 
 func (a *AdminClient) verifyClient() error {
-	if a.isClosed {
+	if a.IsClosed() {
 		return getOperationNotAllowedErrorForClosedClient()
 	}
 	return nil
@@ -1909,8 +1916,8 @@ func (a *AdminClient) SetSaslCredentials(username, password string) error {
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
 	var newValue uint32 = 1
-	currentValue := atomic.LoadUint32((*uint32)(unsafe.Pointer(&a.isClosed)))
-	if !atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&a.isClosed)), currentValue, newValue) {
+	currentValue := atomic.LoadUint32(&a.isClosed)
+	if !atomic.CompareAndSwapUint32(&a.isClosed, currentValue, newValue) {
 		return
 	}
 	if a.isDerived {
@@ -2344,7 +2351,7 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 	a.isDerived = false
 	a.handle.setup()
 
-	a.isClosed = false
+	a.isClosed = 0
 
 	return a, nil
 }
@@ -2359,7 +2366,7 @@ func NewAdminClientFromProducer(p *Producer) (a *AdminClient, err error) {
 	a = &AdminClient{}
 	a.handle = &p.handle
 	a.isDerived = true
-	a.isClosed = false
+	a.isClosed = 0
 	return a, nil
 }
 
@@ -2373,6 +2380,6 @@ func NewAdminClientFromConsumer(c *Consumer) (a *AdminClient, err error) {
 	a = &AdminClient{}
 	a.handle = &c.handle
 	a.isDerived = true
-	a.isClosed = false
+	a.isClosed = 0
 	return a, nil
 }
