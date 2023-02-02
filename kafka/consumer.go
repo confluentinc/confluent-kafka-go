@@ -52,6 +52,7 @@ type Consumer struct {
 	isClosed uint32
 }
 
+// IsClosed returns boolean representing if client is closed or not
 func (c *Consumer) IsClosed() bool {
 	if c.isClosed == 0 {
 		return false
