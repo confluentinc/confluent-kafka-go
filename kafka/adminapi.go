@@ -108,6 +108,7 @@ type AdminClient struct {
 	isClosed  uint32 // to check if Admin Client is closed or not.
 }
 
+// IsClosed returns boolean representing if client is closed or not
 func (a *AdminClient) IsClosed() bool {
 	if a.isClosed == 0 {
 		return false

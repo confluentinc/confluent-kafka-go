@@ -142,6 +142,7 @@ type Producer struct {
 	isClosed uint32
 }
 
+// IsClosed returns boolean representing if client is closed or not
 func (p *Producer) IsClosed() bool {
 	if p.isClosed == 0 {
 		return false
