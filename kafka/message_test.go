@@ -20,7 +20,7 @@ import (
 	"testing"
 )
 
-//Test TimestampType
+// Test TimestampType
 func TestTimestampType(t *testing.T) {
 	timestampMap := map[TimestampType]string{TimestampCreateTime: "CreateTime",
 		TimestampLogAppendTime: "LogAppendTime",
