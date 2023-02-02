@@ -54,10 +54,7 @@ type Consumer struct {
 
 // IsClosed returns boolean representing if client is closed or not
 func (c *Consumer) IsClosed() bool {
-	if c.isClosed == 0 {
-		return false
-	}
-	return true
+	return atomic.LoadUint32(&c.isClosed) == 1
 }
 
 func (c *Consumer) verifyClient() error {
@@ -494,13 +491,8 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
-	if c.IsClosed() {
-		return getOperationNotAllowedErrorForClosedClient()
-	}
-
-	var newValue uint32 = 1
 	currentValue := atomic.LoadUint32(&c.isClosed)
-	if !atomic.CompareAndSwapUint32(&c.isClosed, currentValue, newValue) {
+	if currentValue == 1 || !atomic.CompareAndSwapUint32(&c.isClosed, 0, 1) {
 		return getOperationNotAllowedErrorForClosedClient()
 	}
 
