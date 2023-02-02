@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -103,7 +104,20 @@ import "C"
 // AdminClient is derived from an existing Producer or Consumer
 type AdminClient struct {
 	handle    *handle
-	isDerived bool // Derived from existing client handle
+	isDerived bool   // Derived from existing client handle
+	isClosed  uint32 // to check if Admin Client is closed or not.
+}
+
+// IsClosed returns boolean representing if client is closed or not
+func (a *AdminClient) IsClosed() bool {
+	return atomic.LoadUint32(&a.isClosed) == 1
+}
+
+func (a *AdminClient) verifyClient() error {
+	if a.IsClosed() {
+		return getOperationNotAllowedErrorForClosedClient()
+	}
+	return nil
 }
 
 func durationToMilliseconds(t time.Duration) int {
@@ -724,7 +738,6 @@ type DeleteACLsResult = DescribeACLsResult
 // first.
 // The returned result event is checked for errors its error is returned if set.
 func (a *AdminClient) waitResult(ctx context.Context, cQueue *C.rd_kafka_queue_t, cEventType C.rd_kafka_event_type_t) (rkev *C.rd_kafka_event_t, err error) {
-
 	resultChan := make(chan *C.rd_kafka_event_t)
 	closeChan := make(chan bool) // never written to, just closed
 
@@ -801,7 +814,6 @@ func (a *AdminClient) cToConsumerGroupResults(
 
 // cToTopicResults converts a C topic_result_t array to Go TopicResult list.
 func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCnt C.size_t) (result []TopicResult, err error) {
-
 	result = make([]TopicResult, int(cCnt))
 
 	for i := 0; i < int(cCnt); i++ {
@@ -924,7 +936,6 @@ func (a *AdminClient) cToErrorList(
 
 // cConfigResourceToResult converts a C ConfigResource result array to Go ConfigResourceResult
 func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t, cCnt C.size_t) (result []ConfigResourceResult, err error) {
-
 	result = make([]ConfigResourceResult, int(cCnt))
 
 	for i := 0; i < int(cCnt); i++ {
@@ -957,6 +968,11 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 //
 // Requires broker version >= 0.10.0.
 func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return "", err
+	}
+
 	responseChan := make(chan *C.char, 1)
 
 	go func() {
@@ -989,6 +1005,11 @@ func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err erro
 //
 // Requires broker version >= 0.10.0.
 func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return -1, err
+	}
+
 	responseChan := make(chan int32, 1)
 
 	go func() {
@@ -1018,6 +1039,11 @@ func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err
 //
 // Note: TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecification, options ...CreateTopicsAdminOption) (result []TopicResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	cTopics := make([]*C.rd_kafka_NewTopic_t, len(topics))
 
 	cErrstrSize := C.size_t(512)
@@ -1132,6 +1158,11 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecificat
 //
 // Requires broker version >= 0.10.1.0
 func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options ...DeleteTopicsAdminOption) (result []TopicResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	cTopics := make([]*C.rd_kafka_DeleteTopic_t, len(topics))
 
 	cErrstrSize := C.size_t(512)
@@ -1190,6 +1221,11 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options
 
 // CreatePartitions creates additional partitions for topics.
 func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []PartitionsSpecification, options ...CreatePartitionsAdminOption) (result []TopicResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	cParts := make([]*C.rd_kafka_NewPartitions_t, len(partitions))
 
 	cErrstrSize := C.size_t(512)
@@ -1280,6 +1316,11 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []Partiti
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
 func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
 	cErrstrSize := C.size_t(512)
@@ -1378,6 +1419,11 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 // since these resource requests must be sent to the broker specified
 // in the resource.
 func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigResource, options ...DescribeConfigsAdminOption) (result []ConfigResourceResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
 	cErrstrSize := C.size_t(512)
@@ -1441,6 +1487,10 @@ func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigRes
 // else information about all topics is returned.
 // GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
+	err := a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 	return getMetadata(a, topic, allTopics, timeoutMs)
 }
 
@@ -1465,6 +1515,10 @@ func (a *AdminClient) gethandle() *handle {
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (a *AdminClient) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
+	err := a.verifyClient()
+	if err != nil {
+		return err
+	}
 	return a.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
@@ -1476,6 +1530,10 @@ func (a *AdminClient) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) err
 // 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
+	err := a.verifyClient()
+	if err != nil {
+		return err
+	}
 	return a.handle.setOAuthBearerTokenFailure(errstr)
 }
 
@@ -1639,6 +1697,11 @@ func (a *AdminClient) cToDeleteACLsResults(cDeleteACLsResResponse **C.rd_kafka_D
 // Returns a slice of CreateACLResult with a ErrNoError ErrorCode when the operation was successful
 // plus an error that is not nil for client level errors
 func (a *AdminClient) CreateACLs(ctx context.Context, aclBindings ACLBindings, options ...CreateACLsAdminOption) (result []CreateACLResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	if aclBindings == nil {
 		return nil, newErrorFromString(ErrInvalidArg,
 			"Expected non-nil slice of ACLBinding structs")
@@ -1714,6 +1777,10 @@ func (a *AdminClient) CreateACLs(ctx context.Context, aclBindings ACLBindings, o
 // Returns a slice of ACLBindings when the operation was successful
 // plus an error that is not `nil` for client level errors
 func (a *AdminClient) DescribeACLs(ctx context.Context, aclBindingFilter ACLBindingFilter, options ...DescribeACLsAdminOption) (result *DescribeACLsResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
 
 	cErrstrSize := C.size_t(512)
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
@@ -1770,6 +1837,11 @@ func (a *AdminClient) DescribeACLs(ctx context.Context, aclBindingFilter ACLBind
 // Returns a slice of ACLBinding for each filter when the operation was successful
 // plus an error that is not `nil` for client level errors
 func (a *AdminClient) DeleteACLs(ctx context.Context, aclBindingFilters ACLBindingFilters, options ...DeleteACLsAdminOption) (result []DeleteACLsResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	if aclBindingFilters == nil {
 		return nil, newErrorFromString(ErrInvalidArg,
 			"Expected non-nil slice of ACLBindingFilter structs")
@@ -1841,6 +1913,10 @@ func (a *AdminClient) SetSaslCredentials(username, password string) error {
 
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
+	currentValue := atomic.LoadUint32(&a.isClosed)
+	if currentValue == 1 || !atomic.CompareAndSwapUint32(&a.isClosed, 0, 1) {
+		return
+	}
 	if a.isDerived {
 		// Derived AdminClient needs no cleanup.
 		a.handle = &handle{}
@@ -2272,6 +2348,8 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 	a.isDerived = false
 	a.handle.setup()
 
+	a.isClosed = 0
+
 	return a, nil
 }
 
@@ -2285,6 +2363,7 @@ func NewAdminClientFromProducer(p *Producer) (a *AdminClient, err error) {
 	a = &AdminClient{}
 	a.handle = &p.handle
 	a.isDerived = true
+	a.isClosed = 0
 	return a, nil
 }
 
@@ -2298,5 +2377,6 @@ func NewAdminClientFromConsumer(c *Consumer) (a *AdminClient, err error) {
 	a = &AdminClient{}
 	a.handle = &c.handle
 	a.isDerived = true
+	a.isClosed = 0
 	return a, nil
 }
