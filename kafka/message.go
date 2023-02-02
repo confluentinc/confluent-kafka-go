@@ -44,7 +44,6 @@ void setup_rkmessage (rd_kafka_message_t *rkmessage,
 import "C"
 
 // TimestampType is a the Message timestamp type or source
-//
 type TimestampType int
 
 const (

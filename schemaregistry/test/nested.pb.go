@@ -342,7 +342,6 @@ func (*ComplexType_OneId) isComplexType_SomeVal() {}
 
 func (*ComplexType_OtherId) isComplexType_SomeVal() {}
 
-//
 // Complex message using nested protos and repeated fields
 type NestedMessage struct {
 	state         protoimpl.MessageState
