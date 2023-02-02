@@ -26,8 +26,8 @@ import (
 	"runtime"
 	"sort"
 	"testing"
+	"os"
 	"time"
-
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 )
@@ -231,9 +231,7 @@ func deliveryTestHandler(t *testing.T, expCnt int64, deliveryChan chan Event, mt
 // producerTest produces messages in <testmsgs> to topic. Verifies delivered messages
 func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc producerCtrl, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
 
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	if testmsgs == nil {
 		createTestMessages()
@@ -487,23 +485,10 @@ type IntegrationTestSuite struct {
 }
 
 func (its *IntegrationTestSuite) SetupSuite() {
-	testconfInit()
-	if !testconf.Docker {
-		return
-	}
-	its.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
-	execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
-	if err := execErr.Error; err != nil {
-		its.T().Fatal(execErr)
-	}
-	// It takes some time after the containers come up for them to be ready.
-	time.Sleep(20 * time.Second)
 }
 
 func (its *IntegrationTestSuite) SetupTest() {
-	if !testconfRead() {
-		its.T().Skipf("Missing testconf.json and docker container")
-	}
+	
 }
 
 func (its *IntegrationTestSuite) TearDownSuite() {
@@ -1147,9 +1132,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 //Test consumer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 	t := its.T()
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
@@ -1182,9 +1165,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 //Test consumer GetWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	t := its.T()
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	// Create consumer
 	config := &ConfigMap{
@@ -1240,9 +1221,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 //TestConsumerOffsetsForTimes
 func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 	t := its.T()
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"group.id":            testconf.GroupID,
@@ -1307,9 +1286,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 // test consumer GetMetadata API
 func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	t := its.T()
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"group.id": testconf.GroupID}
@@ -1341,9 +1318,7 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 //Test producer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	t := its.T()
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	config.updateFromTestconf()
@@ -1386,9 +1361,7 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 //Test producer GetMetadata API
 func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	t := its.T()
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	config.updateFromTestconf()
@@ -1643,9 +1616,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
 	}
 
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
@@ -1776,9 +1747,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 		t.Skipf("Requires librdkafka >=0.11.4 (currently on %s, 0x%x)", strver, numver)
 	}
 
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+	
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"api.version.request": true,
@@ -1903,6 +1872,31 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 }
 
-func (its *IntegrationTestSuite) TestAdminClient() {
-	suite.Run(t, new(AdminTestSuite))
+func TestIntegration(t *testing.T) {
+	// 
+	its := new(IntegrationTestSuite)
+	testconfInit()
+	if testconf.Docker {
+		// check if environment variables are set
+		_ ,present := os.LookupEnv("KAFKA_ADVERTISED_LISTENERS")
+		its.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
+		if !present {
+			
+			// if the environment variable is not set, simply spin up the docker with default environment variables
+			its.compose.WithEnv(map[string]string{
+				"KAFKA_ADVERTISED_LISTENERS" : "PLAINTEXT://kafka:29092, PLAINTEXT_HOST://localhost:9092",
+			})
+		}
+		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
+		if err := execErr.Error; err != nil {
+			its.T().Fatal(execErr)
+		}
+		// It takes some time after the containers come up for them to be ready.
+		time.Sleep(20 * time.Second)
+	}
+	if !testconfRead(){
+		fmt.Println("idhr ayya kya")
+		return
+	}
+	suite.Run(t, its)
 }

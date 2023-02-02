@@ -19,10 +19,10 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"math/rand"
 	"os"
+	"flag"
 	"testing"
 	"time"
 )
@@ -43,6 +43,12 @@ var testconf struct {
 	conf         ConfigMap
 }
 
+var defaulttestconfTopic = "test"
+var defaulttestconfGroupID = "testgroup"
+var defaulttestconfPerfMsgCount = 2000000
+var defaulttestconfPerfMsgSize = 100
+var defaulttestconfConfig = []string{"api.version.request=true"}
+
 // Command line flags accepted by tests
 var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
 
@@ -52,7 +58,6 @@ var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker c
 func testconfInit() {
 	if usingDocker != nil && *usingDocker {
 		testconf.Docker = true
-		testconf.Brokers = "localhost:9092"
 	}
 }
 
@@ -68,25 +73,24 @@ func testconfRead() bool {
 	}
 
 	// Default values
-	testconf.PerfMsgCount = 2000000
-	testconf.PerfMsgSize = 100
-	testconf.GroupID = "testgroup"
-
+	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
+	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
+	testconf.GroupID = defaulttestconfGroupID
+    testconf.Topic = defaulttestconfTopic
+    // testconf.Brokers = ""
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to parse testconf: %s", err))
+		return false
 	}
 
 	cf.Close()
 
-	if !testconf.Docker && testconf.Brokers[0] == '$' {
+	if !testconf.Docker && testconf.Brokers == ""  {
 		// Read broker list from environment variable
-		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
-	}
-
-	if testconf.Brokers == "" || testconf.Topic == "" {
-		panic("Missing Brokers or Topic in testconf.json")
+		// panic(fmt.Println("No Brokers provided in testconf"))
+		return false
 	}
 
 	return true

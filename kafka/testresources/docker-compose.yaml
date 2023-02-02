@@ -9,7 +9,7 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - 9092:9092
+      - 9092:9092 
     environment:
       KAFKA_BROKER_ID: 0
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT, PLAINTEXT_HOST:PLAINTEXT
@@ -22,3 +22,4 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
       KAFKA_SUPER_USERS: "User:ANONYMOUS"
+      
