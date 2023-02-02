@@ -80,6 +80,9 @@ type Handle interface {
 
 	// verifyClient() returns the validity of client
 	verifyClient() error
+
+	// IsClosed() returns the bool to check if the client is closed
+	IsClosed() bool
 }
 
 // Common instance handle for both Producer and Consumer

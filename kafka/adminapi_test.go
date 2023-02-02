@@ -66,13 +66,13 @@ func testAdminAPIWithDefaultValue(t *testing.T, a *AdminClient, errCheck error) 
 			},
 		})
 	if err != errCheck {
-		t.Errorf("CreateTopics() failed to return expected result")
-		if !a.isClosed {
+		t.Errorf("CreateTopics() should have thrown err : %s, but got %s", errCheck, err)
+		if !a.IsClosed() {
 			a.Close()
 			t.Fatalf("Failed to create topics %v\n", err)
 		}
 	}
-	if !a.isClosed {
+	if !a.IsClosed() {
 		t.Logf("Succeed to create topic %v\n", res)
 	}
 
@@ -80,13 +80,13 @@ func testAdminAPIWithDefaultValue(t *testing.T, a *AdminClient, errCheck error) 
 	defer cancel()
 	res, err = a.DeleteTopics(ctx, []string{topic})
 	if err != errCheck {
-		t.Errorf("DeleteTopics() failed to return expected result")
-		if !a.isClosed {
+		t.Errorf("DeleteTopics() should have thrown err : %s, but got %s", errCheck, err)
+		if !a.IsClosed() {
 			a.Close()
 			t.Fatalf("Failed to delete topics %v\n", err)
 		}
 	}
-	if !a.isClosed {
+	if !a.IsClosed() {
 		t.Logf("Succeed to delete topic %v\n", res)
 	}
 

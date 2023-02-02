@@ -49,11 +49,18 @@ type Consumer struct {
 	appReassigned      bool
 	appRebalanceEnable bool // SerializerConfig setting
 
-	isClosed bool
+	isClosed uint32
+}
+
+func (c *Consumer) IsClosed() bool {
+	if c.isClosed == 0 {
+		return false
+	}
+	return true
 }
 
 func (c *Consumer) verifyClient() error {
-	if c.isClosed {
+	if c.IsClosed() {
 		return getOperationNotAllowedErrorForClosedClient()
 	}
 	return nil
@@ -487,8 +494,8 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
 	var newValue uint32 = 1
-	currentValue := atomic.LoadUint32((*uint32)(unsafe.Pointer(&c.isClosed)))
-	if !atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&c.isClosed)), currentValue, newValue) {
+	currentValue := atomic.LoadUint32(&c.isClosed)
+	if !atomic.CompareAndSwapUint32(&c.isClosed, currentValue, newValue) {
 		return getOperationNotAllowedErrorForClosedClient()
 	}
 
@@ -557,7 +564,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 
 	c := &Consumer{}
-	c.isClosed = false
+	c.isClosed = 0
 
 	v, err := confCopy.extract("go.application.rebalance.enable", false)
 	if err != nil {

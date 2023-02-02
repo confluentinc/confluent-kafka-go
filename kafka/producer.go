@@ -139,11 +139,18 @@ type Producer struct {
 	pollerTermChan chan bool
 
 	// checks if Producer has been closed or not.
-	isClosed bool
+	isClosed uint32
+}
+
+func (p *Producer) IsClosed() bool {
+	if p.isClosed == 0 {
+		return false
+	}
+	return true
 }
 
 func (p *Producer) verifyClient() error {
-	if p.isClosed {
+	if p.IsClosed() {
 		return getOperationNotAllowedErrorForClosedClient()
 	}
 	return nil
@@ -373,8 +380,8 @@ func (p *Producer) Flush(timeoutMs int) int {
 // The Producer object or its channels are no longer usable after this call.
 func (p *Producer) Close() {
 	var newValue uint32 = 1
-	currentValue := atomic.LoadUint32((*uint32)(unsafe.Pointer(&p.isClosed)))
-	if !atomic.CompareAndSwapUint32((*uint32)(unsafe.Pointer(&p.isClosed)), currentValue, newValue) {
+	currentValue := atomic.LoadUint32(&p.isClosed)
+	if !atomic.CompareAndSwapUint32(&p.isClosed, currentValue, newValue) {
 		return
 	}
 
@@ -552,7 +559,7 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	p.events = make(chan Event, eventsChanSize)
 	p.produceChannel = make(chan *Message, produceChannelSize)
 	p.pollerTermChan = make(chan bool)
-	p.isClosed = false
+	p.isClosed = 0
 
 	if logsChanEnable {
 		p.handle.setupLogQueue(logsChan, p.pollerTermChan)
