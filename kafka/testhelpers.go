@@ -56,7 +56,8 @@ var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker c
 // automatically, or if we will be using the bootstrap servers from the
 // testconf file.
 func testconfInit() {
-	if usingDocker != nil && *usingDocker {
+	testconf.Docker = false
+	if (usingDocker != nil) && (*usingDocker) {
 		testconf.Docker = true
 	}
 }
@@ -77,7 +78,7 @@ func testconfRead() bool {
 	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
 	testconf.GroupID = defaulttestconfGroupID
     testconf.Topic = defaulttestconfTopic
-    // testconf.Brokers = ""
+    testconf.Brokers = ""
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
 	if err != nil {
