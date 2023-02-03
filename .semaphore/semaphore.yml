@@ -11,7 +11,7 @@ global_job_config:
     commands:
       - checkout
 blocks:
-  - name: "Go 1.17 OSX bundled librdkafka"
+  - name: "Go 1.19 OSX bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -19,7 +19,8 @@ blocks:
           type: s1-prod-macos
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.19
+          - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
           - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
@@ -37,7 +38,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "Go 1.17 linux bundled librdkafka"
+  - name: "Go 1.19 linux bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -45,7 +46,8 @@ blocks:
           type: s1-prod-ubuntu20-04-amd64-2
       prologue:
         commands:
-          - sem-version go 1.17
+          - sem-version go 1.19
+          - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
           - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
@@ -67,7 +69,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "Go 1.17 linux arm64 bundled librdkafka"
+  - name: "Go 1.19 linux arm64 bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -75,7 +77,8 @@ blocks:
           type: s1-prod-ubuntu20-04-arm64-1
       prologue:
         commands:
-          - sem-version go 1.17
+          - sem-version go 1.19
+          - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
           - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
@@ -97,7 +100,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "Go 1.17 Windows bundled librdkafka"
+  - name: "Go 1.19 Windows bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -106,10 +109,10 @@ blocks:
       prologue:
         commands:
           # Install Go
-          - cache restore win-go-1.17
+          - cache restore win-go-1.19
           - "& .\\mk\\setup-go.ps1"
-          - cache delete win-go-1.17
-          - cache store win-go-1.17 ($env:USERPROFILE + '\go')
+          - cache delete win-go-1.19
+          - cache store win-go-1.19 ($env:USERPROFILE + '\go')
           - cache restore msys2-x64
           # Set up msys2
           - ".\\mk\\mingw-w64\\setup-msys2.ps1"

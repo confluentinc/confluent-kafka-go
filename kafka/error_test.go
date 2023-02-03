@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-//TestFatalError tests fatal errors
+// TestFatalError tests fatal errors
 func TestFatalError(t *testing.T) {
 	fatalErr := newErrorFromString(ErrOutOfOrderSequenceNumber, "Testing a fatal error")
 	fatalErr.fatal = true
@@ -37,7 +37,7 @@ func TestFatalError(t *testing.T) {
 	t.Logf("%v", normalErr)
 }
 
-//TestFatalErrorClient tests fatal errors using a client instance
+// TestFatalErrorClient tests fatal errors using a client instance
 func TestFatalErrorClient(t *testing.T) {
 	p, err := NewProducer(&ConfigMap{})
 	if err != nil {

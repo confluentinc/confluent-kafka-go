@@ -335,10 +335,11 @@ func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 
 // Poll the consumer for messages or events.
 //
-// Will block for at most timeoutMs milliseconds
+// # Will block for at most timeoutMs milliseconds
 //
 // The following callbacks may be triggered:
-//   Subscribe()'s rebalanceCb
+//
+//	Subscribe()'s rebalanceCb
 //
 // Returns nil on timeout, else an Event
 func (c *Consumer) Poll(timeoutMs int) (event Event) {
@@ -376,7 +377,6 @@ func (c *Consumer) Logs() chan LogEvent {
 // msg.TopicPartition provides partition-specific information (such as topic, partition and offset).
 //
 // All other event types, such as PartitionEOF, AssignedPartitions, etc, are silently discarded.
-//
 func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 
 	var absTimeout time.Time
@@ -450,14 +450,15 @@ func (c *Consumer) Close() (err error) {
 // conf is a *ConfigMap with standard librdkafka configuration properties.
 //
 // Supported special configuration properties:
-//   go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
-//                                        If set to true the app must handle the AssignedPartitions and
-//                                        RevokedPartitions events and call Assign() and Unassign()
-//                                        respectively.
-//   go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
-//   go.events.channel.size (int, 1000) - Events() channel size
-//   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
-//   go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
+//
+//	go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
+//	                                     If set to true the app must handle the AssignedPartitions and
+//	                                     RevokedPartitions events and call Assign() and Unassign()
+//	                                     respectively.
+//	go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
+//	go.events.channel.size (int, 1000) - Events() channel size
+//	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
+//	go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
 //
 // WARNING: Due to the buffering nature of channels (and queues in general) the
 // use of the events channel risks receiving outdated events and

@@ -32,7 +32,7 @@ func (hp HostPortType) String() string {
 	return fmt.Sprintf("%s:%d", hp.Host, hp.Port)
 }
 
-//Test config map APIs
+// Test config map APIs
 func TestConfigMapAPIs(t *testing.T) {
 	config := &ConfigMap{}
 
