@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"flag"
 	"testing"
 	"time"
 )
@@ -32,6 +33,7 @@ import (
 import "C"
 
 var testconf struct {
+	Docker       bool
 	Brokers      string
 	Topic        string
 	GroupID      string
@@ -41,38 +43,61 @@ var testconf struct {
 	conf         ConfigMap
 }
 
+var defaulttestconfTopic = "test"
+var defaulttestconfGroupID = "testgroup"
+var defaulttestconfPerfMsgCount = 2000000
+var defaulttestconfPerfMsgSize = 100
+var defaulttestconfConfig = []string{"api.version.request=true"}
+var defaulttestconfBrokers = "localhost:9092"
+// Command line flags accepted by tests
+var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
+
+// testconfSetup does checks if will be bringing up containers for testing
+// automatically, or if we will be using the bootstrap servers from the
+// testconf file.
+func testconfInit() {
+	testconf.Docker = false
+	if (usingDocker != nil) && (*usingDocker) {
+		testconf.Docker = true
+	}
+}
+
 // testconf_read reads the test suite config file testconf.json which must
 // contain at least Brokers and Topic string properties.
 // Returns true if the testconf was found and usable, false if no such file, or panics
 // if the file format is wrong.
 func testconfRead() bool {
 	cf, err := os.Open("testconf.json")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%% testconf.json not found - ignoring test\n")
+	if err != nil && !testconf.Docker {
+		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
 		return false
 	}
 
 	// Default values
-	testconf.PerfMsgCount = 2000000
-	testconf.PerfMsgSize = 100
-	testconf.GroupID = "testgroup"
+	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
+	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
+	testconf.GroupID = defaulttestconfGroupID
+    testconf.Topic = defaulttestconfTopic
+    testconf.Brokers = ""
 
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to parse testconf: %s", err))
+		return false
 	}
 
 	cf.Close()
-
-	if testconf.Brokers[0] == '$' {
-		// Read broker list from environment variable
-		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
+ 
+	if testconf.Docker {
+		testconf.Brokers = defaulttestconfBrokers
 	}
 
-	if testconf.Brokers == "" || testconf.Topic == "" {
-		panic("Missing Brokers or Topic in testconf.json")
+	if !testconf.Docker && testconf.Brokers == ""  {
+		panic("No Brokers provided in testconf")
+		return false
 	}
+
 
 	return true
 }
