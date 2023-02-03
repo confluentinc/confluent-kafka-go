@@ -456,7 +456,7 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 }
 
-//Test consumer QueryWatermarkOffsets API
+// Test consumer QueryWatermarkOffsets API
 func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -489,7 +489,7 @@ func TestConsumerQueryWatermarkOffsets(t *testing.T) {
 
 }
 
-//Test consumer GetWatermarkOffsets API
+// Test consumer GetWatermarkOffsets API
 func TestConsumerGetWatermarkOffsets(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -546,7 +546,7 @@ func TestConsumerGetWatermarkOffsets(t *testing.T) {
 
 }
 
-//TestConsumerOffsetsForTimes
+// TestConsumerOffsetsForTimes
 func TestConsumerOffsetsForTimes(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -645,7 +645,7 @@ func TestConsumerGetMetadata(t *testing.T) {
 	t.Logf("Meta data for consumer: %v\n", metaData)
 }
 
-//Test producer QueryWatermarkOffsets API
+// Test producer QueryWatermarkOffsets API
 func TestProducerQueryWatermarkOffsets(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -689,7 +689,7 @@ func TestProducerQueryWatermarkOffsets(t *testing.T) {
 	}
 }
 
-//Test producer GetMetadata API
+// Test producer GetMetadata API
 func TestProducerGetMetadata(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")
@@ -1422,7 +1422,9 @@ func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 
 // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
 // list consumer groups and describe consumer group APIs of the admin client.
-//  We test the following situations:
+//
+//	We test the following situations:
+//
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
 // 3. Empty consumer group.
@@ -2016,7 +2018,7 @@ func TestAdminConfig(t *testing.T) {
 
 }
 
-//Test AdminClient GetMetadata API
+// Test AdminClient GetMetadata API
 func TestAdminGetMetadata(t *testing.T) {
 	if !testconfRead() {
 		t.Skipf("Missing testconf.json")

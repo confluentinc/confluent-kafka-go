@@ -36,7 +36,7 @@ type LRUCache struct {
 // NewLRUCache creates a new Least Recently Used (LRU) Cache
 //
 // Parameters:
-//  * `capacity` - a positive integer indicating the max capacity of this cache
+//   - `capacity` - a positive integer indicating the max capacity of this cache
 //
 // Returns the new allocated LRU Cache and an error
 func NewLRUCache(capacity int) (c *LRUCache, err error) {
@@ -59,7 +59,7 @@ func NewLRUCache(capacity int) (c *LRUCache, err error) {
 // Get returns the cache value associated with key
 //
 // Parameters:
-//  * `key` - the key to retrieve
+//   - `key` - the key to retrieve
 //
 // Returns the value associated with key and a bool that is `false`
 // if the key was not found
@@ -84,8 +84,8 @@ func (c *LRUCache) Get(key interface{}) (value interface{}, ok bool) {
 // Put puts a value in cache associated with key
 //
 // Parameters:
-//  * `key` - the key to put
-//  * `value` - the value to put
+//   - `key` - the key to put
+//   - `value` - the value to put
 func (c *LRUCache) Put(key interface{}, value interface{}) {
 	c.cacheLock.Lock()
 	_, ok := c.entries[key]
@@ -114,7 +114,7 @@ func (c *LRUCache) Put(key interface{}, value interface{}) {
 // Delete deletes the cache entry associated with key
 //
 // Parameters:
-//  * `key` - the key to delete
+//   - `key` - the key to delete
 func (c *LRUCache) Delete(key interface{}) {
 	c.cacheLock.RLock()
 	_, ok := c.entries[key]
