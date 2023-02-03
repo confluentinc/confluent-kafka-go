@@ -26,7 +26,6 @@ import (
 	"runtime"
 	"sort"
 	"testing"
-	"os"
 	"time"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -1873,20 +1872,10 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 }
 
 func TestIntegration(t *testing.T) {
-	// 
 	its := new(IntegrationTestSuite)
 	testconfInit()
 	if testconf.Docker {
-		// check if environment variables are set
-		_ ,present := os.LookupEnv("KAFKA_ADVERTISED_LISTENERS")
 		its.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
-		if !present {
-			
-			// if the environment variable is not set, simply spin up the docker with default environment variables
-			its.compose.WithEnv(map[string]string{
-				"KAFKA_ADVERTISED_LISTENERS" : "PLAINTEXT://kafka:29092, PLAINTEXT_HOST://localhost:9092",
-			})
-		}
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
 			its.T().Fatal(execErr)
@@ -1895,7 +1884,6 @@ func TestIntegration(t *testing.T) {
 		time.Sleep(20 * time.Second)
 	}
 	if !testconfRead(){
-		fmt.Println("idhr ayya kya")
 		return
 	}
 	suite.Run(t, its)

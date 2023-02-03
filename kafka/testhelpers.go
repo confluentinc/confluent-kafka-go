@@ -48,7 +48,7 @@ var defaulttestconfGroupID = "testgroup"
 var defaulttestconfPerfMsgCount = 2000000
 var defaulttestconfPerfMsgSize = 100
 var defaulttestconfConfig = []string{"api.version.request=true"}
-
+var defaulttestconfBrokers = "localhost:9092"
 // Command line flags accepted by tests
 var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
 
@@ -79,6 +79,7 @@ func testconfRead() bool {
 	testconf.GroupID = defaulttestconfGroupID
     testconf.Topic = defaulttestconfTopic
     testconf.Brokers = ""
+
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
 	if err != nil {
@@ -87,12 +88,16 @@ func testconfRead() bool {
 	}
 
 	cf.Close()
+ 
+	if testconf.Docker {
+		testconf.Brokers = defaulttestconfBrokers
+	}
 
 	if !testconf.Docker && testconf.Brokers == ""  {
-		// Read broker list from environment variable
-		// panic(fmt.Println("No Brokers provided in testconf"))
+		panic("No Brokers provided in testconf")
 		return false
 	}
+
 
 	return true
 }
