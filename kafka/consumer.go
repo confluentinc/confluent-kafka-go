@@ -491,8 +491,7 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
-	currentValue := atomic.LoadUint32(&c.isClosed)
-	if currentValue == 1 || !atomic.CompareAndSwapUint32(&c.isClosed, 0, 1) {
+	if !atomic.CompareAndSwapUint32(&c.isClosed, 0, 1) {
 		return getOperationNotAllowedErrorForClosedClient()
 	}
 
