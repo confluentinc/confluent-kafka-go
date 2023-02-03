@@ -546,31 +546,31 @@ func testPoll(c *Consumer, doneChan chan bool, t *testing.T, wg *sync.WaitGroup)
 // TestConsumerCloseForStaticMember verifies the rebalance
 // for static membership.
 // According to KIP-345, the consumer group will not trigger rebalance unless
-// 1) A new member joins
-// 2) A leader rejoins (possibly due to topic assignment change)
-// 3) An existing member offline time is over session timeout
-// 4) Broker receives a leave group request containing alistof
-//    `group.instance.id`s (details later)
+//  1. A new member joins
+//  2. A leader rejoins (possibly due to topic assignment change)
+//  3. An existing member offline time is over session timeout
+//  4. Broker receives a leave group request containing alistof
+//     `group.instance.id`s (details later)
 //
 // This test uses 3 consumers while each consumer joins after the assignment
 // finished for the previous consumers.
 // The expected behavior for these consumers are:
-// 1) First consumer joins, AssignedPartitions happens. Assign all the
-//    partitions to it.
-// 2) Second consumer joins, RevokedPartitions happens from the first consumer,
-//    then AssignedPartitions happens to both consumers.
-// 3) Third consumer joins, RevokedPartitions happens from the previous two
-//    consumers, then AssignedPartitions happens to all the three consumers.
-// 4) Close the second consumer, revoke its assignments will happen, but it
-//    should not notice other consumers.
-// 5) Rejoin the second consumer, rebalance should not happen to all the other
-//    consumers since it's not the leader, AssignedPartitions only happened
-//    to this consumer to assign the partitions.
-// 6) Close the third consumer, revoke its assignments will happen, but it
-//    should not notice other consumers.
-// 7) Close the rejoined consumer, revoke its assignments will happen,
-//    but it should not notice other consumers.
-// 8) Close the first consumer, revoke its assignments will happen.
+//  1. First consumer joins, AssignedPartitions happens. Assign all the
+//     partitions to it.
+//  2. Second consumer joins, RevokedPartitions happens from the first consumer,
+//     then AssignedPartitions happens to both consumers.
+//  3. Third consumer joins, RevokedPartitions happens from the previous two
+//     consumers, then AssignedPartitions happens to all the three consumers.
+//  4. Close the second consumer, revoke its assignments will happen, but it
+//     should not notice other consumers.
+//  5. Rejoin the second consumer, rebalance should not happen to all the other
+//     consumers since it's not the leader, AssignedPartitions only happened
+//     to this consumer to assign the partitions.
+//  6. Close the third consumer, revoke its assignments will happen, but it
+//     should not notice other consumers.
+//  7. Close the rejoined consumer, revoke its assignments will happen,
+//     but it should not notice other consumers.
+//  8. Close the first consumer, revoke its assignments will happen.
 //
 // The total number of AssignedPartitions for the first consumer is 3,
 // and the total number of RevokedPartitions for the first consumer is 3.

@@ -1690,9 +1690,9 @@ func (a *AdminClient) cToDeleteACLsResults(cDeleteACLsResResponse **C.rd_kafka_D
 // CreateACLs creates one or more ACL bindings.
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `aclBindings` - A slice of ACL binding specifications to create.
-//  * `options` - Create ACLs options
+//   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//   - `aclBindings` - A slice of ACL binding specifications to create.
+//   - `options` - Create ACLs options
 //
 // Returns a slice of CreateACLResult with a ErrNoError ErrorCode when the operation was successful
 // plus an error that is not nil for client level errors
@@ -1764,15 +1764,15 @@ func (a *AdminClient) CreateACLs(ctx context.Context, aclBindings ACLBindings, o
 // DescribeACLs matches ACL bindings by filter.
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `aclBindingFilter` - A filter with attributes that must match.
+//   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//   - `aclBindingFilter` - A filter with attributes that must match.
 //     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `Any`.
 //     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns ACL bindings with:
-//     - `ResourcePatternTypeLiteral` pattern type with resource name equal to the given resource name
-//     - `ResourcePatternTypeLiteral` pattern type with wildcard resource name that matches the given resource name
-//     - `ResourcePatternTypePrefixed` pattern type with resource name that is a prefix of the given resource name
-//  * `options` - Describe ACLs options
+//   - `ResourcePatternTypeLiteral` pattern type with resource name equal to the given resource name
+//   - `ResourcePatternTypeLiteral` pattern type with wildcard resource name that matches the given resource name
+//   - `ResourcePatternTypePrefixed` pattern type with resource name that is a prefix of the given resource name
+//   - `options` - Describe ACLs options
 //
 // Returns a slice of ACLBindings when the operation was successful
 // plus an error that is not `nil` for client level errors
@@ -1824,15 +1824,15 @@ func (a *AdminClient) DescribeACLs(ctx context.Context, aclBindingFilter ACLBind
 // DeleteACLs deletes ACL bindings matching one or more ACL binding filters.
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `aclBindingFilters` - a slice of ACL binding filters to match ACLs to delete.
+//   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//   - `aclBindingFilters` - a slice of ACL binding filters to match ACLs to delete.
 //     string attributes match exact values or any string if set to empty string.
 //     Enum attributes match exact values or any value if ending with `Any`.
 //     If `ResourcePatternType` is set to `ResourcePatternTypeMatch` deletes ACL bindings with:
-//     - `ResourcePatternTypeLiteral` pattern type with resource name equal to the given resource name
-//     - `ResourcePatternTypeLiteral` pattern type with wildcard resource name that matches the given resource name
-//     - `ResourcePatternTypePrefixed` pattern type with resource name that is a prefix of the given resource name
-//  * `options` - Delete ACLs options
+//   - `ResourcePatternTypeLiteral` pattern type with resource name equal to the given resource name
+//   - `ResourcePatternTypeLiteral` pattern type with wildcard resource name that matches the given resource name
+//   - `ResourcePatternTypePrefixed` pattern type with resource name that is a prefix of the given resource name
+//   - `options` - Delete ACLs options
 //
 // Returns a slice of ACLBinding for each filter when the operation was successful
 // plus an error that is not `nil` for client level errors
@@ -1930,9 +1930,10 @@ func (a *AdminClient) Close() {
 // ListConsumerGroups lists the consumer groups available in the cluster.
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for
-//    indefinite.
-//  * `options` - ListConsumerGroupsAdminOption options.
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `options` - ListConsumerGroupsAdminOption options.
+//
 // Returns a ListConsumerGroupsResult, which contains a slice corresponding to
 // each group in the cluster and a slice of errors encountered while listing.
 // Additionally, an error that is not nil for client-level errors is returned.
@@ -1993,10 +1994,10 @@ func (a *AdminClient) ListConsumerGroups(
 // groups list.
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for
-//    indefinite.
-//  * `groups` - Slice of groups to describe. This should not be nil/empty.
-//  * `options` - DescribeConsumerGroupsAdminOption options.
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `groups` - Slice of groups to describe. This should not be nil/empty.
+//   - `options` - DescribeConsumerGroupsAdminOption options.
 //
 // Returns DescribeConsumerGroupsResult, which contains a slice of
 // ConsumerGroupDescriptions corresponding to the input groups, plus an error
@@ -2066,14 +2067,15 @@ func (a *AdminClient) DescribeConsumerGroups(
 
 // DeleteConsumerGroups deletes a batch of consumer groups.
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for
-//    indefinite.
-//  * `groups` - A slice of groupIDs to delete.
-//  * `options` - DeleteConsumerGroupsAdminOption options.
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `groups` - A slice of groupIDs to delete.
+//   - `options` - DeleteConsumerGroupsAdminOption options.
 //
 // Returns a DeleteConsumerGroupsResult containing a slice of ConsumerGroupResult, with
-//  group-level errors, (if any) contained inside; and an error that is not nil
-//  for client level errors.
+//
+//	group-level errors, (if any) contained inside; and an error that is not nil
+//	for client level errors.
 func (a *AdminClient) DeleteConsumerGroups(
 	ctx context.Context,
 	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupsResult, err error) {
@@ -2139,12 +2141,12 @@ func (a *AdminClient) DeleteConsumerGroups(
 // consumer group(s).
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for indefinite.
-//  * `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of which
+//   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
+//   - `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of which
 //     has the id of a consumer group, and a slice of the TopicPartitions we
 //     need to fetch the offsets for.
 //     Currently, the size of `groupsPartitions` has to be exactly one.
-//  * `options` - ListConsumerGroupOffsetsAdminOption options.
+//   - `options` - ListConsumerGroupOffsetsAdminOption options.
 //
 // Returns a ListConsumerGroupOffsetsResult, containing a slice of
 // ConsumerGroupTopicPartitions corresponding to the input slice, plus an error that is
@@ -2228,13 +2230,13 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 // consumer group(s).
 //
 // Parameters:
-//  * `ctx` - context with the maximum amount of time to block, or nil for
+//   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//  * `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of
+//   - `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of
 //     which has the id of a consumer group, and a slice of the TopicPartitions
 //     we need to alter the offsets for. Currently, the size of
 //     `groupsPartitions` has to be exactly one.
-//  * `options` - AlterConsumerGroupOffsetsAdminOption options.
+//   - `options` - AlterConsumerGroupOffsetsAdminOption options.
 //
 // Returns a AlterConsumerGroupOffsetsResult, containing a slice of
 // ConsumerGroupTopicPartitions corresponding to the input slice, plus an error

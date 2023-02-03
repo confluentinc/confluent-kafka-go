@@ -450,19 +450,19 @@ func (p *Producer) Purge(flags int) error {
 // conf is a *ConfigMap with standard librdkafka configuration properties.
 //
 // Supported special configuration properties (type, default):
-//   go.batch.producer (bool, false) - EXPERIMENTAL: Enable batch producer (for increased performance).
-//                                     These batches do not relate to Kafka message batches in any way.
-//                                     Note: timestamps and headers are not supported with this interface.
-//   go.delivery.reports (bool, true) - Forward per-message delivery reports to the
-//                                      Events() channel.
-//   go.delivery.report.fields (string, "key,value") - Comma separated list of fields to enable for delivery reports.
-//                                       Allowed values: all, none (or empty string), key, value, headers
-//                                       Warning: There is a performance penalty to include headers in the delivery report.
-//   go.events.channel.size (int, 1000000) - Events().
-//   go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
-//   go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
-//   go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
 //
+//	go.batch.producer (bool, false) - EXPERIMENTAL: Enable batch producer (for increased performance).
+//	                                  These batches do not relate to Kafka message batches in any way.
+//	                                  Note: timestamps and headers are not supported with this interface.
+//	go.delivery.reports (bool, true) - Forward per-message delivery reports to the
+//	                                   Events() channel.
+//	go.delivery.report.fields (string, "key,value") - Comma separated list of fields to enable for delivery reports.
+//	                                    Allowed values: all, none (or empty string), key, value, headers
+//	                                    Warning: There is a performance penalty to include headers in the delivery report.
+//	go.events.channel.size (int, 1000000) - Events().
+//	go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
+//	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
+//	go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
 func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 	err := versionCheck()
@@ -782,18 +782,18 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 // Upon successful return from this function the application has to perform at
 // least one of the following operations within `transaction.timeout.ms` to
 // avoid timing out the transaction on the broker:
-//  * `Produce()` (et.al)
-//  * `SendOffsetsToTransaction()`
-//  * `CommitTransaction()`
-//  * `AbortTransaction()`
+//   - `Produce()` (et.al)
+//   - `SendOffsetsToTransaction()`
+//   - `CommitTransaction()`
+//   - `AbortTransaction()`
 //
 // Parameters:
-//  * `ctx` - The maximum time to block, or nil for indefinite.
-//            On timeout the operation may continue in the background,
-//            depending on state, and it is okay to call `InitTransactions()`
-//            again.
-//            Providing a nil context or a context without a deadline uses
-//            the timeout 2*transaction.timeout.ms.
+//   - `ctx` - The maximum time to block, or nil for indefinite.
+//     On timeout the operation may continue in the background,
+//     depending on state, and it is okay to call `InitTransactions()`
+//     again.
+//     Providing a nil context or a context without a deadline uses
+//     the timeout 2*transaction.timeout.ms.
 //
 // Returns nil on success or an error on failure.
 // Check whether the returned error object permits retrying
@@ -862,13 +862,13 @@ func (p *Producer) BeginTransaction() error {
 // to committing the transaction with `CommitTransaction()`.
 //
 // Parameters:
-//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
-//  * `offsets` - List of offsets to commit to the consumer group upon
-//                successful commit of the transaction. Offsets should be
-//                the next message to consume, e.g., last processed message + 1.
-//  * `consumerMetadata` - The current consumer group metadata as returned by
-//                `consumer.GetConsumerGroupMetadata()` on the consumer
-//                instance the provided offsets were consumed from.
+//   - `ctx` - The maximum amount of time to block, or nil for indefinite.
+//   - `offsets` - List of offsets to commit to the consumer group upon
+//     successful commit of the transaction. Offsets should be
+//     the next message to consume, e.g., last processed message + 1.
+//   - `consumerMetadata` - The current consumer group metadata as returned by
+//     `consumer.GetConsumerGroupMetadata()` on the consumer
+//     instance the provided offsets were consumed from.
 //
 // Note: The consumer must disable auto commits (set `enable.auto.commit` to false on the consumer).
 //
@@ -923,7 +923,7 @@ func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []Topic
 // transaction with `BeginTransaction()`.
 //
 // Parameters:
-//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//   - `ctx` - The maximum amount of time to block, or nil for indefinite.
 //
 // Note: This function will block until all outstanding messages are
 // delivered and the transaction commit request has been successfully
@@ -965,7 +965,7 @@ func (p *Producer) CommitTransaction(ctx context.Context) error {
 // `ErrPurgeInflight` or `ErrPurgeQueue`.
 //
 // Parameters:
-//  * `ctx` - The maximum amount of time to block, or nil for indefinite.
+//   - `ctx` - The maximum amount of time to block, or nil for indefinite.
 //
 // Note: This function will block until all outstanding messages are purged
 // and the transaction abort request has been successfully

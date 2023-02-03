@@ -20,7 +20,7 @@ import (
 	"testing"
 )
 
-//Test LibraryVersion()
+// Test LibraryVersion()
 func TestLibraryVersion(t *testing.T) {
 	ver, verstr := LibraryVersion()
 	if ver >= 0x00090200 {
@@ -30,7 +30,7 @@ func TestLibraryVersion(t *testing.T) {
 	}
 }
 
-//Test Offset APIs
+// Test Offset APIs
 func TestOffsetAPIs(t *testing.T) {
 	offsets := []Offset{OffsetBeginning, OffsetEnd, OffsetInvalid, OffsetStored, 1001}
 	for _, offset := range offsets {
