@@ -1913,8 +1913,7 @@ func (a *AdminClient) SetSaslCredentials(username, password string) error {
 
 // Close an AdminClient instance.
 func (a *AdminClient) Close() {
-	currentValue := atomic.LoadUint32(&a.isClosed)
-	if currentValue == 1 || !atomic.CompareAndSwapUint32(&a.isClosed, 0, 1) {
+	if !atomic.CompareAndSwapUint32(&a.isClosed, 0, 1) {
 		return
 	}
 	if a.isDerived {
