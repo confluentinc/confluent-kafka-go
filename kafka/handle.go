@@ -77,6 +77,12 @@ type Handle interface {
 
 	// gethandle() returns the internal handle struct pointer
 	gethandle() *handle
+
+	// verifyClient() returns the validity of client
+	verifyClient() error
+
+	// IsClosed() returns the bool to check if the client is closed
+	IsClosed() bool
 }
 
 // Common instance handle for both Producer and Consumer
