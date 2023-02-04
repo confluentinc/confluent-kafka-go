@@ -163,3 +163,7 @@ func getFatalError(H Handle) error {
 func testFatalError(H Handle, code ErrorCode, str string) ErrorCode {
 	return ErrorCode(C.rd_kafka_test_fatal_error(H.gethandle().rk, C.rd_kafka_resp_err_t(code), C.CString(str)))
 }
+
+func getOperationNotAllowedErrorForClosedClient() error {
+	return newErrorFromString(ErrState, "Operation not allowed on closed client")
+}
