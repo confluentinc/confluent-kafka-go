@@ -55,7 +55,7 @@ func TestConsumerAPIs(t *testing.T) {
 func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	err := c.Subscribe("gotest", nil)
 	if err != errCheck {
-		t.Errorf("Subscribe() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Subscribe() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	err = c.SubscribeTopics([]string{"gotest1", "gotest2"},
@@ -64,17 +64,17 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 			return nil
 		})
 	if err != errCheck {
-		t.Errorf("SubscribeTopics() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("SubscribeTopics() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	_, err = c.Commit()
 	if err != errCheck && err.(Error).Code() != ErrNoOffset {
-		t.Errorf("Commit() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Commit() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	err = c.Unsubscribe()
 	if err != errCheck {
-		t.Errorf("Unsubscribe() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Unsubscribe() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	topic := "gotest"
@@ -89,7 +89,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	var empty []TopicPartition
 	stored, err = c.StoreOffsets(empty)
 	if err != errCheck {
-		t.Errorf("StoreOffsets() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("StoreOffsets() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	// test StoreMessage doesn't fail either
@@ -107,29 +107,29 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	err = c.Assign([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
 	if err != errCheck {
-		t.Errorf("Assign() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Assign() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	err = c.Seek(TopicPartition{Topic: &topic1, Partition: 2, Offset: -1}, 1)
 	if err != errCheck {
-		t.Errorf("Seek() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Seek() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	// Pause & Resume
 	err = c.Pause([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
 	if err != errCheck {
-		t.Errorf("Pause() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Pause() should have thrown err : %s, but got %s", errCheck, err)
 	}
 	err = c.Resume([]TopicPartition{{Topic: &topic1, Partition: 2},
 		{Topic: &topic2, Partition: 1}})
 	if err != errCheck {
-		t.Errorf("Resume() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Resume() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	err = c.Unassign()
 	if err != errCheck {
-		t.Errorf("Unassign() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Unassign() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	// Incremental Assign & Unassign
@@ -140,7 +140,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		{Topic: &topic2, Partition: 30},
 	})
 	if err != errCheck {
-		t.Errorf("IncrementalAssign() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("IncrementalAssign() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	err = c.IncrementalUnassign([]TopicPartition{
@@ -149,12 +149,12 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		{Topic: &topic1, Partition: 10},
 	})
 	if err != errCheck {
-		t.Errorf("IncrementalUnassign() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("IncrementalUnassign() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	assignment, err := c.Assignment()
 	if err != errCheck {
-		t.Errorf("Assignment() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("Assignment() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	t.Logf("(Incremental) Assignment: %s\n", assignment)
@@ -167,7 +167,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	// ConsumerGroupMetadata
 	_, err = c.GetConsumerGroupMetadata()
 	if err != errCheck {
-		t.Errorf("GetConsumerGroupMetadata() should have threw err : %s, but got %s", errCheck, err)
+		t.Errorf("GetConsumerGroupMetadata() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
 	_, err = NewTestConsumerGroupMetadata("mygroup")
@@ -182,7 +182,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	if !c.IsClosed() && err == nil {
 		t.Errorf("OffsetsForTimes() should have failed\n")
 	} else if c.IsClosed() && err != errCheck {
-		t.Errorf("OffsetsForTimes() should have threw %v but throwed %v", errCheck, err)
+		t.Errorf("OffsetsForTimes() should have thrown %v but threw %v", errCheck, err)
 	}
 	if !c.IsClosed() && offsets != nil {
 		t.Errorf("OffsetsForTimes() failed but returned non-nil Offsets: %s\n", offsets)
@@ -195,7 +195,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	})
 	t.Logf("Position() returned Offsets %s and error %v\n", offsets, err)
 	if err != errCheck {
-		t.Errorf("Position() should have threw %v but throwed %v", errCheck, err)
+		t.Errorf("Position() should have thrown %v but threw %v", errCheck, err)
 	}
 	if !c.IsClosed() && offsets == nil {
 		t.Errorf("Position() should not have returned nil\n")
@@ -207,7 +207,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	if !c.IsClosed() && err == nil {
 		t.Errorf("Committed() should have failed\n")
 	} else if c.IsClosed() && err != errCheck {
-		t.Errorf("Committed() should have threw %v but throwed %v", errCheck, err)
+		t.Errorf("Committed() should have thrown %v but threw %v", errCheck, err)
 	}
 	if !c.IsClosed() && offsets != nil {
 		t.Errorf("Committed() failed but returned non-nil Offsets: %s\n", offsets)
@@ -232,12 +232,12 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 	// Tests the SetSaslCredentials call to ensure that the API does not crash.
 	err = c.SetSaslCredentials("username", "password")
 	if err != errCheck {
-		t.Errorf("SetSaslCredentials() should have threw %v but throwed %v", errCheck, err)
+		t.Errorf("SetSaslCredentials() should have thrown %v but threw %v", errCheck, err)
 	}
 
 	err = c.Close()
 	if err != errCheck {
-		t.Errorf("Close() should have threw %v but throwed %v", errCheck, err)
+		t.Errorf("Close() should have thrown %v but threw %v", errCheck, err)
 	}
 }
 
@@ -294,12 +294,12 @@ func testConsumerAssignment(t *testing.T, c *Consumer, errCheck error) {
 
 	err := c.Assign(partitions)
 	if err != errCheck {
-		t.Fatalf("Assign() should have threw %v but throwed %v", errCheck, err)
+		t.Fatalf("Assign() should have thrown %v but threw %v", errCheck, err)
 	}
 
 	assignment, err := c.Assignment()
 	if err != errCheck {
-		t.Fatalf("Assignment() should have threw %v but throwed %v", errCheck, err)
+		t.Fatalf("Assignment() should have thrown %v but threw %v", errCheck, err)
 	}
 
 	sort.Sort(TopicPartitions(assignment))
@@ -352,7 +352,7 @@ func testConsumerAssignment(t *testing.T, c *Consumer, errCheck error) {
 	}
 	err = c.Close()
 	if err != errCheck {
-		t.Errorf("Assignment() should have threw %v but throwed %v", errCheck, err)
+		t.Errorf("Assignment() should have thrown %v but threw %v", errCheck, err)
 	}
 }
 
