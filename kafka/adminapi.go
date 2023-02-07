@@ -1908,6 +1908,11 @@ func (a *AdminClient) DeleteACLs(ctx context.Context, aclBindingFilters ACLBindi
 // were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (a *AdminClient) SetSaslCredentials(username, password string) error {
+	err := a.verifyClient()
+	if err != nil {
+		return err
+	}
+
 	return setSaslCredentials(a.handle.rk, username, password)
 }
 
@@ -1941,7 +1946,12 @@ func (a *AdminClient) Close() {
 func (a *AdminClient) ListConsumerGroups(
 	ctx context.Context,
 	options ...ListConsumerGroupsAdminOption) (result ListConsumerGroupsResult, err error) {
+
 	result = ListConsumerGroupsResult{}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
 	genericOptions := make([]AdminOption, len(options))
@@ -2008,10 +2018,15 @@ func (a *AdminClient) DescribeConsumerGroups(
 	ctx context.Context, groups []string,
 	options ...DescribeConsumerGroupsAdminOption) (result DescribeConsumerGroupsResult, err error) {
 
+	describeResult := DescribeConsumerGroupsResult{}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
 	// Convert group names into char** required by the implementation.
 	cGroupNameList := make([]*C.char, len(groups))
 	cGroupNameCount := C.size_t(len(groups))
-	describeResult := DescribeConsumerGroupsResult{}
 
 	for idx, group := range groups {
 		cGroupNameList[idx] = C.CString(group)
@@ -2081,6 +2096,10 @@ func (a *AdminClient) DeleteConsumerGroups(
 	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupsResult, err error) {
 	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
 	deleteResult := DeleteConsumerGroupsResult{}
+	err = a.verifyClient()
+	if err != nil {
+		return deleteResult, err
+	}
 
 	// Convert Go DeleteGroups to C DeleteGroups
 	for i, group := range groups {
@@ -2155,6 +2174,11 @@ func (a *AdminClient) DeleteConsumerGroups(
 func (a *AdminClient) ListConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []ConsumerGroupTopicPartitions,
 	options ...ListConsumerGroupOffsetsAdminOption) (lcgor ListConsumerGroupOffsetsResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return lcgor, err
+	}
+
 	lcgor.ConsumerGroupsTopicPartitions = nil
 
 	// For now, we only support one group at a time given as a single element of
@@ -2247,6 +2271,11 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 func (a *AdminClient) AlterConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []ConsumerGroupTopicPartitions,
 	options ...AlterConsumerGroupOffsetsAdminOption) (acgor AlterConsumerGroupOffsetsResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return acgor, err
+	}
+
 	acgor.ConsumerGroupsTopicPartitions = nil
 
 	// For now, we only support one group at a time given as a single element of groupsPartitions.

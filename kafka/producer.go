@@ -1003,5 +1003,9 @@ func (p *Producer) AbortTransaction(ctx context.Context) error {
 // existing broker connections that were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (p *Producer) SetSaslCredentials(username, password string) error {
+	err := p.verifyClient()
+	if err != nil {
+		return err
+	}
 	return setSaslCredentials(p.handle.rk, username, password)
 }
