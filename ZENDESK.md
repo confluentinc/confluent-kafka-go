@@ -57,6 +57,9 @@ $ rm -rf kafka/build_*
 # add upstream remote
 $ git remote add upstream git@github.com:confluentinc/confluent-kafka-go
 
+# fetch the upstream branches
+$ git fetch upstream
+
 # sync vendored librdkafka kafka, linking files, and rdkafka generated errors
 $ git checkout upstream/master -- $(git ls-tree --name-only -r upstream/master | egrep 'kafka/build_*') kafka/librdkafka_vendor kafka/generated_errors.go
 
