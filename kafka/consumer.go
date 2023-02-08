@@ -415,6 +415,11 @@ func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 // Returns an error on failure or nil otherwise. Individual partition errors
 // should be checked in the per-partition .Error field.
 func (c *Consumer) SeekPartitions(partitions []TopicPartition) ([]TopicPartition, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
 	cPartitions := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
 

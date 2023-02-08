@@ -117,7 +117,7 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 
 	// SeekPartitions
 	seekedPartitions, err := c.SeekPartitions([]TopicPartition{})
-	if err == nil {
+	if !c.IsClosed() && err == nil {
 		t.Errorf("SeekPartitions(empty) succeeded when it should fail")
 	}
 
@@ -125,12 +125,12 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		{Topic: &topic, Partition: 0, Offset: -1},
 		{Topic: &topic, Partition: 1, Offset: 1},
 	})
-	if err != nil {
-		t.Errorf("SeekPartitions() failed: %s", err)
+	if err != errCheck {
+		t.Errorf("SeekPartitions() should have thrown err : %s, but got %s", errCheck, err)
 	}
-	if len(seekedPartitions) != 2 {
-		t.Errorf(
-			"SeekedPartitions() seekedPartitions length %d should be 2",
+
+	if !c.IsClosed() && len(seekedPartitions) != 2 {
+		t.Errorf("SeekedPartitions() seekedPartitions length %d should be 2",
 			len(seekedPartitions))
 	}
 
