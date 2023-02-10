@@ -146,6 +146,11 @@ func maybeCommit(c *kafka.Consumer, topicPartition kafka.TopicPartition) error {
 // partitions, or remove existing partitions, from the consumer's current
 // assignment.
 //
+// A rebalance occurs when a consumer joins or leaves a consumer group, if it
+// changes the topic(s) it's subscribed to, or if there's a change in one of
+// the topics it's subscribed to, for example, the total number of partitions
+// increases.
+//
 // The application may use this optional callback to inspect the assignment,
 // alter the initial start offset (the .Offset field of each assigned partition),
 // and read/write offsets to commit to an alternative store outside of Kafka.
