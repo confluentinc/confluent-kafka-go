@@ -37,7 +37,9 @@ Examples
   [consumer_example](consumer_example) - Function & callback based consumer
   
   [consumer_offset_metadata](consumer_offset_metadata) - Commit offset with metadata
-  
+
+  [consumer_rebalance_example](consumer_rebalance_example) - Use of rebalance callback with manual commit
+
   [cooperative_consumer_example](cooperative_consumer_example) - Using the cooperative incremental rebalancing protocol
 
   [confluent_cloud_example](confluent_cloud_example) - Usage example with Confluent Cloud
