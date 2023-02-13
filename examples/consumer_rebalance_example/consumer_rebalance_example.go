@@ -15,7 +15,7 @@
  */
 
 // Example high-level Apache Kafka consumer demonstrating use of rebalance
-// callback along with manual store and/or commit.
+// callback along with manual commit.
 package main
 
 import (
