@@ -1,3 +1,4 @@
+//go:build dynamic
 // +build dynamic
 
 package kafka
