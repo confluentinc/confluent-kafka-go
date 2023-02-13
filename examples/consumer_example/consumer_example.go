@@ -95,7 +95,8 @@ func main() {
 				// We can store the offsets of the messages manually or let
 				// the library do it automatically based on the setting
 				// enable.auto.offset.store. Once an offset is stored, the
-				// library takes care of periodically committing it to broker.
+				// library takes care of periodically committing it to the broker
+				// if enable.auto.commit isn't set to false (the default is true).
 				// By storing the offsets manually after completely processing
 				// each message, we can ensure atleast once processing.
 				_, err := c.StoreMessage(e)
