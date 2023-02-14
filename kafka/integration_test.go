@@ -451,16 +451,6 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 }
 
-type IntegrationTestSuite struct {
-	suite.Suite
-	compose *testcontainers.LocalDockerCompose
-}
-
-func (its *IntegrationTestSuite) TearDownSuite() {
-	if testconf.Docker && its.compose != nil {
-		its.compose.Down()
-	}
-}
 
 // use opaque string to locate the matching test message for message verification
 func findExpectedMessage(expected []*testmsgType, opaque string) *testmsgType {
@@ -535,6 +525,83 @@ func consumerTestWithCommits(t *testing.T, testname string, assignmentStrategy s
 
 }
 
+func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
+	for _, res := range result {
+		exp, ok := expError[res.Topic]
+		if !ok {
+			t.Errorf("Result for unexpected topic %s", res)
+			continue
+		}
+
+		if res.Error.Code() != exp.Code() {
+			t.Errorf("Topic %s: expected \"%s\", got \"%s\"",
+				res.Topic, exp, res.Error)
+			continue
+		}
+
+		t.Logf("Topic %s: matched expected \"%s\"", res.Topic, res.Error)
+	}
+}
+
+
+func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []ConfigResourceResult, checkConfigEntries bool) {
+
+	_, file, line, _ := runtime.Caller(1)
+	caller := fmt.Sprintf("%s:%d", path.Base(file), line)
+
+	if len(results) != len(expResults) {
+		t.Fatalf("%s: Expected %d results, got %d: %v", caller, len(expResults), len(results), results)
+	}
+
+	for i, result := range results {
+		expResult := expResults[i]
+
+		if result.Error.Code() != expResult.Error.Code() {
+			t.Errorf("%s: %v: Expected %v, got %v", caller, result, expResult.Error.Code(), result.Error.Code())
+			continue
+		}
+
+		if !checkConfigEntries {
+			continue
+		}
+
+		matchCnt := 0
+		for _, expEntry := range expResult.Config {
+
+			entry, ok := result.Config[expEntry.Name]
+			if !ok {
+				t.Errorf("%s: %v: expected config %s not found in result", caller, result, expEntry.Name)
+				continue
+			}
+
+			if entry.Value != expEntry.Value {
+				t.Errorf("%s: %v: expected config %s to have value \"%s\", not \"%s\"", caller, result, expEntry.Name, expEntry.Value, entry.Value)
+				continue
+			}
+
+			matchCnt++
+		}
+
+		if matchCnt != len(expResult.Config) {
+			t.Errorf("%s: %v: only %d/%d expected configs matched", caller, result, matchCnt, len(expResult.Config))
+		}
+	}
+
+	if t.Failed() {
+		t.Fatalf("%s: ConfigResourceResult validation failed: see previous errors", caller)
+	}
+}
+
+type IntegrationTestSuite struct {
+	suite.Suite
+	compose *testcontainers.LocalDockerCompose
+}
+
+func (its *IntegrationTestSuite) TearDownSuite() {
+	if testconf.Docker && its.compose != nil {
+		its.compose.Down()
+	}
+}
 // TestConsumerSeekPartitions tests seeking of partitions using SeekPartitions().
 func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	t := its.T()
@@ -608,23 +675,6 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	}
 }
 
-func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
-	for _, res := range result {
-		exp, ok := expError[res.Topic]
-		if !ok {
-			t.Errorf("Result for unexpected topic %s", res)
-			continue
-		}
-
-		if res.Error.Code() != exp.Code() {
-			t.Errorf("Topic %s: expected \"%s\", got \"%s\"",
-				res.Topic, exp, res.Error)
-			continue
-		}
-
-		t.Logf("Topic %s: matched expected \"%s\"", res.Topic, res.Error)
-	}
-}
 
 // TestAdminClient_DeleteConsumerGroups verifies the working of the
 // DeleteConsumerGroups API in the admin client.
@@ -1193,53 +1243,6 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 	validateTopicResult(t, result2, expError)
 }
 
-func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []ConfigResourceResult, checkConfigEntries bool) {
-
-	_, file, line, _ := runtime.Caller(1)
-	caller := fmt.Sprintf("%s:%d", path.Base(file), line)
-
-	if len(results) != len(expResults) {
-		t.Fatalf("%s: Expected %d results, got %d: %v", caller, len(expResults), len(results), results)
-	}
-
-	for i, result := range results {
-		expResult := expResults[i]
-
-		if result.Error.Code() != expResult.Error.Code() {
-			t.Errorf("%s: %v: Expected %v, got %v", caller, result, expResult.Error.Code(), result.Error.Code())
-			continue
-		}
-
-		if !checkConfigEntries {
-			continue
-		}
-
-		matchCnt := 0
-		for _, expEntry := range expResult.Config {
-
-			entry, ok := result.Config[expEntry.Name]
-			if !ok {
-				t.Errorf("%s: %v: expected config %s not found in result", caller, result, expEntry.Name)
-				continue
-			}
-
-			if entry.Value != expEntry.Value {
-				t.Errorf("%s: %v: expected config %s to have value \"%s\", not \"%s\"", caller, result, expEntry.Name, expEntry.Value, entry.Value)
-				continue
-			}
-
-			matchCnt++
-		}
-
-		if matchCnt != len(expResult.Config) {
-			t.Errorf("%s: %v: only %d/%d expected configs matched", caller, result, matchCnt, len(expResult.Config))
-		}
-	}
-
-	if t.Failed() {
-		t.Fatalf("%s: ConfigResourceResult validation failed: see previous errors", caller)
-	}
-}
 
 func (its *IntegrationTestSuite) TestAdminConfig() {
 	t := its.T()
