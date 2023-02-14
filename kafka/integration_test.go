@@ -2377,9 +2377,8 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 }
 
-func (its *IntegrationTestSuite) TestIntegration() {
-	its = new(IntegrationTestSuite)
-	t := its.T()
+func TestIntegration(t *testing.T) {
+	its := new(IntegrationTestSuite)
 	testconfInit()
 	if !testconfRead() {
 		t.Skipf("testconf not provided or not usable")
