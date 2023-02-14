@@ -19,10 +19,10 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
-	"flag"
 	"testing"
 	"time"
 )
@@ -47,7 +47,9 @@ const defaulttestconfTopic = "test"
 const defaulttestconfGroupID = "testgroup"
 const defaulttestconfPerfMsgCount = 2000000
 const defaulttestconfPerfMsgSize = 100
+
 var defaulttestconfConfig = [1]string{"api.version.request=true"}
+
 const defaulttestconfBrokers = "localhost:9092"
 
 // Command line flags accepted by tests
@@ -78,8 +80,8 @@ func testconfRead() bool {
 	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
 	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
 	testconf.GroupID = defaulttestconfGroupID
-    testconf.Topic = defaulttestconfTopic
-    testconf.Brokers = ""
+	testconf.Topic = defaulttestconfTopic
+	testconf.Brokers = ""
 
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
@@ -88,13 +90,13 @@ func testconfRead() bool {
 	}
 
 	cf.Close()
- 
+
 	if testconf.Docker {
 		testconf.Brokers = defaulttestconfBrokers
 	}
 
-	if !testconf.Docker && testconf.Brokers == ""  {
-		fmt.Fprintf(os.Stderr,"No Brokers provided in testconf")
+	if !testconf.Docker && testconf.Brokers == "" {
+		fmt.Fprintf(os.Stderr, "No Brokers provided in testconf")
 		return false
 	}
 
