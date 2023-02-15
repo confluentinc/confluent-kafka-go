@@ -2046,8 +2046,6 @@ func TestAdminConfig(t *testing.T) {
 	// Configuration alterations are currently atomic, all values
 	// need to be passed, otherwise non-passed values will be reverted
 	// to their default values.
-	// Future versions will allow incremental updates:
-	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API
 	newConfig := make(map[string]string)
 	for _, entry := range describeRes[0].Config {
 		newConfig[entry.Name] = entry.Value
@@ -2066,6 +2064,44 @@ func TestAdminConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Alter configs request failed: %v", err)
 	}
+
+	validateConfig(t, alterRes, expResources, false)
+
+	// Read back config to validate
+	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic}}
+	describeRes, err = a.DescribeConfigs(ctx, configResources)
+	if err != nil {
+		t.Fatalf("Describe configs request failed: %v", err)
+	}
+
+	validateConfig(t, describeRes, expResources, true)
+
+	// This is for incremental-alter.
+	// We don't need to pass all configs. Just need to pass the configs
+	// that are intended to change.
+	newConfig = make(map[string]string)
+	opsMap := make(map[string]IncrementalAlterOperation)
+
+	// Change something
+	newConfig["retention.ms"] = "86000000"
+	opsMap["retention.ms"] = IncrementalAlterOperationSet
+	// Default value for cleanup.policy(type=list) is delete
+	newConfig["cleanup.policy"] = "compact"
+	opsMap["cleanup.policy"] = IncrementalAlterOperationAppend
+	newConfig["message.timestamp.type"] = ""
+	// Default value for message.timestamp.type is CreateTime
+	opsMap["message.timestamp.type"] = IncrementalAlterOperationRemove
+
+	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic,
+		Config: StringMapToIncrementalConfigEntries(newConfig, opsMap)}}
+	alterRes, err = a.IncrementalAlterConfigs(ctx, configResources)
+	if err != nil {
+		t.Fatalf("Incremental Alter Configs request failed: %v", err)
+	}
+
+	expResources[0].Config["retention.ms"] = ConfigEntryResult{Name: "retention.ms", Value: "86000000"}
+	expResources[0].Config["cleanup.policy"] = ConfigEntryResult{Name: "cleanup.policy", Value: "delete,compact"}
+	expResources[0].Config["message.timestamp.type"] = ConfigEntryResult{Name: "message.timestamp.type", Value: "CreateTime"}
 
 	validateConfig(t, alterRes, expResources, false)
 
