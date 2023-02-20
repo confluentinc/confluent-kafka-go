@@ -19,6 +19,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -32,6 +33,7 @@ import (
 import "C"
 
 var testconf struct {
+	Docker       bool
 	Brokers      string
 	Topic        string
 	GroupID      string
@@ -41,21 +43,45 @@ var testconf struct {
 	conf         ConfigMap
 }
 
+const defaulttestconfTopic = "test"
+const defaulttestconfGroupID = "testgroup"
+const defaulttestconfPerfMsgCount = 2000000
+const defaulttestconfPerfMsgSize = 100
+
+var defaulttestconfConfig = [1]string{"api.version.request=true"}
+
+const defaulttestconfBrokers = "localhost:9092"
+
+// Command line flags accepted by tests
+var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
+
+// testconfSetup does checks if will be bringing up containers for testing
+// automatically, or if we will be using the bootstrap servers from the
+// testconf file.
+func testconfInit() {
+	testconf.Docker = false
+	if (usingDocker != nil) && (*usingDocker) {
+		testconf.Docker = true
+	}
+}
+
 // testconf_read reads the test suite config file testconf.json which must
-// contain at least Brokers and Topic string properties.
+// contain at least Brokers and Topic string properties or the defaults will be used.
 // Returns true if the testconf was found and usable, false if no such file, or panics
 // if the file format is wrong.
 func testconfRead() bool {
 	cf, err := os.Open("testconf.json")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%% testconf.json not found - ignoring test\n")
+	if err != nil && !testconf.Docker {
+		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
 		return false
 	}
 
 	// Default values
-	testconf.PerfMsgCount = 2000000
-	testconf.PerfMsgSize = 100
-	testconf.GroupID = "testgroup"
+	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
+	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
+	testconf.GroupID = defaulttestconfGroupID
+	testconf.Topic = defaulttestconfTopic
+	testconf.Brokers = ""
 
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
@@ -65,13 +91,17 @@ func testconfRead() bool {
 
 	cf.Close()
 
-	if testconf.Brokers[0] == '$' {
-		// Read broker list from environment variable
-		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
+	if testconf.Docker {
+		testconf.Brokers = defaulttestconfBrokers
 	}
 
-	if testconf.Brokers == "" || testconf.Topic == "" {
-		panic("Missing Brokers or Topic in testconf.json")
+	if !testconf.Docker && testconf.Brokers == "" {
+		fmt.Fprintf(os.Stderr, "No Brokers provided in testconf")
+		return false
+	}
+
+	if testconf.Brokers[0] == '$' {
+		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
 	}
 
 	return true
