@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/actgardner/gogen-avro/v10 v10.2.1
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/heetch/avro v0.3.1
 	github.com/invopop/jsonschema v0.4.0
 	github.com/jhump/protoreflect v1.12.0
