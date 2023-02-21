@@ -451,7 +451,6 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 }
 
-
 // use opaque string to locate the matching test message for message verification
 func findExpectedMessage(expected []*testmsgType, opaque string) *testmsgType {
 	for i, m := range expected {
@@ -543,7 +542,6 @@ func validateTopicResult(t *testing.T, result []TopicResult, expError map[string
 	}
 }
 
-
 func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []ConfigResourceResult, checkConfigEntries bool) {
 
 	_, file, line, _ := runtime.Caller(1)
@@ -602,6 +600,7 @@ func (its *IntegrationTestSuite) TearDownSuite() {
 		its.compose.Down()
 	}
 }
+
 // TestConsumerSeekPartitions tests seeking of partitions using SeekPartitions().
 func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	t := its.T()
@@ -674,7 +673,6 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 			numMessages/2, msg.TopicPartition.Offset)
 	}
 }
-
 
 // TestAdminClient_DeleteConsumerGroups verifies the working of the
 // DeleteConsumerGroups API in the admin client.
@@ -1242,7 +1240,6 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 
 	validateTopicResult(t, result2, expError)
 }
-
 
 func (its *IntegrationTestSuite) TestAdminConfig() {
 	t := its.T()
