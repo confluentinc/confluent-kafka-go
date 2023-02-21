@@ -49,6 +49,9 @@ This functionality is enabled by setting the `go.message.dr.errors` property on 
 confluent-kafka-go bundles prebuilt statically linked versions of librdkafka. New versions of librdkafka are regularly 
 vendored upstream. 
 
+Before going ahead and updating the librdkafka version, please check the release notes for the relevant version for any relevant or breaking changes:
+https://github.com/confluentinc/librdkafka/releases
+
 The following steps can be followed to synchronise the vendored dependencies with the upstream repository:
 ```sh
 # refresh old linking files to ensure latest info is used
