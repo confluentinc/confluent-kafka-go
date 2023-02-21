@@ -587,7 +587,13 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 // channel_producer serves the ProduceChannel channel
 func channelProducer(p *Producer) {
 	for m := range p.produceChannel {
-		err := p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
+		var err error
+		for i := 0; i < 3; i++ {
+			err = p.produce(m, C.RD_KAFKA_MSG_F_BLOCK, nil)
+			if err == nil {
+				break
+			}
+		}
 		if err != nil {
 			m.TopicPartition.Error = err
 			p.events <- m
@@ -635,7 +641,13 @@ func channelBatchProducer(p *Producer) {
 		totMsgCnt += len(buffered)
 
 		for topic, buffered2 := range buffered {
-			err := p.produceBatch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
+			var err error
+			for i := 0; i < 3; i++ {
+				err = p.produceBatch(topic, buffered2, C.RD_KAFKA_MSG_F_BLOCK)
+				if err == nil {
+					break
+				}
+			}
 			if err != nil {
 				for _, m = range buffered2 {
 					m.TopicPartition.Error = err
