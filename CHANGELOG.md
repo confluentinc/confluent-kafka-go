@@ -4,6 +4,7 @@
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()`.
+ * Added Integration-Testsuite which runs all the integration tests in one go, to enable per PR builds and Integration Tests
 
 ## v2.0.2
 
