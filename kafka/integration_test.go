@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go"
 	"math/rand"
 	"path"
 	"reflect"
@@ -277,10 +279,6 @@ func deliveryTestHandler(t *testing.T, expCnt int64, deliveryChan chan Event, mt
 // producerTest produces messages in <testmsgs> to topic. Verifies delivered messages
 func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc producerCtrl, produceFunc func(p *Producer, m *Message, drChan chan Event)) {
 
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
 	if testmsgs == nil {
 		createTestMessages()
 		testmsgs = pAllTestMsgs
@@ -376,9 +374,6 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 // consumerTest consumes messages from a pre-primed (produced to) topic.
 // assignmentStrategy may be "" to use the default strategy.
 func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgcnt int, cc consumerCtrl, consumeFunc func(c *Consumer, mt *msgtracker, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
 
 	if msgcnt == 0 {
 		createTestMessages()
@@ -456,361 +451,6 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 }
 
-// Test consumer QueryWatermarkOffsets API
-func TestConsumerQueryWatermarkOffsets(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
-	// get the number of messages in a topic
-	msgcnt, err := getMessageCountInTopic(testconf.Topic)
-	if err != nil {
-		t.Errorf("Cannot get message size. Error: %s\n", err)
-	}
-
-	// Prime topic with test messages
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
-	// get the number of messages in a topic
-	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
-	if err != nil {
-		t.Errorf("Cannot get message size. Error: %s\n", err)
-	}
-
-	if newmsgcnt-msgcnt != len(p0TestMsgs) {
-		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newmsgcnt-msgcnt)
-	}
-
-}
-
-// Test consumer GetWatermarkOffsets API
-func TestConsumerGetWatermarkOffsets(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	// Create consumer
-	config := &ConfigMap{
-		"go.events.channel.enable": true,
-		"bootstrap.servers":        testconf.Brokers,
-		"group.id":                 testconf.GroupID,
-		"session.timeout.ms":       6000,
-		"enable.auto.commit":       false,
-		"auto.offset.reset":        "earliest",
-	}
-	_ = config.updateFromTestconf()
-
-	c, err := NewConsumer(config)
-	if err != nil {
-		t.Fatalf("Unable to create consumer: %s", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	err = c.Subscribe(testconf.Topic, nil)
-
-	// Prime topic with test messages
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	// Wait for messages to be received so that we know the watermark offsets have been delivered
-	// with the fetch response
-	for ev := range c.Events() {
-		if _, ok := ev.(*Message); ok {
-			break
-		}
-	}
-
-	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Fatalf("Error querying watermark offsets: %s", err)
-	}
-
-	// We are not currently testing the low watermark offset as it only gets set every 10s by the stats timer
-	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
-	if err != nil {
-		t.Fatalf("Error getting watermark offsets: %s", err)
-	}
-
-	if queryHigh != getHigh {
-		t.Errorf("QueryWatermarkOffsets high[%d] does not equal GetWatermarkOffsets high[%d]", queryHigh, getHigh)
-	}
-
-}
-
-// TestConsumerOffsetsForTimes
-func TestConsumerOffsetsForTimes(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id":            testconf.GroupID,
-		"api.version.request": true}
-
-	conf.updateFromTestconf()
-
-	c, err := NewConsumer(&conf)
-
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
-
-	// Prime topic with test messages
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	times := make([]TopicPartition, 1)
-	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
-	offsets, err := c.OffsetsForTimes(times, 5000)
-	if err != nil {
-		t.Errorf("OffsetsForTimes() failed: %s\n", err)
-		return
-	}
-
-	if len(offsets) != 1 {
-		t.Errorf("OffsetsForTimes() returned wrong length %d, expected 1\n", len(offsets))
-		return
-	}
-
-	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
-		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
-		return
-	}
-
-	if offsets[0].Error != nil {
-		t.Errorf("OffsetsForTimes() returned error for partition 0: %s\n", err)
-		return
-	}
-
-	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-
-	t.Logf("OffsetsForTimes() returned offset %d for timestamp %d\n", offsets[0].Offset, times[0].Offset)
-
-	// Since we're using a phony low timestamp it is assumed that the returned
-	// offset will be oldest message.
-	if offsets[0].Offset != Offset(low) {
-		t.Errorf("OffsetsForTimes() returned invalid offset %d for timestamp %d, expected %d\n", offsets[0].Offset, times[0].Offset, low)
-		return
-	}
-
-}
-
-// test consumer GetMetadata API
-func TestConsumerGetMetadata(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id": testconf.GroupID}
-	config.updateFromTestconf()
-
-	// Create consumer
-	c, err := NewConsumer(config)
-	if err != nil {
-		t.Errorf("Failed to create consumer: %s\n", err)
-		return
-	}
-	defer c.Close()
-
-	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
-
-	metaData, err = c.GetMetadata(nil, true, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data, Error: %s\n", err)
-		return
-	}
-	t.Logf("Meta data for consumer: %v\n", metaData)
-}
-
-// Test producer QueryWatermarkOffsets API
-func TestProducerQueryWatermarkOffsets(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
-
-	// Create producer
-	p, err := NewProducer(config)
-	if err != nil {
-		t.Errorf("Failed to create producer: %s\n", err)
-		return
-	}
-	defer p.Close()
-
-	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	cnt := high - low
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
-
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
-	newcnt := high - low
-	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
-	if newcnt-cnt != int64(len(p0TestMsgs)) {
-		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newcnt-cnt)
-	}
-}
-
-// Test producer GetMetadata API
-func TestProducerGetMetadata(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
-
-	// Create producer
-	p, err := NewProducer(config)
-	if err != nil {
-		t.Errorf("Failed to create producer: %s\n", err)
-		return
-	}
-	defer p.Close()
-
-	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
-
-	metaData, err = p.GetMetadata(nil, true, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data, Error: %s\n", err)
-		return
-	}
-	t.Logf("Meta data for producer: %v\n", metaData)
-
-}
-
-// test producer function-based API without delivery report
-func TestProducerFunc(t *testing.T) {
-	producerTest(t, "Function producer (without DR)",
-		nil, producerCtrl{},
-		func(p *Producer, m *Message, drChan chan Event) {
-			err := p.Produce(m, drChan)
-			if err != nil {
-				t.Errorf("Produce() failed: %v", err)
-			}
-		})
-}
-
-// test producer function-based API with delivery report
-func TestProducerFuncDR(t *testing.T) {
-	producerTest(t, "Function producer (with DR)",
-		nil, producerCtrl{withDr: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			err := p.Produce(m, drChan)
-			if err != nil {
-				t.Errorf("Produce() failed: %v", err)
-			}
-		})
-}
-
-// test producer with bad messages
-func TestProducerWithBadMessages(t *testing.T) {
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	conf.updateFromTestconf()
-
-	p, err := NewProducer(&conf)
-	if err != nil {
-		panic(err)
-	}
-	defer p.Close()
-
-	// producing a nil message should return an error without crash
-	err = p.Produce(nil, p.Events())
-	if err == nil {
-		t.Errorf("Producing a nil message should return error\n")
-	} else {
-		t.Logf("Producing a nil message returns expected error: %s\n", err)
-	}
-
-	// producing a blank message (with nil Topic) should return an error without crash
-	err = p.Produce(&Message{}, p.Events())
-	if err == nil {
-		t.Errorf("Producing a blank message should return error\n")
-	} else {
-		t.Logf("Producing a blank message returns expected error: %s\n", err)
-	}
-}
-
-// test producer channel-based API without delivery report
-func TestProducerChannel(t *testing.T) {
-	producerTest(t, "Channel producer (without DR)",
-		nil, producerCtrl{},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-}
-
-// test producer channel-based API with delivery report
-func TestProducerChannelDR(t *testing.T) {
-	producerTest(t, "Channel producer (with DR)",
-		nil, producerCtrl{withDr: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-}
-
-// test batch producer channel-based API without delivery report
-func TestProducerBatchChannel(t *testing.T) {
-	producerTest(t, "Channel producer (without DR, batch channel)",
-		nil, producerCtrl{batchProducer: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-}
-
-// test batch producer channel-based API with delivery report
-func TestProducerBatchChannelDR(t *testing.T) {
-	producerTest(t, "Channel producer (DR, batch channel)",
-		nil, producerCtrl{withDr: true, batchProducer: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-}
-
 // use opaque string to locate the matching test message for message verification
 func findExpectedMessage(expected []*testmsgType, opaque string) *testmsgType {
 	for i, m := range expected {
@@ -884,389 +524,86 @@ func consumerTestWithCommits(t *testing.T, testname string, assignmentStrategy s
 
 }
 
-// test consumer channel-based API
-func TestConsumerChannel(t *testing.T) {
-	consumerTestWithCommits(t, "Channel Consumer",
-		"", 0, true, eventTestChannelConsumer, nil)
-}
-
-// test consumer channel-based API with incremental rebalancing
-func TestConsumerChannelIncremental(t *testing.T) {
-	consumerTestWithCommits(t, "Channel Consumer Incremental",
-		"cooperative-sticky", 0, true, eventTestChannelConsumer, nil)
-}
-
-// test consumer poll-based API
-func TestConsumerPoll(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer", "", 0, false, eventTestPollConsumer, nil)
-}
-
-// test consumer poll-based API with incremental rebalancing
-func TestConsumerPollIncremental(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer ncremental",
-		"cooperative-sticky", 0, false, eventTestPollConsumer, nil)
-}
-
-// test consumer poll-based API with rebalance callback
-func TestConsumerPollRebalance(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer (rebalance callback)",
-		"", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s", event)
-			return nil
-		})
-}
-
-// test consumer poll-based API with incremental no-op rebalance callback
-func TestConsumerPollRebalanceIncrementalNoop(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer (incremental no-op rebalance callback)",
-		"cooperative-sticky", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s", event)
-			return nil
-		})
-}
-
-// test consumer poll-based API with incremental rebalance callback
-func TestConsumerPollRebalanceIncremental(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer (incremental rebalance callback)",
-		"cooperative-sticky", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s (RebalanceProtocol=%s, AssignmentLost=%v)",
-				event, c.GetRebalanceProtocol(), c.AssignmentLost())
-
-			switch e := event.(type) {
-			case AssignedPartitions:
-				err := c.IncrementalAssign(e.Partitions)
-				if err != nil {
-					t.Errorf("IncrementalAssign() failed: %s\n", err)
-					return err
-				}
-			case RevokedPartitions:
-				err := c.IncrementalUnassign(e.Partitions)
-				if err != nil {
-					t.Errorf("IncrementalUnassign() failed: %s\n", err)
-					return err
-				}
-			default:
-				t.Fatalf("Unexpected rebalance event: %v\n", e)
-			}
-
-			return nil
-		})
-}
-
-// Test Committed() API
-func TestConsumerCommitted(t *testing.T) {
-	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
-		"", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s", event)
-			rp, ok := event.(RevokedPartitions)
-			if ok {
-				offsets, err := c.Committed(rp.Partitions, 5000)
-				if err != nil {
-					t.Errorf("Failed to get committed offsets: %s\n", err)
-					return nil
-				}
-
-				t.Logf("Retrieved Committed offsets: %s\n", offsets)
-
-				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
-					t.Errorf("Invalid number of partitions %d, should be %d (and >0)\n", len(offsets), len(rp.Partitions))
-				}
-
-				// Verify proper offsets: at least one partition needs
-				// to have a committed offset.
-				validCnt := 0
-				for _, p := range offsets {
-					if p.Error != nil {
-						t.Errorf("Committed() partition error: %v: %v", p, p.Error)
-					} else if p.Offset >= 0 {
-						validCnt++
-					}
-				}
-
-				if validCnt == 0 {
-					t.Errorf("Committed(): no partitions with valid offsets: %v", offsets)
-				}
-			}
-			return nil
-		})
-}
-
-// TestProducerConsumerTimestamps produces messages with timestamps
-// and verifies them on consumption.
-// Requires librdkafka >=0.9.4 and Kafka >=0.10.0.0
-func TestProducerConsumerTimestamps(t *testing.T) {
-	numver, strver := LibraryVersion()
-	if numver < 0x00090400 {
-		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
-	}
-
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"go.events.channel.enable": true,
-		"group.id":                 testconf.Topic,
-		"enable.partition.eof":     true,
-	}
-
-	consumerConf.updateFromTestconf()
-
-	/* Create consumer and find recognizable message, verify timestamp.
-	 * The consumer is started before the producer to make sure
-	 * the message isn't missed. */
-	t.Logf("Creating consumer")
-	c, err := NewConsumer(&consumerConf)
-	if err != nil {
-		t.Fatalf("NewConsumer: %v", err)
-	}
-
-	t.Logf("Assign %s [0]", testconf.Topic)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
-		Offset: OffsetEnd}})
-	if err != nil {
-		t.Fatalf("Assign: %v", err)
-	}
-
-	/* Wait until EOF is reached so we dont miss the produced message */
-	for ev := range c.Events() {
-		t.Logf("Awaiting initial EOF")
-		_, ok := ev.(PartitionEOF)
-		if ok {
-			break
-		}
-	}
-
-	/*
-	 * Create producer and produce one recognizable message with timestamp
-	 */
-	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	producerConf.updateFromTestconf()
-
-	t.Logf("Creating producer")
-	p, err := NewProducer(&producerConf)
-	if err != nil {
-		t.Fatalf("NewProducer: %v", err)
-	}
-
-	drChan := make(chan Event, 1)
-
-	/* Offset the timestamp to avoid comparison with system clock */
-	future, _ := time.ParseDuration("87658h") // 10y
-	timestamp := time.Now().Add(future)
-	key := fmt.Sprintf("TS: %v", timestamp)
-	t.Logf("Producing message with timestamp %v", timestamp)
-	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-		Key:            []byte(key),
-		Timestamp:      timestamp},
-		drChan)
-
-	if err != nil {
-		t.Fatalf("Produce: %v", err)
-	}
-
-	// Wait for delivery
-	t.Logf("Awaiting delivery report")
-	ev := <-drChan
-	m, ok := ev.(*Message)
-	if !ok {
-		t.Fatalf("drChan: Expected *Message, got %v", ev)
-	}
-	if m.TopicPartition.Error != nil {
-		t.Fatalf("Delivery failed: %v", m.TopicPartition)
-	}
-	t.Logf("Produced message to %v", m.TopicPartition)
-	producedOffset := m.TopicPartition.Offset
-
-	p.Close()
-
-	/* Now consume messages, waiting for that recognizable one. */
-	t.Logf("Consuming messages")
-outer:
-	for ev := range c.Events() {
-		switch m := ev.(type) {
-		case *Message:
-			if m.TopicPartition.Error != nil {
-				continue
-			}
-			if m.Key == nil || string(m.Key) != key {
-				continue
-			}
-
-			t.Logf("Found message at %v with timestamp %s %s",
-				m.TopicPartition,
-				m.TimestampType, m.Timestamp)
-
-			if m.TopicPartition.Offset != producedOffset {
-				t.Fatalf("Produced Offset %d does not match consumed offset %d", producedOffset, m.TopicPartition.Offset)
-			}
-
-			if m.TimestampType != TimestampCreateTime {
-				t.Fatalf("Expected timestamp CreateTime, not %s",
-					m.TimestampType)
-			}
-
-			/* Since Kafka timestamps are milliseconds we need to
-			 * shave off some precision for the comparison */
-			if m.Timestamp.UnixNano()/1000000 !=
-				timestamp.UnixNano()/1000000 {
-				t.Fatalf("Expected timestamp %v (%d), not %v (%d)",
-					timestamp, timestamp.UnixNano(),
-					m.Timestamp, m.Timestamp.UnixNano())
-			}
-			break outer
-		default:
-		}
-	}
-
-	c.Close()
-}
-
-// TestProducerConsumerHeaders produces messages with headers
-// and verifies them on consumption.
-// Requires librdkafka >=0.11.4 and Kafka >=0.11.0.0
-func TestProducerConsumerHeaders(t *testing.T) {
-	numver, strver := LibraryVersion()
-	if numver < 0x000b0400 {
-		t.Skipf("Requires librdkafka >=0.11.4 (currently on %s, 0x%x)", strver, numver)
-	}
-
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
-
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"api.version.request": true,
-		"enable.auto.commit":  false,
-		"group.id":            testconf.Topic,
-	}
-
-	conf.updateFromTestconf()
-
-	/*
-	 * Create producer and produce a couple of messages with and without
-	 * headers.
-	 */
-	t.Logf("Creating producer")
-	p, err := NewProducer(&conf)
-	if err != nil {
-		t.Fatalf("NewProducer: %v", err)
-	}
-
-	drChan := make(chan Event, 1)
-
-	// prepare some header values
-	bigBytes := make([]byte, 2500)
-	for i := 0; i < len(bigBytes); i++ {
-		bigBytes[i] = byte(i)
-	}
-
-	myVarint := make([]byte, binary.MaxVarintLen64)
-	myVarintLen := binary.PutVarint(myVarint, 12345678901234)
-
-	expMsgHeaders := [][]Header{
-		{
-			{"msgid", []byte("1")},
-			{"a key with SPACES ", bigBytes[:15]},
-			{"BIGONE!", bigBytes},
-		},
-		{
-			{"msgid", []byte("2")},
-			{"myVarint", myVarint[:myVarintLen]},
-			{"empty", []byte("")},
-			{"theNullIsNil", nil},
-		},
-		nil, // no headers
-		{
-			{"msgid", []byte("4")},
-			{"order", []byte("1")},
-			{"order", []byte("2")},
-			{"order", nil},
-			{"order", []byte("4")},
-		},
-	}
-
-	t.Logf("Producing %d messages", len(expMsgHeaders))
-	for _, hdrs := range expMsgHeaders {
-		err = p.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-			Headers:        hdrs},
-			drChan)
-	}
-
-	if err != nil {
-		t.Fatalf("Produce: %v", err)
-	}
-
-	var firstOffset Offset = OffsetInvalid
-	for range expMsgHeaders {
-		ev := <-drChan
-		m, ok := ev.(*Message)
+func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
+	for _, res := range result {
+		exp, ok := expError[res.Topic]
 		if !ok {
-			t.Fatalf("drChan: Expected *Message, got %v", ev)
+			t.Errorf("Result for unexpected topic %s", res)
+			continue
 		}
-		if m.TopicPartition.Error != nil {
-			t.Fatalf("Delivery failed: %v", m.TopicPartition)
+
+		if res.Error.Code() != exp.Code() {
+			t.Errorf("Topic %s: expected \"%s\", got \"%s\"",
+				res.Topic, exp, res.Error)
+			continue
 		}
-		t.Logf("Produced message to %v", m.TopicPartition)
-		if firstOffset == OffsetInvalid {
-			firstOffset = m.TopicPartition.Offset
-		}
+
+		t.Logf("Topic %s: matched expected \"%s\"", res.Topic, res.Error)
+	}
+}
+
+func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []ConfigResourceResult, checkConfigEntries bool) {
+
+	_, file, line, _ := runtime.Caller(1)
+	caller := fmt.Sprintf("%s:%d", path.Base(file), line)
+
+	if len(results) != len(expResults) {
+		t.Fatalf("%s: Expected %d results, got %d: %v", caller, len(expResults), len(results), results)
 	}
 
-	p.Close()
+	for i, result := range results {
+		expResult := expResults[i]
 
-	/* Now consume the produced messages and verify the headers */
-	t.Logf("Creating consumer starting at offset %v", firstOffset)
-	c, err := NewConsumer(&conf)
-	if err != nil {
-		t.Fatalf("NewConsumer: %v", err)
-	}
-
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
-		Offset: firstOffset}})
-	if err != nil {
-		t.Fatalf("Assign: %v", err)
-	}
-
-	for n, hdrs := range expMsgHeaders {
-		m, err := c.ReadMessage(-1)
-		if err != nil {
-			t.Fatalf("Expected message #%d, not error %v", n, err)
+		if result.Error.Code() != expResult.Error.Code() {
+			t.Errorf("%s: %v: Expected %v, got %v", caller, result, expResult.Error.Code(), result.Error.Code())
+			continue
 		}
 
-		if m.Headers == nil {
-			if hdrs == nil {
+		if !checkConfigEntries {
+			continue
+		}
+
+		matchCnt := 0
+		for _, expEntry := range expResult.Config {
+
+			entry, ok := result.Config[expEntry.Name]
+			if !ok {
+				t.Errorf("%s: %v: expected config %s not found in result", caller, result, expEntry.Name)
 				continue
 			}
-			t.Fatalf("Expected message #%d to have headers", n)
+
+			if entry.Value != expEntry.Value {
+				t.Errorf("%s: %v: expected config %s to have value \"%s\", not \"%s\"", caller, result, expEntry.Name, expEntry.Value, entry.Value)
+				continue
+			}
+
+			matchCnt++
 		}
 
-		if hdrs == nil {
-			t.Fatalf("Expected message #%d not to have headers, but found %v", n, m.Headers)
+		if matchCnt != len(expResult.Config) {
+			t.Errorf("%s: %v: only %d/%d expected configs matched", caller, result, matchCnt, len(expResult.Config))
 		}
-
-		// Compare headers
-		if !reflect.DeepEqual(hdrs, m.Headers) {
-			t.Fatalf("Expected message #%d headers to match %v, but found %v", n, hdrs, m.Headers)
-		}
-
-		t.Logf("Message #%d headers matched: %v", n, m.Headers)
 	}
 
-	c.Close()
+	if t.Failed() {
+		t.Fatalf("%s: ConfigResourceResult validation failed: see previous errors", caller)
+	}
+}
+
+type IntegrationTestSuite struct {
+	suite.Suite
+	compose *testcontainers.LocalDockerCompose
+}
+
+func (its *IntegrationTestSuite) TearDownSuite() {
+	if testconf.Docker && its.compose != nil {
+		its.compose.Down()
+	}
 }
 
 // TestConsumerSeekPartitions tests seeking of partitions using SeekPartitions().
-func TestConsumerSeekPartitions(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
+	t := its.T()
 
 	numMessages := 10 // should be more than or equal to 2.
 
@@ -1337,31 +674,11 @@ func TestConsumerSeekPartitions(t *testing.T) {
 	}
 }
 
-func validateTopicResult(t *testing.T, result []TopicResult, expError map[string]Error) {
-	for _, res := range result {
-		exp, ok := expError[res.Topic]
-		if !ok {
-			t.Errorf("Result for unexpected topic %s", res)
-			continue
-		}
-
-		if res.Error.Code() != exp.Code() {
-			t.Errorf("Topic %s: expected \"%s\", got \"%s\"",
-				res.Topic, exp, res.Error)
-			continue
-		}
-
-		t.Logf("Topic %s: matched expected \"%s\"", res.Topic, res.Error)
-	}
-}
-
 // TestAdminClient_DeleteConsumerGroups verifies the working of the
 // DeleteConsumerGroups API in the admin client.
 // It does so by listing consumer groups before/after deletion.
-func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
+	t := its.T()
 
 	rand.Seed(time.Now().Unix())
 
@@ -1503,10 +820,8 @@ func TestAdminClient_DeleteConsumerGroups(t *testing.T) {
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
 // 3. Empty consumer group.
-func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups() {
+	t := its.T()
 
 	// Generating a new topic/groupID to ensure a fresh group/topic is created.
 	rand.Seed(time.Now().Unix())
@@ -1762,7 +1077,8 @@ func TestAdminClient_ListAndDescribeConsumerGroups(t *testing.T) {
 	}
 }
 
-func TestAdminTopics(t *testing.T) {
+func (its *IntegrationTestSuite) TestAdminTopics() {
+	t := its.T()
 	rand.Seed(time.Now().Unix())
 
 	a := createAdminClient(t)
@@ -1925,55 +1241,8 @@ func TestAdminTopics(t *testing.T) {
 	validateTopicResult(t, result2, expError)
 }
 
-func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []ConfigResourceResult, checkConfigEntries bool) {
-
-	_, file, line, _ := runtime.Caller(1)
-	caller := fmt.Sprintf("%s:%d", path.Base(file), line)
-
-	if len(results) != len(expResults) {
-		t.Fatalf("%s: Expected %d results, got %d: %v", caller, len(expResults), len(results), results)
-	}
-
-	for i, result := range results {
-		expResult := expResults[i]
-
-		if result.Error.Code() != expResult.Error.Code() {
-			t.Errorf("%s: %v: Expected %v, got %v", caller, result, expResult.Error.Code(), result.Error.Code())
-			continue
-		}
-
-		if !checkConfigEntries {
-			continue
-		}
-
-		matchCnt := 0
-		for _, expEntry := range expResult.Config {
-
-			entry, ok := result.Config[expEntry.Name]
-			if !ok {
-				t.Errorf("%s: %v: expected config %s not found in result", caller, result, expEntry.Name)
-				continue
-			}
-
-			if entry.Value != expEntry.Value {
-				t.Errorf("%s: %v: expected config %s to have value \"%s\", not \"%s\"", caller, result, expEntry.Name, expEntry.Value, entry.Value)
-				continue
-			}
-
-			matchCnt++
-		}
-
-		if matchCnt != len(expResult.Config) {
-			t.Errorf("%s: %v: only %d/%d expected configs matched", caller, result, matchCnt, len(expResult.Config))
-		}
-	}
-
-	if t.Failed() {
-		t.Fatalf("%s: ConfigResourceResult validation failed: see previous errors", caller)
-	}
-}
-
-func TestAdminConfig(t *testing.T) {
+func (its *IntegrationTestSuite) TestAdminConfig() {
+	t := its.T()
 	rand.Seed(time.Now().Unix())
 
 	a := createAdminClient(t)
@@ -2090,14 +1359,11 @@ func TestAdminConfig(t *testing.T) {
 	if topicResult[0].Error.Code() != ErrNoError {
 		t.Fatalf("Failed to delete topic %s: %s", topic, topicResult[0].Error)
 	}
-
 }
 
-// Test AdminClient GetMetadata API
-func TestAdminGetMetadata(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+//Test AdminClient GetMetadata API
+func (its *IntegrationTestSuite) TestAdminGetMetadata() {
+	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	config.updateFromTestconf()
@@ -2123,14 +1389,11 @@ func TestAdminGetMetadata(t *testing.T) {
 		return
 	}
 	t.Logf("Meta data for admin client: %v\n", metaData)
-
 }
 
 // Test AdminClient ClusterID.
-func TestAdminClient_ClusterID(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (its *IntegrationTestSuite) TestAdminClient_ClusterID() {
+	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := config.updateFromTestconf(); err != nil {
@@ -2157,10 +1420,8 @@ func TestAdminClient_ClusterID(t *testing.T) {
 }
 
 // Test AdminClient ControllerID.
-func TestAdminClient_ControllerID(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (its *IntegrationTestSuite) TestAdminClient_ControllerID() {
+	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
 	if err := config.updateFromTestconf(); err != nil {
@@ -2190,10 +1451,8 @@ func TestAdminClient_ControllerID(t *testing.T) {
 	t.Logf("ControllerID: %d\n", controllerID)
 }
 
-func TestAdminACLs(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+func (its *IntegrationTestSuite) TestAdminACLs() {
+	t := its.T()
 
 	rand.Seed(time.Now().Unix())
 	topic := testconf.Topic
@@ -2384,241 +1643,753 @@ func TestAdminACLs(t *testing.T) {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
-// TestAdminClient_AlterListConsumerGroupOffsets tests the APIs
-// ListConsumerGroupOffsets and AlterConsumerGroupOffsets.
-// They are checked by producing to a topic, and consuming it, and then listing,
-// modifying, and again listing the offset for that topic partition.
-func TestAdminClient_AlterListConsumerGroupOffsets(t *testing.T) {
-	if !testconfRead() {
-		t.Skipf("Missing testconf.json")
-	}
+//Test consumer QueryWatermarkOffsets API
+func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
+	t := its.T()
 
-	numMsgs := 5 // Needs to be > 1 to check alter.
-
-	ac := createAdminClient(t)
-	defer ac.Close()
-
-	// Create a topic.
-	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	_, err := ac.CreateTopics(ctx, []TopicSpecification{
-		{
-			Topic:         topic,
-			NumPartitions: 1,
-		},
-	})
+	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
+	// get the number of messages in a topic
+	msgcnt, err := getMessageCountInTopic(testconf.Topic)
 	if err != nil {
-		t.Errorf("Topic creation failed with error %v", err)
-		return
+		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
 
-	// Delete the topic after the test is done.
-	defer func() {
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_, err = ac.DeleteTopics(ctx, []string{topic})
-		if err != nil {
-			t.Errorf("Topic deletion failed with error %v", err)
-		}
-	}()
+	// Prime topic with test messages
+	createTestMessages()
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
 
-	// Produce to the topic.
-	producer, err := NewProducer(&ConfigMap{
-		"bootstrap.servers": testconf.Brokers,
-	})
+	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
+	// get the number of messages in a topic
+	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
 	if err != nil {
-		t.Errorf("Producer could not be created with error %v", err)
-		return
-	}
-	defer producer.Close()
-
-	for i := 0; i < numMsgs; i++ {
-		if err = producer.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
-			Value:          []byte("Value"),
-		}, nil); err != nil {
-			t.Errorf("Produce failed with error %v", err)
-			return
-		}
+		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
 
-	producer.Flush(-1)
+	if newmsgcnt-msgcnt != len(p0TestMsgs) {
+		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newmsgcnt-msgcnt)
+	}
 
-	// Consume from the topic.
-	consumer, err := NewConsumer(&ConfigMap{
+}
+
+//Test consumer GetWatermarkOffsets API
+func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
+	t := its.T()
+
+	// Create consumer
+	config := &ConfigMap{
+		"go.events.channel.enable": true,
 		"bootstrap.servers":        testconf.Brokers,
 		"group.id":                 testconf.GroupID,
+		"session.timeout.ms":       6000,
+		"enable.auto.commit":       false,
 		"auto.offset.reset":        "earliest",
-		"enable.auto.offset.store": false,
-	})
+	}
+	_ = config.updateFromTestconf()
+
+	c, err := NewConsumer(config)
 	if err != nil {
-		t.Errorf("Consumer could not be created with error %v", err)
-		return
+		t.Fatalf("Unable to create consumer: %s", err)
 	}
-	consumerClosed := false
-	defer func() {
-		if !consumerClosed {
-			consumer.Close()
+	defer func() { _ = c.Close() }()
+
+	err = c.Subscribe(testconf.Topic, nil)
+
+	// Prime topic with test messages
+	createTestMessages()
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+
+	// Wait for messages to be received so that we know the watermark offsets have been delivered
+	// with the fetch response
+	for ev := range c.Events() {
+		if _, ok := ev.(*Message); ok {
+			break
 		}
-	}()
+	}
 
-	if err = consumer.Subscribe(topic, nil); err != nil {
-		t.Errorf("Consumer could not subscribe to the topic with an error %v", err)
+	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	if err != nil {
+		t.Fatalf("Error querying watermark offsets: %s", err)
+	}
+
+	// We are not currently testing the low watermark offset as it only gets set every 10s by the stits timer
+	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
+	if err != nil {
+		t.Fatalf("Error getting watermark offsets: %s", err)
+	}
+
+	if queryHigh != getHigh {
+		t.Errorf("QueryWatermarkOffsets high[%d] does not equal GetWatermarkOffsets high[%d]", queryHigh, getHigh)
+	}
+
+}
+
+//TestConsumerOffsetsForTimes
+func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
+	t := its.T()
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"group.id":            testconf.GroupID,
+		"api.version.request": true}
+
+	conf.updateFromTestconf()
+
+	c, err := NewConsumer(&conf)
+
+	if err != nil {
+		panic(err)
+	}
+	defer c.Close()
+
+	// Prime topic with test messages
+	createTestMessages()
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+
+	times := make([]TopicPartition, 1)
+	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
+	offsets, err := c.OffsetsForTimes(times, 5000)
+	if err != nil {
+		t.Errorf("OffsetsForTimes() failed: %s\n", err)
 		return
 	}
 
-	for i := 0; i < numMsgs; i++ {
-		msg, err := consumer.ReadMessage(-1)
+	if len(offsets) != 1 {
+		t.Errorf("OffsetsForTimes() returned wrong length %d, expected 1\n", len(offsets))
+		return
+	}
+
+	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
+		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
+		return
+	}
+
+	if offsets[0].Error != nil {
+		t.Errorf("OffsetsForTimes() returned error for partition 0: %s\n", err)
+		return
+	}
+
+	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+
+	t.Logf("OffsetsForTimes() returned offset %d for timestamp %d\n", offsets[0].Offset, times[0].Offset)
+
+	// Since we're using a phony low timestamp it is assumed that the returned
+	// offset will be oldest message.
+	if offsets[0].Offset != Offset(low) {
+		t.Errorf("OffsetsForTimes() returned invalid offset %d for timestamp %d, expected %d\n", offsets[0].Offset, times[0].Offset, low)
+		return
+	}
+
+}
+
+// test consumer GetMetadata API
+func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
+	t := its.T()
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"group.id": testconf.GroupID}
+	config.updateFromTestconf()
+
+	// Create consumer
+	c, err := NewConsumer(config)
+	if err != nil {
+		t.Errorf("Failed to create consumer: %s\n", err)
+		return
+	}
+	defer c.Close()
+
+	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+
+	metaData, err = c.GetMetadata(nil, true, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to get meta data, Error: %s\n", err)
+		return
+	}
+	t.Logf("Meta data for consumer: %v\n", metaData)
+}
+
+//Test producer QueryWatermarkOffsets API
+func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
+	t := its.T()
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config.updateFromTestconf()
+
+	// Create producer
+	p, err := NewProducer(config)
+	if err != nil {
+		t.Errorf("Failed to create producer: %s\n", err)
+		return
+	}
+	defer p.Close()
+
+	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+	cnt := high - low
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+
+	createTestMessages()
+	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+
+	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	newcnt := high - low
+	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
+	if newcnt-cnt != int64(len(p0TestMsgs)) {
+		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newcnt-cnt)
+	}
+}
+
+//Test producer GetMetadata API
+func (its *IntegrationTestSuite) TestProducerGetMetadata() {
+	t := its.T()
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	config.updateFromTestconf()
+
+	// Create producer
+	p, err := NewProducer(config)
+	if err != nil {
+		t.Errorf("Failed to create producer: %s\n", err)
+		return
+	}
+	defer p.Close()
+
+	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		return
+	}
+	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+
+	metaData, err = p.GetMetadata(nil, true, 5*1000)
+	if err != nil {
+		t.Errorf("Failed to get meta data, Error: %s\n", err)
+		return
+	}
+	t.Logf("Meta data for producer: %v\n", metaData)
+
+}
+
+// test producer function-based API without delivery report
+func (its *IntegrationTestSuite) TestProducerFunc() {
+	t := its.T()
+	producerTest(t, "Function producer (without DR)",
+		nil, producerCtrl{},
+		func(p *Producer, m *Message, drChan chan Event) {
+			err := p.Produce(m, drChan)
+			if err != nil {
+				t.Errorf("Produce() failed: %v", err)
+			}
+		})
+}
+
+// test producer function-based API with delivery report
+func (its *IntegrationTestSuite) TestProducerFuncDR() {
+	t := its.T()
+	producerTest(t, "Function producer (with DR)",
+		nil, producerCtrl{withDr: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			err := p.Produce(m, drChan)
+			if err != nil {
+				t.Errorf("Produce() failed: %v", err)
+			}
+		})
+}
+
+// test producer with bad messages
+func (its *IntegrationTestSuite) TestProducerWithBadMessages() {
+	t := its.T()
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	conf.updateFromTestconf()
+
+	p, err := NewProducer(&conf)
+	if err != nil {
+		panic(err)
+	}
+	defer p.Close()
+
+	// producing a nil message should return an error without crash
+	err = p.Produce(nil, p.Events())
+	if err == nil {
+		t.Errorf("Producing a nil message should return error\n")
+	} else {
+		t.Logf("Producing a nil message returns expected error: %s\n", err)
+	}
+
+	// producing a blank message (with nil Topic) should return an error without crash
+	err = p.Produce(&Message{}, p.Events())
+	if err == nil {
+		t.Errorf("Producing a blank message should return error\n")
+	} else {
+		t.Logf("Producing a blank message returns expected error: %s\n", err)
+	}
+}
+
+// test producer channel-based API without delivery report
+func (its *IntegrationTestSuite) TestProducerChannel() {
+	t := its.T()
+	producerTest(t, "Channel producer (without DR)",
+		nil, producerCtrl{},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+}
+
+// test producer channel-based API with delivery report
+func (its *IntegrationTestSuite) TestProducerChannelDR() {
+	t := its.T()
+	producerTest(t, "Channel producer (with DR)",
+		nil, producerCtrl{withDr: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+
+}
+
+// test batch producer channel-based API without delivery report
+func (its *IntegrationTestSuite) TestProducerBatchChannel() {
+	t := its.T()
+	producerTest(t, "Channel producer (without DR, batch channel)",
+		nil, producerCtrl{batchProducer: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+}
+
+// test batch producer channel-based API with delivery report
+func (its *IntegrationTestSuite) TestProducerBatchChannelDR() {
+	t := its.T()
+	producerTest(t, "Channel producer (DR, batch channel)",
+		nil, producerCtrl{withDr: true, batchProducer: true},
+		func(p *Producer, m *Message, drChan chan Event) {
+			p.ProduceChannel() <- m
+		})
+}
+
+// test consumer channel-based API
+func (its *IntegrationTestSuite) TestConsumerChannel() {
+	t := its.T()
+	consumerTestWithCommits(t, "Channel Consumer",
+		"", 0, true, eventTestChannelConsumer, nil)
+}
+
+// test consumer channel-based API with incremental rebalancing
+func (its *IntegrationTestSuite) TestConsumerChannelIncremental() {
+	t := its.T()
+	consumerTestWithCommits(t, "Channel Consumer Incremental",
+		"cooperative-sticky", 0, true, eventTestChannelConsumer, nil)
+}
+
+// test consumer poll-based API
+func (its *IntegrationTestSuite) TestConsumerPoll() {
+	t := its.T()
+	consumerTestWithCommits(t, "Poll Consumer", "", 0, false, eventTestPollConsumer, nil)
+}
+
+// test consumer poll-based API with incremental rebalancing
+func (its *IntegrationTestSuite) TestConsumerPollIncremental() {
+	t := its.T()
+	consumerTestWithCommits(t, "Poll Consumer ncremental",
+		"cooperative-sticky", 0, false, eventTestPollConsumer, nil)
+}
+
+// test consumer poll-based API with rebalance callback
+func (its *IntegrationTestSuite) TestConsumerPollRebalance() {
+	t := its.T()
+	consumerTestWithCommits(t, "Poll Consumer (rebalance callback)",
+		"", 0, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s", event)
+			return nil
+		})
+}
+
+// test consumer poll-based API with incremental no-op rebalance callback
+func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncrementalNoop() {
+	t := its.T()
+	consumerTestWithCommits(t, "Poll Consumer (incremental no-op rebalance callback)",
+		"cooperative-sticky", 0, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s", event)
+			return nil
+		})
+}
+
+// test consumer poll-based API with incremental rebalance callback
+func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
+	t := its.T()
+	consumerTestWithCommits(t, "Poll Consumer (incremental rebalance callback)",
+		"cooperative-sticky", 0, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s (RebalanceProtocol=%s, AssignmentLost=%v)",
+				event, c.GetRebalanceProtocol(), c.AssignmentLost())
+
+			switch e := event.(type) {
+			case AssignedPartitions:
+				err := c.IncrementalAssign(e.Partitions)
+				if err != nil {
+					t.Errorf("IncrementalAssign() failed: %s\n", err)
+					return err
+				}
+			case RevokedPartitions:
+				err := c.IncrementalUnassign(e.Partitions)
+				if err != nil {
+					t.Errorf("IncrementalUnassign() failed: %s\n", err)
+					return err
+				}
+			default:
+				t.Fatalf("Unexpected rebalance event: %v\n", e)
+			}
+
+			return nil
+		})
+}
+
+// Test Committed() API
+func (its *IntegrationTestSuite) TestConsumerCommitted() {
+	t := its.T()
+	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
+		"", 0, false, eventTestPollConsumer,
+		func(c *Consumer, event Event) error {
+			t.Logf("Rebalanced: %s", event)
+			rp, ok := event.(RevokedPartitions)
+			if ok {
+				offsets, err := c.Committed(rp.Partitions, 5000)
+				if err != nil {
+					t.Errorf("Failed to get committed offsets: %s\n", err)
+					return nil
+				}
+
+				t.Logf("Retrieved Committed offsets: %s\n", offsets)
+
+				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
+					t.Errorf("Invalid number of partitions %d, should be %d (and >0)\n", len(offsets), len(rp.Partitions))
+				}
+
+				// Verify proper offsets: at least one partition needs
+				// to have a committed offset.
+				validCnt := 0
+				for _, p := range offsets {
+					if p.Error != nil {
+						t.Errorf("Committed() partition error: %v: %v", p, p.Error)
+					} else if p.Offset >= 0 {
+						validCnt++
+					}
+				}
+
+				if validCnt == 0 {
+					t.Errorf("Committed(): no partitions with valid offsets: %v", offsets)
+				}
+			}
+			return nil
+		})
+}
+
+// TestProducerConsumerTimestamps produces messages with timestamps
+// and verifies them on consumption.
+// Requires librdkafka >=0.9.4 and Kafka >=0.10.0.0
+func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
+	t := its.T()
+	numver, strver := LibraryVersion()
+	if numver < 0x00090400 {
+		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
+	}
+
+	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"go.events.channel.enable": true,
+		"group.id":                 testconf.Topic,
+		"enable.partition.eof":     true,
+	}
+
+	consumerConf.updateFromTestconf()
+
+	/* Create consumer and find recognizable message, verify timestamp.
+	 * The consumer is started before the producer to make sure
+	 * the message isn't missed. */
+	t.Logf("Creating consumer")
+	c, err := NewConsumer(&consumerConf)
+	if err != nil {
+		t.Fatalf("NewConsumer: %v", err)
+	}
+
+	t.Logf("Assign %s [0]", testconf.Topic)
+	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+		Offset: OffsetEnd}})
+	if err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+
+	/* Wait until EOF is reached so we dont miss the produced message */
+	for ev := range c.Events() {
+		t.Logf("Awaiting initial EOF")
+		_, ok := ev.(PartitionEOF)
+		if ok {
+			break
+		}
+	}
+
+	/*
+	 * Create producer and produce one recognizable message with timestamp
+	 */
+	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+	producerConf.updateFromTestconf()
+
+	t.Logf("Creating producer")
+	p, err := NewProducer(&producerConf)
+	if err != nil {
+		t.Fatalf("NewProducer: %v", err)
+	}
+
+	drChan := make(chan Event, 1)
+
+	/* Offset the timestamp to avoid comparison with system clock */
+	future, _ := time.ParseDuration("87658h") // 10y
+	timestamp := time.Now().Add(future)
+	key := fmt.Sprintf("TS: %v", timestamp)
+	t.Logf("Producing message with timestamp %v", timestamp)
+	err = p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		Key:            []byte(key),
+		Timestamp:      timestamp},
+		drChan)
+
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+
+	// Wait for delivery
+	t.Logf("Awaiting delivery report")
+	ev := <-drChan
+	m, ok := ev.(*Message)
+	if !ok {
+		t.Fatalf("drChan: Expected *Message, got %v", ev)
+	}
+	if m.TopicPartition.Error != nil {
+		t.Fatalf("Delivery failed: %v", m.TopicPartition)
+	}
+	t.Logf("Produced message to %v", m.TopicPartition)
+	producedOffset := m.TopicPartition.Offset
+
+	p.Close()
+
+	/* Now consume messages, waiting for that recognizable one. */
+	t.Logf("Consuming messages")
+outer:
+	for ev := range c.Events() {
+		switch m := ev.(type) {
+		case *Message:
+			if m.TopicPartition.Error != nil {
+				continue
+			}
+			if m.Key == nil || string(m.Key) != key {
+				continue
+			}
+
+			t.Logf("Found message at %v with timestamp %s %s",
+				m.TopicPartition,
+				m.TimestampType, m.Timestamp)
+
+			if m.TopicPartition.Offset != producedOffset {
+				t.Fatalf("Produced Offset %d does not match consumed offset %d", producedOffset, m.TopicPartition.Offset)
+			}
+
+			if m.TimestampType != TimestampCreateTime {
+				t.Fatalf("Expected timestamp CreateTime, not %s",
+					m.TimestampType)
+			}
+
+			/* Since Kafka timestamps are milliseconds we need to
+			 * shave off some precision for the comparison */
+			if m.Timestamp.UnixNano()/1000000 !=
+				timestamp.UnixNano()/1000000 {
+				t.Fatalf("Expected timestamp %v (%d), not %v (%d)",
+					timestamp, timestamp.UnixNano(),
+					m.Timestamp, m.Timestamp.UnixNano())
+			}
+			break outer
+		default:
+		}
+	}
+
+	c.Close()
+}
+
+// TestProducerConsumerHeaders produces messages with headers
+// and verifies them on consumption.
+// Requires librdkafka >=0.11.4 and Kafka >=0.11.0.0
+func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
+	t := its.T()
+	numver, strver := LibraryVersion()
+	if numver < 0x000b0400 {
+		t.Skipf("Requires librdkafka >=0.11.4 (currently on %s, 0x%x)", strver, numver)
+	}
+
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+		"api.version.request": true,
+		"enable.auto.commit":  false,
+		"group.id":            testconf.Topic,
+	}
+
+	conf.updateFromTestconf()
+
+	/*
+	 * Create producer and produce a couple of messages with and without
+	 * headers.
+	 */
+	t.Logf("Creating producer")
+	p, err := NewProducer(&conf)
+	if err != nil {
+		t.Fatalf("NewProducer: %v", err)
+	}
+
+	drChan := make(chan Event, 1)
+
+	// prepare some header values
+	bigBytes := make([]byte, 2500)
+	for i := 0; i < len(bigBytes); i++ {
+		bigBytes[i] = byte(i)
+	}
+
+	myVarint := make([]byte, binary.MaxVarintLen64)
+	myVarintLen := binary.PutVarint(myVarint, 12345678901234)
+
+	expMsgHeaders := [][]Header{
+		{
+			{"msgid", []byte("1")},
+			{"a key with SPACES ", bigBytes[:15]},
+			{"BIGONE!", bigBytes},
+		},
+		{
+			{"msgid", []byte("2")},
+			{"myVarint", myVarint[:myVarintLen]},
+			{"empty", []byte("")},
+			{"theNullIsNil", nil},
+		},
+		nil, // no headers
+		{
+			{"msgid", []byte("4")},
+			{"order", []byte("1")},
+			{"order", []byte("2")},
+			{"order", nil},
+			{"order", []byte("4")},
+		},
+	}
+
+	t.Logf("Producing %d messages", len(expMsgHeaders))
+	for _, hdrs := range expMsgHeaders {
+		err = p.Produce(&Message{
+			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			Headers:        hdrs},
+			drChan)
+	}
+
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+
+	var firstOffset Offset = OffsetInvalid
+	for range expMsgHeaders {
+		ev := <-drChan
+		m, ok := ev.(*Message)
+		if !ok {
+			t.Fatalf("drChan: Expected *Message, got %v", ev)
+		}
+		if m.TopicPartition.Error != nil {
+			t.Fatalf("Delivery failed: %v", m.TopicPartition)
+		}
+		t.Logf("Produced message to %v", m.TopicPartition)
+		if firstOffset == OffsetInvalid {
+			firstOffset = m.TopicPartition.Offset
+		}
+	}
+
+	p.Close()
+
+	/* Now consume the produced messages and verify the headers */
+	t.Logf("Creating consumer starting at offset %v", firstOffset)
+	c, err := NewConsumer(&conf)
+	if err != nil {
+		t.Fatalf("NewConsumer: %v", err)
+	}
+
+	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+		Offset: firstOffset}})
+	if err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+
+	for n, hdrs := range expMsgHeaders {
+		m, err := c.ReadMessage(-1)
 		if err != nil {
-			t.Errorf("Consumer failed to read a message with error %v", err)
-			return
+			t.Fatalf("Expected message #%d, not error %v", n, err)
 		}
 
-		if _, err = consumer.StoreMessage(msg); err != nil {
-			t.Errorf("Consumer failed to store the message with error %v", err)
-			return
+		if m.Headers == nil {
+			if hdrs == nil {
+				continue
+			}
+			t.Fatalf("Expected message #%d to have headers", n)
 		}
+
+		if hdrs == nil {
+			t.Fatalf("Expected message #%d not to have headers, but found %v", n, m.Headers)
+		}
+
+		// Compare headers
+		if !reflect.DeepEqual(hdrs, m.Headers) {
+			t.Fatalf("Expected message #%d headers to match %v, but found %v", n, hdrs, m.Headers)
+		}
+
+		t.Logf("Message #%d headers matched: %v", n, m.Headers)
 	}
 
-	if _, err = consumer.Commit(); err != nil {
-		t.Errorf("Consumer failed to commit with error %v", err)
+	c.Close()
+
+}
+
+func TestIntegration(t *testing.T) {
+	its := new(IntegrationTestSuite)
+	testconfInit()
+	if !testconfRead() {
+		t.Skipf("testconf not provided or not usable")
 		return
 	}
-
-	// Try altering offsets without closing the consumer - this should give an error.
-	// The error should be on a TopicPartition level, and not on the `err` level.
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	aresult, err := ac.AlterConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
-		{
-			Group: testconf.GroupID,
-			Partitions: []TopicPartition{
-				{
-					Topic:     &topic,
-					Partition: 0,
-					Offset:    Offset(numMsgs - 1),
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Errorf("Unexpected error while altering offset %v", err)
-		return
+	if testconf.Docker {
+		its.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
+		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
+		if err := execErr.Error; err != nil {
+			its.T().Fatal(execErr)
+		}
+		// It takes some time after the containers come up for them to be ready.
+		time.Sleep(20 * time.Second)
 	}
 
-	if len(aresult.ConsumerGroupsTopicPartitions) != 1 ||
-		len(aresult.ConsumerGroupsTopicPartitions[0].Partitions) != 1 ||
-		aresult.ConsumerGroupsTopicPartitions[0].Partitions[0].Error == nil {
-		t.Errorf("Unexpected result while altering offset, expected non-nil error in topic partition, got %v", aresult)
-		return
-	}
-
-	// Close consumer so we can safely alter offsets.
-	if err = consumer.Close(); err != nil {
-		t.Errorf("Consumer failed to close with error %v", err)
-		return
-	}
-	consumerClosed = true
-
-	// List offsets for our group/partition.
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	lresult, err := ac.ListConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
-		{
-			Group:      testconf.GroupID,
-			Partitions: []TopicPartition{{Topic: &topic, Partition: 0}},
-		},
-	})
-	if err != nil {
-		t.Errorf("Failed to list offset with error %v", err)
-		return
-	}
-
-	if lresult.ConsumerGroupsTopicPartitions == nil ||
-		len(lresult.ConsumerGroupsTopicPartitions) != 1 {
-		t.Errorf("Result length %d doesn't match expected length of 1",
-			len(lresult.ConsumerGroupsTopicPartitions))
-		return
-	}
-
-	groupTopicParitions := lresult.ConsumerGroupsTopicPartitions[0]
-	expectedResult := ConsumerGroupTopicPartitions{
-		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs)}},
-	}
-	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
-		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
-			expectedResult, groupTopicParitions)
-		return
-	}
-
-	// Alter offsets for our group/partitions.
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	aresult, err = ac.AlterConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
-		{
-			Group: testconf.GroupID,
-			Partitions: []TopicPartition{
-				{
-					Topic:     &topic,
-					Partition: 0,
-					Offset:    Offset(numMsgs - 1),
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Errorf("Failed to alter offset with error %v", err)
-		return
-	}
-
-	if aresult.ConsumerGroupsTopicPartitions == nil ||
-		len(aresult.ConsumerGroupsTopicPartitions) != 1 {
-		t.Errorf("Result length %d doesn't match expected length of 1",
-			len(aresult.ConsumerGroupsTopicPartitions))
-		return
-	}
-
-	groupTopicParitions = aresult.ConsumerGroupsTopicPartitions[0]
-	expectedResult = ConsumerGroupTopicPartitions{
-		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
-	}
-	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
-		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
-			expectedResult, groupTopicParitions)
-		return
-	}
-
-	// Check altered offsets using ListConsumerGroupOffsets.
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	lresult, err = ac.ListConsumerGroupOffsets(ctx, []ConsumerGroupTopicPartitions{
-		{
-			Group:      testconf.GroupID,
-			Partitions: []TopicPartition{{Topic: &topic, Partition: 0}},
-		},
-	})
-	if err != nil {
-		t.Errorf("Failed to list offset with error %v", err)
-		return
-	}
-
-	if lresult.ConsumerGroupsTopicPartitions == nil ||
-		len(lresult.ConsumerGroupsTopicPartitions) != 1 {
-		t.Errorf("Result length %d doesn't match expected length of 1",
-			len(lresult.ConsumerGroupsTopicPartitions))
-		return
-	}
-
-	groupTopicParitions = lresult.ConsumerGroupsTopicPartitions[0]
-	expectedResult = ConsumerGroupTopicPartitions{
-		Group:      testconf.GroupID,
-		Partitions: []TopicPartition{{Topic: &topic, Partition: 0, Offset: Offset(numMsgs - 1)}},
-	}
-	if !reflect.DeepEqual(groupTopicParitions, expectedResult) {
-		t.Errorf("Result[0] doesn't have expected structure %v, instead it is %v",
-			expectedResult, groupTopicParitions)
-		return
-	}
-
+	suite.Run(t, its)
 }
