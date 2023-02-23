@@ -70,7 +70,7 @@ func testconfInit() {
 // Returns true if the testconf was found and usable, false if no such file, or panics
 // if the file format is wrong.
 func testconfRead() bool {
-	cf, err := os.Open("testconf.json")
+	cf, err := os.Open("./testconf.json")
 	if err != nil && !testconf.Docker {
 		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
 		return false
@@ -83,6 +83,11 @@ func testconfRead() bool {
 	testconf.Topic = defaulttestconfTopic
 	testconf.Brokers = ""
 
+	if testconf.Docker {
+		testconf.Brokers = defaulttestconfBrokers
+		return true
+	}
+
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
 	if err != nil {
@@ -90,10 +95,6 @@ func testconfRead() bool {
 	}
 
 	cf.Close()
-
-	if testconf.Docker {
-		testconf.Brokers = defaulttestconfBrokers
-	}
 
 	if !testconf.Docker && testconf.Brokers == "" {
 		fmt.Fprintf(os.Stderr, "No Brokers provided in testconf")
