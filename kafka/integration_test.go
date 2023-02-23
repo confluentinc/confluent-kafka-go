@@ -29,6 +29,7 @@ import (
 	"sort"
 	"testing"
 	"time"
+	"os"
 )
 
 // producer test control
