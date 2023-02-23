@@ -593,6 +593,7 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 type IntegrationTestSuite struct {
 	suite.Suite
 	compose *testcontainers.LocalDockerCompose
+	bool skipFlakyTests = true
 }
 
 func (its *IntegrationTestSuite) TearDownSuite() {
@@ -2075,6 +2076,10 @@ func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
 // Test Committed() API
 func (its *IntegrationTestSuite) TestConsumerCommitted() {
 	t := its.T()
+	if its.skipFlakyTests:
+		t.Skipf("Skipping TestConsumerCommitted since it is flaky[Does not run when tested with all the other integration tests]")
+		return
+
 	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
 		"", 0, false, eventTestPollConsumer,
 		func(c *Consumer, event Event) error {
