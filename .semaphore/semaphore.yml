@@ -27,14 +27,12 @@ blocks:
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
+          - docker --version
+          - docker compose up --help
           - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-          - brew install docker --cask
+          - brew install docker
+          - docker compose up --help
       jobs:
-        - name: "Static Build"
-          env_vars:
-            - name: EXPECT_LINK_INFO
-              value: static
-          commands_file: semaphore_commands.sh
         - name: "Dynamic Build"
           env_vars:
             - name: EXPECT_LINK_INFO

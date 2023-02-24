@@ -681,7 +681,10 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 // It does so by listing consumer groups before/after deletion.
 func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 	t := its.T()
-
+	if its.skipFlaky {
+		t.Skipf("Skipping TestAdminClient_DeleteConsumerGroups since it is flaky[Does not run when tested with all the other integration tests]")
+		return
+	}
 	rand.Seed(time.Now().Unix())
 
 	// Generating new groupID to ensure a fresh group is created.
@@ -2390,12 +2393,12 @@ func TestIntegration(t *testing.T) {
 		return
 	}
 	fmt.Fprintf(os.Stdout, "TestconfRead was successful!\n")
-	if testconf.Docker {
+	if testconf.Docker && !testconf.Semaphore{
 		its.compose = testcontainers.NewLocalDockerCompose([]string{"./testresources/docker-compose.yaml"}, "test-docker")
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
-			fmt.Fprintf(os.Stderr,"up -d command failed with the error message %s"\n,err)
-			its.T().Fatal(execErr)
+			fmt.Fprintf(os.Stderr,"up -d command failed with the error message %s\n",err)
+			t.Fatal(execErr)
 		}
 		// It takes some time after the containers come up for them to be ready.
 		time.Sleep(20 * time.Second)

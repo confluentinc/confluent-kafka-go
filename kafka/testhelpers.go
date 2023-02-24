@@ -34,6 +34,7 @@ import "C"
 
 var testconf struct {
 	Docker       bool
+	Semaphore	 bool
 	Brokers      string
 	Topic        string
 	GroupID      string
@@ -52,6 +53,8 @@ var defaulttestconfConfig = [1]string{"api.version.request=true"}
 
 const defaulttestconfBrokers = "localhost:9092"
 
+// flag for semaphore job
+var semaphoreJob = flag.Bool("onSemaphore",false,"Tells if the job is running on Semaphore")
 // Command line flags accepted by tests
 var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
 
@@ -59,9 +62,11 @@ var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker c
 // automatically, or if we will be using the bootstrap servers from the
 // testconf file.
 func testconfInit() {
-	testconf.Docker = false
 	if (usingDocker != nil) && (*usingDocker) {
 		testconf.Docker = true
+	}
+	if (semaphoreJob != nil) && (*semaphoreJob) {
+		testconf.Semaphore = true
 	}
 }
 
@@ -71,7 +76,7 @@ func testconfInit() {
 // if the file format is wrong.
 func testconfRead() bool {
 	cf, err := os.Open("./testconf.json")
-	if err != nil && !testconf.Docker {
+	if err != nil && !testconf.Docker && !testconf.Semaphore {
 		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
 		return false
 	}
@@ -83,7 +88,7 @@ func testconfRead() bool {
 	testconf.Topic = defaulttestconfTopic
 	testconf.Brokers = ""
 
-	if testconf.Docker {
+	if testconf.Docker || testconf.Semaphore {
 		testconf.Brokers = defaulttestconfBrokers
 		return true
 	}
@@ -96,7 +101,7 @@ func testconfRead() bool {
 
 	cf.Close()
 
-	if !testconf.Docker && testconf.Brokers == "" {
+	if !testconf.Semaphore && !testconf.Docker && testconf.Brokers == "" {
 		fmt.Fprintf(os.Stderr, "No Brokers provided in testconf")
 		return false
 	}
