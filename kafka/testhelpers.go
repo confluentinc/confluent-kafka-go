@@ -34,7 +34,7 @@ import "C"
 
 var testconf struct {
 	Docker       bool
-	Semaphore	 bool
+	Semaphore    bool
 	Brokers      string
 	Topic        string
 	GroupID      string
@@ -54,7 +54,8 @@ var defaulttestconfConfig = [1]string{"api.version.request=true"}
 const defaulttestconfBrokers = "localhost:9092"
 
 // flag for semaphore job
-var semaphoreJob = flag.Bool("onSemaphore",false,"Tells if the job is running on Semaphore")
+var semaphoreJob = flag.Bool("onSemaphore", false, "Tells if the job is running on Semaphore")
+
 // Command line flags accepted by tests
 var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
 
