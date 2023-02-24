@@ -29,8 +29,9 @@ blocks:
           - go install golang.org/x/lint/golint@latest && touch .do_lint
           - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
           - brew install docker
+          - brew install docker-compose
           - docker --version
-          - docker compose up --help
+          - docker-compose --version
       jobs:
         - name: "Dynamic Build"
           env_vars:
