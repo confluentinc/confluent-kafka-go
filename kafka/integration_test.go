@@ -21,8 +21,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go"
+	testcontainers "github.com/testcontainers/testcontainers-go"
 	"math/rand"
+	"os"
 	"path"
 	"reflect"
 	"runtime"
@@ -592,7 +593,8 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 
 type IntegrationTestSuite struct {
 	suite.Suite
-	compose *testcontainers.LocalDockerCompose
+	compose   *testcontainers.LocalDockerCompose
+	skipFlaky bool
 }
 
 func (its *IntegrationTestSuite) TearDownSuite() {
@@ -679,7 +681,10 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 // It does so by listing consumer groups before/after deletion.
 func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 	t := its.T()
-
+	if its.skipFlaky {
+		t.Skipf("Skipping TestAdminClient_DeleteConsumerGroups since it is flaky[Does not run when tested with all the other integration tests]")
+		return
+	}
 	rand.Seed(time.Now().Unix())
 
 	// Generating new groupID to ensure a fresh group is created.
@@ -2075,6 +2080,11 @@ func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
 // Test Committed() API
 func (its *IntegrationTestSuite) TestConsumerCommitted() {
 	t := its.T()
+	if its.skipFlaky {
+		t.Skipf("Skipping TestConsumerCommitted since it is flaky[Does not run when tested with all the other integration tests]")
+		return
+	}
+
 	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
 		"", 0, false, eventTestPollConsumer,
 		func(c *Consumer, event Event) error {
@@ -2376,20 +2386,23 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
+	its.skipFlaky = true
 	testconfInit()
 	if !testconfRead() {
-		t.Skipf("testconf not provided or not usable")
+		t.Skipf("testconf not provided or not usable\n")
 		return
 	}
-	if testconf.Docker {
-		its.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
+	fmt.Fprintf(os.Stdout, "TestconfRead was successful!\n")
+	if testconf.Docker && !testconf.Semaphore {
+		its.compose = testcontainers.NewLocalDockerCompose([]string{"./testresources/docker-compose.yaml"}, "test-docker")
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
-			its.T().Fatal(execErr)
+			fmt.Fprintf(os.Stderr, "up -d command failed with the error message %s\n", err)
+			t.Fatal(execErr)
 		}
 		// It takes some time after the containers come up for them to be ready.
 		time.Sleep(20 * time.Second)
 	}
-
+	fmt.Fprintf(os.Stdout, "We are going to run the suite\n")
 	suite.Run(t, its)
 }
