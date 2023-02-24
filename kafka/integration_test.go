@@ -2389,17 +2389,17 @@ func TestIntegration(t *testing.T) {
 		t.Skipf("testconf not provided or not usable\n")
 		return
 	}
-	fmt.Fprintf(os.Stderr, "We did this one\n")
+	fmt.Fprintf(os.Stdout, "TestconfRead was successful!\n")
 	if testconf.Docker {
 		its.compose = testcontainers.NewLocalDockerCompose([]string{"./testresources/docker-compose.yaml"}, "test-docker")
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
-			fmt.Fprintf(os.Stderr, "Whats wrong here\n")
+			fmt.Fprintf(os.Stderr,"up -d command failed with the error message %s"\n,err)
 			its.T().Fatal(execErr)
 		}
 		// It takes some time after the containers come up for them to be ready.
 		time.Sleep(20 * time.Second)
 	}
-	fmt.Fprintf(os.Stderr, "We are going to run the suite\n")
+	fmt.Fprintf(os.Stdout, "We are going to run the suite\n")
 	suite.Run(t, its)
 }

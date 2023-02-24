@@ -27,6 +27,8 @@ blocks:
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
+          - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+          - brew cask install docker
       jobs:
         - name: "Static Build"
           env_vars:
