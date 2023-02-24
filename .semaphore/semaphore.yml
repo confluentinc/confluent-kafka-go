@@ -28,7 +28,7 @@ blocks:
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
           - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-          - brew cask install docker
+          - brew install docker --cask
       jobs:
         - name: "Static Build"
           env_vars:
