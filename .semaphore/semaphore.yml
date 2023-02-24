@@ -30,10 +30,6 @@ blocks:
           - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
           - brew install docker
           - brew install docker-compose
-          - docker --version
-          - docker-compose --version
-          - brew install docker-ce
-          - docker-compose up
       jobs:
         - name: "Dynamic Build"
           env_vars:
