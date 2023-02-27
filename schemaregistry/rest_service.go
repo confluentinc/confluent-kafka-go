@@ -30,6 +30,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 )
@@ -272,7 +273,8 @@ func newAuthHeader(service *url.URL, conf *Config) (http.Header, error) {
 
 // handleRequest sends a HTTP(S) request to the Schema Registry, placing results into the response object
 func (rs *restService) handleRequest(request *api, response interface{}) error {
-	endpoint, err := rs.url.Parse(fmt.Sprintf(base+request.endpoint, request.arguments...))
+	urlPath := path.Join(rs.url.Path, fmt.Sprintf(request.endpoint, request.arguments...))
+	endpoint, err := rs.url.Parse(urlPath)
 	if err != nil {
 		return err
 	}
