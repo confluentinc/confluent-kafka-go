@@ -20,16 +20,16 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/stretchr/testify/suite"
-	testcontainers "github.com/testcontainers/testcontainers-go"
 	"math/rand"
-	"os"
 	"path"
 	"reflect"
 	"runtime"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
+	testcontainers "github.com/testcontainers/testcontainers-go"
 )
 
 // producer test control
@@ -681,7 +681,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 // It does so by listing consumer groups before/after deletion.
 func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 	t := its.T()
-	if its.skipFlaky {
+	if its.skipFlaky && testconf.Semaphore {
 		t.Skipf("Skipping TestAdminClient_DeleteConsumerGroups since it is flaky[Does not run when tested with all the other integration tests]")
 		return
 	}
@@ -2080,7 +2080,7 @@ func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
 // Test Committed() API
 func (its *IntegrationTestSuite) TestConsumerCommitted() {
 	t := its.T()
-	if its.skipFlaky {
+	if its.skipFlaky && testconf.Semaphore {
 		t.Skipf("Skipping TestConsumerCommitted since it is flaky[Does not run when tested with all the other integration tests]")
 		return
 	}
@@ -2392,17 +2392,14 @@ func TestIntegration(t *testing.T) {
 		t.Skipf("testconf not provided or not usable\n")
 		return
 	}
-	fmt.Fprintf(os.Stdout, "TestconfRead was successful!\n")
 	if testconf.Docker && !testconf.Semaphore {
 		its.compose = testcontainers.NewLocalDockerCompose([]string{"./testresources/docker-compose.yaml"}, "test-docker")
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
-			fmt.Fprintf(os.Stderr, "up -d command failed with the error message %s\n", err)
-			t.Fatal(execErr)
+			t.Fatalf("up -d command failed with the error message %s\n", err)
 		}
 		// It takes some time after the containers come up for them to be ready.
 		time.Sleep(20 * time.Second)
 	}
-	fmt.Fprintf(os.Stdout, "We are going to run the suite\n")
 	suite.Run(t, its)
 }
