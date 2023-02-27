@@ -63,12 +63,12 @@ blocks:
           env_vars:
             - name: EXPECT_LINK_INFO
               value: static
-          commands_file: semaphore_commands.sh
+          commands_file: semaphore_integration_commands.sh
         - name: "Dynamic Build"
           env_vars:
             - name: EXPECT_LINK_INFO
               value: dynamic
-          commands_file: semaphore_commands.sh
+          commands_file: semaphore_integration_commands.sh
   - name: "Go 1.19 linux arm64 bundled librdkafka"
     dependencies: [ ]
     task:
@@ -130,4 +130,3 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands_file: semaphore_commands.ps1
-
