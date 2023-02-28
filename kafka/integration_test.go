@@ -20,8 +20,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go"
 	"math/rand"
 	"path"
 	"reflect"
@@ -2389,16 +2387,6 @@ func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()
 	if !testconfRead() {
-<<<<<<< HEAD
-		t.Skipf("testconf not provided or not usable")
-		return
-	}
-	if testconf.Docker {
-		its.compose = testcontainers.NewLocalDockerCompose([]string{"testresources/docker-compose.yaml"}, "test-docker")
-		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
-		if err := execErr.Error; err != nil {
-			its.T().Fatal(execErr)
-=======
 		t.Skipf("testconf not provided or not usable\n")
 		return
 	}
@@ -2407,7 +2395,6 @@ func TestIntegration(t *testing.T) {
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
 			t.Fatalf("up -d command failed with the error message %s\n", err)
->>>>>>> 1901e5d (Pre-Rebasing Commit)
 		}
 		// It takes some time after the containers come up for them to be ready.
 		time.Sleep(20 * time.Second)
