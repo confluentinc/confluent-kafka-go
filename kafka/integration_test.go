@@ -593,8 +593,7 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 
 type IntegrationTestSuite struct {
 	suite.Suite
-	compose   *testcontainers.LocalDockerCompose
-	skipFlaky bool
+	compose *testcontainers.LocalDockerCompose
 }
 
 func (its *IntegrationTestSuite) TearDownSuite() {
@@ -681,7 +680,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 // It does so by listing consumer groups before/after deletion.
 func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 	t := its.T()
-	if its.skipFlaky && testconf.Semaphore {
+	if testconf.Semaphore {
 		t.Skipf("Skipping TestAdminClient_DeleteConsumerGroups since it is flaky[Does not run when tested with all the other integration tests]")
 		return
 	}
@@ -2080,7 +2079,7 @@ func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
 // Test Committed() API
 func (its *IntegrationTestSuite) TestConsumerCommitted() {
 	t := its.T()
-	if its.skipFlaky && testconf.Semaphore {
+	if testconf.Semaphore {
 		t.Skipf("Skipping TestConsumerCommitted since it is flaky[Does not run when tested with all the other integration tests]")
 		return
 	}
@@ -2386,7 +2385,6 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
-	its.skipFlaky = true
 	testconfInit()
 	if !testconfRead() {
 		t.Skipf("testconf not provided or not usable\n")

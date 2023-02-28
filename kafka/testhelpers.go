@@ -76,11 +76,6 @@ func testconfInit() {
 // Returns true if the testconf was found and usable, false if no such file, or panics
 // if the file format is wrong.
 func testconfRead() bool {
-	cf, err := os.Open("./testconf.json")
-	if err != nil && !testconf.Docker && !testconf.Semaphore {
-		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
-		return false
-	}
 
 	// Default values
 	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
@@ -94,6 +89,11 @@ func testconfRead() bool {
 		return true
 	}
 
+	cf, err := os.Open("./testconf.json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%% testconf.json not found and docker compose not setup - ignoring test\n")
+		return false
+	}
 	jp := json.NewDecoder(cf)
 	err = jp.Decode(&testconf)
 	if err != nil {
@@ -102,7 +102,7 @@ func testconfRead() bool {
 
 	cf.Close()
 
-	if !testconf.Semaphore && !testconf.Docker && testconf.Brokers == "" {
+	if testconf.Brokers == "" {
 		fmt.Fprintf(os.Stderr, "No Brokers provided in testconf")
 		return false
 	}
