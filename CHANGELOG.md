@@ -37,6 +37,7 @@ This is a feature release:
   * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
     a given mock broker (@kkoehler, #892).
   * Built-in support for Linux/ arm64. (#933).
+  * Support for Offset types on `offset.Set()`
 
 ### Fixes
 
