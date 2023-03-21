@@ -101,7 +101,7 @@ func main() {
 
 	// Flush and close the producer and the events channel
 	for p.Flush(10000) > 0 {
-		fmt.Print("Still waiting to flush outstanding messages\n", err)
+		fmt.Print("Still waiting to flush outstanding messages\n")
 	}
 	p.Close()
 }
