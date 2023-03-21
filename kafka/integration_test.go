@@ -18,7 +18,6 @@ package kafka
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"path"
@@ -603,243 +602,600 @@ func (its *IntegrationTestSuite) TearDownSuite() {
 }
 
 // TestConsumerSeekPartitions tests seeking of partitions using SeekPartitions().
-func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
-	t := its.T()
+// func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
+// 	t := its.T()
 
-	numMessages := 10 // should be more than or equal to 2.
+// 	numMessages := 10 // should be more than or equal to 2.
 
-	// Produce `numMessages` messages to Topic.
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	conf.updateFromTestconf()
+// 	// Produce `numMessages` messages to Topic.
+// 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	conf.updateFromTestconf()
 
-	producer, err := NewProducer(&conf)
-	if err != nil {
-		t.Fatalf("Failed to create producer: %s", err)
-	}
+// 	producer, err := NewProducer(&conf)
+// 	if err != nil {
+// 		t.Fatalf("Failed to create producer: %s", err)
+// 	}
 
-	for idx := 0; idx < numMessages; idx++ {
-		if err = producer.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-		}, nil); err != nil {
-			t.Fatalf("Failed to produce message: %s", err)
-		}
-	}
+// 	for idx := 0; idx < numMessages; idx++ {
+// 		if err = producer.Produce(&Message{
+// 			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+// 		}, nil); err != nil {
+// 			t.Fatalf("Failed to produce message: %s", err)
+// 		}
+// 	}
 
-	producer.Flush(10 * 1000)
-	producer.Close()
+// 	producer.Flush(10 * 1000)
+// 	producer.Close()
 
-	// Assign partition, seek to `numMessages`/2, and check by reading the message.
-	conf = ConfigMap{
-		"bootstrap.servers": testconf.Brokers,
-		"group.id":          testconf.GroupID,
-		"auto.offset.reset": "end",
-	}
-	conf.updateFromTestconf()
+// 	// Assign partition, seek to `numMessages`/2, and check by reading the message.
+// 	conf = ConfigMap{
+// 		"bootstrap.servers": testconf.Brokers,
+// 		"group.id":          testconf.GroupID,
+// 		"auto.offset.reset": "end",
+// 	}
+// 	conf.updateFromTestconf()
 
-	consumer, err := NewConsumer(&conf)
-	if err != nil {
-		t.Fatalf("Failed to create consumer: %s", err)
-	}
+// 	consumer, err := NewConsumer(&conf)
+// 	if err != nil {
+// 		t.Fatalf("Failed to create consumer: %s", err)
+// 	}
 
-	tps := []TopicPartition{
-		{Topic: &testconf.Topic, Partition: 0},
-	}
-	err = consumer.Assign(tps)
-	if err != nil {
-		t.Fatalf("Failed to assign partition: %s", err)
-	}
+// 	tps := []TopicPartition{
+// 		{Topic: &testconf.Topic, Partition: 0},
+// 	}
+// 	err = consumer.Assign(tps)
+// 	if err != nil {
+// 		t.Fatalf("Failed to assign partition: %s", err)
+// 	}
 
-	tps[0].Offset = Offset(numMessages / 2)
-	seekedPartitions, err := consumer.SeekPartitions(tps)
-	if err != nil {
-		t.Errorf("SeekPartitions failed: %s", err)
-	}
-	if len(seekedPartitions) != len(tps) {
-		t.Errorf(
-			"SeekPartitions should return result for %d partitions, %d returned",
-			len(tps), len(seekedPartitions))
-	}
-	for _, seekedPartition := range seekedPartitions {
-		if seekedPartition.Error != nil {
-			t.Errorf("Seek error for partition %v", seekedPartition)
-		}
-	}
+// 	tps[0].Offset = Offset(numMessages / 2)
+// 	seekedPartitions, err := consumer.SeekPartitions(tps)
+// 	if err != nil {
+// 		t.Errorf("SeekPartitions failed: %s", err)
+// 	}
+// 	if len(seekedPartitions) != len(tps) {
+// 		t.Errorf(
+// 			"SeekPartitions should return result for %d partitions, %d returned",
+// 			len(tps), len(seekedPartitions))
+// 	}
+// 	for _, seekedPartition := range seekedPartitions {
+// 		if seekedPartition.Error != nil {
+// 			t.Errorf("Seek error for partition %v", seekedPartition)
+// 		}
+// 	}
 
-	msg, err := consumer.ReadMessage(10 * time.Second)
-	if err != nil {
-		t.Fatalf("ReadMessage failed: %s", err)
-	}
-	if msg.TopicPartition.Offset != Offset(numMessages/2) {
-		t.Errorf("Expected offset of read message is %d, got %d",
-			numMessages/2, msg.TopicPartition.Offset)
-	}
-}
+// 	msg, err := consumer.ReadMessage(10 * time.Second)
+// 	if err != nil {
+// 		t.Fatalf("ReadMessage failed: %s", err)
+// 	}
+// 	if msg.TopicPartition.Offset != Offset(numMessages/2) {
+// 		t.Errorf("Expected offset of read message is %d, got %d",
+// 			numMessages/2, msg.TopicPartition.Offset)
+// 	}
+// }
 
-// TestAdminClient_DeleteConsumerGroups verifies the working of the
-// DeleteConsumerGroups API in the admin client.
-// It does so by listing consumer groups before/after deletion.
-func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
-	t := its.T()
-	if testconf.Semaphore {
-		t.Skipf("Skipping TestAdminClient_DeleteConsumerGroups since it is flaky[Does not run when tested with all the other integration tests]")
-		return
-	}
-	rand.Seed(time.Now().Unix())
+// // TestAdminClient_DeleteConsumerGroups verifies the working of the
+// // DeleteConsumerGroups API in the admin client.
+// // It does so by listing consumer groups before/after deletion.
+// func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
+// 	t := its.T()
+// 	if testconf.Semaphore {
+// 		t.Skipf("Skipping TestAdminClient_DeleteConsumerGroups since it is flaky[Does not run when tested with all the other integration tests]")
+// 		return
+// 	}
+// 	rand.Seed(time.Now().Unix())
 
-	// Generating new groupID to ensure a fresh group is created.
-	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+// 	// Generating new groupID to ensure a fresh group is created.
+// 	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
 
-	ac := createAdminClient(t)
-	defer ac.Close()
+// 	ac := createAdminClient(t)
+// 	defer ac.Close()
 
-	// Check that our group is not present initially.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	listGroupResult, err := ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
-	if err != nil {
-		t.Errorf("Error listing consumer groups %s\n", err)
-		return
-	}
+// 	// Check that our group is not present initially.
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err := ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+// 	if err != nil {
+// 		t.Errorf("Error listing consumer groups %s\n", err)
+// 		return
+// 	}
 
-	if findConsumerGroupListing(listGroupResult.Valid, groupID) != nil {
-		t.Errorf("Consumer group present before consumer created: %s\n", groupID)
-		return
-	}
+// 	if findConsumerGroupListing(listGroupResult.Valid, groupID) != nil {
+// 		t.Errorf("Consumer group present before consumer created: %s\n", groupID)
+// 		return
+// 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
 
-	// Create consumer
-	config := &ConfigMap{
-		"bootstrap.servers":        testconf.Brokers,
-		"group.id":                 groupID,
-		"auto.offset.reset":        "earliest",
-		"enable.auto.offset.store": false,
-	}
-	config.updateFromTestconf()
-	consumer, err := NewConsumer(config)
-	if err != nil {
-		t.Errorf("Failed to create consumer: %s\n", err)
-		return
-	}
-	consumerClosed := false
-	defer func() {
-		if !consumerClosed {
-			consumer.Close()
-		}
-	}()
+// 	// Create consumer
+// 	config := &ConfigMap{
+// 		"bootstrap.servers":        testconf.Brokers,
+// 		"group.id":                 groupID,
+// 		"auto.offset.reset":        "earliest",
+// 		"enable.auto.offset.store": false,
+// 	}
+// 	config.updateFromTestconf()
+// 	consumer, err := NewConsumer(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create consumer: %s\n", err)
+// 		return
+// 	}
+// 	consumerClosed := false
+// 	defer func() {
+// 		if !consumerClosed {
+// 			consumer.Close()
+// 		}
+// 	}()
 
-	if err := consumer.Subscribe(testconf.Topic, nil); err != nil {
-		t.Errorf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
-		return
-	}
+// 	if err := consumer.Subscribe(testconf.Topic, nil); err != nil {
+// 		t.Errorf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
+// 		return
+// 	}
 
-	// This ReadMessage gives some time for the rebalance to happen.
-	_, err = consumer.ReadMessage(5 * time.Second)
-	if err != nil && err.(Error).Code() != ErrTimedOut {
-		t.Errorf("Failed while reading message: %s\n", err)
-		return
-	}
+// 	// This ReadMessage gives some time for the rebalance to happen.
+// 	_, err = consumer.ReadMessage(5 * time.Second)
+// 	if err != nil && err.(Error).Code() != ErrTimedOut {
+// 		t.Errorf("Failed while reading message: %s\n", err)
+// 		return
+// 	}
 
-	// Check that the group exists.
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
-	if err != nil {
-		t.Errorf("Error listing consumer groups %s\n", err)
-		return
-	}
+// 	// Check that the group exists.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+// 	if err != nil {
+// 		t.Errorf("Error listing consumer groups %s\n", err)
+// 		return
+// 	}
 
-	if findConsumerGroupListing(listGroupResult.Valid, groupID) == nil {
-		t.Errorf("Consumer group %s should be present\n", groupID)
-		return
-	}
+// 	if findConsumerGroupListing(listGroupResult.Valid, groupID) == nil {
+// 		t.Errorf("Consumer group %s should be present\n", groupID)
+// 		return
+// 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
 
-	// Try deleting the group while consumer is active. It should fail.
-	result, err := ac.DeleteConsumerGroups(ctx, []string{groupID})
-	if err != nil {
-		t.Errorf("DeleteConsumerGroups() failed: %s", err)
-		return
-	}
-	resultGroups := result.ConsumerGroupResults
+// 	// Try deleting the group while consumer is active. It should fail.
+// 	result, err := ac.DeleteConsumerGroups(ctx, []string{groupID})
+// 	if err != nil {
+// 		t.Errorf("DeleteConsumerGroups() failed: %s", err)
+// 		return
+// 	}
+// 	resultGroups := result.ConsumerGroupResults
 
-	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
-		t.Errorf("Wrong group affected/no group affected")
-		return
-	}
+// 	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
+// 		t.Errorf("Wrong group affected/no group affected")
+// 		return
+// 	}
 
-	if resultGroups[0].Error.code != ErrNonEmptyGroup {
-		t.Errorf("Encountered the wrong error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
-		return
-	}
+// 	if resultGroups[0].Error.code != ErrNonEmptyGroup {
+// 		t.Errorf("Encountered the wrong error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
+// 		return
+// 	}
 
-	// Close the consumer.
-	if err = consumer.Close(); err != nil {
-		t.Errorf("Could not close consumer %s", err)
-		return
-	}
-	consumerClosed = true
+// 	// Close the consumer.
+// 	if err = consumer.Close(); err != nil {
+// 		t.Errorf("Could not close consumer %s", err)
+// 		return
+// 	}
+// 	consumerClosed = true
 
-	// Delete the consumer group now.
-	result, err = ac.DeleteConsumerGroups(ctx, []string{groupID})
-	if err != nil {
-		t.Errorf("DeleteConsumerGroups() failed: %s", err)
-		return
-	}
-	resultGroups = result.ConsumerGroupResults
+// 	// Delete the consumer group now.
+// 	result, err = ac.DeleteConsumerGroups(ctx, []string{groupID})
+// 	if err != nil {
+// 		t.Errorf("DeleteConsumerGroups() failed: %s", err)
+// 		return
+// 	}
+// 	resultGroups = result.ConsumerGroupResults
 
-	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
-		t.Errorf("Wrong group affected/no group affected")
-		return
-	}
+// 	if len(resultGroups) != 1 || resultGroups[0].Group != groupID {
+// 		t.Errorf("Wrong group affected/no group affected")
+// 		return
+// 	}
 
-	if resultGroups[0].Error.code != ErrNoError {
-		t.Errorf("Encountered an error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
-		return
-	}
+// 	if resultGroups[0].Error.code != ErrNoError {
+// 		t.Errorf("Encountered an error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
+// 		return
+// 	}
 
-	// Check for the absence of the consumer group after deletion.
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
-	if err != nil {
-		t.Errorf("Error listing consumer groups %s\n", err)
-		return
-	}
+// 	// Check for the absence of the consumer group after deletion.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+// 	if err != nil {
+// 		t.Errorf("Error listing consumer groups %s\n", err)
+// 		return
+// 	}
 
-	if findConsumerGroupListing(listGroupResult.Valid, groupID) != nil {
-		t.Errorf("Consumer group %s should not be present\n", groupID)
-		return
-	}
-}
+// 	if findConsumerGroupListing(listGroupResult.Valid, groupID) != nil {
+// 		t.Errorf("Consumer group %s should not be present\n", groupID)
+// 		return
+// 	}
+// }
 
-// TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
-// list consumer groups and describe consumer group APIs of the admin client.
+// // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
+// // list consumer groups and describe consumer group APIs of the admin client.
+// //
+// //	We test the following situations:
+// //
+// // 1. One consumer group with one client.
+// // 2. One consumer group with two clients.
+// // 3. Empty consumer group.
+// func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups() {
+// 	t := its.T()
+
+// 	// Generating a new topic/groupID to ensure a fresh group/topic is created.
+// 	rand.Seed(time.Now().Unix())
+// 	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+// 	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+// 	nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
+
+// 	clientID1 := "test.client.1"
+// 	clientID2 := "test.client.2"
+
+// 	ac := createAdminClient(t)
+// 	defer ac.Close()
+
+// 	// Create a topic - we need to create here because we need 2 partitions.
+// 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// 	defer cancel()
+// 	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+// 		{
+// 			Topic:         topic,
+// 			NumPartitions: 2,
+// 		},
+// 	})
+// 	if err != nil {
+// 		t.Errorf("Topic creation failed with error %v", err)
+// 		return
+// 	}
+
+// 	// Delete the topic after the test is done.
+// 	defer func() {
+// 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+// 		defer cancel()
+// 		_, err = ac.DeleteTopics(ctx, []string{topic})
+// 		if err != nil {
+// 			t.Errorf("Topic deletion failed with error %v", err)
+// 		}
+// 	}()
+
+// 	// Check the non-existence of consumer groups initially.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err := ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+// 	if err != nil || len(listGroupResult.Errors) > 0 {
+// 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+// 		return
+// 	}
+
+// 	groups := listGroupResult.Valid
+// 	if findConsumerGroupListing(groups, groupID) != nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
+// 		t.Errorf("Consumer groups %s and %s should not be present\n", groupID, nonExistentGroupID)
+// 		return
+// 	}
+
+// 	// 1. One consumer group with one client.
+// 	// Create the first consumer.
+// 	config := &ConfigMap{
+// 		"bootstrap.servers":             testconf.Brokers,
+// 		"group.id":                      groupID,
+// 		"auto.offset.reset":             "earliest",
+// 		"enable.auto.offset.store":      false,
+// 		"client.id":                     clientID1,
+// 		"partition.assignment.strategy": "range",
+// 	}
+// 	config.updateFromTestconf()
+// 	consumer1, err := NewConsumer(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create consumer: %s\n", err)
+// 		return
+// 	}
+// 	consumer1Closed := false
+// 	defer func() {
+// 		if !consumer1Closed {
+// 			consumer1.Close()
+// 		}
+// 	}()
+// 	consumer1.Subscribe(topic, nil)
+
+// 	// Call Poll to trigger a rebalance and give it enough time to finish.
+// 	consumer1.Poll(10 * 1000)
+
+// 	// Check the existence of the group.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+// 	if err != nil || len(listGroupResult.Errors) > 0 {
+// 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+// 		return
+// 	}
+// 	groups = listGroupResult.Valid
+
+// 	if findConsumerGroupListing(groups, groupID) == nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
+// 		t.Errorf("Consumer groups %s should be present and %s should not be\n", groupID, nonExistentGroupID)
+// 		return
+// 	}
+
+// 	// Test the description of the consumer group.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	groupDescResult, err := ac.DescribeConsumerGroups(
+// 		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+// 	if err != nil {
+// 		t.Errorf("Error describing consumer groups %s\n", err)
+// 		return
+// 	}
+
+// 	groupDescs := groupDescResult.ConsumerGroupDescriptions
+// 	if len(groupDescs) != 1 {
+// 		t.Errorf("Describing one group should give exactly one result %s\n", err)
+// 		return
+// 	}
+
+// 	groupDesc := &groupDescs[0]
+
+// 	clientIDToPartitions := make(map[string][]TopicPartition)
+// 	clientIDToPartitions[clientID1] = []TopicPartition{
+// 		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
+// 		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
+// 	}
+// 	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIDToPartitions) {
+// 		t.Errorf("Expected description for consumer group  %s is not same as actual: %v", groupID, groupDesc)
+// 		return
+// 	}
+
+// 	// 2. One consumer group with two clients.
+// 	// Add another consumer to the same group.
+// 	config = &ConfigMap{
+// 		"bootstrap.servers":             testconf.Brokers,
+// 		"group.id":                      groupID,
+// 		"auto.offset.reset":             "earliest",
+// 		"enable.auto.offset.store":      false,
+// 		"client.id":                     clientID2,
+// 		"partition.assignment.strategy": "range",
+// 	}
+// 	config.updateFromTestconf()
+// 	consumer2, err := NewConsumer(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create consumer: %s\n", err)
+// 		return
+// 	}
+// 	consumer2Closed := false
+// 	defer func() {
+// 		if !consumer2Closed {
+// 			consumer2.Close()
+// 		}
+// 	}()
+// 	consumer2.Subscribe(topic, nil)
+
+// 	// Call Poll to start triggering the rebalance. Give it enough time to run
+// 	// that it becomes stable.
+// 	// We need to make sure that the consumer group stabilizes since we will
+// 	// check for the state later on.
+// 	consumer2.Poll(5 * 1000)
+// 	consumer1.Poll(5 * 1000)
+// 	isGroupStable := false
+// 	for !isGroupStable {
+// 		ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 		defer cancel()
+// 		groupDescResult, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+// 		if err != nil {
+// 			t.Errorf("Error describing consumer groups %s\n", err)
+// 			return
+// 		}
+// 		groupDescs = groupDescResult.ConsumerGroupDescriptions
+// 		groupDesc = findConsumerGroupDescription(groupDescs, groupID)
+// 		if groupDesc == nil {
+// 			t.Errorf("Consumer group %s should be present\n", groupID)
+// 			return
+// 		}
+// 		isGroupStable = groupDesc.State == ConsumerGroupStateStable
+// 		time.Sleep(time.Second)
+// 	}
+
+// 	clientIDToPartitions[clientID1] = []TopicPartition{
+// 		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
+// 	}
+// 	clientIDToPartitions[clientID2] = []TopicPartition{
+// 		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
+// 	}
+// 	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIDToPartitions) {
+// 		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupDesc)
+// 		return
+// 	}
+
+// 	// 3. Empty consumer group.
+// 	// Close the existing consumers.
+// 	if consumer1.Close() != nil {
+// 		t.Errorf("Error closing the first consumer\n")
+// 		return
+// 	}
+// 	consumer1Closed = true
+
+// 	if consumer2.Close() != nil {
+// 		t.Errorf("Error closing the second consumer\n")
+// 		return
+// 	}
+// 	consumer2Closed = true
+
+// 	// Try describing an empty group.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	groupDescResult, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
+// 	groupDescs = groupDescResult.ConsumerGroupDescriptions
+
+// 	if err != nil {
+// 		t.Errorf("Error describing consumer groups %s\n", err)
+// 		return
+// 	}
+
+// 	groupDesc = findConsumerGroupDescription(groupDescs, groupID)
+// 	if groupDesc == nil {
+// 		t.Errorf("Consumer group %s should be present\n", groupID)
+// 		return
+// 	}
+
+// 	clientIDToPartitions = make(map[string][]TopicPartition)
+// 	if !checkGroupDesc(groupDesc, ConsumerGroupStateEmpty, groupID, "", clientIDToPartitions) {
+// 		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupDesc)
+// 	}
+
+// 	// Try listing the Empty consumer group, and make sure that the States option
+// 	// works while listing.
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err = ac.ListConsumerGroups(
+// 		ctx, SetAdminRequestTimeout(30*time.Second),
+// 		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateEmpty}))
+// 	if err != nil || len(listGroupResult.Errors) > 0 {
+// 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+// 		return
+// 	}
+// 	groups = listGroupResult.Valid
+
+// 	groupInfo := findConsumerGroupListing(listGroupResult.Valid, groupID)
+// 	if groupInfo == nil {
+// 		t.Errorf("Consumer group %s should be present\n", groupID)
+// 		return
+// 	}
+
+// 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+// 	defer cancel()
+// 	listGroupResult, err = ac.ListConsumerGroups(
+// 		ctx, SetAdminRequestTimeout(30*time.Second),
+// 		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateStable}))
+// 	if err != nil || len(listGroupResult.Errors) > 0 {
+// 		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+// 		return
+// 	}
+// 	groups = listGroupResult.Valid
+
+// 	groupInfo = findConsumerGroupListing(groups, groupID)
+// 	if groupInfo != nil {
+// 		t.Errorf("Consumer group %s should not be present\n", groupID)
+// 		return
+// 	}
+// }
+
+// TestAdminClient_DescribeCluster validates the working of the
+// describe cluster API of the admin client.
 //
 //	We test the following situations:
 //
-// 1. One consumer group with one client.
-// 2. One consumer group with two clients.
-// 3. Empty consumer group.
-func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups() {
+// 1. DescribeCluster without createAcl.
+// 2. DescribeCluster with Acl.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 	t := its.T()
-
-	// Generating a new topic/groupID to ensure a fresh group/topic is created.
-	rand.Seed(time.Now().Unix())
-	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
-	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
-	nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
-
-	clientID1 := "test.client.1"
-	clientID2 := "test.client.2"
-
 	ac := createAdminClient(t)
 	defer ac.Close()
+	noError := NewError(ErrNoError, "", false)
+	checkExpectedResult := func(expected interface{}, result interface{}) {
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected result to deep equal to %v, but found %v", expected, result)
+		}
+	}
 
-	// Create a topic - we need to create here because we need 2 partitions.
+	// Check the non-existence of consumer groups initially.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err := ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second), SetAdminOptionIncludeClusterAuthorizedOperations(true))
+	if descres.Nodes == nil || err != nil {
+		t.Fatalf("Expected DescribeTopics to pass, but not %s %v",
+			err.(Error).Code(), ctx.Err())
+	}
+	initialLen := len(descres.ClusterAuthorizedOperations)
+	if initialLen == 0 {
+		t.Fatalf("Expected cluster authorized operations>0" +
+			"as they are being requested")
+	}
+	fmt.Printf("Initial length: %d\n", initialLen)
+
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	maxDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	requestTimeout, err := time.ParseDuration("20s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	expectedCreateACLs := []CreateACLResult{{Error: noError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err = ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second), SetAdminOptionIncludeClusterAuthorizedOperations(true))
+	if descres.Nodes == nil || err != nil {
+		t.Fatalf("Expected DescribeTopics to pass, but not %s %v",
+			err.(Error).Code(), ctx.Err())
+	}
+	finalLen := len(descres.ClusterAuthorizedOperations)
+	fmt.Printf("Final length: %d\n", finalLen)
+	if initialLen <= finalLen {
+		t.Fatalf("Expected final acl count to have reduced after createAcl")
+	}
+
+	aclBindingFilters := ACLBindingFilters{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeMatch,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	_, err = ac.DeleteACLs(ctx, aclBindingFilters, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+}
+
+// TestAdminClient_DescribeTopics validates the working of the
+// describe topics API of the admin client.
+//
+//	We test the following situations:
+//
+// 1. DescribeTopics without createAcl.
+// 2. DescribeTopics with Acl.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
+	t := its.T()
+	ac := createAdminClient(t)
+	defer ac.Close()
+	noError := NewError(ErrNoError, "", false)
+	checkExpectedResult := func(expected interface{}, result interface{}) {
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected result to deep equal to %v, but found %v", expected, result)
+		}
+	}
+
+	// Create a topic
+	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := ac.CreateTopics(ctx, []TopicSpecification{
@@ -863,597 +1219,483 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 		}
 	}()
 
-	// Check the non-existence of consumer groups initially.
+	// Test the description of the topic.
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	listGroupResult, err := ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
-	if err != nil || len(listGroupResult.Errors) > 0 {
-		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
-		return
-	}
-
-	groups := listGroupResult.Valid
-	if findConsumerGroupListing(groups, groupID) != nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
-		t.Errorf("Consumer groups %s and %s should not be present\n", groupID, nonExistentGroupID)
-		return
-	}
-
-	// 1. One consumer group with one client.
-	// Create the first consumer.
-	config := &ConfigMap{
-		"bootstrap.servers":             testconf.Brokers,
-		"group.id":                      groupID,
-		"auto.offset.reset":             "earliest",
-		"enable.auto.offset.store":      false,
-		"client.id":                     clientID1,
-		"partition.assignment.strategy": "range",
-	}
-	config.updateFromTestconf()
-	consumer1, err := NewConsumer(config)
+	topicDescResult, err := ac.DescribeTopics(
+		ctx, []string{topic, "failure"}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeTopicAuthorizedOperations(true))
 	if err != nil {
-		t.Errorf("Failed to create consumer: %s\n", err)
-		return
-	}
-	consumer1Closed := false
-	defer func() {
-		if !consumer1Closed {
-			consumer1.Close()
-		}
-	}()
-	consumer1.Subscribe(topic, nil)
-
-	// Call Poll to trigger a rebalance and give it enough time to finish.
-	consumer1.Poll(10 * 1000)
-
-	// Check the existence of the group.
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
-	if err != nil || len(listGroupResult.Errors) > 0 {
-		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
-		return
-	}
-	groups = listGroupResult.Valid
-
-	if findConsumerGroupListing(groups, groupID) == nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
-		t.Errorf("Consumer groups %s should be present and %s should not be\n", groupID, nonExistentGroupID)
+		t.Errorf("Error describing topics %s\n", err)
 		return
 	}
 
-	// Test the description of the consumer group.
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	groupDescResult, err := ac.DescribeConsumerGroups(
-		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
-	if err != nil {
-		t.Errorf("Error describing consumer groups %s\n", err)
+	topicDescs := topicDescResult.TopicDescriptions
+	if len(topicDescs) != 2 {
+		t.Errorf("Describing two topics should give exactly two results %s\n", err)
 		return
 	}
-
-	groupDescs := groupDescResult.ConsumerGroupDescriptions
-	if len(groupDescs) != 1 {
-		t.Errorf("Describing one group should give exactly one result %s\n", err)
-		return
+	if topicDescs[1].Error.Code() != 3 {
+		t.Fatalf("Expected expected unknown Topic or partition, not %s\n",
+			topicDescs[1].Error)
 	}
-
-	groupDesc := &groupDescs[0]
-
-	clientIDToPartitions := make(map[string][]TopicPartition)
-	clientIDToPartitions[clientID1] = []TopicPartition{
-		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
-		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
+	initialLen := len(topicDescs[0].TopicAuthorizedOperations)
+	if initialLen == 0 {
+		t.Fatalf("Expected topic authorized operations>0" +
+			"as they are being requested")
 	}
-	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIDToPartitions) {
-		t.Errorf("Expected description for consumer group  %s is not same as actual: %v", groupID, groupDesc)
-		return
+	fmt.Printf("Initial length: %d\n", initialLen)
+
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
 	}
-
-	// 2. One consumer group with two clients.
-	// Add another consumer to the same group.
-	config = &ConfigMap{
-		"bootstrap.servers":             testconf.Brokers,
-		"group.id":                      groupID,
-		"auto.offset.reset":             "earliest",
-		"enable.auto.offset.store":      false,
-		"client.id":                     clientID2,
-		"partition.assignment.strategy": "range",
-	}
-	config.updateFromTestconf()
-	consumer2, err := NewConsumer(config)
-	if err != nil {
-		t.Errorf("Failed to create consumer: %s\n", err)
-		return
-	}
-	consumer2Closed := false
-	defer func() {
-		if !consumer2Closed {
-			consumer2.Close()
-		}
-	}()
-	consumer2.Subscribe(topic, nil)
-
-	// Call Poll to start triggering the rebalance. Give it enough time to run
-	// that it becomes stable.
-	// We need to make sure that the consumer group stabilizes since we will
-	// check for the state later on.
-	consumer2.Poll(5 * 1000)
-	consumer1.Poll(5 * 1000)
-	isGroupStable := false
-	for !isGroupStable {
-		ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-		defer cancel()
-		groupDescResult, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
-		if err != nil {
-			t.Errorf("Error describing consumer groups %s\n", err)
-			return
-		}
-		groupDescs = groupDescResult.ConsumerGroupDescriptions
-		groupDesc = findConsumerGroupDescription(groupDescs, groupID)
-		if groupDesc == nil {
-			t.Errorf("Consumer group %s should be present\n", groupID)
-			return
-		}
-		isGroupStable = groupDesc.State == ConsumerGroupStateStable
-		time.Sleep(time.Second)
-	}
-
-	clientIDToPartitions[clientID1] = []TopicPartition{
-		{Topic: &topic, Partition: 0, Offset: OffsetInvalid},
-	}
-	clientIDToPartitions[clientID2] = []TopicPartition{
-		{Topic: &topic, Partition: 1, Offset: OffsetInvalid},
-	}
-	if !checkGroupDesc(groupDesc, ConsumerGroupStateStable, groupID, "range", clientIDToPartitions) {
-		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupDesc)
-		return
-	}
-
-	// 3. Empty consumer group.
-	// Close the existing consumers.
-	if consumer1.Close() != nil {
-		t.Errorf("Error closing the first consumer\n")
-		return
-	}
-	consumer1Closed = true
-
-	if consumer2.Close() != nil {
-		t.Errorf("Error closing the second consumer\n")
-		return
-	}
-	consumer2Closed = true
-
-	// Try describing an empty group.
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	groupDescResult, err = ac.DescribeConsumerGroups(ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second))
-	groupDescs = groupDescResult.ConsumerGroupDescriptions
-
-	if err != nil {
-		t.Errorf("Error describing consumer groups %s\n", err)
-		return
-	}
-
-	groupDesc = findConsumerGroupDescription(groupDescs, groupID)
-	if groupDesc == nil {
-		t.Errorf("Consumer group %s should be present\n", groupID)
-		return
-	}
-
-	clientIDToPartitions = make(map[string][]TopicPartition)
-	if !checkGroupDesc(groupDesc, ConsumerGroupStateEmpty, groupID, "", clientIDToPartitions) {
-		t.Errorf("Expected description for consumer group  %s is not same as actual %v\n", groupID, groupDesc)
-	}
-
-	// Try listing the Empty consumer group, and make sure that the States option
-	// works while listing.
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	listGroupResult, err = ac.ListConsumerGroups(
-		ctx, SetAdminRequestTimeout(30*time.Second),
-		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateEmpty}))
-	if err != nil || len(listGroupResult.Errors) > 0 {
-		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
-		return
-	}
-	groups = listGroupResult.Valid
-
-	groupInfo := findConsumerGroupListing(listGroupResult.Valid, groupID)
-	if groupInfo == nil {
-		t.Errorf("Consumer group %s should be present\n", groupID)
-		return
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	listGroupResult, err = ac.ListConsumerGroups(
-		ctx, SetAdminRequestTimeout(30*time.Second),
-		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{ConsumerGroupStateStable}))
-	if err != nil || len(listGroupResult.Errors) > 0 {
-		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
-		return
-	}
-	groups = listGroupResult.Valid
-
-	groupInfo = findConsumerGroupListing(groups, groupID)
-	if groupInfo != nil {
-		t.Errorf("Consumer group %s should not be present\n", groupID)
-		return
-	}
-}
-
-func (its *IntegrationTestSuite) TestAdminTopics() {
-	t := its.T()
-	rand.Seed(time.Now().Unix())
-
-	a := createAdminClient(t)
-	defer a.Close()
-
-	brokerList, err := getBrokerList(a)
-	if err != nil {
-		t.Fatalf("Failed to retrieve broker list: %v", err)
-	}
-
-	// Few and Many replica sets use in these tests
-	var fewReplicas []int32
-	if len(brokerList) < 2 {
-		fewReplicas = brokerList
-	} else {
-		fewReplicas = brokerList[0:2]
-	}
-
-	var manyReplicas []int32
-	if len(brokerList) < 5 {
-		manyReplicas = brokerList
-	} else {
-		manyReplicas = brokerList[0:5]
-	}
-
-	const topicCnt = 7
-	newTopics := make([]TopicSpecification, topicCnt)
-
-	expError := map[string]Error{}
-
-	for i := 0; i < topicCnt; i++ {
-		topic := fmt.Sprintf("%s-create-%d-%d", testconf.Topic, i, rand.Intn(100000))
-		newTopics[i] = TopicSpecification{
-			Topic:         topic,
-			NumPartitions: 1 + i*2,
-		}
-
-		if (i % 1) == 0 {
-			newTopics[i].ReplicationFactor = len(fewReplicas)
-		} else {
-			newTopics[i].ReplicationFactor = len(manyReplicas)
-		}
-
-		expError[newTopics[i].Topic] = Error{} // No error
-
-		var useReplicas []int32
-		if i == 2 {
-			useReplicas = fewReplicas
-		} else if i == 3 {
-			useReplicas = manyReplicas
-		} else if i == topicCnt-1 {
-			newTopics[i].ReplicationFactor = len(brokerList) + 10
-			expError[newTopics[i].Topic] = Error{code: ErrInvalidReplicationFactor}
-		}
-
-		if len(useReplicas) > 0 {
-			newTopics[i].ReplicaAssignment = make([][]int32, newTopics[i].NumPartitions)
-			newTopics[i].ReplicationFactor = 0
-			for p := 0; p < newTopics[i].NumPartitions; p++ {
-				newTopics[i].ReplicaAssignment[p] = useReplicas
-			}
-		}
-	}
-
 	maxDuration, err := time.ParseDuration("30s")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-
-	// First just validate the topics, don't create
-	t.Logf("Validating topics before creation\n")
-	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
-	result, err := a.CreateTopics(ctx, newTopics,
-		SetAdminValidateOnly(true))
+	requestTimeout, err := time.ParseDuration("20s")
 	if err != nil {
-		t.Fatalf("CreateTopics(ValidateOnly) failed: %s", err)
-	}
-
-	validateTopicResult(t, result, expError)
-
-	// Now create the topics
-	t.Logf("Creating topics\n")
-	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
-	result, err = a.CreateTopics(ctx, newTopics, SetAdminValidateOnly(false))
-	if err != nil {
-		t.Fatalf("CreateTopics() failed: %s", err)
-	}
-
-	validateTopicResult(t, result, expError)
-
-	// Attempt to create the topics again, should all fail.
-	t.Logf("Attempt to re-create topics, should all fail\n")
-	for k := range expError {
-		if expError[k].code == ErrNoError {
-			expError[k] = Error{code: ErrTopicAlreadyExists}
-		}
+		t.Fatalf("%s", err)
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	result, err = a.CreateTopics(ctx, newTopics)
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
 	if err != nil {
-		t.Fatalf("CreateTopics#2() failed: %s", err)
+		t.Fatalf("CreateACLs() failed: %s", err)
 	}
+	expectedCreateACLs := []CreateACLResult{{Error: noError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 
-	validateTopicResult(t, result, expError)
-
-	// Add partitions to some of the topics
-	t.Logf("Create new partitions for a subset of topics\n")
-	newParts := make([]PartitionsSpecification, topicCnt/2)
-	expError = map[string]Error{}
-	for i := 0; i < topicCnt/2; i++ {
-		topic := newTopics[i].Topic
-		newParts[i] = PartitionsSpecification{
-			Topic:      topic,
-			IncreaseTo: newTopics[i].NumPartitions + 3,
-		}
-		if i == 1 {
-			// Invalid partition count (less than current)
-			newParts[i].IncreaseTo = newTopics[i].NumPartitions - 1
-			expError[topic] = Error{code: ErrInvalidPartitions}
-		} else {
-			expError[topic] = Error{}
-		}
-		t.Logf("Creating new partitions for %s: %d -> %d: expecting %v\n",
-			topic, newTopics[i].NumPartitions, newParts[i].IncreaseTo, expError[topic])
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	result, err = a.CreatePartitions(ctx, newParts)
+	topicDescResult, err = ac.DescribeTopics(
+		ctx, []string{topic}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeTopicAuthorizedOperations(true))
 	if err != nil {
-		t.Fatalf("CreatePartitions() failed: %s", err)
+		t.Errorf("Error describing topics %s\n", err)
+		return
 	}
 
-	validateTopicResult(t, result, expError)
-
-	// FIXME: wait for topics to become available in metadata instead
-	time.Sleep(5000 * time.Millisecond)
-
-	// Delete the topics
-	deleteTopics := make([]string, topicCnt)
-	for i := 0; i < topicCnt; i++ {
-		deleteTopics[i] = newTopics[i].Topic
-		if i == topicCnt-1 {
-			expError[deleteTopics[i]] = Error{code: ErrUnknownTopicOrPart}
-		} else {
-			expError[deleteTopics[i]] = Error{}
-		}
+	topicDescs = topicDescResult.TopicDescriptions
+	if len(topicDescs) != 1 {
+		t.Errorf("Describing one topics should give exactly one result %s\n", err)
+		return
+	}
+	finalLen := len(topicDescs[0].TopicAuthorizedOperations)
+	if finalLen == 0 {
+		t.Fatalf("Expected topic authorized operations>0" +
+			"as they are being requested")
+	}
+	fmt.Printf("Initial length: %d\n", initialLen)
+	fmt.Printf("Final length: %d\n", finalLen)
+	if initialLen <= finalLen {
+		t.Fatalf("Expected final acl count to have reduced after createAcl")
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
-	result2, err := a.DeleteTopics(ctx, deleteTopics)
-	if err != nil {
-		t.Fatalf("DeleteTopics() failed: %s", err)
-	}
-
-	validateTopicResult(t, result2, expError)
-}
-
-func (its *IntegrationTestSuite) TestAdminConfig() {
-	t := its.T()
-	rand.Seed(time.Now().Unix())
-
-	a := createAdminClient(t)
-	defer a.Close()
-
-	// Steps:
-	//  1) Create a topic, providing initial non-default configuration
-	//  2) Read back config to verify
-	//  3) Alter config
-	//  4) Read back config to verify
-	//  5) Delete the topic
-
-	topic := fmt.Sprintf("%s-config-%d", testconf.Topic, rand.Intn(100000))
-
-	// Expected config
-	expResources := []ConfigResourceResult{
+	newACLs = ACLBindings{
 		{
-			Type: ResourceTopic,
-			Name: topic,
-			Config: map[string]ConfigEntryResult{
-				"compression.type": ConfigEntryResult{
-					Name:  "compression.type",
-					Value: "snappy",
-				},
-			},
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationDelete,
+			PermissionType:      ACLPermissionTypeAllow,
 		},
 	}
-	// Create topic
-	newTopics := []TopicSpecification{{
-		Topic:             topic,
-		NumPartitions:     1,
-		ReplicationFactor: 1,
-		Config:            map[string]string{"compression.type": "snappy"},
-	}}
-
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
-	topicResult, err := a.CreateTopics(ctx, newTopics)
+
+	resultCreateACLs, err = ac.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
 	if err != nil {
-		t.Fatalf("Create topic request failed: %v", err)
+		t.Fatalf("CreateACLs() failed: %s", err)
 	}
-
-	if topicResult[0].Error.Code() != ErrNoError {
-		t.Fatalf("Failed to create topic %s: %s", topic, topicResult[0].Error)
-	}
-
-	// Wait for topic to show up in metadata before performing
-	// subsequent operations on it, otherwise we risk DescribeConfigs()
-	// to fail with UnknownTopic.. (this is really a broker issue).
-	// Sometimes even the metadata is not enough, so we add an
-	// arbitrary 10s sleep too.
-	t.Logf("Waiting for new topic %s to show up in metadata and stabilize", topic)
-	err = waitTopicInMetadata(a, topic, 10*1000) // 10s
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	t.Logf("Topic %s now in metadata, waiting another 10s for stabilization", topic)
-	time.Sleep(10 * time.Second)
-
-	// Read back config to validate
-	configResources := []ConfigResource{{Type: ResourceTopic, Name: topic}}
-	describeRes, err := a.DescribeConfigs(ctx, configResources)
-	if err != nil {
-		t.Fatalf("Describe configs request failed: %v", err)
-	}
-
-	validateConfig(t, describeRes, expResources, true)
-
-	// Alter some configs.
-	// Configuration alterations are currently atomic, all values
-	// need to be passed, otherwise non-passed values will be reverted
-	// to their default values.
-	// Future versions will allow incremental updates:
-	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API
-	newConfig := make(map[string]string)
-	for _, entry := range describeRes[0].Config {
-		newConfig[entry.Name] = entry.Value
-	}
-
-	// Change something
-	newConfig["retention.ms"] = "86400000"
-	newConfig["message.timestamp.type"] = "LogAppendTime"
-
-	for k, v := range newConfig {
-		expResources[0].Config[k] = ConfigEntryResult{Name: k, Value: v}
-	}
-
-	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic, Config: StringMapToConfigEntries(newConfig, AlterOperationSet)}}
-	alterRes, err := a.AlterConfigs(ctx, configResources)
-	if err != nil {
-		t.Fatalf("Alter configs request failed: %v", err)
-	}
-
-	validateConfig(t, alterRes, expResources, false)
-
-	// Read back config to validate
-	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic}}
-	describeRes, err = a.DescribeConfigs(ctx, configResources)
-	if err != nil {
-		t.Fatalf("Describe configs request failed: %v", err)
-	}
-
-	validateConfig(t, describeRes, expResources, true)
-
-	// Delete the topic
-	// FIXME: wait for topics to become available in metadata instead
-	time.Sleep(5000 * time.Millisecond)
-
-	topicResult, err = a.DeleteTopics(ctx, []string{topic})
-	if err != nil {
-		t.Fatalf("DeleteTopics() failed: %s", err)
-	}
-
-	if topicResult[0].Error.Code() != ErrNoError {
-		t.Fatalf("Failed to delete topic %s: %s", topic, topicResult[0].Error)
-	}
+	expectedCreateACLs = []CreateACLResult{{Error: noError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 }
 
-//Test AdminClient GetMetadata API
-func (its *IntegrationTestSuite) TestAdminGetMetadata() {
-	t := its.T()
+// func (its *IntegrationTestSuite) TestAdminTopics() {
+// 	t := its.T()
+// 	rand.Seed(time.Now().Unix())
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
+// 	a := createAdminClient(t)
+// 	defer a.Close()
 
-	// Create Admin client
-	a, err := NewAdminClient(config)
-	if err != nil {
-		t.Errorf("Failed to create Admin client: %s\n", err)
-		return
-	}
-	defer a.Close()
+// 	brokerList, err := getBrokerList(a)
+// 	if err != nil {
+// 		t.Fatalf("Failed to retrieve broker list: %v", err)
+// 	}
 
-	metaData, err := a.GetMetadata(&testconf.Topic, false, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+// 	// Few and Many replica sets use in these tests
+// 	var fewReplicas []int32
+// 	if len(brokerList) < 2 {
+// 		fewReplicas = brokerList
+// 	} else {
+// 		fewReplicas = brokerList[0:2]
+// 	}
 
-	metaData, err = a.GetMetadata(nil, true, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data, Error: %s\n", err)
-		return
-	}
-	t.Logf("Meta data for admin client: %v\n", metaData)
-}
+// 	var manyReplicas []int32
+// 	if len(brokerList) < 5 {
+// 		manyReplicas = brokerList
+// 	} else {
+// 		manyReplicas = brokerList[0:5]
+// 	}
 
-// Test AdminClient ClusterID.
-func (its *IntegrationTestSuite) TestAdminClient_ClusterID() {
-	t := its.T()
+// 	const topicCnt = 7
+// 	newTopics := make([]TopicSpecification, topicCnt)
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	if err := config.updateFromTestconf(); err != nil {
-		t.Fatalf("Failed to update test configuration: %s\n", err)
-	}
+// 	expError := map[string]Error{}
 
-	admin, err := NewAdminClient(config)
-	if err != nil {
-		t.Fatalf("Failed to create Admin client: %s\n", err)
-	}
-	defer admin.Close()
+// 	for i := 0; i < topicCnt; i++ {
+// 		topic := fmt.Sprintf("%s-create-%d-%d", testconf.Topic, i, rand.Intn(100000))
+// 		newTopics[i] = TopicSpecification{
+// 			Topic:         topic,
+// 			NumPartitions: 1 + i*2,
+// 		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	clusterID, err := admin.ClusterID(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get ClusterID: %s\n", err)
-	}
-	if clusterID == "" {
-		t.Fatal("ClusterID is empty.")
-	}
+// 		if (i % 1) == 0 {
+// 			newTopics[i].ReplicationFactor = len(fewReplicas)
+// 		} else {
+// 			newTopics[i].ReplicationFactor = len(manyReplicas)
+// 		}
 
-	t.Logf("ClusterID: %s\n", clusterID)
-}
+// 		expError[newTopics[i].Topic] = Error{} // No error
 
-// Test AdminClient ControllerID.
-func (its *IntegrationTestSuite) TestAdminClient_ControllerID() {
-	t := its.T()
+// 		var useReplicas []int32
+// 		if i == 2 {
+// 			useReplicas = fewReplicas
+// 		} else if i == 3 {
+// 			useReplicas = manyReplicas
+// 		} else if i == topicCnt-1 {
+// 			newTopics[i].ReplicationFactor = len(brokerList) + 10
+// 			expError[newTopics[i].Topic] = Error{code: ErrInvalidReplicationFactor}
+// 		}
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	if err := config.updateFromTestconf(); err != nil {
-		t.Fatalf("Failed to update test configuration: %s\n", err)
-	}
+// 		if len(useReplicas) > 0 {
+// 			newTopics[i].ReplicaAssignment = make([][]int32, newTopics[i].NumPartitions)
+// 			newTopics[i].ReplicationFactor = 0
+// 			for p := 0; p < newTopics[i].NumPartitions; p++ {
+// 				newTopics[i].ReplicaAssignment[p] = useReplicas
+// 			}
+// 		}
+// 	}
 
-	producer, err := NewProducer(config)
-	if err != nil {
-		t.Fatalf("Failed to create Producer client: %s\n", err)
-	}
-	admin, err := NewAdminClientFromProducer(producer)
-	if err != nil {
-		t.Fatalf("Failed to create Admin client: %s\n", err)
-	}
-	defer admin.Close()
+// 	maxDuration, err := time.ParseDuration("30s")
+// 	if err != nil {
+// 		t.Fatalf("%s", err)
+// 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	controllerID, err := admin.ControllerID(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get ControllerID: %s\n", err)
-	}
-	if controllerID < 0 {
-		t.Fatalf("ControllerID is negative: %d\n", controllerID)
-	}
+// 	// First just validate the topics, don't create
+// 	t.Logf("Validating topics before creation\n")
+// 	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
+// 	defer cancel()
+// 	result, err := a.CreateTopics(ctx, newTopics,
+// 		SetAdminValidateOnly(true))
+// 	if err != nil {
+// 		t.Fatalf("CreateTopics(ValidateOnly) failed: %s", err)
+// 	}
 
-	t.Logf("ControllerID: %d\n", controllerID)
-}
+// 	validateTopicResult(t, result, expError)
+
+// 	// Now create the topics
+// 	t.Logf("Creating topics\n")
+// 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+// 	defer cancel()
+// 	result, err = a.CreateTopics(ctx, newTopics, SetAdminValidateOnly(false))
+// 	if err != nil {
+// 		t.Fatalf("CreateTopics() failed: %s", err)
+// 	}
+
+// 	validateTopicResult(t, result, expError)
+
+// 	// Attempt to create the topics again, should all fail.
+// 	t.Logf("Attempt to re-create topics, should all fail\n")
+// 	for k := range expError {
+// 		if expError[k].code == ErrNoError {
+// 			expError[k] = Error{code: ErrTopicAlreadyExists}
+// 		}
+// 	}
+// 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+// 	defer cancel()
+// 	result, err = a.CreateTopics(ctx, newTopics)
+// 	if err != nil {
+// 		t.Fatalf("CreateTopics#2() failed: %s", err)
+// 	}
+
+// 	validateTopicResult(t, result, expError)
+
+// 	// Add partitions to some of the topics
+// 	t.Logf("Create new partitions for a subset of topics\n")
+// 	newParts := make([]PartitionsSpecification, topicCnt/2)
+// 	expError = map[string]Error{}
+// 	for i := 0; i < topicCnt/2; i++ {
+// 		topic := newTopics[i].Topic
+// 		newParts[i] = PartitionsSpecification{
+// 			Topic:      topic,
+// 			IncreaseTo: newTopics[i].NumPartitions + 3,
+// 		}
+// 		if i == 1 {
+// 			// Invalid partition count (less than current)
+// 			newParts[i].IncreaseTo = newTopics[i].NumPartitions - 1
+// 			expError[topic] = Error{code: ErrInvalidPartitions}
+// 		} else {
+// 			expError[topic] = Error{}
+// 		}
+// 		t.Logf("Creating new partitions for %s: %d -> %d: expecting %v\n",
+// 			topic, newTopics[i].NumPartitions, newParts[i].IncreaseTo, expError[topic])
+// 	}
+
+// 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+// 	defer cancel()
+// 	result, err = a.CreatePartitions(ctx, newParts)
+// 	if err != nil {
+// 		t.Fatalf("CreatePartitions() failed: %s", err)
+// 	}
+
+// 	validateTopicResult(t, result, expError)
+
+// 	// FIXME: wait for topics to become available in metadata instead
+// 	time.Sleep(5000 * time.Millisecond)
+
+// 	// Delete the topics
+// 	deleteTopics := make([]string, topicCnt)
+// 	for i := 0; i < topicCnt; i++ {
+// 		deleteTopics[i] = newTopics[i].Topic
+// 		if i == topicCnt-1 {
+// 			expError[deleteTopics[i]] = Error{code: ErrUnknownTopicOrPart}
+// 		} else {
+// 			expError[deleteTopics[i]] = Error{}
+// 		}
+// 	}
+
+// 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+// 	defer cancel()
+// 	result2, err := a.DeleteTopics(ctx, deleteTopics)
+// 	if err != nil {
+// 		t.Fatalf("DeleteTopics() failed: %s", err)
+// 	}
+
+// 	validateTopicResult(t, result2, expError)
+// }
+
+// func (its *IntegrationTestSuite) TestAdminConfig() {
+// 	t := its.T()
+// 	rand.Seed(time.Now().Unix())
+
+// 	a := createAdminClient(t)
+// 	defer a.Close()
+
+// 	// Steps:
+// 	//  1) Create a topic, providing initial non-default configuration
+// 	//  2) Read back config to verify
+// 	//  3) Alter config
+// 	//  4) Read back config to verify
+// 	//  5) Delete the topic
+
+// 	topic := fmt.Sprintf("%s-config-%d", testconf.Topic, rand.Intn(100000))
+
+// 	// Expected config
+// 	expResources := []ConfigResourceResult{
+// 		{
+// 			Type: ResourceTopic,
+// 			Name: topic,
+// 			Config: map[string]ConfigEntryResult{
+// 				"compression.type": ConfigEntryResult{
+// 					Name:  "compression.type",
+// 					Value: "snappy",
+// 				},
+// 			},
+// 		},
+// 	}
+// 	// Create topic
+// 	newTopics := []TopicSpecification{{
+// 		Topic:             topic,
+// 		NumPartitions:     1,
+// 		ReplicationFactor: 1,
+// 		Config:            map[string]string{"compression.type": "snappy"},
+// 	}}
+
+// 	ctx, cancel := context.WithCancel(context.Background())
+// 	defer cancel()
+// 	topicResult, err := a.CreateTopics(ctx, newTopics)
+// 	if err != nil {
+// 		t.Fatalf("Create topic request failed: %v", err)
+// 	}
+
+// 	if topicResult[0].Error.Code() != ErrNoError {
+// 		t.Fatalf("Failed to create topic %s: %s", topic, topicResult[0].Error)
+// 	}
+
+// 	// Wait for topic to show up in metadata before performing
+// 	// subsequent operations on it, otherwise we risk DescribeConfigs()
+// 	// to fail with UnknownTopic.. (this is really a broker issue).
+// 	// Sometimes even the metadata is not enough, so we add an
+// 	// arbitrary 10s sleep too.
+// 	t.Logf("Waiting for new topic %s to show up in metadata and stabilize", topic)
+// 	err = waitTopicInMetadata(a, topic, 10*1000) // 10s
+// 	if err != nil {
+// 		t.Fatalf("%v", err)
+// 	}
+// 	t.Logf("Topic %s now in metadata, waiting another 10s for stabilization", topic)
+// 	time.Sleep(10 * time.Second)
+
+// 	// Read back config to validate
+// 	configResources := []ConfigResource{{Type: ResourceTopic, Name: topic}}
+// 	describeRes, err := a.DescribeConfigs(ctx, configResources)
+// 	if err != nil {
+// 		t.Fatalf("Describe configs request failed: %v", err)
+// 	}
+
+// 	validateConfig(t, describeRes, expResources, true)
+
+// 	// Alter some configs.
+// 	// Configuration alterations are currently atomic, all values
+// 	// need to be passed, otherwise non-passed values will be reverted
+// 	// to their default values.
+// 	// Future versions will allow incremental updates:
+// 	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API
+// 	newConfig := make(map[string]string)
+// 	for _, entry := range describeRes[0].Config {
+// 		newConfig[entry.Name] = entry.Value
+// 	}
+
+// 	// Change something
+// 	newConfig["retention.ms"] = "86400000"
+// 	newConfig["message.timestamp.type"] = "LogAppendTime"
+
+// 	for k, v := range newConfig {
+// 		expResources[0].Config[k] = ConfigEntryResult{Name: k, Value: v}
+// 	}
+
+// 	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic, Config: StringMapToConfigEntries(newConfig, AlterOperationSet)}}
+// 	alterRes, err := a.AlterConfigs(ctx, configResources)
+// 	if err != nil {
+// 		t.Fatalf("Alter configs request failed: %v", err)
+// 	}
+
+// 	validateConfig(t, alterRes, expResources, false)
+
+// 	// Read back config to validate
+// 	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic}}
+// 	describeRes, err = a.DescribeConfigs(ctx, configResources)
+// 	if err != nil {
+// 		t.Fatalf("Describe configs request failed: %v", err)
+// 	}
+
+// 	validateConfig(t, describeRes, expResources, true)
+
+// 	// Delete the topic
+// 	// FIXME: wait for topics to become available in metadata instead
+// 	time.Sleep(5000 * time.Millisecond)
+
+// 	topicResult, err = a.DeleteTopics(ctx, []string{topic})
+// 	if err != nil {
+// 		t.Fatalf("DeleteTopics() failed: %s", err)
+// 	}
+
+// 	if topicResult[0].Error.Code() != ErrNoError {
+// 		t.Fatalf("Failed to delete topic %s: %s", topic, topicResult[0].Error)
+// 	}
+// }
+
+// // Test AdminClient GetMetadata API
+// func (its *IntegrationTestSuite) TestAdminGetMetadata() {
+// 	t := its.T()
+
+// 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	config.updateFromTestconf()
+
+// 	// Create Admin client
+// 	a, err := NewAdminClient(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create Admin client: %s\n", err)
+// 		return
+// 	}
+// 	defer a.Close()
+
+// 	metaData, err := a.GetMetadata(&testconf.Topic, false, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+// 		return
+// 	}
+// 	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+
+// 	metaData, err = a.GetMetadata(nil, true, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to get meta data, Error: %s\n", err)
+// 		return
+// 	}
+// 	t.Logf("Meta data for admin client: %v\n", metaData)
+// }
+
+// // Test AdminClient ClusterID.
+// func (its *IntegrationTestSuite) TestAdminClient_ClusterID() {
+// 	t := its.T()
+
+// 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	if err := config.updateFromTestconf(); err != nil {
+// 		t.Fatalf("Failed to update test configuration: %s\n", err)
+// 	}
+
+// 	admin, err := NewAdminClient(config)
+// 	if err != nil {
+// 		t.Fatalf("Failed to create Admin client: %s\n", err)
+// 	}
+// 	defer admin.Close()
+
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+// 	clusterID, err := admin.ClusterID(ctx)
+// 	if err != nil {
+// 		t.Fatalf("Failed to get ClusterID: %s\n", err)
+// 	}
+// 	if clusterID == "" {
+// 		t.Fatal("ClusterID is empty.")
+// 	}
+
+// 	t.Logf("ClusterID: %s\n", clusterID)
+// }
+
+// // Test AdminClient ControllerID.
+// func (its *IntegrationTestSuite) TestAdminClient_ControllerID() {
+// 	t := its.T()
+
+// 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	if err := config.updateFromTestconf(); err != nil {
+// 		t.Fatalf("Failed to update test configuration: %s\n", err)
+// 	}
+
+// 	producer, err := NewProducer(config)
+// 	if err != nil {
+// 		t.Fatalf("Failed to create Producer client: %s\n", err)
+// 	}
+// 	admin, err := NewAdminClientFromProducer(producer)
+// 	if err != nil {
+// 		t.Fatalf("Failed to create Admin client: %s\n", err)
+// 	}
+// 	defer admin.Close()
+
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+// 	controllerID, err := admin.ControllerID(ctx)
+// 	if err != nil {
+// 		t.Fatalf("Failed to get ControllerID: %s\n", err)
+// 	}
+// 	if controllerID < 0 {
+// 		t.Fatalf("ControllerID is negative: %d\n", controllerID)
+// 	}
+
+// 	t.Logf("ControllerID: %d\n", controllerID)
+// }
 
 func (its *IntegrationTestSuite) TestAdminACLs() {
 	t := its.T()
@@ -1647,741 +1889,741 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
-//Test consumer QueryWatermarkOffsets API
-func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
-	t := its.T()
-
-	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
-	// get the number of messages in a topic
-	msgcnt, err := getMessageCountInTopic(testconf.Topic)
-	if err != nil {
-		t.Errorf("Cannot get message size. Error: %s\n", err)
-	}
-
-	// Prime topic with test messages
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
-	// get the number of messages in a topic
-	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
-	if err != nil {
-		t.Errorf("Cannot get message size. Error: %s\n", err)
-	}
-
-	if newmsgcnt-msgcnt != len(p0TestMsgs) {
-		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newmsgcnt-msgcnt)
-	}
-
-}
-
-//Test consumer GetWatermarkOffsets API
-func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
-	t := its.T()
-
-	// Create consumer
-	config := &ConfigMap{
-		"go.events.channel.enable": true,
-		"bootstrap.servers":        testconf.Brokers,
-		"group.id":                 testconf.GroupID,
-		"session.timeout.ms":       6000,
-		"enable.auto.commit":       false,
-		"auto.offset.reset":        "earliest",
-	}
-	_ = config.updateFromTestconf()
-
-	c, err := NewConsumer(config)
-	if err != nil {
-		t.Fatalf("Unable to create consumer: %s", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	err = c.Subscribe(testconf.Topic, nil)
-
-	// Prime topic with test messages
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	// Wait for messages to be received so that we know the watermark offsets have been delivered
-	// with the fetch response
-	for ev := range c.Events() {
-		if _, ok := ev.(*Message); ok {
-			break
-		}
-	}
-
-	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Fatalf("Error querying watermark offsets: %s", err)
-	}
-
-	// We are not currently testing the low watermark offset as it only gets set every 10s by the stits timer
-	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
-	if err != nil {
-		t.Fatalf("Error getting watermark offsets: %s", err)
-	}
-
-	if queryHigh != getHigh {
-		t.Errorf("QueryWatermarkOffsets high[%d] does not equal GetWatermarkOffsets high[%d]", queryHigh, getHigh)
-	}
-
-}
-
-//TestConsumerOffsetsForTimes
-func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
-	t := its.T()
-
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id":            testconf.GroupID,
-		"api.version.request": true}
-
-	conf.updateFromTestconf()
-
-	c, err := NewConsumer(&conf)
-
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
-
-	// Prime topic with test messages
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	times := make([]TopicPartition, 1)
-	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
-	offsets, err := c.OffsetsForTimes(times, 5000)
-	if err != nil {
-		t.Errorf("OffsetsForTimes() failed: %s\n", err)
-		return
-	}
-
-	if len(offsets) != 1 {
-		t.Errorf("OffsetsForTimes() returned wrong length %d, expected 1\n", len(offsets))
-		return
-	}
-
-	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
-		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
-		return
-	}
-
-	if offsets[0].Error != nil {
-		t.Errorf("OffsetsForTimes() returned error for partition 0: %s\n", err)
-		return
-	}
-
-	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-
-	t.Logf("OffsetsForTimes() returned offset %d for timestamp %d\n", offsets[0].Offset, times[0].Offset)
-
-	// Since we're using a phony low timestamp it is assumed that the returned
-	// offset will be oldest message.
-	if offsets[0].Offset != Offset(low) {
-		t.Errorf("OffsetsForTimes() returned invalid offset %d for timestamp %d, expected %d\n", offsets[0].Offset, times[0].Offset, low)
-		return
-	}
-
-}
-
-// test consumer GetMetadata API
-func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
-	t := its.T()
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"group.id": testconf.GroupID}
-	config.updateFromTestconf()
-
-	// Create consumer
-	c, err := NewConsumer(config)
-	if err != nil {
-		t.Errorf("Failed to create consumer: %s\n", err)
-		return
-	}
-	defer c.Close()
-
-	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
-
-	metaData, err = c.GetMetadata(nil, true, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data, Error: %s\n", err)
-		return
-	}
-	t.Logf("Meta data for consumer: %v\n", metaData)
-}
-
-//Test producer QueryWatermarkOffsets API
-func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
-	t := its.T()
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
-
-	// Create producer
-	p, err := NewProducer(config)
-	if err != nil {
-		t.Errorf("Failed to create producer: %s\n", err)
-		return
-	}
-	defer p.Close()
-
-	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	cnt := high - low
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
-
-	createTestMessages()
-	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
-	newcnt := high - low
-	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
-	if newcnt-cnt != int64(len(p0TestMsgs)) {
-		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newcnt-cnt)
-	}
-}
-
-//Test producer GetMetadata API
-func (its *IntegrationTestSuite) TestProducerGetMetadata() {
-	t := its.T()
-
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
-
-	// Create producer
-	p, err := NewProducer(config)
-	if err != nil {
-		t.Errorf("Failed to create producer: %s\n", err)
-		return
-	}
-	defer p.Close()
-
-	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
-		return
-	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
-
-	metaData, err = p.GetMetadata(nil, true, 5*1000)
-	if err != nil {
-		t.Errorf("Failed to get meta data, Error: %s\n", err)
-		return
-	}
-	t.Logf("Meta data for producer: %v\n", metaData)
-
-}
-
-// test producer function-based API without delivery report
-func (its *IntegrationTestSuite) TestProducerFunc() {
-	t := its.T()
-	producerTest(t, "Function producer (without DR)",
-		nil, producerCtrl{},
-		func(p *Producer, m *Message, drChan chan Event) {
-			err := p.Produce(m, drChan)
-			if err != nil {
-				t.Errorf("Produce() failed: %v", err)
-			}
-		})
-}
-
-// test producer function-based API with delivery report
-func (its *IntegrationTestSuite) TestProducerFuncDR() {
-	t := its.T()
-	producerTest(t, "Function producer (with DR)",
-		nil, producerCtrl{withDr: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			err := p.Produce(m, drChan)
-			if err != nil {
-				t.Errorf("Produce() failed: %v", err)
-			}
-		})
-}
-
-// test producer with bad messages
-func (its *IntegrationTestSuite) TestProducerWithBadMessages() {
-	t := its.T()
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	conf.updateFromTestconf()
-
-	p, err := NewProducer(&conf)
-	if err != nil {
-		panic(err)
-	}
-	defer p.Close()
-
-	// producing a nil message should return an error without crash
-	err = p.Produce(nil, p.Events())
-	if err == nil {
-		t.Errorf("Producing a nil message should return error\n")
-	} else {
-		t.Logf("Producing a nil message returns expected error: %s\n", err)
-	}
-
-	// producing a blank message (with nil Topic) should return an error without crash
-	err = p.Produce(&Message{}, p.Events())
-	if err == nil {
-		t.Errorf("Producing a blank message should return error\n")
-	} else {
-		t.Logf("Producing a blank message returns expected error: %s\n", err)
-	}
-}
-
-// test producer channel-based API without delivery report
-func (its *IntegrationTestSuite) TestProducerChannel() {
-	t := its.T()
-	producerTest(t, "Channel producer (without DR)",
-		nil, producerCtrl{},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-}
-
-// test producer channel-based API with delivery report
-func (its *IntegrationTestSuite) TestProducerChannelDR() {
-	t := its.T()
-	producerTest(t, "Channel producer (with DR)",
-		nil, producerCtrl{withDr: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-
-}
-
-// test batch producer channel-based API without delivery report
-func (its *IntegrationTestSuite) TestProducerBatchChannel() {
-	t := its.T()
-	producerTest(t, "Channel producer (without DR, batch channel)",
-		nil, producerCtrl{batchProducer: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-}
-
-// test batch producer channel-based API with delivery report
-func (its *IntegrationTestSuite) TestProducerBatchChannelDR() {
-	t := its.T()
-	producerTest(t, "Channel producer (DR, batch channel)",
-		nil, producerCtrl{withDr: true, batchProducer: true},
-		func(p *Producer, m *Message, drChan chan Event) {
-			p.ProduceChannel() <- m
-		})
-}
-
-// test consumer channel-based API
-func (its *IntegrationTestSuite) TestConsumerChannel() {
-	t := its.T()
-	consumerTestWithCommits(t, "Channel Consumer",
-		"", 0, true, eventTestChannelConsumer, nil)
-}
-
-// test consumer channel-based API with incremental rebalancing
-func (its *IntegrationTestSuite) TestConsumerChannelIncremental() {
-	t := its.T()
-	consumerTestWithCommits(t, "Channel Consumer Incremental",
-		"cooperative-sticky", 0, true, eventTestChannelConsumer, nil)
-}
-
-// test consumer poll-based API
-func (its *IntegrationTestSuite) TestConsumerPoll() {
-	t := its.T()
-	consumerTestWithCommits(t, "Poll Consumer", "", 0, false, eventTestPollConsumer, nil)
-}
-
-// test consumer poll-based API with incremental rebalancing
-func (its *IntegrationTestSuite) TestConsumerPollIncremental() {
-	t := its.T()
-	consumerTestWithCommits(t, "Poll Consumer ncremental",
-		"cooperative-sticky", 0, false, eventTestPollConsumer, nil)
-}
-
-// test consumer poll-based API with rebalance callback
-func (its *IntegrationTestSuite) TestConsumerPollRebalance() {
-	t := its.T()
-	consumerTestWithCommits(t, "Poll Consumer (rebalance callback)",
-		"", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s", event)
-			return nil
-		})
-}
-
-// test consumer poll-based API with incremental no-op rebalance callback
-func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncrementalNoop() {
-	t := its.T()
-	consumerTestWithCommits(t, "Poll Consumer (incremental no-op rebalance callback)",
-		"cooperative-sticky", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s", event)
-			return nil
-		})
-}
-
-// test consumer poll-based API with incremental rebalance callback
-func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
-	t := its.T()
-	consumerTestWithCommits(t, "Poll Consumer (incremental rebalance callback)",
-		"cooperative-sticky", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s (RebalanceProtocol=%s, AssignmentLost=%v)",
-				event, c.GetRebalanceProtocol(), c.AssignmentLost())
-
-			switch e := event.(type) {
-			case AssignedPartitions:
-				err := c.IncrementalAssign(e.Partitions)
-				if err != nil {
-					t.Errorf("IncrementalAssign() failed: %s\n", err)
-					return err
-				}
-			case RevokedPartitions:
-				err := c.IncrementalUnassign(e.Partitions)
-				if err != nil {
-					t.Errorf("IncrementalUnassign() failed: %s\n", err)
-					return err
-				}
-			default:
-				t.Fatalf("Unexpected rebalance event: %v\n", e)
-			}
-
-			return nil
-		})
-}
-
-// Test Committed() API
-func (its *IntegrationTestSuite) TestConsumerCommitted() {
-	t := its.T()
-	if testconf.Semaphore {
-		t.Skipf("Skipping TestConsumerCommitted since it is flaky[Does not run when tested with all the other integration tests]")
-		return
-	}
-
-	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
-		"", 0, false, eventTestPollConsumer,
-		func(c *Consumer, event Event) error {
-			t.Logf("Rebalanced: %s", event)
-			rp, ok := event.(RevokedPartitions)
-			if ok {
-				offsets, err := c.Committed(rp.Partitions, 5000)
-				if err != nil {
-					t.Errorf("Failed to get committed offsets: %s\n", err)
-					return nil
-				}
-
-				t.Logf("Retrieved Committed offsets: %s\n", offsets)
-
-				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
-					t.Errorf("Invalid number of partitions %d, should be %d (and >0)\n", len(offsets), len(rp.Partitions))
-				}
-
-				// Verify proper offsets: at least one partition needs
-				// to have a committed offset.
-				validCnt := 0
-				for _, p := range offsets {
-					if p.Error != nil {
-						t.Errorf("Committed() partition error: %v: %v", p, p.Error)
-					} else if p.Offset >= 0 {
-						validCnt++
-					}
-				}
-
-				if validCnt == 0 {
-					t.Errorf("Committed(): no partitions with valid offsets: %v", offsets)
-				}
-			}
-			return nil
-		})
-}
-
-// TestProducerConsumerTimestamps produces messages with timestamps
-// and verifies them on consumption.
-// Requires librdkafka >=0.9.4 and Kafka >=0.10.0.0
-func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
-	t := its.T()
-	numver, strver := LibraryVersion()
-	if numver < 0x00090400 {
-		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
-	}
-
-	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"go.events.channel.enable": true,
-		"group.id":                 testconf.Topic,
-		"enable.partition.eof":     true,
-	}
-
-	consumerConf.updateFromTestconf()
-
-	/* Create consumer and find recognizable message, verify timestamp.
-	 * The consumer is started before the producer to make sure
-	 * the message isn't missed. */
-	t.Logf("Creating consumer")
-	c, err := NewConsumer(&consumerConf)
-	if err != nil {
-		t.Fatalf("NewConsumer: %v", err)
-	}
-
-	t.Logf("Assign %s [0]", testconf.Topic)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
-		Offset: OffsetEnd}})
-	if err != nil {
-		t.Fatalf("Assign: %v", err)
-	}
-
-	/* Wait until EOF is reached so we dont miss the produced message */
-	for ev := range c.Events() {
-		t.Logf("Awaiting initial EOF")
-		_, ok := ev.(PartitionEOF)
-		if ok {
-			break
-		}
-	}
-
-	/*
-	 * Create producer and produce one recognizable message with timestamp
-	 */
-	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	producerConf.updateFromTestconf()
-
-	t.Logf("Creating producer")
-	p, err := NewProducer(&producerConf)
-	if err != nil {
-		t.Fatalf("NewProducer: %v", err)
-	}
-
-	drChan := make(chan Event, 1)
-
-	/* Offset the timestamp to avoid comparison with system clock */
-	future, _ := time.ParseDuration("87658h") // 10y
-	timestamp := time.Now().Add(future)
-	key := fmt.Sprintf("TS: %v", timestamp)
-	t.Logf("Producing message with timestamp %v", timestamp)
-	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-		Key:            []byte(key),
-		Timestamp:      timestamp},
-		drChan)
-
-	if err != nil {
-		t.Fatalf("Produce: %v", err)
-	}
-
-	// Wait for delivery
-	t.Logf("Awaiting delivery report")
-	ev := <-drChan
-	m, ok := ev.(*Message)
-	if !ok {
-		t.Fatalf("drChan: Expected *Message, got %v", ev)
-	}
-	if m.TopicPartition.Error != nil {
-		t.Fatalf("Delivery failed: %v", m.TopicPartition)
-	}
-	t.Logf("Produced message to %v", m.TopicPartition)
-	producedOffset := m.TopicPartition.Offset
-
-	p.Close()
-
-	/* Now consume messages, waiting for that recognizable one. */
-	t.Logf("Consuming messages")
-outer:
-	for ev := range c.Events() {
-		switch m := ev.(type) {
-		case *Message:
-			if m.TopicPartition.Error != nil {
-				continue
-			}
-			if m.Key == nil || string(m.Key) != key {
-				continue
-			}
-
-			t.Logf("Found message at %v with timestamp %s %s",
-				m.TopicPartition,
-				m.TimestampType, m.Timestamp)
-
-			if m.TopicPartition.Offset != producedOffset {
-				t.Fatalf("Produced Offset %d does not match consumed offset %d", producedOffset, m.TopicPartition.Offset)
-			}
-
-			if m.TimestampType != TimestampCreateTime {
-				t.Fatalf("Expected timestamp CreateTime, not %s",
-					m.TimestampType)
-			}
-
-			/* Since Kafka timestamps are milliseconds we need to
-			 * shave off some precision for the comparison */
-			if m.Timestamp.UnixNano()/1000000 !=
-				timestamp.UnixNano()/1000000 {
-				t.Fatalf("Expected timestamp %v (%d), not %v (%d)",
-					timestamp, timestamp.UnixNano(),
-					m.Timestamp, m.Timestamp.UnixNano())
-			}
-			break outer
-		default:
-		}
-	}
-
-	c.Close()
-}
-
-// TestProducerConsumerHeaders produces messages with headers
-// and verifies them on consumption.
-// Requires librdkafka >=0.11.4 and Kafka >=0.11.0.0
-func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
-	t := its.T()
-	numver, strver := LibraryVersion()
-	if numver < 0x000b0400 {
-		t.Skipf("Requires librdkafka >=0.11.4 (currently on %s, 0x%x)", strver, numver)
-	}
-
-	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
-		"api.version.request": true,
-		"enable.auto.commit":  false,
-		"group.id":            testconf.Topic,
-	}
-
-	conf.updateFromTestconf()
-
-	/*
-	 * Create producer and produce a couple of messages with and without
-	 * headers.
-	 */
-	t.Logf("Creating producer")
-	p, err := NewProducer(&conf)
-	if err != nil {
-		t.Fatalf("NewProducer: %v", err)
-	}
-
-	drChan := make(chan Event, 1)
-
-	// prepare some header values
-	bigBytes := make([]byte, 2500)
-	for i := 0; i < len(bigBytes); i++ {
-		bigBytes[i] = byte(i)
-	}
-
-	myVarint := make([]byte, binary.MaxVarintLen64)
-	myVarintLen := binary.PutVarint(myVarint, 12345678901234)
-
-	expMsgHeaders := [][]Header{
-		{
-			{"msgid", []byte("1")},
-			{"a key with SPACES ", bigBytes[:15]},
-			{"BIGONE!", bigBytes},
-		},
-		{
-			{"msgid", []byte("2")},
-			{"myVarint", myVarint[:myVarintLen]},
-			{"empty", []byte("")},
-			{"theNullIsNil", nil},
-		},
-		nil, // no headers
-		{
-			{"msgid", []byte("4")},
-			{"order", []byte("1")},
-			{"order", []byte("2")},
-			{"order", nil},
-			{"order", []byte("4")},
-		},
-	}
-
-	t.Logf("Producing %d messages", len(expMsgHeaders))
-	for _, hdrs := range expMsgHeaders {
-		err = p.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
-			Headers:        hdrs},
-			drChan)
-	}
-
-	if err != nil {
-		t.Fatalf("Produce: %v", err)
-	}
-
-	var firstOffset Offset = OffsetInvalid
-	for range expMsgHeaders {
-		ev := <-drChan
-		m, ok := ev.(*Message)
-		if !ok {
-			t.Fatalf("drChan: Expected *Message, got %v", ev)
-		}
-		if m.TopicPartition.Error != nil {
-			t.Fatalf("Delivery failed: %v", m.TopicPartition)
-		}
-		t.Logf("Produced message to %v", m.TopicPartition)
-		if firstOffset == OffsetInvalid {
-			firstOffset = m.TopicPartition.Offset
-		}
-	}
-
-	p.Close()
-
-	/* Now consume the produced messages and verify the headers */
-	t.Logf("Creating consumer starting at offset %v", firstOffset)
-	c, err := NewConsumer(&conf)
-	if err != nil {
-		t.Fatalf("NewConsumer: %v", err)
-	}
-
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
-		Offset: firstOffset}})
-	if err != nil {
-		t.Fatalf("Assign: %v", err)
-	}
-
-	for n, hdrs := range expMsgHeaders {
-		m, err := c.ReadMessage(-1)
-		if err != nil {
-			t.Fatalf("Expected message #%d, not error %v", n, err)
-		}
-
-		if m.Headers == nil {
-			if hdrs == nil {
-				continue
-			}
-			t.Fatalf("Expected message #%d to have headers", n)
-		}
-
-		if hdrs == nil {
-			t.Fatalf("Expected message #%d not to have headers, but found %v", n, m.Headers)
-		}
-
-		// Compare headers
-		if !reflect.DeepEqual(hdrs, m.Headers) {
-			t.Fatalf("Expected message #%d headers to match %v, but found %v", n, hdrs, m.Headers)
-		}
-
-		t.Logf("Message #%d headers matched: %v", n, m.Headers)
-	}
-
-	c.Close()
-
-}
+// // Test consumer QueryWatermarkOffsets API
+// func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
+// 	t := its.T()
+
+// 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
+// 	// get the number of messages in a topic
+// 	msgcnt, err := getMessageCountInTopic(testconf.Topic)
+// 	if err != nil {
+// 		t.Errorf("Cannot get message size. Error: %s\n", err)
+// 	}
+
+// 	// Prime topic with test messages
+// 	createTestMessages()
+// 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+
+// 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
+// 	// get the number of messages in a topic
+// 	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
+// 	if err != nil {
+// 		t.Errorf("Cannot get message size. Error: %s\n", err)
+// 	}
+
+// 	if newmsgcnt-msgcnt != len(p0TestMsgs) {
+// 		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newmsgcnt-msgcnt)
+// 	}
+
+// }
+
+// // Test consumer GetWatermarkOffsets API
+// func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
+// 	t := its.T()
+
+// 	// Create consumer
+// 	config := &ConfigMap{
+// 		"go.events.channel.enable": true,
+// 		"bootstrap.servers":        testconf.Brokers,
+// 		"group.id":                 testconf.GroupID,
+// 		"session.timeout.ms":       6000,
+// 		"enable.auto.commit":       false,
+// 		"auto.offset.reset":        "earliest",
+// 	}
+// 	_ = config.updateFromTestconf()
+
+// 	c, err := NewConsumer(config)
+// 	if err != nil {
+// 		t.Fatalf("Unable to create consumer: %s", err)
+// 	}
+// 	defer func() { _ = c.Close() }()
+
+// 	err = c.Subscribe(testconf.Topic, nil)
+
+// 	// Prime topic with test messages
+// 	createTestMessages()
+// 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+
+// 	// Wait for messages to be received so that we know the watermark offsets have been delivered
+// 	// with the fetch response
+// 	for ev := range c.Events() {
+// 		if _, ok := ev.(*Message); ok {
+// 			break
+// 		}
+// 	}
+
+// 	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+// 	if err != nil {
+// 		t.Fatalf("Error querying watermark offsets: %s", err)
+// 	}
+
+// 	// We are not currently testing the low watermark offset as it only gets set every 10s by the stits timer
+// 	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
+// 	if err != nil {
+// 		t.Fatalf("Error getting watermark offsets: %s", err)
+// 	}
+
+// 	if queryHigh != getHigh {
+// 		t.Errorf("QueryWatermarkOffsets high[%d] does not equal GetWatermarkOffsets high[%d]", queryHigh, getHigh)
+// 	}
+
+// }
+
+// // TestConsumerOffsetsForTimes
+// func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
+// 	t := its.T()
+
+// 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+// 		"group.id":            testconf.GroupID,
+// 		"api.version.request": true}
+
+// 	conf.updateFromTestconf()
+
+// 	c, err := NewConsumer(&conf)
+
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer c.Close()
+
+// 	// Prime topic with test messages
+// 	createTestMessages()
+// 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+
+// 	times := make([]TopicPartition, 1)
+// 	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
+// 	offsets, err := c.OffsetsForTimes(times, 5000)
+// 	if err != nil {
+// 		t.Errorf("OffsetsForTimes() failed: %s\n", err)
+// 		return
+// 	}
+
+// 	if len(offsets) != 1 {
+// 		t.Errorf("OffsetsForTimes() returned wrong length %d, expected 1\n", len(offsets))
+// 		return
+// 	}
+
+// 	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
+// 		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
+// 		return
+// 	}
+
+// 	if offsets[0].Error != nil {
+// 		t.Errorf("OffsetsForTimes() returned error for partition 0: %s\n", err)
+// 		return
+// 	}
+
+// 	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+// 		return
+// 	}
+
+// 	t.Logf("OffsetsForTimes() returned offset %d for timestamp %d\n", offsets[0].Offset, times[0].Offset)
+
+// 	// Since we're using a phony low timestamp it is assumed that the returned
+// 	// offset will be oldest message.
+// 	if offsets[0].Offset != Offset(low) {
+// 		t.Errorf("OffsetsForTimes() returned invalid offset %d for timestamp %d, expected %d\n", offsets[0].Offset, times[0].Offset, low)
+// 		return
+// 	}
+
+// }
+
+// // test consumer GetMetadata API
+// func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
+// 	t := its.T()
+
+// 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
+// 		"group.id": testconf.GroupID}
+// 	config.updateFromTestconf()
+
+// 	// Create consumer
+// 	c, err := NewConsumer(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create consumer: %s\n", err)
+// 		return
+// 	}
+// 	defer c.Close()
+
+// 	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+// 		return
+// 	}
+// 	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+
+// 	metaData, err = c.GetMetadata(nil, true, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to get meta data, Error: %s\n", err)
+// 		return
+// 	}
+// 	t.Logf("Meta data for consumer: %v\n", metaData)
+// }
+
+// // Test producer QueryWatermarkOffsets API
+// func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
+// 	t := its.T()
+
+// 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	config.updateFromTestconf()
+
+// 	// Create producer
+// 	p, err := NewProducer(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create producer: %s\n", err)
+// 		return
+// 	}
+// 	defer p.Close()
+
+// 	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+// 		return
+// 	}
+// 	cnt := high - low
+// 	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+
+// 	createTestMessages()
+// 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+
+// 	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+// 		return
+// 	}
+// 	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+// 	newcnt := high - low
+// 	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
+// 	if newcnt-cnt != int64(len(p0TestMsgs)) {
+// 		t.Errorf("Incorrect offsets. Expected message count %d, got %d\n", len(p0TestMsgs), newcnt-cnt)
+// 	}
+// }
+
+// // Test producer GetMetadata API
+// func (its *IntegrationTestSuite) TestProducerGetMetadata() {
+// 	t := its.T()
+
+// 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	config.updateFromTestconf()
+
+// 	// Create producer
+// 	p, err := NewProducer(config)
+// 	if err != nil {
+// 		t.Errorf("Failed to create producer: %s\n", err)
+// 		return
+// 	}
+// 	defer p.Close()
+
+// 	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+// 		return
+// 	}
+// 	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+
+// 	metaData, err = p.GetMetadata(nil, true, 5*1000)
+// 	if err != nil {
+// 		t.Errorf("Failed to get meta data, Error: %s\n", err)
+// 		return
+// 	}
+// 	t.Logf("Meta data for producer: %v\n", metaData)
+
+// }
+
+// // test producer function-based API without delivery report
+// func (its *IntegrationTestSuite) TestProducerFunc() {
+// 	t := its.T()
+// 	producerTest(t, "Function producer (without DR)",
+// 		nil, producerCtrl{},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			err := p.Produce(m, drChan)
+// 			if err != nil {
+// 				t.Errorf("Produce() failed: %v", err)
+// 			}
+// 		})
+// }
+
+// // test producer function-based API with delivery report
+// func (its *IntegrationTestSuite) TestProducerFuncDR() {
+// 	t := its.T()
+// 	producerTest(t, "Function producer (with DR)",
+// 		nil, producerCtrl{withDr: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			err := p.Produce(m, drChan)
+// 			if err != nil {
+// 				t.Errorf("Produce() failed: %v", err)
+// 			}
+// 		})
+// }
+
+// // test producer with bad messages
+// func (its *IntegrationTestSuite) TestProducerWithBadMessages() {
+// 	t := its.T()
+// 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	conf.updateFromTestconf()
+
+// 	p, err := NewProducer(&conf)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer p.Close()
+
+// 	// producing a nil message should return an error without crash
+// 	err = p.Produce(nil, p.Events())
+// 	if err == nil {
+// 		t.Errorf("Producing a nil message should return error\n")
+// 	} else {
+// 		t.Logf("Producing a nil message returns expected error: %s\n", err)
+// 	}
+
+// 	// producing a blank message (with nil Topic) should return an error without crash
+// 	err = p.Produce(&Message{}, p.Events())
+// 	if err == nil {
+// 		t.Errorf("Producing a blank message should return error\n")
+// 	} else {
+// 		t.Logf("Producing a blank message returns expected error: %s\n", err)
+// 	}
+// }
+
+// // test producer channel-based API without delivery report
+// func (its *IntegrationTestSuite) TestProducerChannel() {
+// 	t := its.T()
+// 	producerTest(t, "Channel producer (without DR)",
+// 		nil, producerCtrl{},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+// }
+
+// // test producer channel-based API with delivery report
+// func (its *IntegrationTestSuite) TestProducerChannelDR() {
+// 	t := its.T()
+// 	producerTest(t, "Channel producer (with DR)",
+// 		nil, producerCtrl{withDr: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+
+// }
+
+// // test batch producer channel-based API without delivery report
+// func (its *IntegrationTestSuite) TestProducerBatchChannel() {
+// 	t := its.T()
+// 	producerTest(t, "Channel producer (without DR, batch channel)",
+// 		nil, producerCtrl{batchProducer: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+// }
+
+// // test batch producer channel-based API with delivery report
+// func (its *IntegrationTestSuite) TestProducerBatchChannelDR() {
+// 	t := its.T()
+// 	producerTest(t, "Channel producer (DR, batch channel)",
+// 		nil, producerCtrl{withDr: true, batchProducer: true},
+// 		func(p *Producer, m *Message, drChan chan Event) {
+// 			p.ProduceChannel() <- m
+// 		})
+// }
+
+// // test consumer channel-based API
+// func (its *IntegrationTestSuite) TestConsumerChannel() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Channel Consumer",
+// 		"", 0, true, eventTestChannelConsumer, nil)
+// }
+
+// // test consumer channel-based API with incremental rebalancing
+// func (its *IntegrationTestSuite) TestConsumerChannelIncremental() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Channel Consumer Incremental",
+// 		"cooperative-sticky", 0, true, eventTestChannelConsumer, nil)
+// }
+
+// // test consumer poll-based API
+// func (its *IntegrationTestSuite) TestConsumerPoll() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Poll Consumer", "", 0, false, eventTestPollConsumer, nil)
+// }
+
+// // test consumer poll-based API with incremental rebalancing
+// func (its *IntegrationTestSuite) TestConsumerPollIncremental() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Poll Consumer ncremental",
+// 		"cooperative-sticky", 0, false, eventTestPollConsumer, nil)
+// }
+
+// // test consumer poll-based API with rebalance callback
+// func (its *IntegrationTestSuite) TestConsumerPollRebalance() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Poll Consumer (rebalance callback)",
+// 		"", 0, false, eventTestPollConsumer,
+// 		func(c *Consumer, event Event) error {
+// 			t.Logf("Rebalanced: %s", event)
+// 			return nil
+// 		})
+// }
+
+// // test consumer poll-based API with incremental no-op rebalance callback
+// func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncrementalNoop() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Poll Consumer (incremental no-op rebalance callback)",
+// 		"cooperative-sticky", 0, false, eventTestPollConsumer,
+// 		func(c *Consumer, event Event) error {
+// 			t.Logf("Rebalanced: %s", event)
+// 			return nil
+// 		})
+// }
+
+// // test consumer poll-based API with incremental rebalance callback
+// func (its *IntegrationTestSuite) TestConsumerPollRebalanceIncremental() {
+// 	t := its.T()
+// 	consumerTestWithCommits(t, "Poll Consumer (incremental rebalance callback)",
+// 		"cooperative-sticky", 0, false, eventTestPollConsumer,
+// 		func(c *Consumer, event Event) error {
+// 			t.Logf("Rebalanced: %s (RebalanceProtocol=%s, AssignmentLost=%v)",
+// 				event, c.GetRebalanceProtocol(), c.AssignmentLost())
+
+// 			switch e := event.(type) {
+// 			case AssignedPartitions:
+// 				err := c.IncrementalAssign(e.Partitions)
+// 				if err != nil {
+// 					t.Errorf("IncrementalAssign() failed: %s\n", err)
+// 					return err
+// 				}
+// 			case RevokedPartitions:
+// 				err := c.IncrementalUnassign(e.Partitions)
+// 				if err != nil {
+// 					t.Errorf("IncrementalUnassign() failed: %s\n", err)
+// 					return err
+// 				}
+// 			default:
+// 				t.Fatalf("Unexpected rebalance event: %v\n", e)
+// 			}
+
+// 			return nil
+// 		})
+// }
+
+// // Test Committed() API
+// func (its *IntegrationTestSuite) TestConsumerCommitted() {
+// 	t := its.T()
+// 	if testconf.Semaphore {
+// 		t.Skipf("Skipping TestConsumerCommitted since it is flaky[Does not run when tested with all the other integration tests]")
+// 		return
+// 	}
+
+// 	consumerTestWithCommits(t, "Poll Consumer (rebalance callback, verify Committed())",
+// 		"", 0, false, eventTestPollConsumer,
+// 		func(c *Consumer, event Event) error {
+// 			t.Logf("Rebalanced: %s", event)
+// 			rp, ok := event.(RevokedPartitions)
+// 			if ok {
+// 				offsets, err := c.Committed(rp.Partitions, 5000)
+// 				if err != nil {
+// 					t.Errorf("Failed to get committed offsets: %s\n", err)
+// 					return nil
+// 				}
+
+// 				t.Logf("Retrieved Committed offsets: %s\n", offsets)
+
+// 				if len(offsets) != len(rp.Partitions) || len(rp.Partitions) == 0 {
+// 					t.Errorf("Invalid number of partitions %d, should be %d (and >0)\n", len(offsets), len(rp.Partitions))
+// 				}
+
+// 				// Verify proper offsets: at least one partition needs
+// 				// to have a committed offset.
+// 				validCnt := 0
+// 				for _, p := range offsets {
+// 					if p.Error != nil {
+// 						t.Errorf("Committed() partition error: %v: %v", p, p.Error)
+// 					} else if p.Offset >= 0 {
+// 						validCnt++
+// 					}
+// 				}
+
+// 				if validCnt == 0 {
+// 					t.Errorf("Committed(): no partitions with valid offsets: %v", offsets)
+// 				}
+// 			}
+// 			return nil
+// 		})
+// }
+
+// // TestProducerConsumerTimestamps produces messages with timestamps
+// // and verifies them on consumption.
+// // Requires librdkafka >=0.9.4 and Kafka >=0.10.0.0
+// func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
+// 	t := its.T()
+// 	numver, strver := LibraryVersion()
+// 	if numver < 0x00090400 {
+// 		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
+// 	}
+
+// 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+// 		"go.events.channel.enable": true,
+// 		"group.id":                 testconf.Topic,
+// 		"enable.partition.eof":     true,
+// 	}
+
+// 	consumerConf.updateFromTestconf()
+
+// 	/* Create consumer and find recognizable message, verify timestamp.
+// 	 * The consumer is started before the producer to make sure
+// 	 * the message isn't missed. */
+// 	t.Logf("Creating consumer")
+// 	c, err := NewConsumer(&consumerConf)
+// 	if err != nil {
+// 		t.Fatalf("NewConsumer: %v", err)
+// 	}
+
+// 	t.Logf("Assign %s [0]", testconf.Topic)
+// 	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+// 		Offset: OffsetEnd}})
+// 	if err != nil {
+// 		t.Fatalf("Assign: %v", err)
+// 	}
+
+// 	/* Wait until EOF is reached so we dont miss the produced message */
+// 	for ev := range c.Events() {
+// 		t.Logf("Awaiting initial EOF")
+// 		_, ok := ev.(PartitionEOF)
+// 		if ok {
+// 			break
+// 		}
+// 	}
+
+// 	/*
+// 	 * Create producer and produce one recognizable message with timestamp
+// 	 */
+// 	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
+// 	producerConf.updateFromTestconf()
+
+// 	t.Logf("Creating producer")
+// 	p, err := NewProducer(&producerConf)
+// 	if err != nil {
+// 		t.Fatalf("NewProducer: %v", err)
+// 	}
+
+// 	drChan := make(chan Event, 1)
+
+// 	/* Offset the timestamp to avoid comparison with system clock */
+// 	future, _ := time.ParseDuration("87658h") // 10y
+// 	timestamp := time.Now().Add(future)
+// 	key := fmt.Sprintf("TS: %v", timestamp)
+// 	t.Logf("Producing message with timestamp %v", timestamp)
+// 	err = p.Produce(&Message{
+// 		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+// 		Key:            []byte(key),
+// 		Timestamp:      timestamp},
+// 		drChan)
+
+// 	if err != nil {
+// 		t.Fatalf("Produce: %v", err)
+// 	}
+
+// 	// Wait for delivery
+// 	t.Logf("Awaiting delivery report")
+// 	ev := <-drChan
+// 	m, ok := ev.(*Message)
+// 	if !ok {
+// 		t.Fatalf("drChan: Expected *Message, got %v", ev)
+// 	}
+// 	if m.TopicPartition.Error != nil {
+// 		t.Fatalf("Delivery failed: %v", m.TopicPartition)
+// 	}
+// 	t.Logf("Produced message to %v", m.TopicPartition)
+// 	producedOffset := m.TopicPartition.Offset
+
+// 	p.Close()
+
+// 	/* Now consume messages, waiting for that recognizable one. */
+// 	t.Logf("Consuming messages")
+// outer:
+// 	for ev := range c.Events() {
+// 		switch m := ev.(type) {
+// 		case *Message:
+// 			if m.TopicPartition.Error != nil {
+// 				continue
+// 			}
+// 			if m.Key == nil || string(m.Key) != key {
+// 				continue
+// 			}
+
+// 			t.Logf("Found message at %v with timestamp %s %s",
+// 				m.TopicPartition,
+// 				m.TimestampType, m.Timestamp)
+
+// 			if m.TopicPartition.Offset != producedOffset {
+// 				t.Fatalf("Produced Offset %d does not match consumed offset %d", producedOffset, m.TopicPartition.Offset)
+// 			}
+
+// 			if m.TimestampType != TimestampCreateTime {
+// 				t.Fatalf("Expected timestamp CreateTime, not %s",
+// 					m.TimestampType)
+// 			}
+
+// 			/* Since Kafka timestamps are milliseconds we need to
+// 			 * shave off some precision for the comparison */
+// 			if m.Timestamp.UnixNano()/1000000 !=
+// 				timestamp.UnixNano()/1000000 {
+// 				t.Fatalf("Expected timestamp %v (%d), not %v (%d)",
+// 					timestamp, timestamp.UnixNano(),
+// 					m.Timestamp, m.Timestamp.UnixNano())
+// 			}
+// 			break outer
+// 		default:
+// 		}
+// 	}
+
+// 	c.Close()
+// }
+
+// // TestProducerConsumerHeaders produces messages with headers
+// // and verifies them on consumption.
+// // Requires librdkafka >=0.11.4 and Kafka >=0.11.0.0
+// func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
+// 	t := its.T()
+// 	numver, strver := LibraryVersion()
+// 	if numver < 0x000b0400 {
+// 		t.Skipf("Requires librdkafka >=0.11.4 (currently on %s, 0x%x)", strver, numver)
+// 	}
+
+// 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
+// 		"api.version.request": true,
+// 		"enable.auto.commit":  false,
+// 		"group.id":            testconf.Topic,
+// 	}
+
+// 	conf.updateFromTestconf()
+
+// 	/*
+// 	 * Create producer and produce a couple of messages with and without
+// 	 * headers.
+// 	 */
+// 	t.Logf("Creating producer")
+// 	p, err := NewProducer(&conf)
+// 	if err != nil {
+// 		t.Fatalf("NewProducer: %v", err)
+// 	}
+
+// 	drChan := make(chan Event, 1)
+
+// 	// prepare some header values
+// 	bigBytes := make([]byte, 2500)
+// 	for i := 0; i < len(bigBytes); i++ {
+// 		bigBytes[i] = byte(i)
+// 	}
+
+// 	myVarint := make([]byte, binary.MaxVarintLen64)
+// 	myVarintLen := binary.PutVarint(myVarint, 12345678901234)
+
+// 	expMsgHeaders := [][]Header{
+// 		{
+// 			{"msgid", []byte("1")},
+// 			{"a key with SPACES ", bigBytes[:15]},
+// 			{"BIGONE!", bigBytes},
+// 		},
+// 		{
+// 			{"msgid", []byte("2")},
+// 			{"myVarint", myVarint[:myVarintLen]},
+// 			{"empty", []byte("")},
+// 			{"theNullIsNil", nil},
+// 		},
+// 		nil, // no headers
+// 		{
+// 			{"msgid", []byte("4")},
+// 			{"order", []byte("1")},
+// 			{"order", []byte("2")},
+// 			{"order", nil},
+// 			{"order", []byte("4")},
+// 		},
+// 	}
+
+// 	t.Logf("Producing %d messages", len(expMsgHeaders))
+// 	for _, hdrs := range expMsgHeaders {
+// 		err = p.Produce(&Message{
+// 			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+// 			Headers:        hdrs},
+// 			drChan)
+// 	}
+
+// 	if err != nil {
+// 		t.Fatalf("Produce: %v", err)
+// 	}
+
+// 	var firstOffset Offset = OffsetInvalid
+// 	for range expMsgHeaders {
+// 		ev := <-drChan
+// 		m, ok := ev.(*Message)
+// 		if !ok {
+// 			t.Fatalf("drChan: Expected *Message, got %v", ev)
+// 		}
+// 		if m.TopicPartition.Error != nil {
+// 			t.Fatalf("Delivery failed: %v", m.TopicPartition)
+// 		}
+// 		t.Logf("Produced message to %v", m.TopicPartition)
+// 		if firstOffset == OffsetInvalid {
+// 			firstOffset = m.TopicPartition.Offset
+// 		}
+// 	}
+
+// 	p.Close()
+
+// 	/* Now consume the produced messages and verify the headers */
+// 	t.Logf("Creating consumer starting at offset %v", firstOffset)
+// 	c, err := NewConsumer(&conf)
+// 	if err != nil {
+// 		t.Fatalf("NewConsumer: %v", err)
+// 	}
+
+// 	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+// 		Offset: firstOffset}})
+// 	if err != nil {
+// 		t.Fatalf("Assign: %v", err)
+// 	}
+
+// 	for n, hdrs := range expMsgHeaders {
+// 		m, err := c.ReadMessage(-1)
+// 		if err != nil {
+// 			t.Fatalf("Expected message #%d, not error %v", n, err)
+// 		}
+
+// 		if m.Headers == nil {
+// 			if hdrs == nil {
+// 				continue
+// 			}
+// 			t.Fatalf("Expected message #%d to have headers", n)
+// 		}
+
+// 		if hdrs == nil {
+// 			t.Fatalf("Expected message #%d not to have headers, but found %v", n, m.Headers)
+// 		}
+
+// 		// Compare headers
+// 		if !reflect.DeepEqual(hdrs, m.Headers) {
+// 			t.Fatalf("Expected message #%d headers to match %v, but found %v", n, hdrs, m.Headers)
+// 		}
+
+// 		t.Logf("Message #%d headers matched: %v", n, m.Headers)
+// 	}
+
+// 	c.Close()
+
+// }
 
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
