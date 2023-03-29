@@ -364,6 +364,11 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 	if m.TopicPartition.Offset < 0 {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't store message with offset less than 0")
 	}
+
+	if m.LeaderEpoch != nil && *m.LeaderEpoch < 0 {
+		return nil, newErrorFromString(ErrInvalidArg, "Can't store message with leader epoch less than 0")
+	}
+
 	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset++
 	return c.StoreOffsets(offsets)
