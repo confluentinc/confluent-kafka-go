@@ -5,7 +5,7 @@
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()`.
  * KIP-320: Add offset leader epoch to the TopicPartition \
-   and Message structs (#TODO: add).
+   and Message structs (#968).
 
 ## v2.0.2
 
