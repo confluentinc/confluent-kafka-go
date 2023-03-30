@@ -4,6 +4,9 @@
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()`.
+ * [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
+   add offset leader epoch to the TopicPartition \
+   and Message structs (#968).
 
 ## v2.0.2
 
