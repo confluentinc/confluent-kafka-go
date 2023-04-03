@@ -4,6 +4,7 @@
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()`.
+ * The minimum version of Go supported has been changed from 1.14 to 1.16 (#973).
 
 ## v2.0.2
 
