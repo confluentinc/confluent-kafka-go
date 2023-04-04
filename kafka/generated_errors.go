@@ -1,7 +1,7 @@
 package kafka
 
 // Copyright 2016-2023 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2023-01-23 14:19:24.055943731 +0530 IST m=+0.000097797 USING librdkafka 2.0.2
+// AUTOMATICALLY GENERATED ON 2023-04-04 11:36:56.159974473 +0200 CEST m=+0.000312854 USING librdkafka 2.1.0-RC3
 
 /*
 #include "select_rdkafka.h"
@@ -137,6 +137,8 @@ const (
 	ErrNoop ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__NOOP)
 	// ErrAutoOffsetReset Local: No offset to automatically reset to
 	ErrAutoOffsetReset ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET)
+	// ErrLogTruncation Local: Partition log truncation detected
+	ErrLogTruncation ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR__LOG_TRUNCATION)
 	// ErrUnknown Unknown broker error
 	ErrUnknown ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_UNKNOWN)
 	// ErrNoError Success
