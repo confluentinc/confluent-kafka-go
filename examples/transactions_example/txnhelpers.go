@@ -149,6 +149,7 @@ func rewindConsumerPosition(partition int32) {
 		if tp.Offset < 0 {
 			// No committed offset, reset to earliest
 			tp.Offset = kafka.OffsetBeginning
+			tp.LeaderEpoch = nil
 		}
 
 		addLog(fmt.Sprintf("Processor: rewinding input partition %v to offset %v",
