@@ -649,7 +649,9 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 		t.Fatalf("Failed to assign partition: %s", err)
 	}
 
+	var leaderEpoch int32 = 0
 	tps[0].Offset = Offset(numMessages / 2)
+	tps[0].LeaderEpoch = &leaderEpoch
 	seekedPartitions, err := consumer.SeekPartitions(tps)
 	if err != nil {
 		t.Errorf("SeekPartitions failed: %s", err)
@@ -672,6 +674,16 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	if msg.TopicPartition.Offset != Offset(numMessages/2) {
 		t.Errorf("Expected offset of read message is %d, got %d",
 			numMessages/2, msg.TopicPartition.Offset)
+	}
+
+	if msg.TopicPartition.LeaderEpoch == nil {
+		t.Errorf("Expected leader epoch got nil")
+		return
+	}
+
+	if *msg.TopicPartition.LeaderEpoch == 0 {
+		t.Errorf("Expected leader epoch of read message is %d, got %d",
+			0, *msg.TopicPartition.LeaderEpoch)
 	}
 }
 
