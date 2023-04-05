@@ -3,11 +3,18 @@
 ## v2.1.0
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
-   once and deprecated `Seek()`.
+   once and deprecated `Seek()` (#940).
  * [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
    add offset leader epoch to the TopicPartition \
    and Message structs (#968).
- * The minimum version of Go supported has been changed from 1.14 to 1.16 (#973).
+ * The minimum version of Go supported has been changed from 1.14 to 1.16
+   (#973).
+ * Add validation on the Producer, the Consumer and the AdminClient to prevent
+   panic when they are used after close (#901).
+ * Fix bug causing schema-registry URL with existing path to not be parsed
+   correctly (#950).
+ * Support for Offset types on `Offset.Set()` (#962, @jdockerty).
+ * Added example for using [rebalance callback with manual commit](examples/consumer_rebalance_example).
 
 
 confluent-kafka-go is based on librdkafka v2.1.0, see the
@@ -47,7 +54,6 @@ This is a feature release:
   * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
     a given mock broker (@kkoehler, #892).
   * Built-in support for Linux/ arm64. (#933).
-  * Support for Offset types on `Offset.Set()`
 
 ### Fixes
 
