@@ -7,6 +7,7 @@
  * [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
    add offset leader epoch to the TopicPartition \
    and Message structs (#968).
+ * The minimum version of Go supported has been changed from 1.14 to 1.16 (#973).
 
 
 confluent-kafka-go is based on librdkafka v2.1.0, see the
