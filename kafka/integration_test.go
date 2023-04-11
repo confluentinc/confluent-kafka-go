@@ -1093,6 +1093,249 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 	}
 }
 
+// TestAdminClient_DescribeCluster validates the working of the
+// describe cluster API of the admin client.
+//
+//	We test the following situations:
+//
+// 1. DescribeCluster without createAcl.
+// 2. DescribeCluster with Acl.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
+	t := its.T()
+	ac := createAdminClient(t)
+	defer ac.Close()
+	noError := NewError(ErrNoError, "", false)
+	checkExpectedResult := func(expected interface{}, result interface{}) {
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected result to deep equal to %v, but found %v", expected, result)
+		}
+	}
+
+	// Check the non-existence of consumer groups initially.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err := ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second), SetAdminOptionIncludeClusterAuthorizedOperations(true))
+	if descres.Nodes == nil || err != nil {
+		t.Fatalf("Expected DescribeTopics to pass, but not %s %v",
+			err.(Error).Code(), ctx.Err())
+	}
+	initialLen := len(descres.ClusterAuthorizedOperations)
+	if initialLen == 0 {
+		t.Fatalf("Expected cluster authorized operations>0" +
+			"as they are being requested")
+	}
+	fmt.Printf("Initial length: %d\n", initialLen)
+
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	maxDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	requestTimeout, err := time.ParseDuration("20s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	expectedCreateACLs := []CreateACLResult{{Error: noError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err = ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second), SetAdminOptionIncludeClusterAuthorizedOperations(true))
+	if descres.Nodes == nil || err != nil {
+		t.Fatalf("Expected DescribeTopics to pass, but not %s %v",
+			err.(Error).Code(), ctx.Err())
+	}
+	finalLen := len(descres.ClusterAuthorizedOperations)
+	fmt.Printf("Final length: %d\n", finalLen)
+	if initialLen <= finalLen {
+		t.Fatalf("Expected final acl count to have reduced after createAcl")
+	}
+
+	aclBindingFilters := ACLBindingFilters{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeMatch,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+	_, err = ac.DeleteACLs(ctx, aclBindingFilters, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+}
+
+// TestAdminClient_DescribeTopics validates the working of the
+// describe topics API of the admin client.
+//
+//	We test the following situations:
+//
+// 1. DescribeTopics without createAcl.
+// 2. DescribeTopics with Acl.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
+	t := its.T()
+	ac := createAdminClient(t)
+	defer ac.Close()
+	noError := NewError(ErrNoError, "", false)
+	checkExpectedResult := func(expected interface{}, result interface{}) {
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected result to deep equal to %v, but found %v", expected, result)
+		}
+	}
+
+	// Create a topic
+	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	if err != nil {
+		t.Errorf("Topic creation failed with error %v", err)
+		return
+	}
+
+	// Delete the topic after the test is done.
+	defer func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		if err != nil {
+			t.Errorf("Topic deletion failed with error %v", err)
+		}
+	}()
+
+	// Test the description of the topic.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err := ac.DescribeTopics(
+		ctx, []string{topic, "failure"}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeTopicAuthorizedOperations(true))
+	if err != nil {
+		t.Errorf("Error describing topics %s\n", err)
+		return
+	}
+
+	topicDescs := topicDescResult.TopicDescriptions
+	if len(topicDescs) != 2 {
+		t.Errorf("Describing two topics should give exactly two results %s\n", err)
+		return
+	}
+	if topicDescs[1].Error.Code() != 3 {
+		t.Fatalf("Expected expected unknown Topic or partition, not %s\n",
+			topicDescs[1].Error)
+	}
+	initialLen := len(topicDescs[0].TopicAuthorizedOperations)
+	if initialLen == 0 {
+		t.Fatalf("Expected topic authorized operations>0" +
+			"as they are being requested")
+	}
+	fmt.Printf("Initial length: %d\n", initialLen)
+
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	maxDuration, err := time.ParseDuration("30s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	requestTimeout, err := time.ParseDuration("20s")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	expectedCreateACLs := []CreateACLResult{{Error: noError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err = ac.DescribeTopics(
+		ctx, []string{topic}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeTopicAuthorizedOperations(true))
+	if err != nil {
+		t.Errorf("Error describing topics %s\n", err)
+		return
+	}
+
+	topicDescs = topicDescResult.TopicDescriptions
+	if len(topicDescs) != 1 {
+		t.Errorf("Describing one topics should give exactly one result %s\n", err)
+		return
+	}
+	finalLen := len(topicDescs[0].TopicAuthorizedOperations)
+	if finalLen == 0 {
+		t.Fatalf("Expected topic authorized operations>0" +
+			"as they are being requested")
+	}
+	fmt.Printf("Initial length: %d\n", initialLen)
+	fmt.Printf("Final length: %d\n", finalLen)
+	if initialLen <= finalLen {
+		t.Fatalf("Expected final acl count to have reduced after createAcl")
+	}
+
+	newACLs = ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationDelete,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
+	resultCreateACLs, err = ac.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	expectedCreateACLs = []CreateACLResult{{Error: noError}}
+	checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+}
+
 func (its *IntegrationTestSuite) TestAdminTopics() {
 	t := its.T()
 	rand.Seed(time.Now().Unix())
@@ -1377,7 +1620,7 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	}
 }
 
-//Test AdminClient GetMetadata API
+// Test AdminClient GetMetadata API
 func (its *IntegrationTestSuite) TestAdminGetMetadata() {
 	t := its.T()
 
@@ -1659,7 +1902,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
-//Test consumer QueryWatermarkOffsets API
+// Test consumer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 	t := its.T()
 
@@ -1690,7 +1933,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 }
 
-//Test consumer GetWatermarkOffsets API
+// Test consumer GetWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	t := its.T()
 
@@ -1745,7 +1988,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 
 }
 
-//TestConsumerOffsetsForTimes
+// TestConsumerOffsetsForTimes
 func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 	t := its.T()
 
@@ -1840,7 +2083,7 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	t.Logf("Meta data for consumer: %v\n", metaData)
 }
 
-//Test producer QueryWatermarkOffsets API
+// Test producer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	t := its.T()
 
@@ -1882,7 +2125,7 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	}
 }
 
-//Test producer GetMetadata API
+// Test producer GetMetadata API
 func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	t := its.T()
 
