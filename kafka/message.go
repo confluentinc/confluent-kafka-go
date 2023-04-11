@@ -77,6 +77,7 @@ type Message struct {
 	TimestampType  TimestampType
 	Opaque         interface{}
 	Headers        []Header
+	LeaderEpoch    *int32 // LeaderEpoch or nil if not available
 }
 
 // String returns a human readable representation of a Message.
@@ -159,6 +160,11 @@ func (h *handle) setupMessageFromC(msg *Message, cmsg *C.rd_kafka_message_t) {
 	msg.TopicPartition.Offset = Offset(cmsg.offset)
 	if cmsg.err != 0 {
 		msg.TopicPartition.Error = newError(cmsg.err)
+	}
+
+	leaderEpoch := int32(C.rd_kafka_message_leader_epoch(cmsg))
+	if leaderEpoch >= 0 {
+		msg.LeaderEpoch = &leaderEpoch
 	}
 }
 

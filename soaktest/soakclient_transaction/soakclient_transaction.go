@@ -609,6 +609,7 @@ func rewindConsumerPosition(c *kafka.Consumer) error {
 	for _, tp := range committed {
 		if tp.Offset < 0 {
 			tp.Offset = kafka.OffsetBeginning
+			tp.LeaderEpoch = nil
 		}
 		err := c.Seek(tp, 1)
 		if err != nil {

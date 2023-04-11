@@ -6,7 +6,7 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.0.2
+      value: v2.1.0
   prologue:
     commands:
       - checkout
