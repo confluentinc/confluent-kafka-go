@@ -49,10 +49,6 @@ func main() {
 	// Create a new AdminClient.
 	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": bootstrapServers,
-		"sasl.mechanisms":   "SCRAM-SHA-256",
-		"security.protocol": "SASL_PLAINTEXT",
-		"sasl.username":     "broker",
-		"sasl.password":     "broker",
 	})
 	if err != nil {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
