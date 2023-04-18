@@ -83,7 +83,13 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		jschema, err := toJSONSchema(s.Client, info)
+
+		registeredSchemaInfo, err := s.Client.GetBySubjectAndID(topic, id)
+		if err != nil {
+			return nil, err
+		}
+
+		jschema, err := toJSONSchema(s.Client, registeredSchemaInfo)
 		if err != nil {
 			return nil, err
 		}

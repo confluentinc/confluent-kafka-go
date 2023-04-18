@@ -17,11 +17,13 @@
 package jsonschema
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
+	"github.com/invopop/jsonschema"
 )
 
 func TestJSONSchemaSerdeWithSimple(t *testing.T) {
@@ -85,6 +87,42 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
+func TestJSONSchemaValidationWithSimple(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.EnableValidation = true
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	jschema := jsonschema.Reflect(obj)
+	raw, err := json.Marshal(jschema)
+	serde.MaybeFail("Schema marshalling", err)
+	info := schemaregistry.SchemaInfo{
+		Schema:     string(raw),
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("topic1", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	_, err = ser.Serialize("topic1", &obj)
+	if err == nil {
+		t.Errorf("Expected validation error, found none")
+	}
+}
+
 type JSONDemoSchema struct {
 	IntField int32 `json:"IntField"`
 
@@ -93,6 +131,20 @@ type JSONDemoSchema struct {
 	StringField string `json:"StringField"`
 
 	BoolField bool `json:"BoolField"`
+
+	BytesField test.Bytes `json:"BytesField"`
+}
+
+type SimilarJSONDemoSchema struct {
+	IntField int32 `json:"IntField"`
+
+	ExtraStringField string `json:"ExtraStringField"`
+
+	DoubleField float64 `json:"DoubleField"`
+
+	StringField string `json:"StringField"`
+
+	BoolFieldThatsActuallyString string `json:"BoolField"`
 
 	BytesField test.Bytes `json:"BytesField"`
 }
