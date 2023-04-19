@@ -84,7 +84,12 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 			return nil, err
 		}
 
-		registeredSchemaInfo, err := s.Client.GetBySubjectAndID(topic, id)
+		subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+		if err != nil {
+			return nil, err
+		}
+
+		registeredSchemaInfo, err := s.Client.GetBySubjectAndID(subject, id)
 		if err != nil {
 			return nil, err
 		}

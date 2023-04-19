@@ -18,6 +18,7 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
@@ -87,7 +88,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
-func TestJSONSchemaValidationWithSimple(t *testing.T) {
+func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.NewConfig("mock://")
@@ -97,6 +98,7 @@ func TestJSONSchemaValidationWithSimple(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.EnableValidation = true
+	// We don't want to risk registering one instead of using the already registered one
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
@@ -111,15 +113,21 @@ func TestJSONSchemaValidationWithSimple(t *testing.T) {
 		SchemaType: "JSON",
 	}
 
-	id, err := client.Register("topic1", info, false)
+	id, err := client.Register("topic1-value", info, false)
 	serde.MaybeFail("Schema registration", err)
 	if id <= 0 {
 		t.Errorf("Expected valid schema id, found %d", id)
 	}
 
 	_, err = ser.Serialize("topic1", &obj)
-	if err == nil {
-		t.Errorf("Expected validation error, found none")
+	if err != nil {
+		t.Errorf("Expected no validation error, found %s", err)
+	}
+
+	diffObj := DifferentJSONDemoSchema{}
+	_, err = ser.Serialize("topic1", &diffObj)
+	if err == nil || !strings.Contains(err.Error(), "jsonschema") {
+		t.Errorf("Expected validation error, found %s", err)
 	}
 }
 
@@ -135,7 +143,7 @@ type JSONDemoSchema struct {
 	BytesField test.Bytes `json:"BytesField"`
 }
 
-type SimilarJSONDemoSchema struct {
+type DifferentJSONDemoSchema struct {
 	IntField int32 `json:"IntField"`
 
 	ExtraStringField string `json:"ExtraStringField"`
