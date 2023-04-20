@@ -2197,8 +2197,12 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	for i, groupPartitions := range groupsPartitions {
 		// We need to destroy this list because rd_kafka_ListConsumerGroupOffsets_new
 		// creates a copy of it.
-		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
-		defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+		var cPartitions *C.rd_kafka_topic_partition_list_t = nil
+
+		if len(groupPartitions.Partitions) > 0 {
+			cPartitions = newCPartsFromTopicPartitions(groupPartitions.Partitions)
+			defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+		}
 
 		cGroupID := C.CString(groupPartitions.Group)
 		defer C.free(unsafe.Pointer(cGroupID))
