@@ -166,7 +166,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020100ff
+#define RD_KAFKA_VERSION 0x020101ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -3431,6 +3431,12 @@ rd_kafka_error_t *rd_kafka_sasl_set_credentials(rd_kafka_t *rk,
  *
  * @remark rd_kafka_queue_destroy() MUST be called on this queue
  *         prior to calling rd_kafka_consumer_close().
+ * @remark Polling the returned queue counts as a consumer poll, and will reset
+ *         the timer for max.poll.interval.ms. If this queue is forwarded to a
+ *         "destq", polling destq also counts as a consumer poll (this works
+ *         for any number of forwards). However, even if this queue is
+ *         unforwarded or forwarded elsewhere, polling destq will continue
+ *         to count as a consumer poll.
  */
 RD_EXPORT
 rd_kafka_queue_t *rd_kafka_queue_get_consumer(rd_kafka_t *rk);
@@ -6765,8 +6771,7 @@ RD_EXPORT void rd_kafka_AdminOptions_destroy(rd_kafka_AdminOptions_t *options);
  *        request transmission, operation time on broker, and response.
  *
  * @param options Admin options.
- * @param timeout_ms Timeout in milliseconds, use -1 for indefinite timeout.
- *                   Defaults to `socket.timeout.ms`.
+ * @param timeout_ms Timeout in milliseconds. Defaults to `socket.timeout.ms`.
  * @param errstr A human readable error string (nul-terminated) is written to
  *               this location that must be of at least \p errstr_size bytes.
  *               The \p errstr is only written in case of error.
