@@ -1,5 +1,9 @@
 # Confluent's Golang client for Apache Kafka
 
+## vNext
+
+ * Fixed incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+
 ## v2.1.0
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
