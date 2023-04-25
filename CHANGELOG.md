@@ -1,6 +1,17 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.1.1
+
+This is a maintenance release:
+
+confluent-kafka-go is based on librdkafka v2.1.1, see the
+[librdkafka v2.1.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.1.0
+
+This is a feature release:
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()` (#940).
@@ -19,7 +30,7 @@
 
 confluent-kafka-go is based on librdkafka v2.1.0, see the
 [librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
-and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.0.2
