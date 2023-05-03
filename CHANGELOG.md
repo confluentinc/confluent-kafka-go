@@ -2,7 +2,10 @@
 
 ## v2.1.1
 
-This is a maintenance release:
+This is a maintenance release.
+
+It is strongly recommended to update to v2.1.1 if v2.1.0 is being used, as it
+fixes a critical issue in the consumer (#980).
 
 confluent-kafka-go is based on librdkafka v2.1.1, see the
 [librdkafka v2.1.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.1)
