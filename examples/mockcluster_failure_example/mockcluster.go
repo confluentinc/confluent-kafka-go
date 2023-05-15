@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ func main() {
 		return
 	}
 
-	//see what happens when broker is down
+	// see what happens when broker is down
 	fmt.Println("set broker down")
 	err = mockCluster.SetBrokerDown(1)
 	if err != nil {
@@ -84,7 +84,7 @@ func main() {
 		return
 	}
 
-	//bring the broker up again
+	// bring the broker up again
 	fmt.Println("set broker up again")
 	err = mockCluster.SetBrokerUp(1)
 	if err != nil {

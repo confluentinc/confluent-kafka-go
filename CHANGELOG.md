@@ -1,5 +1,9 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.1.2
+
+* MockCluster can now be shutdown and started again to test broker availability problems.  
+
 ## v2.1.1
 
 This is a maintenance release.
