@@ -14,27 +14,32 @@
  * limitations under the License.
  */
 
+// Demonstrates failure modes for mock cluster:
+// 1. RTT Duration set to more than Delivery Timeout
+// 2. Broker set as being down.
 package main
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"os"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 func main() {
 
 	mockCluster, err := kafka.NewMockCluster(1)
 	if err != nil {
-		fmt.Printf("Failed to create MockCluster: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create MockCluster: %s\n", err)
 		os.Exit(1)
 	}
 	defer mockCluster.Close()
 
+	// Set RTT > Delivery Timeout
 	err = mockCluster.SetRoundtripDuration(1, 4*time.Second)
 	if err != nil {
-		fmt.Errorf("could not configure roundtrip duration: %v", err)
+		fmt.Fprintf(os.Stderr, "Could not configure roundtrip duration: %v", err)
 		return
 	}
 	broker := mockCluster.BootstrapServers()
@@ -45,7 +50,7 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Printf("Failed to create producer: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -56,22 +61,22 @@ func main() {
 	if m.TopicPartition.Error != nil {
 		fmt.Printf("EXPECTED: Delivery failed: %v\n", m.TopicPartition.Error)
 	} else {
-		fmt.Errorf("message should timeout because of broker configuration")
+		fmt.Fprintf(os.Stderr, "Message should timeout because of broker configuration")
 		return
 	}
 
 	fmt.Println("'reset' broker roundtrip duration")
 	err = mockCluster.SetRoundtripDuration(1, 10*time.Millisecond)
 	if err != nil {
-		fmt.Errorf("could not configure roundtrip duration: %v", err)
+		fmt.Fprintf(os.Stderr, "Could not configure roundtrip duration: %v", err)
 		return
 	}
 
-	// see what happens when broker is down
-	fmt.Println("set broker down")
+	// See what happens when broker is down.
+	fmt.Println("Set broker down")
 	err = mockCluster.SetBrokerDown(1)
 	if err != nil {
-		fmt.Errorf("broker should now be down but got error: %v", err)
+		fmt.Fprintf(os.Stderr, "Broker should now be down but got error: %v", err)
 		return
 	}
 
@@ -80,25 +85,25 @@ func main() {
 	if m.TopicPartition.Error != nil {
 		fmt.Printf("EXPECTED: Delivery failed: %v\n", m.TopicPartition.Error)
 	} else {
-		fmt.Errorf("message should timeout because of broker configuration")
+		fmt.Fprintf(os.Stderr, "Message should timeout because of broker configuration")
 		return
 	}
 
-	// bring the broker up again
-	fmt.Println("set broker up again")
+	// Bring the broker up again.
+	fmt.Println("Set broker up again")
 	err = mockCluster.SetBrokerUp(1)
 	if err != nil {
-		fmt.Errorf("broker should now be up again but got error: %v", err)
+		fmt.Fprintf(os.Stderr, "Broker should now be up again but got error: %v", err)
 		return
 	}
 
 	m, err = sendTestMsg(p)
 	if err != nil {
-		fmt.Errorf("there shouldn't be an error but got: %v", err)
+		fmt.Fprintf(os.Stderr, "There shouldn't be an error but got: %v", err)
 		return
 	}
 
-	fmt.Println("message was sent!")
+	fmt.Println("Message was sent!")
 
 }
 
