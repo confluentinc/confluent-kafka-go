@@ -1,5 +1,6 @@
 # Confluent's Golang client for Apache Kafka
 
+
 # v2.2.0
 
 This is a feature release.
@@ -8,6 +9,7 @@ This is a feature release.
 
  * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
    an unchecked error (#997, @baganokodo2022).
+ * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
 
 
 ## v2.1.1
