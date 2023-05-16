@@ -195,10 +195,10 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 
 func (s *Serializer) toProtobufSchema(msg proto.Message) (*desc.FileDescriptor, map[string]string, error) {
 	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(msg))
-	fileDesc := messageDesc.GetFile()
 	if err != nil {
 		return nil, nil, err
 	}
+	fileDesc := messageDesc.GetFile()
 	deps := make(map[string]string)
 	err = s.toDependencies(fileDesc, deps)
 	if err != nil {

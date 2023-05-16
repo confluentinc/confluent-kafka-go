@@ -1,10 +1,32 @@
 # Confluent's Golang client for Apache Kafka
 
-## vNext
 
- * Fixed incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+# v2.2.0
+
+This is a feature release.
+
+## Fixes
+
+ * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
+   an unchecked error (#997, @baganokodo2022).
+ * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+
+
+## v2.1.1
+
+This is a maintenance release.
+
+It is strongly recommended to update to v2.1.1 if v2.1.0 is being used, as it
+fixes a critical issue in the consumer (#980).
+
+confluent-kafka-go is based on librdkafka v2.1.1, see the
+[librdkafka v2.1.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.1.0
+
+This is a feature release:
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()` (#940).
@@ -23,7 +45,7 @@
 
 confluent-kafka-go is based on librdkafka v2.1.0, see the
 [librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
-and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.0.2
