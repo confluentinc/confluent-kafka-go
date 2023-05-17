@@ -2199,7 +2199,7 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 		// creates a copy of it.
 		var cPartitions *C.rd_kafka_topic_partition_list_t = nil
 
-		if len(groupPartitions.Partitions) > 0 {
+		if groupPartitions.Partitions != nil {
 			cPartitions = newCPartsFromTopicPartitions(groupPartitions.Partitions)
 			defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
 		}
