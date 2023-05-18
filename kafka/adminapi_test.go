@@ -528,6 +528,28 @@ func testAdminAPIsListConsumerGroupOffsets(
 	}
 }
 
+func testAdminAPIsListAllConsumerGroupOffsets(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	lres, err := a.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				nil,
+			},
+		},
+		SetAdminRequireStableOffsets(false))
+	if lres.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			lres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+}
+
 func testAdminAPIsAlterConsumerGroupOffsets(
 	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
 	topic := "topic"
@@ -791,6 +813,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	testAdminAPIsDeleteConsumerGroups(what, a, expDuration, t)
 
 	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)
+	testAdminAPIsListAllConsumerGroupOffsets(what, a, expDuration, t)
 	testAdminAPIsAlterConsumerGroupOffsets(what, a, expDuration, t)
 }
 

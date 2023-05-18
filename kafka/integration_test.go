@@ -1659,6 +1659,35 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
+// Test AdminClient List all consumer group offsets.
+func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() {
+	t := its.T()
+
+	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := config.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %s\n", err)
+	}
+
+	admin, err := NewAdminClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create Admin client: %s\n", err)
+	}
+	defer admin.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	offsets, err := admin.ListConsumerGroupOffsets(
+		ctx, []ConsumerGroupTopicPartitions{{Group: testconf.GroupID}}, SetAdminRequireStableOffsets(true))
+
+	if err != nil {
+		t.Fatalf("Failed to get consumer group offsets: %s\n", err)
+	}
+
+	if len(offsets.ConsumerGroupsTopicPartitions) == 0 {
+		t.Fatal("Consumer group offsets is empty.")
+	}
+}
+
 //Test consumer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 	t := its.T()
