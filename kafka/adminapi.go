@@ -2346,6 +2346,212 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	return acgor, nil
 }
 
+type ScramMechanism int
+
+const (
+	// ResourceUnknown - Unknown
+	Scram_Unknown = ResourceType(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
+	// ResourceAny - match any resource type (DescribeConfigs)
+	Scram_SHA_256 = ResourceType(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
+	// ResourceTopic - Topic
+	Scram_SHA_512 = ResourceType(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
+)
+
+type ScramCredentialInfo struct {
+	iterations int
+	mechanism  ScramMechanism
+}
+type UserScramCredentialsDescription struct {
+	user                   string
+	scram_credential_infos []ScramCredentialInfo
+	err                    error
+}
+
+func (a *AdminClient) DescribeUserScramCredentials(
+	ctx context.Context, users []string,
+	options ...AlterConsumerGroupOffsetsAdminOption) (result map[string]UserScramCredentialsDescription, err error) {
+
+	result = make(map[string]UserScramCredentialsDescription)
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	// Convert user names into char** required by the implementation.
+	cUserList := make([]*C.char, len(users))
+	cUserCount := C.size_t(len(users))
+
+	for idx, user := range users {
+		cUserList[idx] = C.CString(user)
+		defer C.free(unsafe.Pointer(cUserList[idx]))
+	}
+
+	var cUserListPtr **C.char
+	if cUserCount > 0 {
+		cUserListPtr = ((**C.char)(&cUserList[0]))
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBEUSERSCRAMCREDENTIALS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
+	C.rd_kafka_DescribeConsumerGroups(
+		a.handle.rk,
+		cUserListPtr,
+		cUserCount,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeUserScramCredentials_result(rkev)
+
+	// Convert result from C to Go.
+	var cDescriptionCount C.size_t
+	cDescriptionCount = C.rd_kafka_DescribeUserScramCredentials_result_get_count(cRes)
+	for i := 0; i < int(cDescriptionCount); i++ {
+		var cDescription C.rd_kafka_UserScramCredentialsDescription_t
+		var cError C.rd_kafka_error_t
+		cDescription = C.rd_kafka_DescribeUserScramCredentials_result_get_description(cRes, i)
+		goUser := C.GoString(C.rd_kafka_UserScramCredentialsDescription_get_user(cDescription))
+		goUserDescription := UserScramCredentialsDescription{user: goUser, err: nil, scram_credential_infos: nil}
+		// If Errored Populate the Error
+		cError = C.rd_kafka_UserScramCredentialsDescription_get_error(cDescription)
+
+		if C.rd_kafka_error_code(cError) {
+			// populate the error
+			goUserDescription.err = newError(C.rd_kafka_error_code(cError))
+		} else {
+			var cCredentialCount C.size_t
+			cCredentialCount = C.rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo_cnt(cDescription)
+			var scram_credential_infos []ScramCredentialInfo
+			for j := 0; j < int(cCredentialCount); j++ {
+				var scram_credential_info C.rd_kafka_ScramCredentialInfo_t
+				scram_credential_info = rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo(cDescription, j)
+				var cmechanism int
+				var citerations int
+				cmechanism = rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info)
+				citerations = rd_kafka_ScramCredentialInfo_get_iterations(scram_credential_info)
+				cred := ScramCredentialInfo{mechanism: ScramMechanism(cmechanism), iterations: citerations}
+				scram_credential_info = append(scram_credential_infos, cred)
+			}
+			goUserDescription.scram_credential_infos = scram_credential_infos
+		}
+		result[goUser] = goUserDescription
+	}
+	return result, nil
+}
+
+type UserScramCredentialDeletion struct {
+	user      string
+	mechanism ScramMechanism
+}
+type UserScramCredentialUpsertion struct {
+	user       string
+	salt       string
+	password   string
+	iterations int
+	mechanism  ScramMechanism
+}
+
+func (a *AdminClient) AlterUserScramCredentials(
+	ctx context.Context, upsertions []UserScramCredentialUpsertion, deletions []UserScramCredentialDeletion,
+	options ...AlterConsumerGroupOffsetsAdminOption) (result map[string]error, err error) {
+	result = make(map[string]error)
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	// Convert user names into char** required by the implementation.
+	cAlterationList := make([]*C.rd_kafka_UserScramCredentialAlteration_t, len(upsertions)+len(deletions))
+	cAlterationCount := C.size_t(len(upsertions) + len(deletions))
+	idx := 0
+
+	for itr := 0; itr < len(upsertions); itr++ {
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(upsertions[itr].user, upsertions[itr].salt, upsertions[itr].password, upsertions[itr].mechanism, upsertions[itr].iterations)
+		defer C.free(unsafe.Pointer(cAlterationList[idx]))
+		idx = idx + 1
+	}
+
+	for itr := 0; itr < len(deletions); itr++ {
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialDeletion_new(deletions[itr].user, deletions[itr].mechanism)
+		defer C.free(unsafe.Pointer(cAlterationList[idx]))
+		idx = idx + 1
+	}
+	var cAlterationListPtr **C.rd_kafka_UserScramCredentialAlteration_t
+	if cAlterationCount > 0 {
+		cAlterationListPtr = ((**C.rd_kafka_UserScramCredentialAlteration_t)(&cAlterationList[0]))
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
+	C.rd_kafka_AlterUserScramCredentials(
+		a.handle.rk,
+		cAlterationListPtr,
+		cAlterationCount,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_AlterUserScramCredentials_result(rkev)
+
+	// Convert result from C to Go.
+	var cUserCount C.size_t
+	cUserCount = C.rd_kafka_AlterUserScramCredentials_result_get_count(cRes)
+	for i := 0; i < int(cUserCount); i++ {
+		var cUserResult C.rd_kafka_UserScramCredentialAlterationResultElement_t
+
+		cUserResult = C.rd_kafka_AlterUserScramCredentials_result_get_element(cRes, i)
+		goUser := C.GoString(C.rd_kafka_UserScramCredentialAlterationResultElement_get_user(cUserResult))
+
+		goerr := newError(C.rd_kafka_error_code(C.rd_kafka_UserScramCredentialAlterationResultElement_get_error(cUserResult)))
+		result[goUser] = goerr
+	}
+	return result, nil
+}
+
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance
 func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 
