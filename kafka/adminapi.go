@@ -2350,11 +2350,11 @@ type ScramMechanism int
 
 const (
 	// ResourceUnknown - Unknown
-	Scram_Unknown = ResourceType(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
+	Scram_Unknown = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
 	// ResourceAny - match any resource type (DescribeConfigs)
-	Scram_SHA_256 = ResourceType(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
+	Scram_SHA_256 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
 	// ResourceTopic - Topic
-	Scram_SHA_512 = ResourceType(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
+	Scram_SHA_512 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
 )
 
 type ScramCredentialInfo struct {
@@ -2369,7 +2369,7 @@ type UserScramCredentialsDescription struct {
 
 func (a *AdminClient) DescribeUserScramCredentials(
 	ctx context.Context, users []string,
-	options ...AlterConsumerGroupOffsetsAdminOption) (result map[string]UserScramCredentialsDescription, err error) {
+	options ...DescribeUserScramCredentialsAdminOption) (result map[string]UserScramCredentialsDescription, err error) {
 
 	result = make(map[string]UserScramCredentialsDescription)
 	err = a.verifyClient()
@@ -2408,7 +2408,7 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	defer C.rd_kafka_queue_destroy(cQueue)
 
 	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
-	C.rd_kafka_DescribeConsumerGroups(
+	C.rd_kafka_DescribeUserScramCredentials(
 		a.handle.rk,
 		cUserListPtr,
 		cUserCount,
@@ -2447,7 +2447,7 @@ func (a *AdminClient) DescribeUserScramCredentials(
 			for j := 0; j < int(cCredentialCount); j++ {
 				var scram_credential_info C.rd_kafka_ScramCredentialInfo_t
 				scram_credential_info = rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo(cDescription, j)
-				var cmechanism int
+				var cmechanism C.rd_kafka_ScramMechanism_t
 				var citerations int
 				cmechanism = rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info)
 				citerations = rd_kafka_ScramCredentialInfo_get_iterations(scram_credential_info)
@@ -2466,16 +2466,15 @@ type UserScramCredentialDeletion struct {
 	mechanism ScramMechanism
 }
 type UserScramCredentialUpsertion struct {
-	user       string
-	salt       string
-	password   string
-	iterations int
-	mechanism  ScramMechanism
+	user                  string
+	salt                  string
+	password              string
+	scram_credential_info ScramCredentialInfo
 }
 
 func (a *AdminClient) AlterUserScramCredentials(
 	ctx context.Context, upsertions []UserScramCredentialUpsertion, deletions []UserScramCredentialDeletion,
-	options ...AlterConsumerGroupOffsetsAdminOption) (result map[string]error, err error) {
+	options ...AlterUserScramCredentialsAdminOption) (result map[string]error, err error) {
 	result = make(map[string]error)
 	err = a.verifyClient()
 	if err != nil {
@@ -2488,13 +2487,13 @@ func (a *AdminClient) AlterUserScramCredentials(
 	idx := 0
 
 	for itr := 0; itr < len(upsertions); itr++ {
-		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(upsertions[itr].user, upsertions[itr].salt, upsertions[itr].password, upsertions[itr].mechanism, upsertions[itr].iterations)
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(upsertions[itr].user, upsertions[itr].salt, upsertions[itr].password, C.rd_kafka_ScramMechanism_t(upsertions[itr].scram_credential_info.mechanism), upsertions[itr].scram_credential_info.iterations)
 		defer C.free(unsafe.Pointer(cAlterationList[idx]))
 		idx = idx + 1
 	}
 
 	for itr := 0; itr < len(deletions); itr++ {
-		cAlterationList[idx] = C.rd_kafka_UserScramCredentialDeletion_new(deletions[itr].user, deletions[itr].mechanism)
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialDeletion_new(deletions[itr].user, C.rd_kafka_ScramMechanism_t(deletions[itr].mechanism)) // problem the end point expects rd_kafka_ScramMechanism , will it type cast itself
 		defer C.free(unsafe.Pointer(cAlterationList[idx]))
 		idx = idx + 1
 	}
