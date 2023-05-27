@@ -2364,7 +2364,7 @@ type ScramCredentialInfo struct {
 type UserScramCredentialsDescription struct {
 	user                   string
 	scram_credential_infos []ScramCredentialInfo
-	err                    error
+	err                    Error
 }
 
 func (a *AdminClient) DescribeUserScramCredentials(
@@ -2474,7 +2474,7 @@ type UserScramCredentialUpsertion struct {
 
 func (a *AdminClient) AlterUserScramCredentials(
 	ctx context.Context, upsertions []UserScramCredentialUpsertion, deletions []UserScramCredentialDeletion,
-	options ...AlterUserScramCredentialsAdminOption) (result map[string]error, err error) {
+	options ...AlterUserScramCredentialsAdminOption) (result map[string]Error, err error) {
 	result = make(map[string]error)
 	err = a.verifyClient()
 	if err != nil {
