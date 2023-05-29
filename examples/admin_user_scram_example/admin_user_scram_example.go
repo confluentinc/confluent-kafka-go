@@ -37,11 +37,11 @@ func main() {
 	// 		os.Args[0])
 	// 	os.Exit(1)
 	// }
-	var mechanismstring map[kafka.ScramMechanism]string
+	mechanismstring := make(map[kafka.ScramMechanism]string)
 
-	mechanismstring[kafka.ScramMechanism.Scram_SHA_256] = "SCRAM-SHA-256"
-	mechanismstring[kafka.ScramMechanism.Scram_SHA_512] = "SCRAM-SHA-512"
-	mechanismstring[kafka.ScramMechanism.Scram_Unknown] = "UNKWOWN"
+	mechanismstring[kafka.Scram_SHA_256] = "SCRAM-SHA-256"
+	mechanismstring[kafka.Scram_SHA_512] = "SCRAM-SHA-512"
+	mechanismstring[kafka.Scram_Unknown] = "UNKWOWN"
 
 	bootstrapServers := "localhost:9092"
 	sigchan := make(chan os.Signal, 1)
@@ -81,8 +81,8 @@ func main() {
 		}
 	}
 	var alterations []kafka.UserScramCredentialUpsertion
-	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "adhitya", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.ScramMechanism.SCRAM_SHA_256, Iterations: 10000}})
-	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "pranav", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.ScramMechanism.SCRAM_SHA_256, Iterations: 10000}})
+	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "adhitya", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.Scram_SHA_256, Iterations: 10000}})
+	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "pranav", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.Scram_SHA_256, Iterations: 10000}})
 
 	Alterres, Altererr := ac.AlterUserScramCredentials(ctx, alterations, nil)
 	if Altererr != nil {
