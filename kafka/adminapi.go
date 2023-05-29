@@ -2405,13 +2405,15 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	defer C.rd_kafka_queue_destroy(cQueue)
 
 	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
-	C.rd_kafka_DescribeUserScramCredentials(
+	api_error := C.rd_kafka_DescribeUserScramCredentials(
 		a.handle.rk,
 		cUserListPtr,
 		cUserCount,
 		cOptions,
 		cQueue)
-
+	if api_error != 0 {
+		return result, newError(api_error)
+	}
 	// Wait for result, error or context timeout.
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT)
@@ -2516,13 +2518,15 @@ func (a *AdminClient) AlterUserScramCredentials(
 	defer C.rd_kafka_queue_destroy(cQueue)
 
 	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
-	C.rd_kafka_AlterUserScramCredentials(
+	api_error := C.rd_kafka_AlterUserScramCredentials(
 		a.handle.rk,
 		cAlterationListPtr,
 		cAlterationCount,
 		cOptions,
 		cQueue)
-
+	if api_error != 0 {
+		return result, newError(api_error)
+	}
 	// Wait for result, error or context timeout.
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT)

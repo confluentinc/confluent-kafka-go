@@ -2395,6 +2395,79 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 }
 
+func (its *IntegrationTestSuite) TestBrokerScramAPI() {
+	t := its.T()
+	ac, err := NewAdminClient(&ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create Admin Client: %s\n", err)
+	}
+	defer ac.Close()
+
+	var users []string
+	users = append(users, "non-existent")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	Describeres, Describeerr := ac.DescribeUserScramCredentials(ctx, users)
+	if Describeerr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", Describeerr)
+	} else {
+		for _, description := range Describeres {
+			if description.Err.Code() != 91 {
+				t.Fatalf("Error code should be 91 instead it is %d", description.Err.Code())
+			}
+		}
+	}
+	var upsertions []UserScramCredentialUpsertion
+	upsertions = append(upsertions, UserScramCredentialUpsertion{User: "non-existent", Salt: "salt", Password: "password", Scram_Credential_Info: ScramCredentialInfo{Mechanism: Scram_SHA_256, Iterations: 10000}})
+	Alterres, Altererr := ac.AlterUserScramCredentials(ctx, upsertions, nil)
+	if Altererr != nil {
+		t.Fatalf("Failed to Alter the User Scram Credentials: %s\n", Altererr)
+	} else {
+		for _, err := range Alterres {
+			if err.Code() != 0 {
+				t.Fatalf("Error code should be 0 instead it is %d", err.Code())
+			}
+		}
+	}
+	Describeres, Describeerr = ac.DescribeUserScramCredentials(ctx, users)
+	if Describeerr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", Describeerr)
+	} else {
+		for _, description := range Describeres {
+			if description.Err.Code() != 0 {
+				t.Fatalf("Error code should be 0 instead it is %d", description.Err.Code())
+			}
+			if (description.Scram_Credential_Infos[0].Iterations != 10000) || (description.Scram_Credential_Infos[0].Mechanism != Scram_SHA_256) {
+				t.Fatalf("The Scram Mechanism does not match the upserted mechanism")
+			}
+		}
+	}
+	var deletions []UserScramCredentialDeletion
+	deletions = append(deletions, UserScramCredentialDeletion{User: "non-existent", Mechanism: Scram_SHA_256})
+	Alterres, Altererr = ac.AlterUserScramCredentials(ctx, nil, deletions)
+	if Altererr != nil {
+		t.Fatalf("Failed to Alter the User Scram Credentials: %s\n", Altererr)
+	} else {
+		for _, err := range Alterres {
+			if err.Code() != 0 {
+				t.Fatalf("Error code should be 0 instead it is %d", err.Code())
+			}
+		}
+	}
+	Describeres, Describeerr = ac.DescribeUserScramCredentials(ctx, users)
+	if Describeerr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", Describeerr)
+	} else {
+		for _, description := range Describeres {
+			if description.Err.Code() != 91 {
+				t.Fatalf("Error code should be 91 instead it is %d", description.Err.Code())
+			}
+		}
+	}
+}
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()

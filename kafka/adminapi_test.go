@@ -555,7 +555,37 @@ func testAdminAPIsAlterConsumerGroupOffsets(
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 }
+func testAdminAPIsBrokerScram(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	var users []string
+	users = append(users, "non-existent")
+	users = append(users, "non-existent")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 
+	_, Describeerr := a.DescribeUserScramCredentials(ctx, users)
+	if Describeerr == nil {
+		t.Fatalf("Duplicate Resource Should give an error\n")
+	}
+	var upsertions []UserScramCredentialUpsertion
+	upsertions = append(upsertions, UserScramCredentialUpsertion{User: "non-existent", Salt: "salt", Password: "password", Scram_Credential_Info: ScramCredentialInfo{Mechanism: Scram_SHA_256, Iterations: 10000}})
+	var deletions []UserScramCredentialDeletion
+	deletions = append(deletions, UserScramCredentialDeletion{User: "non-existent", Mechanism: Scram_SHA_256})
+	_, Altererr := a.AlterUserScramCredentials(ctx, upsertions, deletions)
+	if Altererr == nil {
+		t.Fatalf("Duplicate Resource Should give an error\n")
+	}
+	upsertions = append(upsertions, UserScramCredentialUpsertion{User: "non-existent", Salt: "sa2lt", Password: "password", Scram_Credential_Info: ScramCredentialInfo{Mechanism: Scram_SHA_256, Iterations: 10000}})
+	_, Altererr = a.AlterUserScramCredentials(ctx, upsertions, nil)
+	if Altererr == nil {
+		t.Fatalf("Duplicate Resource Should give an error\n")
+	}
+	deletions = append(deletions, UserScramCredentialDeletion{User: "non-existent", Mechanism: Scram_SHA_256})
+	_, Altererr = a.AlterUserScramCredentials(ctx, upsertions, nil)
+	if Altererr == nil {
+		t.Fatalf("Duplicate Resource Should give an error\n")
+	}
+
+}
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 

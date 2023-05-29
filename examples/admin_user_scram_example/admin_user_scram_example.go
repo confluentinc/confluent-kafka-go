@@ -57,15 +57,13 @@ func main() {
 	defer ac.Close()
 
 	var users []string
-	users = append(users, "adhitya")
-	users = append(users, "pranav")
-
+	users = append(users, "non-existent")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	Describeres, Describeerr := ac.DescribeUserScramCredentials(ctx, users)
 	if Describeerr != nil {
-		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", err)
+		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", Describeerr)
 		os.Exit(1)
 
 	} else {
@@ -80,13 +78,11 @@ func main() {
 			}
 		}
 	}
-	var alterations []kafka.UserScramCredentialUpsertion
-	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "adhitya", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.Scram_SHA_256, Iterations: 10000}})
-	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "pranav", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.Scram_SHA_256, Iterations: 10000}})
-
-	Alterres, Altererr := ac.AlterUserScramCredentials(ctx, alterations, nil)
+	var upsertions []kafka.UserScramCredentialUpsertion
+	upsertions = append(upsertions, kafka.UserScramCredentialUpsertion{User: "non-existent", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.Scram_SHA_256, Iterations: 10000}})
+	Alterres, Altererr := ac.AlterUserScramCredentials(ctx, upsertions, nil)
 	if Altererr != nil {
-		fmt.Printf("Failed to Alter the User Scram Credentials: %s\n", err)
+		fmt.Printf("Failed to Alter the User Scram Credentials: %s\n", Altererr)
 		os.Exit(1)
 
 	} else {
@@ -101,7 +97,7 @@ func main() {
 	}
 	Describeres, Describeerr = ac.DescribeUserScramCredentials(ctx, users)
 	if Describeerr != nil {
-		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", err)
+		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", Describeerr)
 		os.Exit(1)
 
 	} else {
@@ -115,6 +111,41 @@ func main() {
 				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
 			}
 
+		}
+	}
+	var deletions []kafka.UserScramCredentialDeletion
+	deletions = append(deletions, kafka.UserScramCredentialDeletion{User: "non-existent", Mechanism: kafka.Scram_SHA_256})
+
+	Alterres, Altererr = ac.AlterUserScramCredentials(ctx, nil, deletions)
+	if Altererr != nil {
+		fmt.Printf("Failed to Alter the User Scram Credentials: %s\n", Altererr)
+		os.Exit(1)
+
+	} else {
+		for username, err := range Alterres {
+			fmt.Printf("Username : %s \n", username)
+			if err.Code() == 0 {
+				fmt.Printf("	Success\n")
+			} else {
+				fmt.Printf("	Error[%d] : %s\n", err.Code(), err.String())
+			}
+		}
+	}
+	Describeres, Describeerr = ac.DescribeUserScramCredentials(ctx, users)
+	if Describeerr != nil {
+		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", Describeerr)
+		os.Exit(1)
+
+	} else {
+		for username, description := range Describeres {
+			fmt.Printf("Username : %s \n", username)
+			if description.Err.Code() == 0 {
+				for i := 0; i < len(description.Scram_Credential_Infos); i++ {
+					fmt.Printf("	Mechansim : %s Iterations : %d\n", mechanismstring[description.Scram_Credential_Infos[i].Mechanism], description.Scram_Credential_Infos[i].Iterations)
+				}
+			} else {
+				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
+			}
 		}
 	}
 }
