@@ -32,7 +32,6 @@ import (
 )
 
 func main() {
-
 	// if len(os.Args) < 1 {
 	// 	fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> \n",
 	// 		os.Args[0])
@@ -43,7 +42,7 @@ func main() {
 	mechanismstring[kafka.ScramMechanism.Scram_SHA_256] = "SCRAM-SHA-256"
 	mechanismstring[kafka.ScramMechanism.Scram_SHA_512] = "SCRAM-SHA-512"
 	mechanismstring[kafka.ScramMechanism.Scram_Unknown] = "UNKWOWN"
-	
+
 	bootstrapServers := "localhost:9092"
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
@@ -64,60 +63,56 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	res, err := ac.DescribeUserScramCredentials(ctx, users)
-	if err != nil {
+	Describeres, Describeerr := ac.DescribeUserScramCredentials(ctx, users)
+	if Describeerr != nil {
 		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", err)
 		os.Exit(1)
-		
-	} else {
-		for username, description := range res {
-			fmt.Printf("Username : %s \n", username)
-			for i := 0; i < len(description.scram_credential_infos); i++ {
-				if description.err.code == 0 {
-					fmt.Printf("	Mechansim : %s Iterations : %d\n",mechanismstring[ description.scram_credential_infos[i].mechanism ], description.scram_credential_infos[i].iterations)
-				}else {
-					fmt.Printf(("	Error[%d] : %s\n", err.code,err.str)
-				}
-			}
 
+	} else {
+		for username, description := range Describeres {
+			fmt.Printf("Username : %s \n", username)
+			if description.Err.Code() == 0 {
+				for i := 0; i < len(description.Scram_Credential_Infos); i++ {
+					fmt.Printf("	Mechansim : %s Iterations : %d\n", mechanismstring[description.Scram_Credential_Infos[i].Mechanism], description.Scram_Credential_Infos[i].Iterations)
+				}
+			} else {
+				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
+			}
 		}
 	}
-	var alterations []UserScramCredentialUpsertion
-	alterations = append(alterations, UserScramCredentialUpsertion({ user : "adhitya" , salt:"salt" , password : "password" ,mechanism : kafka.ScramMechanism.SCRAM_SHA_256,iterations :10000}) )
-	alterations = append(alterations, UserScramCredentialUpsertion({ user : "pranav" , salt:"salt" , password : "password" ,mechanism : kafka.ScramMechanism.SCRAM_SHA_256,iterations :10000}) )
-	
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
+	var alterations []kafka.UserScramCredentialUpsertion
+	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "adhitya", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.ScramMechanism.SCRAM_SHA_256, Iterations: 10000}})
+	alterations = append(alterations, kafka.UserScramCredentialUpsertion{User: "pranav", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.ScramMechanism.SCRAM_SHA_256, Iterations: 10000}})
 
-	res, err := ac.AlterUserScramCredentials(ctx, users)
-	if err != nil {
+	Alterres, Altererr := ac.AlterUserScramCredentials(ctx, alterations, nil)
+	if Altererr != nil {
 		fmt.Printf("Failed to Alter the User Scram Credentials: %s\n", err)
 		os.Exit(1)
-		
+
 	} else {
-		for username, err := range res {
+		for username, err := range Alterres {
 			fmt.Printf("Username : %s \n", username)
-			if err.code == 0 {
-					fmt.Printf("	Success\n")
-			}else {
-					fmt.Printf(("	Error[%d] : %s\n", err.code,err.str)
+			if err.Code() == 0 {
+				fmt.Printf("	Success\n")
+			} else {
+				fmt.Printf("	Error[%d] : %s\n", err.Code(), err.String())
 			}
 		}
 	}
-	res, err := ac.DescribeUserScramCredentials(ctx, users)
-	if err != nil {
+	Describeres, Describeerr = ac.DescribeUserScramCredentials(ctx, users)
+	if Describeerr != nil {
 		fmt.Printf("Failed to Describe the User Scram Credentials: %s\n", err)
 		os.Exit(1)
-		
+
 	} else {
-		for username, description := range res {
+		for username, description := range Describeres {
 			fmt.Printf("Username : %s \n", username)
-			for i := 0; i < len(description.scram_credential_infos); i++ {
-				if description.err.code == 0 {
-					fmt.Printf("	Mechansim : %s Iterations : %d\n",mechanismstring[ description.scram_credential_infos[i].mechanism ], description.scram_credential_infos[i].iterations)
-				}else {
-					fmt.Printf(("	Error[%d] : %s\n", err.code,err.str)
+			if description.Err.Code() == 0 {
+				for i := 0; i < len(description.Scram_Credential_Infos); i++ {
+					fmt.Printf("	Mechansim : %s Iterations : %d\n", mechanismstring[description.Scram_Credential_Infos[i].Mechanism], description.Scram_Credential_Infos[i].Iterations)
 				}
+			} else {
+				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
 			}
 
 		}
