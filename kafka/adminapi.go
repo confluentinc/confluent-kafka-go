@@ -2163,7 +2163,8 @@ func (a *AdminClient) DeleteConsumerGroups(
 //   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //   - `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of which
 //     has the id of a consumer group, and a slice of the TopicPartitions we
-//     need to fetch the offsets for.
+//     need to fetch the offsets for. The slice of TopicPartitions can be nil, to fetch
+//     all topic partitions for that group.
 //     Currently, the size of `groupsPartitions` has to be exactly one.
 //   - `options` - ListConsumerGroupOffsetsAdminOption options.
 //

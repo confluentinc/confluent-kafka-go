@@ -526,13 +526,11 @@ func testAdminAPIsListConsumerGroupOffsets(
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
-}
 
-func testAdminAPIsListAllConsumerGroupOffsets(
-	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	// Test with empty topic partitions list, denoting all topic partitions.
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
-	lres, err := a.ListConsumerGroupOffsets(
+	lres, err = a.ListConsumerGroupOffsets(
 		ctx,
 		[]ConsumerGroupTopicPartitions{
 			{
@@ -813,7 +811,6 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	testAdminAPIsDeleteConsumerGroups(what, a, expDuration, t)
 
 	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)
-	testAdminAPIsListAllConsumerGroupOffsets(what, a, expDuration, t)
 	testAdminAPIsAlterConsumerGroupOffsets(what, a, expDuration, t)
 }
 
