@@ -1377,7 +1377,7 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	}
 }
 
-//Test AdminClient GetMetadata API
+// Test AdminClient GetMetadata API
 func (its *IntegrationTestSuite) TestAdminGetMetadata() {
 	t := its.T()
 
@@ -1662,33 +1662,129 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 // Test AdminClient List all consumer group offsets.
 func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() {
 	t := its.T()
+	rand.Seed(time.Now().Unix())
 
-	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	if err := config.updateFromTestconf(); err != nil {
+	conf := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := conf.updateFromTestconf(); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 
-	admin, err := NewAdminClient(config)
+	admin, err := NewAdminClient(conf)
 	if err != nil {
 		t.Fatalf("Failed to create Admin client: %s\n", err)
 	}
 	defer admin.Close()
 
+	// Create some topics.
+	numTopics := 3
+	topics := make([]string, 0)
+	topicSpec := make([]TopicSpecification, 0)
+
+	for i := 0; i < numTopics; i++ {
+		topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Intn(100000))
+		topics = append(topics, topic)
+		topicSpec = append(
+			topicSpec, TopicSpecification{Topic: topic, NumPartitions: i + 1})
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	topicResult, err := admin.CreateTopics(ctx, topicSpec)
+
+	if err != nil {
+		t.Fatalf("Failed to create topics: %s\n", err)
+	}
+
+	for i := 0; i < numTopics; i++ {
+		if topicResult[i].Error.Code() != ErrNoError {
+			t.Fatalf("Failed to create topic %s: %s", topicSpec[i].Topic, topicResult[i].Error)
+		}
+	}
+
+	// Join a consumer group and subscribe to the created topics,
+	// commit some offsets to read later.
+	group := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Intn(100000))
+	conf = &ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+		"group.id":          group,
+		"auto.offset.reset": "end",
+	}
+	conf.updateFromTestconf()
+
+	consumer, err := NewConsumer(conf)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %s\n", err)
+	}
+	defer consumer.Close()
+
+	if err = consumer.SubscribeTopics(topics, nil); err != nil {
+		t.Fatalf("Failed to subscribe to topics: %s\n", err)
+	}
+
+	// Poll for a while, wait for rebalance.
+	consumer.Poll(10000)
+
+	for i := 0; i < numTopics; i++ {
+		for j := 0; j < topicSpec[i].NumPartitions; j++ {
+			_, err = consumer.CommitOffsets([]TopicPartition{
+				{Topic: &topics[i], Partition: int32(j), Offset: Offset((i + 1) * (j + 1))},
+			})
+			if err != nil {
+				t.Fatalf("Could not commit for %s:%d: %s\n", topics[i], j, err)
+			}
+		}
+	}
+
+	// List consumer group offsets.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	offsets, err := admin.ListConsumerGroupOffsets(
-		ctx, []ConsumerGroupTopicPartitions{{Group: testconf.GroupID}}, SetAdminRequireStableOffsets(true))
+		ctx,
+		[]ConsumerGroupTopicPartitions{{Group: group}},
+		SetAdminRequireStableOffsets(true))
 
 	if err != nil {
 		t.Fatalf("Failed to get consumer group offsets: %s\n", err)
 	}
 
-	if len(offsets.ConsumerGroupsTopicPartitions) == 0 {
-		t.Fatal("Consumer group offsets is empty.")
+	if len(offsets.ConsumerGroupsTopicPartitions) != 1 {
+		t.Fatal("Consumer group offsets is empty")
+	}
+
+	totalPartitions := ((numTopics + 1) * numTopics) / 2
+	toppars := offsets.ConsumerGroupsTopicPartitions[0].Partitions
+	if len(toppars) != totalPartitions {
+		t.Fatalf("Expected %d partitions, got %d\n", totalPartitions, len(toppars))
+	}
+
+	// Use linear search - okay for small numTopics. Since the returned list
+	// is not ordered in any particular way.
+	for i := 0; i < numTopics; i++ {
+		for j := 0; j < topicSpec[i].NumPartitions; j++ {
+			expectedOffset := Offset((i + 1) * (j + 1))
+			var k int
+			for k = 0; k < len(toppars); k++ {
+				matched :=
+					topics[i] == *toppars[k].Topic && j == int(toppars[k].Partition)
+
+				if matched && toppars[k].Offset != expectedOffset {
+					t.Fatalf("Expected offset %d for %s:%d, got %d\n",
+						expectedOffset, topics[i], j, toppars[k].Offset)
+				}
+
+				if matched {
+					break
+				}
+			}
+
+			if k == len(toppars) {
+				t.Fatalf("Did not find expected %s:%d in result", topics[i], j)
+			}
+		}
 	}
 }
 
-//Test consumer QueryWatermarkOffsets API
+// Test consumer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 	t := its.T()
 
@@ -1719,7 +1815,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 }
 
-//Test consumer GetWatermarkOffsets API
+// Test consumer GetWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	t := its.T()
 
@@ -1774,7 +1870,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 
 }
 
-//TestConsumerOffsetsForTimes
+// TestConsumerOffsetsForTimes
 func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 	t := its.T()
 
@@ -1869,7 +1965,7 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	t.Logf("Meta data for consumer: %v\n", metaData)
 }
 
-//Test producer QueryWatermarkOffsets API
+// Test producer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	t := its.T()
 
@@ -1911,7 +2007,7 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	}
 }
 
-//Test producer GetMetadata API
+// Test producer GetMetadata API
 func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	t := its.T()
 
