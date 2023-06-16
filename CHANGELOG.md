@@ -11,6 +11,10 @@ This is a feature release.
    an unchecked error (#997, @baganokodo2022).
  * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
 
+confluent-kafka-go is based on librdkafka v2.2.0, see the
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0-RC1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.1.1
 
