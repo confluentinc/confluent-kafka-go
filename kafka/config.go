@@ -115,7 +115,7 @@ func value2string(v ConfigValue) (ret string, errstr string) {
 		errstr = fmt.Sprintf("Invalid value type %T", v)
 	}
 
-	return ret, ""
+	return ret, errstr
 }
 
 // rdkAnyconf abstracts rd_kafka_conf_t and rd_kafka_topic_conf_t
