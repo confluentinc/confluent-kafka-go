@@ -1,5 +1,57 @@
 # Confluent's Golang client for Apache Kafka
 
+
+# v2.2.0
+
+This is a feature release.
+
+## Fixes
+
+ * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
+   an unchecked error (#997, @baganokodo2022).
+ * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+
+confluent-kafka-go is based on librdkafka v2.2.0, see the
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0-RC1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.1
+
+This is a maintenance release.
+
+It is strongly recommended to update to v2.1.1 if v2.1.0 is being used, as it
+fixes a critical issue in the consumer (#980).
+
+confluent-kafka-go is based on librdkafka v2.1.1, see the
+[librdkafka v2.1.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.0
+
+This is a feature release:
+
+ * Added Consumer `SeekPartitions()` method to seek multiple partitions at
+   once and deprecated `Seek()` (#940).
+ * [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
+   add offset leader epoch to the TopicPartition \
+   and Message structs (#968).
+ * The minimum version of Go supported has been changed from 1.14 to 1.16
+   (#973).
+ * Add validation on the Producer, the Consumer and the AdminClient to prevent
+   panic when they are used after close (#901).
+ * Fix bug causing schema-registry URL with existing path to not be parsed
+   correctly (#950).
+ * Support for Offset types on `Offset.Set()` (#962, @jdockerty).
+ * Added example for using [rebalance callback with manual commit](examples/consumer_rebalance_example).
+
+
+confluent-kafka-go is based on librdkafka v2.1.0, see the
+[librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.0.2
 
 This is a feature release:
