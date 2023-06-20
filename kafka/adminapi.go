@@ -1486,29 +1486,28 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 		defer C.rd_kafka_ConfigResource_destroy(cRes[i])
 
 		for _, entry := range res.Config {
-			var cErr C.rd_kafka_resp_err_t
+			var cError *C.rd_kafka_error_t
 			switch entry.IncrementalOperation {
 			case IncrementalAlterOperationSet:
-				cErr = C.rd_kafka_ConfigResource_incremental_set_config(
+				cError = C.rd_kafka_ConfigResource_incremental_set_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
 			case IncrementalAlterOperationRemove:
-				cErr = C.rd_kafka_ConfigResource_incremental_delete_config(
+				cError = C.rd_kafka_ConfigResource_incremental_delete_config(
 					cRes[i], C.CString(entry.Name))
 			case IncrementalAlterOperationAppend:
-				cErr = C.rd_kafka_ConfigResource_incremental_append_config(
+				cError = C.rd_kafka_ConfigResource_incremental_append_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
 			case IncrementalAlterOperationSubtract:
-				cErr = C.rd_kafka_ConfigResource_incremental_subtract_config(
+				cError = C.rd_kafka_ConfigResource_incremental_subtract_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
 			default:
 				panic(fmt.Sprintf("Invalid ConfigEntry.IncrementalOperation: %v", entry.Operation))
 			}
 
-			if cErr != 0 {
-				return nil,
-					newCErrorFromString(cErr,
-						fmt.Sprintf("Failed to add configuration %s: %s",
-							entry, C.GoString(C.rd_kafka_err2str(cErr))))
+			if cError != nil {
+				err := newErrorFromCError(cError)
+				C.rd_kafka_error_destroy(cError)
+				return nil, err
 			}
 		}
 	}
