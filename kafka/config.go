@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"fmt"
+	"go/types"
 	"reflect"
 	"strings"
 	"unsafe"
@@ -80,6 +81,7 @@ func (m ConfigMap) Set(kv string) error {
 
 func value2string(v ConfigValue) (ret string, errstr string) {
 
+	errstr = ""
 	switch x := v.(type) {
 	case bool:
 		if x {
@@ -91,13 +93,29 @@ func value2string(v ConfigValue) (ret string, errstr string) {
 		ret = fmt.Sprintf("%d", x)
 	case string:
 		ret = x
+	case types.Slice:
+		ret = ""
+		arr := v.([]ConfigValue)
+		for _, i := range arr {
+			temp, err := value2string(i)
+			if err != "" {
+				ret = ""
+				errstr = fmt.Sprintf("Invalid value type %T", v)
+				break
+			}
+			ret += temp + ","
+		}
+		if len(ret) != 0 {
+			ret = ret[:len(ret)-1]
+		}
 	case fmt.Stringer:
 		ret = x.String()
 	default:
-		return "", fmt.Sprintf("Invalid value type %T", v)
+		ret = ""
+		errstr = fmt.Sprintf("Invalid value type %T", v)
 	}
 
-	return ret, ""
+	return ret, errstr
 }
 
 // rdkAnyconf abstracts rd_kafka_conf_t and rd_kafka_topic_conf_t
