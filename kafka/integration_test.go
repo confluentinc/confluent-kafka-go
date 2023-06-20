@@ -2005,17 +2005,17 @@ func TestAdminConfig(t *testing.T) {
 	// We don't need to pass all configs. Just need to pass the configs
 	// that are intended to change.
 	newConfig = make(map[string]string)
-	opsMap := make(map[string]IncrementalAlterOperation)
+	opsMap := make(map[string]AlterConfigOpType)
 
 	// Change something
 	newConfig["retention.ms"] = "86000000"
-	opsMap["retention.ms"] = IncrementalAlterOperationSet
+	opsMap["retention.ms"] = AlterConfigOpTypeSet
 	// Default value for cleanup.policy(type=list) is delete
 	newConfig["cleanup.policy"] = "compact"
-	opsMap["cleanup.policy"] = IncrementalAlterOperationAppend
+	opsMap["cleanup.policy"] = AlterConfigOpTypeAppend
 	newConfig["message.timestamp.type"] = ""
 	// Default value for message.timestamp.type is CreateTime
-	opsMap["message.timestamp.type"] = IncrementalAlterOperationRemove
+	opsMap["message.timestamp.type"] = AlterConfigOpTypeDelete
 
 	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic,
 		Config: StringMapToIncrementalConfigEntries(newConfig, opsMap)}}

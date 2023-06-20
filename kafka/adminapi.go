@@ -412,38 +412,38 @@ func (o AlterOperation) String() string {
 	}
 }
 
-// IncrementalAlterOperation specifies the operation to perform
+// AlterConfigOpType specifies the operation to perform
 // on the ConfigEntry for IncrementalAlterConfig
-type IncrementalAlterOperation int
+type AlterConfigOpType int
 
 const (
-	// IncrementalAlterOperationSet sets/overwrites the configuration
+	// AlterConfigOpTypeSet sets/overwrites the configuration
 	// setting.
-	IncrementalAlterOperationSet = iota
-	// IncrementalAlterOperationRemove sets the configuration setting
+	AlterConfigOpTypeSet = iota
+	// AlterConfigOpTypeDelete sets the configuration setting
 	// to default or NULL.
-	IncrementalAlterOperationRemove
-	// IncrementalAlterOperationAppend appends the value to existing
+	AlterConfigOpTypeDelete
+	// AlterConfigOpTypeAppend appends the value to existing
 	// configuration settings.
-	IncrementalAlterOperationAppend
-	// IncrementalAlterOperationSubtract subtracts the value from
+	AlterConfigOpTypeAppend
+	// AlterConfigOpTypeSubtract subtracts the value from
 	// existing configuration settings.
-	IncrementalAlterOperationSubtract
+	AlterConfigOpTypeSubtract
 )
 
 // String returns the human-readable representation of an AlterOperation
-func (o IncrementalAlterOperation) String() string {
+func (o AlterConfigOpType) String() string {
 	switch o {
-	case IncrementalAlterOperationSet:
+	case AlterConfigOpTypeSet:
 		return "Set"
-	case IncrementalAlterOperationRemove:
+	case AlterConfigOpTypeDelete:
 		return "Remove"
-	case IncrementalAlterOperationAppend:
+	case AlterConfigOpTypeAppend:
 		return "Append"
-	case IncrementalAlterOperationSubtract:
+	case AlterConfigOpTypeSubtract:
 		return "Subtract"
 	default:
-		return fmt.Sprintf("Unknown%d?", int(o))
+		return fmt.Sprintf("Unknown %d", int(o))
 	}
 }
 
@@ -455,8 +455,8 @@ type ConfigEntry struct {
 	Value string
 	// (Deprecated) Operation to perform on the entry.
 	Operation AlterOperation
-	// (Deprecated) IncrementalOperation to perform on the entry.
-	IncrementalOperation IncrementalAlterOperation
+	// Operation to perform on the entry incrementally.
+	IncrementalOperation AlterConfigOpType
 }
 
 // StringMapToConfigEntries creates a new map of ConfigEntry objects from the
@@ -472,9 +472,9 @@ func StringMapToConfigEntries(stringMap map[string]string, operation AlterOperat
 }
 
 // StringMapToIncrementalConfigEntries creates a new map of ConfigEntry objects from the
-// provided string map an operationMap. The IncrementalAlterOperation is set on each created entry.
+// provided string map an operationMap. The AlterConfigOpType is set on each created entry.
 func StringMapToIncrementalConfigEntries(stringMap map[string]string,
-	operationMap map[string]IncrementalAlterOperation) []ConfigEntry {
+	operationMap map[string]AlterConfigOpType) []ConfigEntry {
 	var ceList []ConfigEntry
 
 	for k, v := range stringMap {
@@ -1488,16 +1488,16 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 		for _, entry := range res.Config {
 			var cError *C.rd_kafka_error_t
 			switch entry.IncrementalOperation {
-			case IncrementalAlterOperationSet:
+			case AlterConfigOpTypeSet:
 				cError = C.rd_kafka_ConfigResource_incremental_set_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case IncrementalAlterOperationRemove:
+			case AlterConfigOpTypeDelete:
 				cError = C.rd_kafka_ConfigResource_incremental_delete_config(
 					cRes[i], C.CString(entry.Name))
-			case IncrementalAlterOperationAppend:
+			case AlterConfigOpTypeAppend:
 				cError = C.rd_kafka_ConfigResource_incremental_append_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case IncrementalAlterOperationSubtract:
+			case AlterConfigOpTypeSubtract:
 				cError = C.rd_kafka_ConfigResource_incremental_subtract_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
 			default:
@@ -1517,7 +1517,7 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 	for i := range options {
 		genericOptions[i] = options[i]
 	}
-	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_ALTERCONFIGS, genericOptions)
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS, genericOptions)
 	if err != nil {
 		return nil, err
 	}

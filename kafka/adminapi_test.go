@@ -756,7 +756,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 		ctx,
 		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
 	if icres != nil || err == nil {
-		t.Fatalf("Expected AlterConfigs to fail, but got result: %v, err: %v", cres, err)
+		t.Fatalf("Expected IncrementalAlterConfigs to fail, but got result: %v, err: %v", cres, err)
 	}
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
