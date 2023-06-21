@@ -412,35 +412,35 @@ func (o AlterOperation) String() string {
 	}
 }
 
-// IncrementalAlterConfigOperation specifies the operation to perform
+// AlterConfigOpType specifies the operation to perform
 // on the ConfigEntry for IncrementalAlterConfig
-type IncrementalAlterConfigOperation int
+type AlterConfigOpType int
 
 const (
-	// IncrementalAlterConfigOperationSet sets/overwrites the configuration
+	// AlterConfigOpTypeSet sets/overwrites the configuration
 	// setting.
-	IncrementalAlterConfigOperationSet = iota
-	// IncrementalAlterConfigOperationDelete sets the configuration setting
+	AlterConfigOpTypeSet = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET)
+	// AlterConfigOpTypeDelete sets the configuration setting
 	// to default or NULL.
-	IncrementalAlterConfigOperationDelete
-	// IncrementalAlterConfigOperationAppend appends the value to existing
+	AlterConfigOpTypeDelete = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE)
+	// AlterConfigOpTypeAppend appends the value to existing
 	// configuration settings.
-	IncrementalAlterConfigOperationAppend
-	// IncrementalAlterConfigOperationSubtract subtracts the value from
+	AlterConfigOpTypeAppend = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND)
+	// AlterConfigOpTypeSubtract subtracts the value from
 	// existing configuration settings.
-	IncrementalAlterConfigOperationSubtract
+	AlterConfigOpTypeSubtract = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT)
 )
 
 // String returns the human-readable representation of an AlterOperation
-func (o IncrementalAlterConfigOperation) String() string {
+func (o AlterConfigOpType) String() string {
 	switch o {
-	case IncrementalAlterConfigOperationSet:
+	case AlterConfigOpTypeSet:
 		return "Set"
-	case IncrementalAlterConfigOperationDelete:
+	case AlterConfigOpTypeDelete:
 		return "Delete"
-	case IncrementalAlterConfigOperationAppend:
+	case AlterConfigOpTypeAppend:
 		return "Append"
-	case IncrementalAlterConfigOperationSubtract:
+	case AlterConfigOpTypeSubtract:
 		return "Subtract"
 	default:
 		return fmt.Sprintf("Unknown %d", int(o))
@@ -456,7 +456,7 @@ type ConfigEntry struct {
 	// (Deprecated) Operation to perform on the entry.
 	Operation AlterOperation
 	// Operation to perform on the entry incrementally.
-	IncrementalOperation IncrementalAlterConfigOperation
+	IncrementalOperation AlterConfigOpType
 }
 
 // StringMapToConfigEntries creates a new map of ConfigEntry objects from the
@@ -472,9 +472,9 @@ func StringMapToConfigEntries(stringMap map[string]string, operation AlterOperat
 }
 
 // StringMapToIncrementalConfigEntries creates a new map of ConfigEntry objects from the
-// provided string map an operationMap. The IncrementalAlterConfigOperation is set on each created entry.
+// provided string map an operationMap. The AlterConfigOpType is set on each created entry.
 func StringMapToIncrementalConfigEntries(stringMap map[string]string,
-	operationMap map[string]IncrementalAlterConfigOperation) []ConfigEntry {
+	operationMap map[string]AlterConfigOpType) []ConfigEntry {
 	var ceList []ConfigEntry
 
 	for k, v := range stringMap {
@@ -1486,23 +1486,10 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 		defer C.rd_kafka_ConfigResource_destroy(cRes[i])
 
 		for _, entry := range res.Config {
-			var cError *C.rd_kafka_error_t
-			switch entry.IncrementalOperation {
-			case IncrementalAlterConfigOperationSet:
-				cError = C.rd_kafka_ConfigResource_incremental_set_config(
-					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case IncrementalAlterConfigOperationDelete:
-				cError = C.rd_kafka_ConfigResource_incremental_delete_config(
-					cRes[i], C.CString(entry.Name))
-			case IncrementalAlterConfigOperationAppend:
-				cError = C.rd_kafka_ConfigResource_incremental_append_config(
-					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case IncrementalAlterConfigOperationSubtract:
-				cError = C.rd_kafka_ConfigResource_incremental_subtract_config(
-					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			default:
-				panic(fmt.Sprintf("Invalid ConfigEntry.IncrementalOperation: %v", entry.Operation))
-			}
+			cError := C.rd_kafka_ConfigResource_set_incremental_config(
+				cRes[i], C.CString(entry.Name),
+				C.rd_kafka_AlterConfigOpType_t(entry.IncrementalOperation),
+				C.CString(entry.Value))
 
 			if cError != nil {
 				err := newErrorFromCError(cError)
