@@ -412,35 +412,35 @@ func (o AlterOperation) String() string {
 	}
 }
 
-// AlterConfigOpType specifies the operation to perform
+// IncrementalAlterConfigOperation specifies the operation to perform
 // on the ConfigEntry for IncrementalAlterConfig
-type AlterConfigOpType int
+type IncrementalAlterConfigOperation int
 
 const (
-	// AlterConfigOpTypeSet sets/overwrites the configuration
+	// IncrementalAlterConfigOperationSet sets/overwrites the configuration
 	// setting.
-	AlterConfigOpTypeSet = iota
-	// AlterConfigOpTypeDelete sets the configuration setting
+	IncrementalAlterConfigOperationSet = iota
+	// IncrementalAlterConfigOperationDelete sets the configuration setting
 	// to default or NULL.
-	AlterConfigOpTypeDelete
-	// AlterConfigOpTypeAppend appends the value to existing
+	IncrementalAlterConfigOperationDelete
+	// IncrementalAlterConfigOperationAppend appends the value to existing
 	// configuration settings.
-	AlterConfigOpTypeAppend
-	// AlterConfigOpTypeSubtract subtracts the value from
+	IncrementalAlterConfigOperationAppend
+	// IncrementalAlterConfigOperationSubtract subtracts the value from
 	// existing configuration settings.
-	AlterConfigOpTypeSubtract
+	IncrementalAlterConfigOperationSubtract
 )
 
 // String returns the human-readable representation of an AlterOperation
-func (o AlterConfigOpType) String() string {
+func (o IncrementalAlterConfigOperation) String() string {
 	switch o {
-	case AlterConfigOpTypeSet:
+	case IncrementalAlterConfigOperationSet:
 		return "Set"
-	case AlterConfigOpTypeDelete:
-		return "Remove"
-	case AlterConfigOpTypeAppend:
+	case IncrementalAlterConfigOperationDelete:
+		return "Delete"
+	case IncrementalAlterConfigOperationAppend:
 		return "Append"
-	case AlterConfigOpTypeSubtract:
+	case IncrementalAlterConfigOperationSubtract:
 		return "Subtract"
 	default:
 		return fmt.Sprintf("Unknown %d", int(o))
@@ -456,7 +456,7 @@ type ConfigEntry struct {
 	// (Deprecated) Operation to perform on the entry.
 	Operation AlterOperation
 	// Operation to perform on the entry incrementally.
-	IncrementalOperation AlterConfigOpType
+	IncrementalOperation IncrementalAlterConfigOperation
 }
 
 // StringMapToConfigEntries creates a new map of ConfigEntry objects from the
@@ -472,9 +472,9 @@ func StringMapToConfigEntries(stringMap map[string]string, operation AlterOperat
 }
 
 // StringMapToIncrementalConfigEntries creates a new map of ConfigEntry objects from the
-// provided string map an operationMap. The AlterConfigOpType is set on each created entry.
+// provided string map an operationMap. The IncrementalAlterConfigOperation is set on each created entry.
 func StringMapToIncrementalConfigEntries(stringMap map[string]string,
-	operationMap map[string]AlterConfigOpType) []ConfigEntry {
+	operationMap map[string]IncrementalAlterConfigOperation) []ConfigEntry {
 	var ceList []ConfigEntry
 
 	for k, v := range stringMap {
@@ -1488,16 +1488,16 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 		for _, entry := range res.Config {
 			var cError *C.rd_kafka_error_t
 			switch entry.IncrementalOperation {
-			case AlterConfigOpTypeSet:
+			case IncrementalAlterConfigOperationSet:
 				cError = C.rd_kafka_ConfigResource_incremental_set_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case AlterConfigOpTypeDelete:
+			case IncrementalAlterConfigOperationDelete:
 				cError = C.rd_kafka_ConfigResource_incremental_delete_config(
 					cRes[i], C.CString(entry.Name))
-			case AlterConfigOpTypeAppend:
+			case IncrementalAlterConfigOperationAppend:
 				cError = C.rd_kafka_ConfigResource_incremental_append_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
-			case AlterConfigOpTypeSubtract:
+			case IncrementalAlterConfigOperationSubtract:
 				cError = C.rd_kafka_ConfigResource_incremental_subtract_config(
 					cRes[i], C.CString(entry.Name), C.CString(entry.Value))
 			default:

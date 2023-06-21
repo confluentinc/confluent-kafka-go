@@ -1365,17 +1365,17 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	// We don't need to pass all configs. Just need to pass the configs
 	// that are intended to change.
 	newConfig = make(map[string]string)
-	opsMap := make(map[string]AlterConfigOpType)
+	opsMap := make(map[string]IncrementalAlterConfigOperation)
 
 	// Change something
 	newConfig["retention.ms"] = "86000000"
-	opsMap["retention.ms"] = AlterConfigOpTypeSet
+	opsMap["retention.ms"] = IncrementalAlterConfigOperationSet
 	// Default value for cleanup.policy(type=list) is delete
 	newConfig["cleanup.policy"] = "compact"
-	opsMap["cleanup.policy"] = AlterConfigOpTypeAppend
+	opsMap["cleanup.policy"] = IncrementalAlterConfigOperationAppend
 	newConfig["message.timestamp.type"] = ""
 	// Default value for message.timestamp.type is CreateTime
-	opsMap["message.timestamp.type"] = AlterConfigOpTypeDelete
+	opsMap["message.timestamp.type"] = IncrementalAlterConfigOperationDelete
 
 	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic,
 		Config: StringMapToIncrementalConfigEntries(newConfig, opsMap)}}
