@@ -42,7 +42,8 @@ type tokenAuth struct {
 // previously-received token is 80% of the way to its expiration time).
 func handleJWTTokenRefreshEvent(ctx context.Context, client kafka.Handle, principal, socketPath string, audience []string) {
 	fmt.Fprintf(os.Stderr, "Token refresh\n")
-	oauthBearerToken, retrieveErr := retrieveJWTToken(ctx, principal, socketPath, audience)
+	oauthBearerToken, closer, retrieveErr := retrieveJWTToken(ctx, principal, socketPath, audience)
+	defer closer()
 	if retrieveErr != nil {
 		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
 		client.SetOAuthBearerTokenFailure(retrieveErr.Error())
@@ -55,13 +56,13 @@ func handleJWTTokenRefreshEvent(ctx context.Context, client kafka.Handle, princi
 	}
 }
 
-func retrieveJWTToken(ctx context.Context, principal, socketPath string, audience []string) (kafka.OAuthBearerToken, error) {
+func retrieveJWTToken(ctx context.Context, principal, socketPath string, audience []string) (kafka.OAuthBearerToken, func() error, error) {
 	jwtSource, err := workloadapi.NewJWTSource(
 		ctx,
 		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
 	)
 	if err != nil {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("unable to create JWTSource: %w", err)
+		return kafka.OAuthBearerToken{}, nil, fmt.Errorf("unable to create JWTSource: %w", err)
 	}
 
 	defer jwtSource.Close()
@@ -74,7 +75,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 
 	jwtSVID, err := jwtSource.FetchJWTSVID(ctx, params)
 	if err != nil {
-		return kafka.OAuthBearerToken{}, fmt.Errorf("unable to fetch JWT SVID: %w", err)
+		return kafka.OAuthBearerToken{}, nil, fmt.Errorf("unable to fetch JWT SVID: %w", err)
 	}
 
 	oauthBearerToken := kafka.OAuthBearerToken{
@@ -84,7 +85,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 		Extensions: map[string]string{},
 	}
 
-	return oauthBearerToken, nil
+	return oauthBearerToken, jwtSource.Close, nil
 }
 
 func main() {
@@ -98,17 +99,15 @@ func main() {
 	topic := os.Args[2]
 	principal := os.Args[3]
 	socketPath := os.Args[4]
-	audience := []string{"audience1", "audience2"} // Audience should be defined properly
+	audience := []string{"audience1", "audience2"}
 
 	// You'll probably need to modify this configuration to
 	// match your environment.
 	config := kafka.ConfigMap{
-		"bootstrap.servers": bootstrapServers,
-		"security.protocol": "SASL_PLAINTEXT",
-		"sasl.mechanisms":   "OAUTHBEARER",
-		"sasl.oauthbearer.config": map[string]string{
-			"principal": principal,
-		},
+		"bootstrap.servers":       bootstrapServers,
+		"security.protocol":       "SASL_PLAINTEXT",
+		"sasl.mechanisms":         "OAUTHBEARER",
+		"sasl.oauthbearer.config": principal,
 	}
 
 	p, err := kafka.NewProducer(&config)
