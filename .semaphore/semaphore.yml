@@ -74,7 +74,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-arm64-1
+          type: s1-nonprod-ubuntu22-04-arm64-1
       prologue:
         commands:
           - sem-version go 1.19
