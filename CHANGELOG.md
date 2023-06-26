@@ -10,7 +10,7 @@ This is a feature release.
  * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
    an unchecked error (#997, @baganokodo2022).
  * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
- * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#).
+ * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
 
 confluent-kafka-go is based on librdkafka v2.2.0, see the
 [librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0-RC1)
