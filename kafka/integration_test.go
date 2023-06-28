@@ -1765,7 +1765,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 			if topics[i] != *toppars[k].Topic {
 				continue
 			}
-			matchedToppars += 1
+			matchedToppars++
 			partition := int(toppars[k].Partition)
 			expectedOffset := i*topicSpec[i].NumPartitions + partition
 
