@@ -133,7 +133,10 @@ func (ao AdminOptionRequestTimeout) supportsListConsumerGroupOffsets() {
 }
 func (ao AdminOptionRequestTimeout) supportsAlterConsumerGroupOffsets() {
 }
-
+func (ao AdminOptionRequestTimeout) supportsDescribeUserScramCredentials() {
+}
+func (ao AdminOptionRequestTimeout) supportsAlterUserScramCredentials() {
+}
 func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
 		return nil
@@ -412,6 +415,16 @@ type ListConsumerGroupOffsetsAdminOption interface {
 // See SetAdminRequestTimeout.
 type AlterConsumerGroupOffsetsAdminOption interface {
 	supportsAlterConsumerGroupOffsets()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+type DescribeUserScramCredentialsAdminOption interface {
+	supportsDescribeUserScramCredentials()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+type AlterUserScramCredentialsAdminOption interface {
+	supportsAlterUserScramCredentials()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
