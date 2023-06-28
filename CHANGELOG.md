@@ -10,6 +10,9 @@ This is a feature release.
  * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
    an unchecked error (#997, @baganokodo2022).
  * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+ * Allow fetching all partition offsets for a consumer group by passing a
+   `nil` slice in `AdminClient.ListConsumerGroupOffsets`, when earlier it
+   was not processing that correctly (#985, @alexandredantas).
  * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
 
 confluent-kafka-go is based on librdkafka v2.2.0, see the
