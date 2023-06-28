@@ -681,7 +681,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 		return
 	}
 
-	if *msg.TopicPartition.LeaderEpoch == 0 {
+	if *msg.TopicPartition.LeaderEpoch != 0 {
 		t.Errorf("Expected leader epoch of read message is %d, got %d",
 			0, *msg.TopicPartition.LeaderEpoch)
 	}
