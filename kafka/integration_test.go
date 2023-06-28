@@ -1727,7 +1727,11 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 	for i := 0; i < numTopics; i++ {
 		for j := 0; j < topicSpec[i].NumPartitions; j++ {
 			_, err = consumer.CommitOffsets([]TopicPartition{
-				{Topic: &topics[i], Partition: int32(j), Offset: Offset((i + 1) * (j + 1))},
+				{
+					Topic:     &topics[i],
+					Partition: int32(j),
+					Offset:    Offset((i * topicSpec[i].NumPartitions) + j),
+				},
 			})
 			if err != nil {
 				t.Fatalf("Could not commit for %s:%d: %s\n", topics[i], j, err)
@@ -1751,36 +1755,31 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 		t.Fatal("Consumer group offsets is empty")
 	}
 
-	totalPartitions := ((numTopics + 1) * numTopics) / 2
 	toppars := offsets.ConsumerGroupsTopicPartitions[0].Partitions
-	if len(toppars) != totalPartitions {
-		t.Fatalf("Expected %d partitions, got %d\n", totalPartitions, len(toppars))
-	}
 
 	// Use linear search - okay for small numTopics. Since the returned list
 	// is not ordered in any particular way.
+	matchedToppars := 0
 	for i := 0; i < numTopics; i++ {
-		for j := 0; j < topicSpec[i].NumPartitions; j++ {
-			expectedOffset := Offset((i + 1) * (j + 1))
-			var k int
-			for k = 0; k < len(toppars); k++ {
-				matched :=
-					topics[i] == *toppars[k].Topic && j == int(toppars[k].Partition)
-
-				if matched && toppars[k].Offset != expectedOffset {
-					t.Fatalf("Expected offset %d for %s:%d, got %d\n",
-						expectedOffset, topics[i], j, toppars[k].Offset)
-				}
-
-				if matched {
-					break
-				}
+		for k := 0; k < len(toppars); k++ {
+			if topics[i] != *toppars[k].Topic {
+				continue
 			}
+			matchedToppars += 1
+			partition := int(toppars[k].Partition)
+			expectedOffset := i*topicSpec[i].NumPartitions + partition
 
-			if k == len(toppars) {
-				t.Fatalf("Did not find expected %s:%d in result", topics[i], j)
+			if toppars[k].Offset != Offset(expectedOffset) {
+				t.Fatalf("Expected offset %d for %s:%d, got %d\n",
+					expectedOffset, topics[i], partition, toppars[k].Offset)
 			}
 		}
+	}
+
+	totalPartitions := ((numTopics + 1) * numTopics) / 2
+	if matchedToppars != totalPartitions {
+		t.Fatalf("Expected to match %d total topic partitions, matched %d\n",
+			totalPartitions, matchedToppars)
 	}
 }
 
