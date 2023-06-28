@@ -92,6 +92,20 @@ ConsumerGroupDescription_by_idx(const rd_kafka_ConsumerGroupDescription_t **resu
 	return result_groups[idx];
 }
 
+static const rd_kafka_UserScramCredentialsDescription_t *
+DescribeUserScramCredentials_result_description_by_idx(const rd_kafka_UserScramCredentialsDescription_t **descriptions, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return descriptions[idx];
+}
+
+static const rd_kafka_AlterUserScramCredentials_result_response_t*
+AlterUserScramCredentials_result_response_by_idx(const rd_kafka_AlterUserScramCredentials_result_response_t **responses, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return responses[idx];
+}
+
 static const rd_kafka_error_t *
 error_by_idx(const rd_kafka_error_t **errors, size_t cnt, size_t idx) {
 	if (idx >= cnt)
@@ -2349,9 +2363,9 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 type ScramMechanism int
 
 const (
-	Scram_Unknown = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
-	Scram_SHA_256 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
-	Scram_SHA_512 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
+	ScramMechanismUnknown = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
+	ScramMechanismSHA256  = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
+	ScramMechanismSHA512  = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
 )
 
 type ScramCredentialInfo struct {
@@ -2359,9 +2373,9 @@ type ScramCredentialInfo struct {
 	Mechanism  ScramMechanism
 }
 type UserScramCredentialsDescription struct {
-	User                   string
-	Scram_Credential_Infos []ScramCredentialInfo
-	Err                    Error
+	User                 string
+	ScramCredentialInfos []ScramCredentialInfo
+	Error                Error
 }
 
 func (a *AdminClient) DescribeUserScramCredentials(
@@ -2405,15 +2419,13 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	defer C.rd_kafka_queue_destroy(cQueue)
 
 	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
-	api_error := C.rd_kafka_DescribeUserScramCredentials(
+	C.rd_kafka_DescribeUserScramCredentials(
 		a.handle.rk,
 		cUserListPtr,
 		cUserCount,
 		cOptions,
 		cQueue)
-	if api_error != 0 {
-		return result, newError(api_error)
-	}
+
 	// Wait for result, error or context timeout.
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT)
@@ -2426,34 +2438,35 @@ func (a *AdminClient) DescribeUserScramCredentials(
 
 	// Convert result from C to Go.
 	var cDescriptionCount C.size_t
-	cDescriptionCount = C.rd_kafka_DescribeUserScramCredentials_result_get_count(cRes)
+	var cDescriptions **C.rd_kafka_UserScramCredentialsDescription_t
+	cDescriptions = C.rd_kafka_DescribeUserScramCredentials_result_descriptions(cRes, &cDescriptionCount)
 	for i := 0; i < int(cDescriptionCount); i++ {
 		var cDescription *C.rd_kafka_UserScramCredentialsDescription_t
 		var cError *C.rd_kafka_error_t
-		cDescription = C.rd_kafka_DescribeUserScramCredentials_result_get_description(cRes, C.size_t(i))
-		goUser := C.GoString(C.rd_kafka_UserScramCredentialsDescription_get_user(cDescription))
+		cDescription = C.DescribeUserScramCredentials_result_description_by_idx(cDescriptions, cDescriptionCount, C.size_t(i))
+		goUser := C.GoString(C.rd_kafka_UserScramCredentialsDescription_user(cDescription))
 		goUserDescription := UserScramCredentialsDescription{User: goUser}
 		// If Errored Populate the Error
-		cError = C.rd_kafka_UserScramCredentialsDescription_get_error(cDescription)
+		cError = C.rd_kafka_UserScramCredentialsDescription_error(cDescription)
 
 		if C.rd_kafka_error_code(cError) != 0 {
 			// populate the error
-			goUserDescription.Err = newError(C.rd_kafka_error_code(cError))
+			goUserDescription.Error = newError(C.rd_kafka_error_code(cError))
 		} else {
 			var cCredentialCount C.size_t
-			cCredentialCount = C.rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo_cnt(cDescription)
-			var scram_credential_infos []ScramCredentialInfo
+			cCredentialCount = C.rd_kafka_UserScramCredentialsDescription_scramcredentialinfo_count(cDescription)
+			var scramCredentialInfos []ScramCredentialInfo
 			for j := 0; j < int(cCredentialCount); j++ {
-				var scram_credential_info *C.rd_kafka_ScramCredentialInfo_t
-				scram_credential_info = C.rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo(cDescription, C.size_t(j))
+				var scramCredentialInfo *C.rd_kafka_ScramCredentialInfo_t
+				scramCredentialInfo = C.rd_kafka_UserScramCredentialsDescription_scramcredentialinfo(cDescription, C.size_t(j))
 				var cmechanism C.rd_kafka_ScramMechanism_t
 				var citerations int
-				cmechanism = C.rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info)
-				citerations = int(C.rd_kafka_ScramCredentialInfo_get_iterations(scram_credential_info))
+				cmechanism = C.rd_kafka_ScramCredentialInfo_mechanism(scramCredentialInfo)
+				citerations = int(C.rd_kafka_ScramCredentialInfo_iterations(scramCredentialInfo))
 				cred := ScramCredentialInfo{Mechanism: ScramMechanism(cmechanism), Iterations: int(citerations)}
-				scram_credential_infos = append(scram_credential_infos, cred)
+				scramCredentialInfos = append(scramCredentialInfos, cred)
 			}
-			goUserDescription.Scram_Credential_Infos = scram_credential_infos
+			goUserDescription.ScramCredentialInfos = scramCredentialInfos
 		}
 		result[goUser] = goUserDescription
 	}
@@ -2465,10 +2478,10 @@ type UserScramCredentialDeletion struct {
 	Mechanism ScramMechanism
 }
 type UserScramCredentialUpsertion struct {
-	User                  string
-	Salt                  string
-	Password              string
-	Scram_Credential_Info ScramCredentialInfo
+	User                string
+	Salt                []byte
+	Password            []byte
+	ScramCredentialInfo ScramCredentialInfo
 }
 
 func (a *AdminClient) AlterUserScramCredentials(
@@ -2486,7 +2499,11 @@ func (a *AdminClient) AlterUserScramCredentials(
 	idx := 0
 
 	for itr := 0; itr < len(upsertions); itr++ {
-		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(C.CString(upsertions[itr].User), C.CString(upsertions[itr].Salt), C.CString(upsertions[itr].Password), C.rd_kafka_ScramMechanism_t(upsertions[itr].Scram_Credential_Info.Mechanism), C.int(upsertions[itr].Scram_Credential_Info.Iterations))
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(C.CString(upsertions[itr].User),
+			(*C.uchar)(&upsertions[itr].Salt[0]), C.size_t(len(upsertions[itr].Salt)),
+			(*C.uchar)(&upsertions[itr].Password[0]), C.size_t(len(upsertions[itr].Password)),
+			C.rd_kafka_ScramMechanism_t(upsertions[itr].ScramCredentialInfo.Mechanism),
+			C.int(upsertions[itr].ScramCredentialInfo.Iterations))
 		defer C.free(unsafe.Pointer(cAlterationList[idx]))
 		idx = idx + 1
 	}
@@ -2517,16 +2534,14 @@ func (a *AdminClient) AlterUserScramCredentials(
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
 	defer C.rd_kafka_queue_destroy(cQueue)
 
-	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
-	api_error := C.rd_kafka_AlterUserScramCredentials(
+	// Call rd_kafka_AlterUserScramCredentials (asynchronous).
+	C.rd_kafka_AlterUserScramCredentials(
 		a.handle.rk,
 		cAlterationListPtr,
 		cAlterationCount,
 		cOptions,
 		cQueue)
-	if api_error != 0 {
-		return result, newError(api_error)
-	}
+
 	// Wait for result, error or context timeout.
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT)
@@ -2538,15 +2553,14 @@ func (a *AdminClient) AlterUserScramCredentials(
 	cRes := C.rd_kafka_event_AlterUserScramCredentials_result(rkev)
 
 	// Convert result from C to Go.
-	var cUserCount C.size_t
-	cUserCount = C.rd_kafka_AlterUserScramCredentials_result_get_count(cRes)
-	for i := 0; i < int(cUserCount); i++ {
-		var cUserResult *C.rd_kafka_UserScramCredentialAlterationResultElement_t
-
-		cUserResult = C.rd_kafka_AlterUserScramCredentials_result_get_element(cRes, C.size_t(i))
-		goUser := C.GoString(C.rd_kafka_UserScramCredentialAlterationResultElement_get_user(cUserResult))
-
-		goerr := newError(C.rd_kafka_error_code(C.rd_kafka_UserScramCredentialAlterationResultElement_get_error(cUserResult)))
+	var cResponses **C.rd_kafka_AlterUserScramCredentials_result_response_t
+	var cResponseSize C.size_t
+	cResponses = C.rd_kafka_AlterUserScramCredentials_result_responses(cRes, &cResponseSize)
+	for i := 0; i < int(cResponseSize); i++ {
+		var cResponse *C.rd_kafka_AlterUserScramCredentials_result_response_t
+		cResponse = C.AlterUserScramCredentials_result_response_by_idx(cResponses, cResponseSize, C.size_t(i))
+		goUser := C.GoString(C.rd_kafka_AlterUserScramCredentials_result_response_user(cResponse))
+		goerr := newError(C.rd_kafka_error_code(C.rd_kafka_AlterUserScramCredentials_result_response_error(cResponse)))
 		result[goUser] = goerr
 	}
 	return result, nil

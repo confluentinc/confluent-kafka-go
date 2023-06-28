@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,11 +37,11 @@ func main() {
 	// 		os.Args[0])
 	// 	os.Exit(1)
 	// }
-	mechanismstring := make(map[kafka.ScramMechanism]string)
+	mechanismString := make(map[kafka.ScramMechanism]string)
 
-	mechanismstring[kafka.Scram_SHA_256] = "SCRAM-SHA-256"
-	mechanismstring[kafka.Scram_SHA_512] = "SCRAM-SHA-512"
-	mechanismstring[kafka.Scram_Unknown] = "UNKWOWN"
+	mechanismString[kafka.ScramMechanismSHA256] = "SCRAM-SHA-256"
+	mechanismString[kafka.ScramMechanismSHA512] = "SCRAM-SHA-512"
+	mechanismString[kafka.ScramMechanismUnknown] = "UNKNOWN"
 
 	bootstrapServers := "localhost:9092"
 	sigchan := make(chan os.Signal, 1)
@@ -69,17 +69,17 @@ func main() {
 	} else {
 		for username, description := range Describeres {
 			fmt.Printf("Username : %s \n", username)
-			if description.Err.Code() == 0 {
-				for i := 0; i < len(description.Scram_Credential_Infos); i++ {
-					fmt.Printf("	Mechansim : %s Iterations : %d\n", mechanismstring[description.Scram_Credential_Infos[i].Mechanism], description.Scram_Credential_Infos[i].Iterations)
+			if description.Error.Code() == 0 {
+				for i := 0; i < len(description.ScramCredentialInfos); i++ {
+					fmt.Printf("	Mechanism : %s Iterations : %d\n", mechanismString[description.ScramCredentialInfos[i].Mechanism], description.ScramCredentialInfos[i].Iterations)
 				}
 			} else {
-				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
+				fmt.Printf("	Error[%d] : %s\n", description.Error.Code(), description.Error.String())
 			}
 		}
 	}
 	var upsertions []kafka.UserScramCredentialUpsertion
-	upsertions = append(upsertions, kafka.UserScramCredentialUpsertion{User: "non-existent", Salt: "salt", Password: "password", Scram_Credential_Info: kafka.ScramCredentialInfo{Mechanism: kafka.Scram_SHA_256, Iterations: 10000}})
+	upsertions = append(upsertions, kafka.UserScramCredentialUpsertion{User: "non-existent", Salt: []byte("salt"), Password: []byte("password"), ScramCredentialInfo: kafka.ScramCredentialInfo{Mechanism: kafka.ScramMechanismSHA256, Iterations: 10000}})
 	Alterres, Altererr := ac.AlterUserScramCredentials(ctx, upsertions, nil)
 	if Altererr != nil {
 		fmt.Printf("Failed to Alter the User Scram Credentials: %s\n", Altererr)
@@ -103,18 +103,18 @@ func main() {
 	} else {
 		for username, description := range Describeres {
 			fmt.Printf("Username : %s \n", username)
-			if description.Err.Code() == 0 {
-				for i := 0; i < len(description.Scram_Credential_Infos); i++ {
-					fmt.Printf("	Mechansim : %s Iterations : %d\n", mechanismstring[description.Scram_Credential_Infos[i].Mechanism], description.Scram_Credential_Infos[i].Iterations)
+			if description.Error.Code() == 0 {
+				for i := 0; i < len(description.ScramCredentialInfos); i++ {
+					fmt.Printf("	Mechanism : %s Iterations : %d\n", mechanismString[description.ScramCredentialInfos[i].Mechanism], description.ScramCredentialInfos[i].Iterations)
 				}
 			} else {
-				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
+				fmt.Printf("	Error[%d] : %s\n", description.Error.Code(), description.Error.String())
 			}
 
 		}
 	}
 	var deletions []kafka.UserScramCredentialDeletion
-	deletions = append(deletions, kafka.UserScramCredentialDeletion{User: "non-existent", Mechanism: kafka.Scram_SHA_256})
+	deletions = append(deletions, kafka.UserScramCredentialDeletion{User: "non-existent", Mechanism: kafka.ScramMechanismSHA256})
 
 	Alterres, Altererr = ac.AlterUserScramCredentials(ctx, nil, deletions)
 	if Altererr != nil {
@@ -139,12 +139,12 @@ func main() {
 	} else {
 		for username, description := range Describeres {
 			fmt.Printf("Username : %s \n", username)
-			if description.Err.Code() == 0 {
-				for i := 0; i < len(description.Scram_Credential_Infos); i++ {
-					fmt.Printf("	Mechansim : %s Iterations : %d\n", mechanismstring[description.Scram_Credential_Infos[i].Mechanism], description.Scram_Credential_Infos[i].Iterations)
+			if description.Error.Code() == 0 {
+				for i := 0; i < len(description.ScramCredentialInfos); i++ {
+					fmt.Printf("	Mechanism : %s Iterations : %d\n", mechanismString[description.ScramCredentialInfos[i].Mechanism], description.ScramCredentialInfos[i].Iterations)
 				}
 			} else {
-				fmt.Printf("	Error[%d] : %s\n", description.Err.Code(), description.Err.String())
+				fmt.Printf("	Error[%d] : %s\n", description.Error.Code(), description.Error.String())
 			}
 		}
 	}
