@@ -281,7 +281,7 @@ type TopicPartition struct {
 	Offset      Offset
 	Metadata    *string
 	Error       error
-	LeaderEpoch *int32
+	LeaderEpoch *int32 // LeaderEpoch or nil if not available
 }
 
 func (p TopicPartition) String() string {

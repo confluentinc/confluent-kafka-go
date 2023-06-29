@@ -2177,7 +2177,8 @@ func (a *AdminClient) DeleteConsumerGroups(
 //   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //   - `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of which
 //     has the id of a consumer group, and a slice of the TopicPartitions we
-//     need to fetch the offsets for.
+//     need to fetch the offsets for. The slice of TopicPartitions can be nil, to fetch
+//     all topic partitions for that group.
 //     Currently, the size of `groupsPartitions` has to be exactly one.
 //   - `options` - ListConsumerGroupOffsetsAdminOption options.
 //
@@ -2211,8 +2212,12 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	for i, groupPartitions := range groupsPartitions {
 		// We need to destroy this list because rd_kafka_ListConsumerGroupOffsets_new
 		// creates a copy of it.
-		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
-		defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+		var cPartitions *C.rd_kafka_topic_partition_list_t = nil
+
+		if groupPartitions.Partitions != nil {
+			cPartitions = newCPartsFromTopicPartitions(groupPartitions.Partitions)
+			defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+		}
 
 		cGroupID := C.CString(groupPartitions.Group)
 		defer C.free(unsafe.Pointer(cGroupID))
