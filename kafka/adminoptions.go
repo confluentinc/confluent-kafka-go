@@ -418,11 +418,17 @@ type AlterConsumerGroupOffsetsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
+// DescribeUserScramCredentialsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout.
 type DescribeUserScramCredentialsAdminOption interface {
 	supportsDescribeUserScramCredentials()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
+// AlterUserScramCredentialsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout.
 type AlterUserScramCredentialsAdminOption interface {
 	supportsAlterUserScramCredentials()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error

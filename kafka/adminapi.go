@@ -2360,24 +2360,52 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	return acgor, nil
 }
 
+// ScramMechanism enumerates SASL/SCRAM mechanisms.
+// Used by `AdminClient.AlterUserScramCredentials` and `AdminClient.DescribeUserScramCredentials`.
 type ScramMechanism int
 
 const (
+	// ScramMechanismUnknown - Unknown SASL/SCRAM mechanism
 	ScramMechanismUnknown = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
-	ScramMechanismSHA256  = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
-	ScramMechanismSHA512  = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
+	// ScramMechanismSHA256 - SCRAM-SHA-256 mechanism
+	ScramMechanismSHA256 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
+	// ScramMechanismSHA512 - SCRAM-SHA-512 mechanism
+	ScramMechanismSHA512 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
 )
 
+// ScramCredentialInfo contains Mechanism and Iterations for a
+// SASL/SCRAM credential associated with a user.
 type ScramCredentialInfo struct {
+	// Iterations - positive number of iterations used when creating the credential
 	Iterations int
-	Mechanism  ScramMechanism
-}
-type UserScramCredentialsDescription struct {
-	User                 string
-	ScramCredentialInfos []ScramCredentialInfo
-	Error                Error
+	// Mechanism - SASL/SCRAM mechanism
+	Mechanism ScramMechanism
 }
 
+// UserScramCredentialsDescription represent all SASL/SCRAM credentials
+// associated with a user that can be retrieved, or an error indicating
+// why credentials could not be retrieved.
+type UserScramCredentialsDescription struct {
+	// User - the user name.
+	User string
+	// ScramCredentialInfos - SASL/SCRAM credential representations for the user.
+	ScramCredentialInfos []ScramCredentialInfo
+	// Error - error corresponding to this user description.
+	Error Error
+}
+
+// DescribeUserScramCredentials describe SASL/SCRAM credentials for the
+// specified user names.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `users` - a slice of string, each one correspond to a user name, no
+//      duplicates are allowed
+//   - `options` - DescribeUserScramCredentialsAdminOption options.
+//
+// Returns a map from user name to user SCRAM credentials description.
+// Each description can have an individual error.
 func (a *AdminClient) DescribeUserScramCredentials(
 	ctx context.Context, users []string,
 	options ...DescribeUserScramCredentialsAdminOption) (result map[string]UserScramCredentialsDescription, err error) {
@@ -2473,17 +2501,40 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	return result, nil
 }
 
+// UserScramCredentialDeletion is a request to delete
+// a SASL/SCRAM credential for a user.
 type UserScramCredentialDeletion struct {
-	User      string
+	// User - user name
+	User string
+	// Mechanism - SASL/SCRAM mechanism.
 	Mechanism ScramMechanism
 }
+
+// UserScramCredentialUpsertion is a request to update/insert
+// a SASL/SCRAM credential for a user.
 type UserScramCredentialUpsertion struct {
-	User                string
-	Salt                []byte
-	Password            []byte
+	// User - user name
+	User string
+	// User - salt to use. Will be generated randomly if nil. (optional)
+	Salt []byte
+	// Password - password to HMAC before storage.
+	Password []byte
+	// ScramCredentialInfo - the mechanism and iterations.
 	ScramCredentialInfo ScramCredentialInfo
 }
 
+// AlterUserScramCredentials alters SASL/SCRAM credentials.
+// The pair (user, mechanism) must be unique among upsertions and deletions.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `upsertions` - a slice of user credential upsertions
+//   - `deletions` - a slice of user credential deletions
+//   - `options` - AlterUserScramCredentialsAdminOption options.
+//
+// Returns a map from user name to the corresponding Error, with error code
+// ErrNoError when the request succeeded.
 func (a *AdminClient) AlterUserScramCredentials(
 	ctx context.Context, upsertions []UserScramCredentialUpsertion, deletions []UserScramCredentialDeletion,
 	options ...AlterUserScramCredentialsAdminOption) (result map[string]Error, err error) {
