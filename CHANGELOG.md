@@ -10,6 +10,8 @@ This is a feature release.
  * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
    an unchecked error (#997, @baganokodo2022).
  * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+ * [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1004).
 
 
 ## v2.1.1
