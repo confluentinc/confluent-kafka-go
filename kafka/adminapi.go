@@ -2499,18 +2499,28 @@ func (a *AdminClient) AlterUserScramCredentials(
 	idx := 0
 
 	for itr := 0; itr < len(upsertions); itr++ {
-		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(C.CString(upsertions[itr].User),
-			(*C.uchar)(&upsertions[itr].Salt[0]), C.size_t(len(upsertions[itr].Salt)),
+		user := C.CString(upsertions[itr].User)
+		var salt *C.uchar = nil
+		var saltSize C.size_t = 0
+		if upsertions[itr].Salt != nil {
+			salt = (*C.uchar)(&upsertions[itr].Salt[0])
+			saltSize = C.size_t(len(upsertions[itr].Salt))
+		}
+		defer C.free(unsafe.Pointer(user))
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(user,
+			salt, saltSize,
 			(*C.uchar)(&upsertions[itr].Password[0]), C.size_t(len(upsertions[itr].Password)),
 			C.rd_kafka_ScramMechanism_t(upsertions[itr].ScramCredentialInfo.Mechanism),
 			C.int(upsertions[itr].ScramCredentialInfo.Iterations))
-		defer C.free(unsafe.Pointer(cAlterationList[idx]))
+		defer C.rd_kafka_UserScramCredentialAlteration_destroy(cAlterationList[idx])
 		idx = idx + 1
 	}
 
 	for itr := 0; itr < len(deletions); itr++ {
-		cAlterationList[idx] = C.rd_kafka_UserScramCredentialDeletion_new(C.CString(deletions[itr].User), C.rd_kafka_ScramMechanism_t(deletions[itr].Mechanism)) // problem the end point expects rd_kafka_ScramMechanism , will it type cast itself
-		defer C.free(unsafe.Pointer(cAlterationList[idx]))
+		user := C.CString(deletions[itr].User)
+		defer C.free(unsafe.Pointer(user))
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialDeletion_new(user, C.rd_kafka_ScramMechanism_t(deletions[itr].Mechanism))
+		defer C.rd_kafka_UserScramCredentialAlteration_destroy(cAlterationList[idx])
 		idx = idx + 1
 	}
 	var cAlterationListPtr **C.rd_kafka_UserScramCredentialAlteration_t
