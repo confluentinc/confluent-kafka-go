@@ -595,6 +595,37 @@ func testAdminAPIsAlterConsumerGroupOffsets(
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 }
+func testAdminAPIsUserScramCredentials(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	var users []string
+	users = append(users, "non-existent")
+	users = append(users, "non-existent")
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	_, describeErr := a.DescribeUserScramCredentials(ctx, users)
+	if describeErr == nil {
+		t.Fatalf("Duplicate user should give an error\n")
+	}
+
+	var upsertions []UserScramCredentialUpsertion
+	upsertions = append(upsertions, UserScramCredentialUpsertion{User: "non-existent", Salt: []byte("salt"), Password: []byte("password"), ScramCredentialInfo: ScramCredentialInfo{Mechanism: ScramMechanismSHA256, Iterations: 10000}})
+	var deletions []UserScramCredentialDeletion
+	deletions = append(deletions, UserScramCredentialDeletion{User: "non-existent", Mechanism: ScramMechanismSHA256})
+	_, alterErr := a.AlterUserScramCredentials(ctx, upsertions, deletions)
+	if alterErr == nil {
+		t.Fatalf("Expected context deadline exceeded, got not error\n")
+	}
+
+	_, alterErr = a.AlterUserScramCredentials(ctx, upsertions, nil)
+	if alterErr == nil {
+		t.Fatalf("Expected context deadline exceeded, got not error\n")
+	}
+
+	_, alterErr = a.AlterUserScramCredentials(ctx, nil, deletions)
+	if alterErr == nil {
+		t.Fatalf("Expected context deadline exceeded, got not error\n")
+	}
+}
 
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
@@ -832,6 +863,8 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)
 	testAdminAPIsAlterConsumerGroupOffsets(what, a, expDuration, t)
+
+	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
