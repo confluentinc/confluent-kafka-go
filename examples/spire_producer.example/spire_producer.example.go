@@ -78,11 +78,15 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 		return kafka.OAuthBearerToken{}, nil, fmt.Errorf("unable to fetch JWT SVID: %w", err)
 	}
 
+	extensions := map[string]string{
+		"logicalCluster": "lkc-r6gdo0",
+		"identityPoolId": "pool-W9j5",
+	}
 	oauthBearerToken := kafka.OAuthBearerToken{
 		TokenValue: jwtSVID.Marshal(),
 		Expiration: jwtSVID.Expiry,
 		Principal:  principal,
-		Extensions: map[string]string{},
+		Extensions: extensions,
 	}
 
 	return oauthBearerToken, jwtSource.Close, nil
@@ -105,7 +109,7 @@ func main() {
 	// match your environment.
 	config := kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
-		"security.protocol":       "SASL_PLAINTEXT",
+		"security.protocol":       "SASL_SSL",
 		"sasl.mechanisms":         "OAUTHBEARER",
 		"sasl.oauthbearer.config": principal,
 	}
