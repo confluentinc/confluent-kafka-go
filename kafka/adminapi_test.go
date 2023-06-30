@@ -597,33 +597,70 @@ func testAdminAPIsAlterConsumerGroupOffsets(
 }
 func testAdminAPIsUserScramCredentials(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
 	var users []string
-	users = append(users, "non-existent")
-	users = append(users, "non-existent")
+
+	// With nil users
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-
 	_, describeErr := a.DescribeUserScramCredentials(ctx, users)
-	if describeErr == nil {
-		t.Fatalf("Duplicate user should give an error\n")
+	if describeErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			describeErr, ctx.Err())
+	}
+
+	// With one user
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	users = append(users, "non-existent")
+	_, describeErr = a.DescribeUserScramCredentials(ctx, users)
+	if describeErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			describeErr, ctx.Err())
+	}
+
+	// With duplicate users
+	users = append(users, "non-existent")
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	users = append(users, "non-existent")
+	_, describeErr = a.DescribeUserScramCredentials(ctx, users)
+	if describeErr == nil || describeErr.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Duplicate user should give an InvalidArgument error, got %s\n", describeErr)
 	}
 
 	var upsertions []UserScramCredentialUpsertion
-	upsertions = append(upsertions, UserScramCredentialUpsertion{User: "non-existent", Salt: []byte("salt"), Password: []byte("password"), ScramCredentialInfo: ScramCredentialInfo{Mechanism: ScramMechanismSHA256, Iterations: 10000}})
+	upsertions = append(upsertions,
+		UserScramCredentialUpsertion{
+			User:     "non-existent",
+			Salt:     []byte("salt"),
+			Password: []byte("password"),
+			ScramCredentialInfo: ScramCredentialInfo{
+				Mechanism: ScramMechanismSHA256, Iterations: 10000}})
 	var deletions []UserScramCredentialDeletion
-	deletions = append(deletions, UserScramCredentialDeletion{User: "non-existent", Mechanism: ScramMechanismSHA256})
+	deletions = append(deletions, UserScramCredentialDeletion{
+		User: "non-existent", Mechanism: ScramMechanismSHA256})
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	_, alterErr := a.AlterUserScramCredentials(ctx, upsertions, deletions)
-	if alterErr == nil {
-		t.Fatalf("Expected context deadline exceeded, got not error\n")
+	if alterErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			alterErr, ctx.Err())
 	}
 
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	_, alterErr = a.AlterUserScramCredentials(ctx, upsertions, nil)
-	if alterErr == nil {
-		t.Fatalf("Expected context deadline exceeded, got not error\n")
+	if alterErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			alterErr, ctx.Err())
 	}
 
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	_, alterErr = a.AlterUserScramCredentials(ctx, nil, deletions)
-	if alterErr == nil {
-		t.Fatalf("Expected context deadline exceeded, got not error\n")
+	if alterErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			alterErr, ctx.Err())
 	}
 }
 

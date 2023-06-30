@@ -2519,7 +2519,11 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 }
 
-func (its *IntegrationTestSuite) TestUserScramCredentialsAPI() {
+// TestUserScramTestAdminClient_UserScramCredentialsCredentialsAPI describes
+// the SCRAM credentials for a user, upserts some credentials, describes them
+// again to check insertion, deletes them, and finally describes them once again
+// to check deletion.
+func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	t := its.T()
 	ac, err := NewAdminClient(&ConfigMap{
 		"bootstrap.servers": testconf.Brokers,
@@ -2529,76 +2533,121 @@ func (its *IntegrationTestSuite) TestUserScramCredentialsAPI() {
 	}
 	defer ac.Close()
 
-	var users []string
-	users = append(users, "non-existent")
+	users := []string{"non-existent"}
+
+	// Call DescribeUserScramCredentials
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-
 	describeRes, describeErr := ac.DescribeUserScramCredentials(ctx, users)
 	if describeErr != nil {
 		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
-	} else {
-		for _, description := range describeRes {
-			if description.Error.Code() != ErrResourceNotFound {
-				t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
-			}
-		}
 	}
-	var upsertions []UserScramCredentialUpsertion
-	upsertions = append(upsertions, UserScramCredentialUpsertion{User: "non-existent", Salt: []byte("salt"), Password: []byte("password"), ScramCredentialInfo: ScramCredentialInfo{Mechanism: ScramMechanismSHA256, Iterations: 10000}})
+
+	// Check Describe result
+	if len(describeRes) != 1 {
+		t.Fatalf("Expected 1 user in Describe Result, got %d\n", len(describeRes))
+	}
+	description, ok := describeRes[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+
+	if description.Error.Code() != ErrResourceNotFound {
+		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
+	}
+
+	// Call AlterUserScramCredentials for Upsert
+	upsertions := []UserScramCredentialUpsertion{
+		{
+			User:     "non-existent",
+			Salt:     []byte("salt"),
+			Password: []byte("password"),
+			ScramCredentialInfo: ScramCredentialInfo{
+				Mechanism: ScramMechanismSHA256, Iterations: 10000},
+		}}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 	alterRes, alterErr := ac.AlterUserScramCredentials(ctx, upsertions, nil)
+
+	// Check Upsert result
 	if alterErr != nil {
 		t.Fatalf("Failed to Alter the User Scram Credentials: %s\n", alterErr)
-	} else {
-		for _, err := range alterRes {
-			if err.Code() != ErrNoError {
-				t.Fatalf("Error code should be ErrNoError instead it is %d", err.Code())
-			}
-		}
 	}
-	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
-	if describeErr != nil {
-		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
-	} else {
-		for _, description := range describeRes {
-			if description.Error.Code() != ErrNoError {
-				t.Fatalf("Error code should be ErrNoError instead it is %d", description.Error.Code())
-			}
-			if description.ScramCredentialInfos[0].Iterations != 10000 {
-				t.Fatalf("Iterations field doesn't match the upserted value. Expected 10000, got %d",
-					description.ScramCredentialInfos[0].Iterations)
-			}
-			if description.ScramCredentialInfos[0].Mechanism != ScramMechanismSHA256 {
-				t.Fatalf("Mechanism field doesn't match the upserted value. Expected %d, got %d",
-					ScramMechanismSHA256, description.ScramCredentialInfos[0].Mechanism)
-			}
-		}
+	if len(alterRes) != 1 {
+		t.Fatalf("Expected 1 user in Alter Result, got %d\n", len(alterRes))
+	}
+	kErr, ok := alterRes[upsertions[0].User]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if kErr.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %d", kErr.Code())
 	}
 
-	var deletions []UserScramCredentialDeletion
-	deletions = append(deletions, UserScramCredentialDeletion{User: "non-existent", Mechanism: ScramMechanismSHA256})
+	// Call DescribeUserScramCredentials to verify upsert
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
+
+	// Check Describe result
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+	description, ok = describeRes[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if description.Error.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %s", description.Error.Code())
+	}
+	if description.ScramCredentialInfos[0].Iterations != 10000 {
+		t.Fatalf("Iterations field doesn't match the upserted value. Expected 10000, got %d",
+			description.ScramCredentialInfos[0].Iterations)
+	}
+	if description.ScramCredentialInfos[0].Mechanism != ScramMechanismSHA256 {
+		t.Fatalf("Mechanism field doesn't match the upserted value. Expected %s, got %s",
+			ScramMechanismSHA256, description.ScramCredentialInfos[0].Mechanism)
+	}
+
+	// Call AlterUserScramCredentials for Delete
+	deletions := []UserScramCredentialDeletion{
+		{User: "non-existent", Mechanism: ScramMechanismSHA256}}
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 	alterRes, alterErr = ac.AlterUserScramCredentials(ctx, nil, deletions)
+
+	// Check Delete result
 	if alterErr != nil {
 		t.Fatalf("Failed to alter user scram credentials: %s\n", alterErr)
-	} else {
-		for _, err := range alterRes {
-			if err.Code() != ErrNoError {
-				t.Fatalf("Error code should be ErrNoError instead it is %d", err.Code())
-			}
-		}
+	}
+	kErr, ok = alterRes[upsertions[0].User]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if kErr.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %d", kErr.Code())
 	}
 
+	// Call DescribeUserScramCredentials to verify delete
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
+
+	// Check Describe result
 	if describeErr != nil {
 		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
-	} else {
-		for _, description := range describeRes {
-			if description.Error.Code() != ErrResourceNotFound {
-				t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error)
-			}
-		}
+	}
+	description, ok = describeRes[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+
+	if description.Error.Code() != ErrResourceNotFound {
+		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
 	}
 }
+
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()

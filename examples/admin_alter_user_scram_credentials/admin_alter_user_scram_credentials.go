@@ -42,7 +42,6 @@ func usage(reason string) {
 }
 
 func main() {
-
 	// 2 + variable arguments
 	nArgs := len(os.Args)
 
@@ -50,13 +49,9 @@ func main() {
 		usage("bootstrap-servers required")
 	}
 
-	mechanismString := make(map[kafka.ScramMechanism]string)
-	mechanismString[kafka.ScramMechanismSHA256] = "SCRAM-SHA-256"
-	mechanismString[kafka.ScramMechanismSHA512] = "SCRAM-SHA-512"
-	mechanismString[kafka.ScramMechanismUnknown] = "UNKNOWN"
-	stringMechanism := make(map[string]kafka.ScramMechanism)
-	stringMechanism["SCRAM-SHA-256"] = kafka.ScramMechanismSHA256
-	stringMechanism["SCRAM-SHA-512"] = kafka.ScramMechanismSHA512
+	if nArgs == 2 {
+		usage("at least one upsert/delete required")
+	}
 
 	bootstrapServers := os.Args[1]
 
@@ -88,7 +83,10 @@ func main() {
 			}
 
 			user := os.Args[i+1]
-			mechanism := stringMechanism[os.Args[i+2]]
+			mechanism, err := kafka.ScramMechanismFromString(os.Args[i+2])
+			if err != nil {
+				usage(err.Error())
+			}
 			iterations, err := strconv.Atoi(os.Args[i+3])
 			if err != nil {
 				usage(err.Error())
@@ -117,7 +115,10 @@ func main() {
 			}
 
 			user := os.Args[i+1]
-			mechanism := stringMechanism[os.Args[i+2]]
+			mechanism, err := kafka.ScramMechanismFromString(os.Args[i+2])
+			if err != nil {
+				usage(err.Error())
+			}
 			deletions = append(deletions,
 				kafka.UserScramCredentialDeletion{
 					User:      user,
@@ -134,14 +135,15 @@ func main() {
 	if alterErr != nil {
 		fmt.Printf("Failed to alter user scram credentials: %s\n", alterErr)
 		os.Exit(1)
-	} else {
-		for username, err := range alterRes {
-			fmt.Printf("Username: %s\n", username)
-			if err.Code() == 0 {
-				fmt.Printf("	Success\n")
-			} else {
-				fmt.Printf("	Error[%d]: %s\n", err.Code(), err.String())
-			}
+	}
+
+	for username, err := range alterRes {
+		fmt.Printf("Username: %s\n", username)
+		if err.Code() == kafka.ErrNoError {
+			fmt.Printf("	Success\n")
+		} else {
+			fmt.Printf("	Error[%d]: %s\n", err.Code(), err.String())
 		}
 	}
+
 }

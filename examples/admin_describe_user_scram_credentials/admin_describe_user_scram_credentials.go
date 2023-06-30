@@ -45,11 +45,6 @@ func main() {
 		usage("bootstrap-servers required")
 	}
 
-	mechanismString := make(map[kafka.ScramMechanism]string)
-	mechanismString[kafka.ScramMechanismSHA256] = "SCRAM-SHA-256"
-	mechanismString[kafka.ScramMechanismSHA512] = "SCRAM-SHA-512"
-	mechanismString[kafka.ScramMechanismUnknown] = "UNKNOWN"
-
 	bootstrapServers := os.Args[1]
 
 	// Create new AdminClient.
@@ -69,16 +64,20 @@ func main() {
 	if describeErr != nil {
 		fmt.Printf("Failed to describe user scram credentials: %s\n", describeErr)
 		os.Exit(1)
-	} else {
-		for username, description := range describeRes {
-			fmt.Printf("Username: %s \n", username)
-			if description.Error.Code() == 0 {
-				for i := 0; i < len(description.ScramCredentialInfos); i++ {
-					fmt.Printf("	Mechanism: %s Iterations: %d\n", mechanismString[description.ScramCredentialInfos[i].Mechanism], description.ScramCredentialInfos[i].Iterations)
-				}
-			} else {
-				fmt.Printf("	Error[%d]: %s\n", description.Error.Code(), description.Error.String())
+	}
+
+	for username, description := range describeRes {
+		fmt.Printf("Username: %s \n", username)
+		if description.Error.Code() == kafka.ErrNoError {
+			for i := 0; i < len(description.ScramCredentialInfos); i++ {
+				fmt.Printf("	Mechanism: %s Iterations: %d\n",
+					description.ScramCredentialInfos[i].Mechanism,
+					description.ScramCredentialInfos[i].Iterations)
 			}
+		} else {
+			fmt.Printf("	Error[%d]: %s\n",
+				description.Error.Code(), description.Error.String())
 		}
 	}
+
 }
