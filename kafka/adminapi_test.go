@@ -792,6 +792,18 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
+	icres, err := a.IncrementalAlterConfigs(
+		ctx,
+		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
+	if icres != nil || err == nil {
+		t.Fatalf("Expected IncrementalAlterConfigs to fail, but got result: %v, err: %v", cres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
 	cres, err = a.DescribeConfigs(
 		ctx,
 		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
