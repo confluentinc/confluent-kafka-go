@@ -129,7 +129,7 @@ func main() {
 	defer cancel()
 
 	dur, _ := time.ParseDuration("20s")
-	// Ask cluster for the resource's current configuration
+	// Incrementally alter configurations for specified resources.
 	results, err := a.IncrementalAlterConfigs(ctx,
 		resources,
 		kafka.SetAdminRequestTimeout(dur))
