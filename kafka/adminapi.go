@@ -453,7 +453,7 @@ type ConfigEntry struct {
 	Name string
 	// Value of configuration entry.
 	Value string
-	// (Deprecated) Operation to perform on the entry.
+	// Deprecated: Operation to perform on the entry.
 	Operation AlterOperation
 	// Operation to perform on the entry incrementally.
 	IncrementalOperation AlterConfigOpType
@@ -472,7 +472,7 @@ func StringMapToConfigEntries(stringMap map[string]string, operation AlterOperat
 }
 
 // StringMapToIncrementalConfigEntries creates a new map of ConfigEntry objects from the
-// provided string map an operationMap. The AlterConfigOpType is set on each created entry.
+// provided string map an operation map. The AlterConfigOpType is set on each created entry.
 func StringMapToIncrementalConfigEntries(stringMap map[string]string,
 	operationMap map[string]AlterConfigOpType) []ConfigEntry {
 	var ceList []ConfigEntry
@@ -1449,10 +1449,10 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 
 // IncrementalAlterConfigs alters/updates cluster resource configuration.
 //
-// Updates are transactional, so they update several configs for the same
-// ConfigResource at once. Partial Updates will not be done.
-// The configuration for a particular resource is updated atomically,
-// updating values using the provided ConfigEntry's.
+// Updates are not transactional so they may succeed for some resources
+// while fail for others. The configs for a particular resource are
+// updated atomically, executing the corresponding incremental
+// operations on the provided configurations.
 //
 // Requires broker version >=2.3.0
 //
@@ -1492,8 +1492,7 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 				C.CString(entry.Value))
 
 			if cError != nil {
-				err := newErrorFromCError(cError)
-				C.rd_kafka_error_destroy(cError)
+				err := newErrorFromCErrorDestroy(cError)
 				return nil, err
 			}
 		}
