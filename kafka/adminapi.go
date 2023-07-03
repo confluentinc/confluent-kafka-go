@@ -1476,8 +1476,10 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 
 	// Convert Go ConfigResources to C ConfigResources
 	for i, res := range resources {
+		cName := C.CString(res.Name)
+		defer C.free(unsafe.Pointer(cName))
 		cRes[i] = C.rd_kafka_ConfigResource_new(
-			C.rd_kafka_ResourceType_t(res.Type), C.CString(res.Name))
+			C.rd_kafka_ResourceType_t(res.Type), cName)
 		if cRes[i] == nil {
 			return nil, newErrorFromString(ErrInvalidArg,
 				fmt.Sprintf("Invalid arguments for resource %v", res))
@@ -1486,10 +1488,14 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 		defer C.rd_kafka_ConfigResource_destroy(cRes[i])
 
 		for _, entry := range res.Config {
+			cName := C.CString(entry.Name)
+			defer C.free(unsafe.Pointer(cName))
+			cValue := C.CString(entry.Value)
+			defer C.free(unsafe.Pointer(cValue))
 			cError := C.rd_kafka_ConfigResource_set_incremental_config(
-				cRes[i], C.CString(entry.Name),
+				cRes[i], cName,
 				C.rd_kafka_AlterConfigOpType_t(entry.IncrementalOperation),
-				C.CString(entry.Value))
+				cValue)
 
 			if cError != nil {
 				err := newErrorFromCErrorDestroy(cError)
