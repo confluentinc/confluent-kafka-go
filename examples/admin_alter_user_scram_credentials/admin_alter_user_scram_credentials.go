@@ -137,7 +137,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	for username, err := range alterRes {
+	for username, err := range alterRes.Errors {
 		fmt.Printf("Username: %s\n", username)
 		if err.Code() == kafka.ErrNoError {
 			fmt.Printf("	Success\n")

@@ -831,6 +831,22 @@ type UserScramCredentialUpsertion struct {
 	ScramCredentialInfo ScramCredentialInfo
 }
 
+// DescribeUserScramCredentialsResult represents the result of a
+// DescribeUserScramCredentials call.
+type DescribeUserScramCredentialsResult struct {
+	// ConsumerGroupDescriptions - Map from user name
+	// to UserScramCredentialsDescription
+	Descriptions map[string]UserScramCredentialsDescription
+}
+
+// AlterUserScramCredentialsResult represents the result of a
+// AlterUserScramCredentials call.
+type AlterUserScramCredentialsResult struct {
+	// Errors - Map from user name
+	// to an Error, with ErrNoError code on success.
+	Errors map[string]Error
+}
+
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -1027,7 +1043,7 @@ func cToDescribeUserScramCredentialsResult(
 					cDescription, C.size_t(j))
 			cMechanism := C.rd_kafka_ScramCredentialInfo_mechanism(cScramCredentialInfo)
 			cIterations := C.rd_kafka_ScramCredentialInfo_iterations(cScramCredentialInfo)
-			scramCredentialInfos[i] = ScramCredentialInfo{
+			scramCredentialInfos[j] = ScramCredentialInfo{
 				Mechanism:  ScramMechanism(cMechanism),
 				Iterations: int(cIterations),
 			}
@@ -2508,10 +2524,13 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 // Each description can have an individual error.
 func (a *AdminClient) DescribeUserScramCredentials(
 	ctx context.Context, users []string,
-	options ...DescribeUserScramCredentialsAdminOption) (result map[string]UserScramCredentialsDescription, err error) {
+	options ...DescribeUserScramCredentialsAdminOption) (result DescribeUserScramCredentialsResult, err error) {
+	result = DescribeUserScramCredentialsResult{
+		Descriptions: make(map[string]UserScramCredentialsDescription),
+	}
 	err = a.verifyClient()
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
 	// Convert user names into char** required by the implementation.
@@ -2537,7 +2556,7 @@ func (a *AdminClient) DescribeUserScramCredentials(
 		a.handle,
 		C.RD_KAFKA_ADMIN_OP_DESCRIBEUSERSCRAMCREDENTIALS, genericOptions)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -2557,14 +2576,14 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
 	cRes := C.rd_kafka_event_DescribeUserScramCredentials_result(rkev)
 
 	// Convert result from C to Go.
-	result = cToDescribeUserScramCredentialsResult(cRes)
+	result.Descriptions = cToDescribeUserScramCredentialsResult(cRes)
 	return result, nil
 }
 
@@ -2582,8 +2601,10 @@ func (a *AdminClient) DescribeUserScramCredentials(
 // ErrNoError when the request succeeded.
 func (a *AdminClient) AlterUserScramCredentials(
 	ctx context.Context, upsertions []UserScramCredentialUpsertion, deletions []UserScramCredentialDeletion,
-	options ...AlterUserScramCredentialsAdminOption) (result map[string]Error, err error) {
-	result = make(map[string]Error)
+	options ...AlterUserScramCredentialsAdminOption) (result AlterUserScramCredentialsResult, err error) {
+	result = AlterUserScramCredentialsResult{
+		Errors: make(map[string]Error),
+	}
 	err = a.verifyClient()
 	if err != nil {
 		return result, err
@@ -2670,7 +2691,7 @@ func (a *AdminClient) AlterUserScramCredentials(
 			cResponses, cResponseSize, C.size_t(i))
 		user := C.GoString(C.rd_kafka_AlterUserScramCredentials_result_response_user(cResponse))
 		err := newErrorFromCError(C.rd_kafka_AlterUserScramCredentials_result_response_error(cResponse))
-		result[user] = err
+		result.Errors[user] = err
 	}
 
 	return result, nil

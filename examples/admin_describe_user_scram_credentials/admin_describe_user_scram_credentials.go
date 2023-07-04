@@ -66,7 +66,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	for username, description := range describeRes {
+	for username, description := range describeRes.Descriptions {
 		fmt.Printf("Username: %s \n", username)
 		if description.Error.Code() == kafka.ErrNoError {
 			for i := 0; i < len(description.ScramCredentialInfos); i++ {

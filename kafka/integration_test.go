@@ -2544,10 +2544,10 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	}
 
 	// Check Describe result
-	if len(describeRes) != 1 {
-		t.Fatalf("Expected 1 user in Describe Result, got %d\n", len(describeRes))
+	if len(describeRes.Descriptions) != 1 {
+		t.Fatalf("Expected 1 user in Describe Result, got %d\n", len(describeRes.Descriptions))
 	}
-	description, ok := describeRes[users[0]]
+	description, ok := describeRes.Descriptions[users[0]]
 	if !ok {
 		t.Fatalf("Did not find expected user %s in results\n", users[0])
 	}
@@ -2574,10 +2574,10 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	if alterErr != nil {
 		t.Fatalf("Failed to Alter the User Scram Credentials: %s\n", alterErr)
 	}
-	if len(alterRes) != 1 {
-		t.Fatalf("Expected 1 user in Alter Result, got %d\n", len(alterRes))
+	if len(alterRes.Errors) != 1 {
+		t.Fatalf("Expected 1 user in Alter Result, got %d\n", len(alterRes.Errors))
 	}
-	kErr, ok := alterRes[upsertions[0].User]
+	kErr, ok := alterRes.Errors[upsertions[0].User]
 	if !ok {
 		t.Fatalf("Did not find expected user %s in results\n", users[0])
 	}
@@ -2594,7 +2594,7 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	if describeErr != nil {
 		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
 	}
-	description, ok = describeRes[users[0]]
+	description, ok = describeRes.Descriptions[users[0]]
 	if !ok {
 		t.Fatalf("Did not find expected user %s in results\n", users[0])
 	}
@@ -2621,7 +2621,7 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	if alterErr != nil {
 		t.Fatalf("Failed to alter user scram credentials: %s\n", alterErr)
 	}
-	kErr, ok = alterRes[upsertions[0].User]
+	kErr, ok = alterRes.Errors[upsertions[0].User]
 	if !ok {
 		t.Fatalf("Did not find expected user %s in results\n", users[0])
 	}
@@ -2638,7 +2638,7 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	if describeErr != nil {
 		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
 	}
-	description, ok = describeRes[users[0]]
+	description, ok = describeRes.Descriptions[users[0]]
 	if !ok {
 		t.Fatalf("Did not find expected user %s in results\n", users[0])
 	}
