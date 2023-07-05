@@ -1492,7 +1492,7 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 			defer C.free(unsafe.Pointer(cName))
 			cValue := C.CString(entry.Value)
 			defer C.free(unsafe.Pointer(cValue))
-			cError := C.rd_kafka_ConfigResource_set_incremental_config(
+			cError := C.rd_kafka_ConfigResource_add_incremental_config(
 				cRes[i], cName,
 				C.rd_kafka_AlterConfigOpType_t(entry.IncrementalOperation),
 				cValue)
