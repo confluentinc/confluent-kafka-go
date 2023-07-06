@@ -7,7 +7,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"os"
 	"os/signal"
-	"regexp"
 	"syscall"
 	"time"
 
@@ -15,25 +14,6 @@ import (
 	_ "github.com/spiffe/go-spiffe/v2/spiffeid"
 	_ "github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 )
-
-var (
-	// Regex for sasl.oauthbearer.config, which constrains it to be
-	// 1 or more name=value pairs with optional ignored whitespace
-	oauthbearerConfigRegex = regexp.MustCompile("^(\\s*(\\w+)\\s*=\\s*(\\w+))+\\s*$")
-	// Regex used to extract name=value pairs from sasl.oauthbearer.config
-	oauthbearerNameEqualsValueRegex = regexp.MustCompile("(\\w+)\\s*=\\s*(\\w+)")
-)
-
-const (
-	principalClaimNameKey = "principalClaimName"
-	principalKey          = "principal"
-	joseHeaderEncoded     = "eyJhbGciOiJub25lIn0" // {"alg":"none"}
-)
-
-type tokenAuth struct {
-	audience    []string
-	tokenSource *workloadapi.JWTSource
-}
 
 // handleJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
 // sets the token on the client for use in any future authentication attempt.
@@ -61,7 +41,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 		ctx,
 		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
 	)
-	//workloadapi.ValidateJWTSVID()
+
 	if err != nil {
 		return kafka.OAuthBearerToken{}, nil, fmt.Errorf("unable to create JWTSource: %w", err)
 	}
