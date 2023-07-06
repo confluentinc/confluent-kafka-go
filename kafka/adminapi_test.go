@@ -526,6 +526,46 @@ func testAdminAPIsListConsumerGroupOffsets(
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
+
+	// Test with nil topic partitions list, denoting all topic partitions.
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	lres, err = a.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				nil,
+			},
+		},
+		SetAdminRequireStableOffsets(false))
+	if lres.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			lres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	// Test with empty topic partitions list - should error due to an invalid argument.
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	lres, err = a.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				[]TopicPartition{},
+			},
+		},
+		SetAdminRequireStableOffsets(false))
+	if lres.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			lres, err)
+	}
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err.(Error).Code())
+	}
 }
 
 func testAdminAPIsAlterConsumerGroupOffsets(
