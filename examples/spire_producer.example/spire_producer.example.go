@@ -61,6 +61,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 		ctx,
 		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
 	)
+	//workloadapi.ValidateJWTSVID()
 	if err != nil {
 		return kafka.OAuthBearerToken{}, nil, fmt.Errorf("unable to create JWTSource: %w", err)
 	}
