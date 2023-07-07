@@ -2519,6 +2519,57 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 }
 
+// TestImmediateFlush tests that producer.Flush ignores
+// "queue.buffering.max.ms". (Issue #1013).
+func (its *IntegrationTestSuite) TestImmediateFlush() {
+	assert := its.Assert()
+
+	// Large queue.buffering.max.ms
+	queueBufferingMs := 5000
+	// Make sure to flush for more than queueBufferingMs.
+	flushMs := queueBufferingMs + 1000
+	expectedFlushMs := 1000
+
+	// Create mock cluster
+	mockCluster, err := NewMockCluster(2)
+	assert.Nil(err, "Mock cluster creation should succeed")
+
+	// Create producer and send message
+	cfg := ConfigMap{
+		"bootstrap.servers":      mockCluster.BootstrapServers(),
+		"queue.buffering.max.ms": queueBufferingMs,
+	}
+	p, err := NewProducer(&cfg)
+	assert.Nil(err, "Producer creation should succeed")
+
+	msg := Message{
+		TopicPartition: TopicPartition{
+			Topic: &testconf.Topic,
+		},
+	}
+	err = p.Produce(&msg, nil)
+	assert.Nil(err, "Message should be produced")
+
+	// Consume all producer events and discard them.
+	go func() {
+		for range p.Events() {
+		}
+	}()
+
+	// Flush messages.
+	startTime := time.Now()
+	n := p.Flush(flushMs)
+	elapsed := time.Since(startTime)
+	assert.Less(
+		elapsed, time.Second,
+		"Flush should not take more than %dms, took %dms",
+		expectedFlushMs, elapsed.Milliseconds())
+	assert.Zero(n, "Nothing should be unflushed")
+
+	// Close producer, also closes the Events channel.
+	p.Close()
+}
+
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()
