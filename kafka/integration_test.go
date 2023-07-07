@@ -2559,11 +2559,11 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	// Call AlterUserScramCredentials for Upsert
 	upsertions := []UserScramCredentialUpsertion{
 		{
-			User:     "non-existent",
-			Salt:     []byte("salt"),
-			Password: []byte("password"),
+			User: "non-existent",
 			ScramCredentialInfo: ScramCredentialInfo{
 				Mechanism: ScramMechanismSHA256, Iterations: 10000},
+			Password: []byte("password"),
+			Salt:     []byte("salt"),
 		}}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)

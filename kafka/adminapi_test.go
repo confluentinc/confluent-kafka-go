@@ -630,11 +630,12 @@ func testAdminAPIsUserScramCredentials(what string, a *AdminClient, expDuration 
 	var upsertions []UserScramCredentialUpsertion
 	upsertions = append(upsertions,
 		UserScramCredentialUpsertion{
-			User:     "non-existent",
-			Salt:     []byte("salt"),
-			Password: []byte("password"),
+			User: "non-existent",
 			ScramCredentialInfo: ScramCredentialInfo{
-				Mechanism: ScramMechanismSHA256, Iterations: 10000}})
+				Mechanism: ScramMechanismSHA256, Iterations: 10000},
+			Password: []byte("password"),
+			Salt:     []byte("salt"),
+		})
 	var deletions []UserScramCredentialDeletion
 	deletions = append(deletions, UserScramCredentialDeletion{
 		User: "non-existent", Mechanism: ScramMechanismSHA256})

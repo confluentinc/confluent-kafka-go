@@ -823,12 +823,12 @@ type UserScramCredentialDeletion struct {
 type UserScramCredentialUpsertion struct {
 	// User - user name
 	User string
-	// User - salt to use. Will be generated randomly if nil. (optional)
-	Salt []byte
-	// Password - password to HMAC before storage.
-	Password []byte
 	// ScramCredentialInfo - the mechanism and iterations.
 	ScramCredentialInfo ScramCredentialInfo
+	// Password - password to HMAC before storage.
+	Password []byte
+	// Salt - salt to use. Will be generated randomly if nil. (optional)
+	Salt []byte
 }
 
 // DescribeUserScramCredentialsResult represents the result of a
@@ -2627,10 +2627,10 @@ func (a *AdminClient) AlterUserScramCredentials(
 		}
 
 		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(user,
-			salt, saltSize,
-			(*C.uchar)(&upsertion.Password[0]), C.size_t(len(upsertion.Password)),
 			C.rd_kafka_ScramMechanism_t(upsertion.ScramCredentialInfo.Mechanism),
-			C.int(upsertion.ScramCredentialInfo.Iterations))
+			C.int(upsertion.ScramCredentialInfo.Iterations),
+			(*C.uchar)(&upsertion.Password[0]), C.size_t(len(upsertion.Password)),
+			salt, saltSize)
 		defer C.rd_kafka_UserScramCredentialAlteration_destroy(cAlterationList[idx])
 		idx = idx + 1
 	}

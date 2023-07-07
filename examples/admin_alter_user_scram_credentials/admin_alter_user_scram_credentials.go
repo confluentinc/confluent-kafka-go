@@ -33,10 +33,10 @@ func usage(reason string) {
 		reason)
 	fmt.Fprintf(os.Stderr,
 		"Usage: %s <bootstrap-servers> "+
-			"(UPSERT <user1> <mechanism1> "+
-			"<iterations1> <salt1?> <password1>|DELETE <user1> <mechanism1>) "+
-			"[(UPSERT <user2> <mechanism2> <iterations2> <salt2?>"+
-			" <password2>|DELETE <user2> <mechanism2>) ...]\n",
+			"UPSERT <user1> <mechanism1> "+
+			"<iterations1> <password1> <salt1> "+
+			"[UPSERT <user2> <mechanism2> <iterations2> "+
+			"<password2> <salt2> DELETE <user3> <mechanism3> ...]\n",
 		os.Args[0])
 	os.Exit(1)
 }
@@ -91,20 +91,22 @@ func main() {
 			if err != nil {
 				usage(err.Error())
 			}
-			salt := []byte(os.Args[i+4])
-			password := []byte(os.Args[i+5])
+			password := []byte(os.Args[i+4])
+			salt := []byte(os.Args[i+5])
+			// if salt is an empty string,
+			// set it to nil to generate it randomly.
 			if len(salt) == 0 {
 				salt = nil
 			}
 			upsertions = append(upsertions,
 				kafka.UserScramCredentialUpsertion{
-					User:     user,
-					Salt:     salt,
-					Password: password,
+					User: user,
 					ScramCredentialInfo: kafka.ScramCredentialInfo{
 						Mechanism:  mechanism,
 						Iterations: iterations,
 					},
+					Password: password,
+					Salt:     salt,
 				})
 			i += 6
 		case "DELETE":
