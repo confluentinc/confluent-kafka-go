@@ -1,5 +1,13 @@
 # Confluent's Golang client for Apache Kafka
 
+# vNext
+
+This is a maintenence release.
+
+## Fixes
+
+ * Fixes an issue with `Producer.Flush`. It was waiting for 
+   `queue.buffering.max.ms` while flushing (#1013).
 
 # v2.2.0
 
