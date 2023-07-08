@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	_ "github.com/spiffe/go-spiffe/v2/spiffeid"
-	_ "github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 )
 
 // handleJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
