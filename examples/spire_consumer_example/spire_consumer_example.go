@@ -3,14 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 // handleJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
@@ -49,7 +48,6 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 	defer jwtSource.Close()
 
 	params := jwtsvid.Params{
-		// initialize the fields of Params here
 		Audience: audience[0],
 		// Other fields...
 	}
@@ -74,9 +72,8 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 }
 
 func main() {
-
 	if len(os.Args) != 5 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <topic> <principal> <socketPath>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <topic> <principal> <socketPath> \n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -86,71 +83,76 @@ func main() {
 	socketPath := os.Args[4]
 	audience := []string{"audience1", "audience2"}
 
-	// You'll probably need to modify this configuration to
-	// match your environment.
 	config := kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"security.protocol":       "SASL_SSL",
-		"sasl.mechanisms":         "OAUTHBEARER",
-		"sasl.oauthbearer.config": principal,
+		"bootstrap.servers":        bootstrapServers,
+		"security.protocol":        "SASL_SSL",
+		"sasl.mechanisms":          "OAUTHBEARER",
+		"sasl.oauthbearer.config":  principal,
+		"group.id":                 "myGroup",
+		"session.timeout.ms":       6000,
+		"auto.offset.reset":        "earliest",
+		"enable.auto.offset.store": false,
 	}
 
-	p, err := kafka.NewProducer(&config)
+	c, err := kafka.NewConsumer(&config)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create producer: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
 		os.Exit(1)
 	}
 
-	// Token refresh events are posted on the Events channel, instructing
-	// the application to refresh its token.
+	fmt.Printf("Created Consumer %v\n", c)
+
 	ctx := context.Background()
-
-	go func(eventsChan chan kafka.Event) {
-		for ev := range eventsChan {
-			_, ok := ev.(kafka.OAuthBearerTokenRefresh)
-			if !ok {
-				// Ignore other event types
-				continue
+	go func() {
+		for {
+			ev := c.Poll(100)
+			switch e := ev.(type) {
+			case *kafka.Message:
+				fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
+				if e.Headers != nil {
+					fmt.Printf("%% Headers: %v\n", e.Headers)
+				}
+				_, err := c.StoreOffsets([]kafka.TopicPartition{e.TopicPartition})
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%% Error storing offset: %v\n", err)
+				}
+			case kafka.Error:
+				// Errors should generally be considered
+				// informational, the client will try to
+				// automatically recover.
+				// But in this example we choose to terminate
+				// the application if all brokers are down.
+				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
+				if e.Code() == kafka.ErrAllBrokersDown {
+					fmt.Fprintf(os.Stderr, "%% All brokers are down: terminating\n")
+					return
+				}
+			case kafka.OAuthBearerTokenRefresh:
+				handleJWTTokenRefreshEvent(ctx, c, principal, socketPath, audience)
+			default:
+				fmt.Printf("Ignored %v\n", e)
 			}
-
-			handleJWTTokenRefreshEvent(ctx, p, principal, socketPath, audience)
 		}
-	}(p.Events())
+	}()
+
+	err = c.Subscribe(topic, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topic: %s\n", topic)
+		os.Exit(1)
+	}
 
 	run := true
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	msgcnt := 0
 	for run {
 		select {
 		case sig := <-signalChannel:
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
-		default:
-			value := fmt.Sprintf("Producer example, message #%d", msgcnt)
-			err = p.Produce(&kafka.Message{
-				TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-				Value:          []byte(value),
-				Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
-			}, nil)
-
-			if err != nil {
-				if err.(kafka.Error).Code() == kafka.ErrQueueFull {
-					// Producer queue is full, wait 1s for messages
-					// to be delivered then try again.
-					time.Sleep(time.Second)
-					continue
-				}
-				fmt.Printf("Failed to produce message: %v\n", err)
-			} else {
-				fmt.Printf("Produced message: %s\n", value)
-			}
-
-			time.Sleep(1 * time.Second)
-			msgcnt++
 		}
 	}
 
-	p.Close()
+	fmt.Printf("Closing consumer\n")
+	c.Close()
 }
