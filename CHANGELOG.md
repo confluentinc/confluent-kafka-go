@@ -16,7 +16,7 @@ This is a feature release.
  * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
 
 confluent-kafka-go is based on librdkafka v2.2.0, see the
-[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0-RC1)
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0-RC2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
