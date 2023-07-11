@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Confluent Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// Example producer with a custom SPIRE token implementation.
 package main
 
 import (
@@ -60,7 +76,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 	}
 
 	extensions := map[string]string{
-		"logicalCluster": "lkc-r6gdo0",
+		"logicalCluster": "lkc-0yoqvq",
 		"identityPoolId": "pool-W9j5",
 	}
 	oauthBearerToken := kafka.OAuthBearerToken{

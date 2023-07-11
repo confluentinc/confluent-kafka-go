@@ -1,3 +1,20 @@
+/**
+ * Copyright 2023 Confluent Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Example consumer with a custom SPIRE token implementation.
 package main
 
 import (
@@ -58,7 +75,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 	}
 
 	extensions := map[string]string{
-		"logicalCluster": "lkc-r6gdo0",
+		"logicalCluster": "lkc-0yoqvq",
 		"identityPoolId": "pool-W9j5",
 	}
 	oauthBearerToken := kafka.OAuthBearerToken{
@@ -95,6 +112,7 @@ func main() {
 	}
 
 	c, err := kafka.NewConsumer(&config)
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
 		os.Exit(1)
@@ -102,40 +120,8 @@ func main() {
 
 	fmt.Printf("Created Consumer %v\n", c)
 
-	ctx := context.Background()
-	go func() {
-		for {
-			ev := c.Poll(100)
-			switch e := ev.(type) {
-			case *kafka.Message:
-				fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
-				if e.Headers != nil {
-					fmt.Printf("%% Headers: %v\n", e.Headers)
-				}
-				_, err := c.StoreOffsets([]kafka.TopicPartition{e.TopicPartition})
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "%% Error storing offset: %v\n", err)
-				}
-			case kafka.Error:
-				// Errors should generally be considered
-				// informational, the client will try to
-				// automatically recover.
-				// But in this example we choose to terminate
-				// the application if all brokers are down.
-				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
-				if e.Code() == kafka.ErrAllBrokersDown {
-					fmt.Fprintf(os.Stderr, "%% All brokers are down: terminating\n")
-					return
-				}
-			case kafka.OAuthBearerTokenRefresh:
-				handleJWTTokenRefreshEvent(ctx, c, principal, socketPath, audience)
-			default:
-				fmt.Printf("Ignored %v\n", e)
-			}
-		}
-	}()
+	err = c.SubscribeTopics([]string{topic}, nil)
 
-	err = c.Subscribe(topic, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to subscribe to topic: %s\n", topic)
 		os.Exit(1)
@@ -145,11 +131,46 @@ func main() {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
 
+	ctx := context.Background()
+
 	for run {
 		select {
 		case sig := <-signalChannel:
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
+		default:
+			ev := c.Poll(100)
+			if ev == nil {
+				continue
+			}
+
+			switch e := ev.(type) {
+			case *kafka.Message:
+				fmt.Printf("%% Message on %s:\n%s\n",
+					e.TopicPartition, string(e.Value))
+				if e.Headers != nil {
+					fmt.Printf("%% Headers: %v\n", e.Headers)
+				}
+				_, err := c.StoreMessage(e)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%% Error storing offset after message %s:\n",
+						e.TopicPartition)
+				}
+			case kafka.Error:
+				// Errors should generally be considered
+				// informational, the client will try to
+				// automatically recover.
+				// But in this example we choose to terminate
+				// the application if all brokers are down.
+				fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+				if e.Code() == kafka.ErrAllBrokersDown {
+					run = false
+				}
+			case kafka.OAuthBearerTokenRefresh:
+				handleJWTTokenRefreshEvent(ctx, c, principal, socketPath, audience)
+			default:
+				fmt.Printf("Ignored %v\n", e)
+			}
 		}
 	}
 
