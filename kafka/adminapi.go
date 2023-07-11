@@ -412,14 +412,51 @@ func (o AlterOperation) String() string {
 	}
 }
 
+// AlterConfigOpType specifies the operation to perform
+// on the ConfigEntry for IncrementalAlterConfig
+type AlterConfigOpType int
+
+const (
+	// AlterConfigOpTypeSet sets/overwrites the configuration
+	// setting.
+	AlterConfigOpTypeSet = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET)
+	// AlterConfigOpTypeDelete sets the configuration setting
+	// to default or NULL.
+	AlterConfigOpTypeDelete = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE)
+	// AlterConfigOpTypeAppend appends the value to existing
+	// configuration settings.
+	AlterConfigOpTypeAppend = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND)
+	// AlterConfigOpTypeSubtract subtracts the value from
+	// existing configuration settings.
+	AlterConfigOpTypeSubtract = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT)
+)
+
+// String returns the human-readable representation of an AlterOperation
+func (o AlterConfigOpType) String() string {
+	switch o {
+	case AlterConfigOpTypeSet:
+		return "Set"
+	case AlterConfigOpTypeDelete:
+		return "Delete"
+	case AlterConfigOpTypeAppend:
+		return "Append"
+	case AlterConfigOpTypeSubtract:
+		return "Subtract"
+	default:
+		return fmt.Sprintf("Unknown %d", int(o))
+	}
+}
+
 // ConfigEntry holds parameters for altering a resource's configuration.
 type ConfigEntry struct {
 	// Name of configuration entry, e.g., topic configuration property name.
 	Name string
 	// Value of configuration entry.
 	Value string
-	// Operation to perform on the entry.
+	// Deprecated: Operation to perform on the entry.
 	Operation AlterOperation
+	// Operation to perform on the entry incrementally.
+	IncrementalOperation AlterConfigOpType
 }
 
 // StringMapToConfigEntries creates a new map of ConfigEntry objects from the
@@ -429,6 +466,19 @@ func StringMapToConfigEntries(stringMap map[string]string, operation AlterOperat
 
 	for k, v := range stringMap {
 		ceList = append(ceList, ConfigEntry{Name: k, Value: v, Operation: operation})
+	}
+
+	return ceList
+}
+
+// StringMapToIncrementalConfigEntries creates a new map of ConfigEntry objects from the
+// provided string map an operation map. The AlterConfigOpType is set on each created entry.
+func StringMapToIncrementalConfigEntries(stringMap map[string]string,
+	operationMap map[string]AlterConfigOpType) []ConfigEntry {
+	var ceList []ConfigEntry
+
+	for k, v := range stringMap {
+		ceList = append(ceList, ConfigEntry{Name: k, Value: v, IncrementalOperation: operationMap[k]})
 	}
 
 	return ceList
@@ -1315,6 +1365,7 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []Partiti
 // Multiple resources and resource types may be set, but at most one
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
+// Deprecated: AlterConfigs is deprecated in favour of IncrementalAlterConfigs
 func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
 	err = a.verifyClient()
 	if err != nil {
@@ -1392,6 +1443,102 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 	// Convert results from C to Go
 	var cCnt C.size_t
 	cResults := C.rd_kafka_AlterConfigs_result_resources(cResult, &cCnt)
+
+	return a.cConfigResourceToResult(cResults, cCnt)
+}
+
+// IncrementalAlterConfigs alters/updates cluster resource configuration.
+//
+// Updates are not transactional so they may succeed for some resources
+// while fail for others. The configs for a particular resource are
+// updated atomically, executing the corresponding incremental
+// operations on the provided configurations.
+//
+// Requires broker version >=2.3.0
+//
+// IncrementalAlterConfigs will only change configurations for provided
+// resources with the new configuration given.
+//
+// Multiple resources and resource types may be set, but at most one
+// resource of type ResourceBroker is allowed per call since these
+// resource requests must be sent to the broker specified in the resource.
+func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
+	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	// Convert Go ConfigResources to C ConfigResources
+	for i, res := range resources {
+		cName := C.CString(res.Name)
+		defer C.free(unsafe.Pointer(cName))
+		cRes[i] = C.rd_kafka_ConfigResource_new(
+			C.rd_kafka_ResourceType_t(res.Type), cName)
+		if cRes[i] == nil {
+			return nil, newErrorFromString(ErrInvalidArg,
+				fmt.Sprintf("Invalid arguments for resource %v", res))
+		}
+
+		defer C.rd_kafka_ConfigResource_destroy(cRes[i])
+
+		for _, entry := range res.Config {
+			cName := C.CString(entry.Name)
+			defer C.free(unsafe.Pointer(cName))
+			cValue := C.CString(entry.Value)
+			defer C.free(unsafe.Pointer(cValue))
+			cError := C.rd_kafka_ConfigResource_add_incremental_config(
+				cRes[i], cName,
+				C.rd_kafka_AlterConfigOpType_t(entry.IncrementalOperation),
+				cValue)
+
+			if cError != nil {
+				err := newErrorFromCErrorDestroy(cError)
+				return nil, err
+			}
+		}
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_IncrementalAlterConfigs(
+		a.handle.rk,
+		(**C.rd_kafka_ConfigResource_t)(&cRes[0]),
+		C.size_t(len(cRes)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_INCREMENTALALTERCONFIGS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cResult := C.rd_kafka_event_IncrementalAlterConfigs_result(rkev)
+
+	// Convert results from C to Go
+	var cCnt C.size_t
+	cResults := C.rd_kafka_IncrementalAlterConfigs_result_resources(cResult, &cCnt)
 
 	return a.cConfigResourceToResult(cResults, cCnt)
 }

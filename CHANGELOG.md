@@ -10,6 +10,8 @@ This is a feature release.
  * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
    an unchecked error (#997, @baganokodo2022).
  * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+ * [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#945).
  * Allow fetching all partition offsets for a consumer group by passing a
    `nil` slice in `AdminClient.ListConsumerGroupOffsets`, when earlier it
    was not processing that correctly (#985, @alexandredantas).
