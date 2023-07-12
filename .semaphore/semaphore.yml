@@ -117,6 +117,7 @@ blocks:
           - Get-ChildItem -Recurse $pwd
           - cache delete win-go-1.19
           - cache store win-go-1.19 ($env:USERPROFILE + '\go')
+          - go version
           - cache restore msys2-x64
           - Get-ChildItem -Recurse $pwd
           # Set up msys2
