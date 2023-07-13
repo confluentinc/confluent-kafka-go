@@ -111,13 +111,12 @@ blocks:
           # Install Go
           - go version
           - cache restore win-go-1.19
-          - Get-ChildItem -Recurse $pwd
           - go version
+          - Get-ChildItem -Recurse $pwd
           - "& .\\mk\\setup-go.ps1"
           - Get-ChildItem -Recurse $pwd
           - cache delete win-go-1.19
           - cache store win-go-1.19 ($env:USERPROFILE + '\go')
-          - go version
           - cache restore msys2-x64
           - Get-ChildItem -Recurse $pwd
           # Set up msys2
