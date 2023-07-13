@@ -108,7 +108,9 @@ blocks:
           type: s1-prod-windows
       prologue:
         commands:
+          # Install Go
           - "& .\\mk\\setup-go.ps1"
+          # Set up msys2
           - ".\\mk\\mingw-w64\\setup-msys2.ps1"
           - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
           - bash -lc './mk/mingw-w64/msys2-dependencies.sh'
