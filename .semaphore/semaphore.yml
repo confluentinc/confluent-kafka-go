@@ -109,23 +109,23 @@ blocks:
       prologue:
         commands:
           # Install Go
-          - go version
-          - cache restore win-go-1.19
-          - go version
-          - Get-ChildItem -Recurse $pwd
+          # - go version
+          # - cache restore win-go-1.19
+          # - go version
+          # - Get-ChildItem -Recurse $pwd
           - "& .\\mk\\setup-go.ps1"
-          - Get-ChildItem -Recurse $pwd
-          - cache delete win-go-1.19
-          - cache store win-go-1.19 ($env:USERPROFILE + '\go')
-          - cache restore msys2-x64
-          - Get-ChildItem -Recurse $pwd
+          # - Get-ChildItem -Recurse $pwd
+          # - cache delete win-go-1.19
+          # - cache store win-go-1.19 ($env:USERPROFILE + '\go')
+          # - cache restore msys2-x64
+          # - Get-ChildItem -Recurse $pwd
           # Set up msys2
           - ".\\mk\\mingw-w64\\setup-msys2.ps1"
           - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
           - bash -lc './mk/mingw-w64/msys2-dependencies.sh'
-          - Get-ChildItem -Recurse $pwd
-          - cache delete msys2-x64
-          - cache store msys2-x64 c:/msys64
+          # - Get-ChildItem -Recurse $pwd
+          # - cache delete msys2-x64
+          # - cache store msys2-x64 c:/msys64
       jobs:
         - name: "Static Build"
           env_vars:
