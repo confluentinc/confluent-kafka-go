@@ -109,7 +109,8 @@ blocks:
       prologue:
         commands:
           # Install Go
-          - "& .\\mk\\setup-go.ps1"
+          - sem-version go 1.19
+          # - "& .\\mk\\setup-go.ps1"
           - gcm go
           - go version
           # Set up msys2
