@@ -110,6 +110,7 @@ blocks:
         commands:
           # Install Go
           - cache restore win-go-1.19
+          - gcm go
           - go version
           - "& .\\mk\\setup-go.ps1"
           # Set up msys2
