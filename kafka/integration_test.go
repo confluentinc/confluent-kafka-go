@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
+
 	"path"
 	"reflect"
 	"runtime"
@@ -2684,6 +2685,113 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	}
 }
 
+func (its *IntegrationTestSuite) TestListOffsets() {
+	t := its.T()
+	bootstrapServers := testconf.Brokers
+
+	// Create a new AdminClient.
+	// AdminClient can also be instantiated using an existing
+	// Producer or Consumer instance, see NewAdminClientFromProducer and
+	// NewAdminClientFromConsumer.
+	a, err := NewAdminClient(&ConfigMap{"bootstrap.servers": bootstrapServers})
+	if err != nil {
+		t.Fatalf("Unable to create Admin Client, error : %s", err)
+	}
+
+	// Contexts are used to abort or limit the amount of time
+	// the Admin call blocks waiting for a result.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	requests := make(map[TopicPartition]int64)
+	goTopic := "topicname"
+
+	var topics []TopicSpecification
+	topics = append(topics, TopicSpecification{Topic: goTopic, NumPartitions: 1, ReplicationFactor: 1})
+	create_topic_result, create_topic_err := a.CreateTopics(ctx, topics)
+	if create_topic_err != nil {
+		t.Fatalf("Unable to create topic, error : %s", err)
+	} else {
+		if create_topic_result[0].Error.Code() != 0 {
+			t.Fatalf("Errorcode should be 0 instead it is %d", create_topic_result[0].Error.Code())
+		}
+	}
+
+	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
+
+	if err != nil {
+		t.Fatalf("Unable to create Producer, error : %s", err)
+	}
+
+	timestamp := time.Now()
+	t1 := timestamp.Add(time.Second * 100)
+	t2 := timestamp.Add(time.Second * 300)
+	t3 := timestamp.Add(time.Second * 200)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		Value:          []byte("Message-1"),
+		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		Timestamp:      t1,
+	}, nil)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		Value:          []byte("Message-2"),
+		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		Timestamp:      t2,
+	}, nil)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		Value:          []byte("Message-3"),
+		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		Timestamp:      t3,
+	}, nil)
+
+	p.Flush(5 * 1000)
+
+	tp1 := TopicPartition{Topic: &goTopic, Partition: 0}
+	requests[tp1] = int64(EarliestOffsetSpec)
+	var results map[TopicPartition]ListOffsetResultInfo
+	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
+	if err != nil {
+		t.Fatalf("Unable to ListOffsets, error : %s", err)
+	}
+	for _, info := range results {
+		if (info.Err.Code() != 0) || (info.Offset != 0) {
+			t.Fatalf("Error code should be 0 and offset should be 0, instead Error code is %d and Offset is %d\n", info.Err.Code(), info.Offset)
+		}
+	}
+	requests[tp1] = int64(LatestOffsetSpec)
+	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
+	if err != nil {
+		t.Fatalf("Unable to ListOffsets, error : %s", err)
+	}
+	for _, info := range results {
+		if (info.Err.Code() != 0) || (info.Offset != 3) {
+			t.Fatalf("Error code should be 0 and offset should be 3, instead Error code is %d and Offset is %d\n", info.Err.Code(), info.Offset)
+		}
+	}
+	requests[tp1] = int64(MaxTimestampOffsetSpec)
+	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
+	if err != nil {
+		t.Fatalf("Unable to ListOffsets, error : %s", err)
+	}
+	for _, info := range results {
+		if (info.Err.Code() != 0) || (info.Offset != 1) {
+			t.Fatalf("Error code should be 0 and offset should be 1, instead Error code is %d and Offset is %d\n", info.Err.Code(), info.Offset)
+		}
+	}
+	var del_topics []string
+	del_topics = append(del_topics, goTopic)
+	_, err = a.DeleteTopics(ctx, del_topics)
+	if err != nil {
+		t.Fatalf("Unable to Delete Topics, error : %s", err)
+	}
+	a.Close()
+	p.Close()
+}
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()
