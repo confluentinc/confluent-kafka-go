@@ -133,13 +133,18 @@ func newRestService(conf *Config) (*restService, error) {
 
 	timeout := conf.RequestTimeoutMs
 
+	client := conf.BaseClient
+	if client == nil {
+		client = new(http.Client)
+	}
+
+	client.Transport = transport
+	client.Timeout = time.Duration(timeout) * time.Millisecond
+
 	return &restService{
 		url:     u,
 		headers: headers,
-		Client: &http.Client{
-			Transport: transport,
-			Timeout:   time.Duration(timeout) * time.Millisecond,
-		},
+		Client:  client,
 	}, nil
 }
 
