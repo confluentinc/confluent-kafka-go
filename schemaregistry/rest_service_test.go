@@ -18,6 +18,7 @@ package schemaregistry
 
 import (
 	"crypto/tls"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -81,5 +82,22 @@ func TestConfigureTLS(t *testing.T) {
 	config.SslCaLocation = "test/secrets/rootCA.crt"
 	if err := configureTLS(config, tlsConfig); err != nil {
 		t.Errorf("Should work with valid CA, certificate and key, got %s", err)
+	}
+}
+
+func TestNewRestService(t *testing.T) {
+	conf := NewConfig("mock://")
+	rest, err := newRestService(conf)
+	if err != nil {
+		t.Errorf("Should work with empty config, got %s", err)
+	}
+
+	conf.BaseClient = new(http.Client)
+	rest, err = newRestService(conf)
+	if err != nil {
+		t.Errorf("Should work with base client set, got %s", err)
+	}
+	if rest.Client != conf.BaseClient {
+		t.Errorf("Should use BaseClient if provided")
 	}
 }
