@@ -84,7 +84,7 @@ func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool)
 	}
 	c.schemaCacheLock.RUnlock()
 	if ok {
-		return id, nil
+		return idCacheEntryVal.id, nil
 	}
 
 	id, err = c.getIDFromRegistry(subject, schema)
