@@ -32,7 +32,6 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/desc/protoprint"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/jhump/protoreflect/dynamic/msgregistry"
 	"google.golang.org/genproto/googleapis/type/calendarperiod"
 	"google.golang.org/genproto/googleapis/type/color"
 	"google.golang.org/genproto/googleapis/type/date"
@@ -50,7 +49,6 @@ import (
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
-	"google.golang.org/protobuf/runtime/protoiface"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/apipb"
@@ -519,31 +517,4 @@ func (s *Deserializer) protoMessageFactory(subject string, name string) (interfa
 	}
 	msg := mt.New()
 	return msg.Interface(), nil
-}
-
-// AnyResolver is used to resolve the google.protobuf.Any type.
-// It takes a type URL, present in an Any message, and resolves
-// it into an instance of the associated message.
-//
-// This custom resolver is required because the built-in / default
-// any resolver in the protoreflect library, does not consider any
-// types that are used in referenced types that are not directly
-// part of the schema that is deserialized. This is described in
-// more detail as part of the pull request that addresses the
-// deserialization issue with the any types:
-// https://github.com/redpanda-data/console/pull/425
-type anyResolver struct {
-	mr *msgregistry.MessageRegistry
-}
-
-func (r *anyResolver) Resolve(typeURL string) (protoiface.MessageV1, error) {
-	// Protoreflect registers the type by stripping the contents before the last
-	// slash. Therefore we need to mimic this behaviour in order to resolve
-	// the type by it's given type url.
-	mname := typeURL
-	if slash := strings.LastIndex(mname, "/"); slash >= 0 {
-		mname = mname[slash+1:]
-	}
-
-	return r.mr.Resolve(mname)
 }
