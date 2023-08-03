@@ -1,0 +1,12 @@
+version: '3'
+services:
+  producer:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+     - PRODUCER_BOOTSTRAP_SERVER=pkc-9knzk0.us-central1.gcp.devel.cpdev.cloud:9092
+     - PRODUCER_TOPIC=Purchase
+     - PRODUCER_PRINCIPAL=sub
+     - PRODUCER_SOCKET_PATH=tcp://127.0.0.1:31523
