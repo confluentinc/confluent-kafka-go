@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Example consumer with a custom SPIRE token implementation.
+// Docker example consumer with a custom SPIRE token implementation.
 package main
 
 import (
@@ -28,15 +28,6 @@ import (
 	"syscall"
 	"time"
 )
-
-//var bootstrapServers, topic, socketPath, principal string
-
-//func init() {
-//	bootstrapServers = readFromENV("BOOTSTRAP_SERVERS", "")
-//	topic = readFromENV("TOPIC", "SASL_SSL")
-//	principal = readFromENV("principal", "")
-//	socketPath = readFromENV("socketPath", "")
-//}
 
 // handleJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
 // sets the token on the client for use in any future authentication attempt.
@@ -104,6 +95,11 @@ func main() {
 	principal := os.Getenv("PRINCIPAL")
 	socketPath := os.Getenv("SOCKET_PATH")
 	audience := []string{"audience1", "audience2"}
+
+	if bootstrapServers == "" || topic == "" || principal == "" || socketPath == "" {
+		fmt.Fprintln(os.Stderr, "ERROR: Missing required environment variables.")
+		os.Exit(1)
+	}
 
 	fmt.Fprintf(os.Stderr, "Token refresh\n")
 	fmt.Fprintf(os.Stderr, "bootstrapServers is: %s\n", bootstrapServers)
@@ -184,12 +180,4 @@ func main() {
 
 	fmt.Printf("Closing consumer\n")
 	c.Close()
-}
-
-func readFromENV(key, defaultVal string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultVal
-	}
-	return value
 }

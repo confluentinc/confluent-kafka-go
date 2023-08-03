@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Example producer with a custom SPIRE token implementation.
+
+// DockerExample producer with a custom SPIRE token implementation.
 package main
 
 import (
@@ -28,15 +29,6 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
-
-//var producerBootstrapServers, producerTopic, producerSocketPath, producerPrincipal string
-
-//func init() {
-//	producerBootstrapServers = readFromENVProducer("PRODUCER_BOOTSTRAP_SERVER", "")
-//	producerTopic = readFromENVProducer("PRODUCER_TOPIC", "SASL_SSL")
-//	producerPrincipal = readFromENVProducer("PRODUCER_PRINCIPAL", "")
-//	producerSocketPath = readFromENVProducer("PRODUCER_SOCKET_PATH", "")
-//}
 
 // handleProducerJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
 // sets the token on the client for use in any future authentication attempt.
@@ -99,21 +91,25 @@ func retrieveProducerJWTToken(ctx context.Context, principal, socketPath string,
 }
 
 func main() {
-	producerBootstrapServers := os.Getenv("PRODUCER_BOOTSTRAP_SERVER")
-	producerTopic := os.Getenv("PRODUCER_TOPIC")
-	producerPrincipal := os.Getenv("PRODUCER_PRINCIPAL")
-	producerSocketPath := os.Getenv("PRODUCER_SOCKET_PATH")
 
+	bootstrapServers := os.Getenv("BOOTSTRAP_SERVERS")
+	topic := os.Getenv("TOPIC")
+	principal := os.Getenv("PRINCIPAL")
+	socketPath := os.Getenv("SOCKET_PATH")
 	audience := []string{"audience1", "audience2"}
-	fmt.Fprintf(os.Stderr, "producerBootstrapServers is: %s\n", producerBootstrapServers)
+
+	//if bootstrapServers == "" || topic == "" || principal == "" || socketPath == "" {
+	//	fmt.Fprintln(os.Stderr, "ERROR: Missing required environment variables.")
+	//	os.Exit(1)
+	//}
 
 	// You'll probably need to modify this configuration to
 	// match your environment.
 	config := kafka.ConfigMap{
-		"bootstrap.servers":       producerBootstrapServers,
+		"bootstrap.servers":       bootstrapServers,
 		"security.protocol":       "SASL_SSL",
 		"sasl.mechanisms":         "OAUTHBEARER",
-		"sasl.oauthbearer.config": producerPrincipal,
+		"sasl.oauthbearer.config": principal,
 	}
 
 	p, err := kafka.NewProducer(&config)
@@ -134,7 +130,7 @@ func main() {
 				continue
 			}
 
-			handleProducerJWTTokenRefreshEvent(ctx, p, producerPrincipal, producerSocketPath, audience)
+			handleProducerJWTTokenRefreshEvent(ctx, p, principal, socketPath, audience)
 		}
 	}(p.Events())
 
@@ -151,7 +147,7 @@ func main() {
 		default:
 			value := fmt.Sprintf("Producer example, message #%d", msgcnt)
 			err = p.Produce(&kafka.Message{
-				TopicPartition: kafka.TopicPartition{Topic: &producerTopic, Partition: kafka.PartitionAny},
+				TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 				Value:          []byte(value),
 				Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 			}, nil)
@@ -174,12 +170,4 @@ func main() {
 	}
 
 	p.Close()
-}
-
-func readFromENVProducer(key, defaultVal string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultVal
-	}
-	return value
 }

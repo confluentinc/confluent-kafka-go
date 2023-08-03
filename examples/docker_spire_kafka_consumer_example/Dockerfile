@@ -11,10 +11,10 @@ RUN wget https://dl.google.com/go/go1.19.linux-amd64.tar.gz && tar -xvzf go1.19.
 RUN mv go /usr/local
 ENV GOROOT=/usr/local/go
 ENV PATH="${GOROOT}/bin:${PATH}"
-WORKDIR /docker_spire_kafka_producer_example
+WORKDIR /docker_spire_kafka_consumer_example
 COPY go.mod .
 COPY go.sum .
-COPY producer.go .
+COPY consumer.go .
 
-RUN go build -o producer .
-CMD ["go", "run", "producer.go"]
+RUN go build -o consumer .
+CMD ["go", "run", "consumer.go"]
