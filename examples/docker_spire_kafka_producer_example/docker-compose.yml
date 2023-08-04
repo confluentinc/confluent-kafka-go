@@ -1,0 +1,12 @@
+version: '3'
+services:
+  producer:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+     - BOOTSTRAP_SERVERS=pkc-9knzk0.us-central1.gcp.devel.cpdev.cloud:9092
+     - TOPIC=Purchase
+     - PRINCIPAL=sub
+     - SOCKET_PATH=tcp://127.0.0.1:31523
