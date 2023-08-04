@@ -1,6 +1,54 @@
 # Confluent's Golang client for Apache Kafka
 
+# v2.3.0
+
+This is a maintenance release.
+
+## Fixes
+
+ * Fixes a bug in the mock schema registry client where the wrong ID was being
+   returned for pre-registered schema (#971, @srlk).
+
+
+# v2.2.0
+
+This is a feature release.
+
+ * [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#945).
+ * [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1004).
+
+## Fixes
+
+ * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
+   an unchecked error (#997, @baganokodo2022).
+ * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+ * Allow fetching all partition offsets for a consumer group by passing a
+   `nil` slice in `AdminClient.ListConsumerGroupOffsets`, when earlier it
+   was not processing that correctly (#985, @alexandredantas).
+ * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
+
+confluent-kafka-go is based on librdkafka v2.2.0, see the
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.1
+
+This is a maintenance release.
+
+It is strongly recommended to update to v2.1.1 if v2.1.0 is being used, as it
+fixes a critical issue in the consumer (#980).
+
+confluent-kafka-go is based on librdkafka v2.1.1, see the
+[librdkafka v2.1.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.1.0
+
+This is a feature release:
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
    once and deprecated `Seek()` (#940).
@@ -19,7 +67,7 @@
 
 confluent-kafka-go is based on librdkafka v2.1.0, see the
 [librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
-and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.0.2

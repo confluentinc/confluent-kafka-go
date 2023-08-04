@@ -681,7 +681,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 		return
 	}
 
-	if *msg.TopicPartition.LeaderEpoch == 0 {
+	if *msg.TopicPartition.LeaderEpoch != 0 {
 		t.Errorf("Expected leader epoch of read message is %d, got %d",
 			0, *msg.TopicPartition.LeaderEpoch)
 	}
@@ -1331,8 +1331,6 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	// Configuration alterations are currently atomic, all values
 	// need to be passed, otherwise non-passed values will be reverted
 	// to their default values.
-	// Future versions will allow incremental updates:
-	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API
 	newConfig := make(map[string]string)
 	for _, entry := range describeRes[0].Config {
 		newConfig[entry.Name] = entry.Value
@@ -1363,6 +1361,44 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 
 	validateConfig(t, describeRes, expResources, true)
 
+	// This is for incremental-alter.
+	// We don't need to pass all configs. Just need to pass the configs
+	// that are intended to change.
+	newConfig = make(map[string]string)
+	opsMap := make(map[string]AlterConfigOpType)
+
+	// Change something
+	newConfig["retention.ms"] = "86000000"
+	opsMap["retention.ms"] = AlterConfigOpTypeSet
+	// Default value for cleanup.policy(type=list) is delete
+	newConfig["cleanup.policy"] = "compact"
+	opsMap["cleanup.policy"] = AlterConfigOpTypeAppend
+	newConfig["message.timestamp.type"] = ""
+	// Default value for message.timestamp.type is CreateTime
+	opsMap["message.timestamp.type"] = AlterConfigOpTypeDelete
+
+	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic,
+		Config: StringMapToIncrementalConfigEntries(newConfig, opsMap)}}
+	alterRes, err = a.IncrementalAlterConfigs(ctx, configResources)
+	if err != nil {
+		t.Fatalf("Incremental Alter Configs request failed: %v", err)
+	}
+
+	expResources[0].Config["retention.ms"] = ConfigEntryResult{Name: "retention.ms", Value: "86000000"}
+	expResources[0].Config["cleanup.policy"] = ConfigEntryResult{Name: "cleanup.policy", Value: "delete,compact"}
+	expResources[0].Config["message.timestamp.type"] = ConfigEntryResult{Name: "message.timestamp.type", Value: "CreateTime"}
+
+	validateConfig(t, alterRes, expResources, false)
+
+	// Read back config to validate
+	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic}}
+	describeRes, err = a.DescribeConfigs(ctx, configResources)
+	if err != nil {
+		t.Fatalf("Describe configs request failed: %v", err)
+	}
+
+	validateConfig(t, describeRes, expResources, true)
+
 	// Delete the topic
 	// FIXME: wait for topics to become available in metadata instead
 	time.Sleep(5000 * time.Millisecond)
@@ -1377,7 +1413,7 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	}
 }
 
-//Test AdminClient GetMetadata API
+// Test AdminClient GetMetadata API
 func (its *IntegrationTestSuite) TestAdminGetMetadata() {
 	t := its.T()
 
@@ -1659,7 +1695,131 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	checkExpectedResult(expectedDescribeACLs, *resultDescribeACLs)
 }
 
-//Test consumer QueryWatermarkOffsets API
+// Test AdminClient List all consumer group offsets.
+func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() {
+	t := its.T()
+	rand.Seed(time.Now().Unix())
+
+	conf := &ConfigMap{"bootstrap.servers": testconf.Brokers}
+	if err := conf.updateFromTestconf(); err != nil {
+		t.Fatalf("Failed to update test configuration: %s\n", err)
+	}
+
+	admin, err := NewAdminClient(conf)
+	if err != nil {
+		t.Fatalf("Failed to create Admin client: %s\n", err)
+	}
+	defer admin.Close()
+
+	// Create some topics.
+	numTopics := 3
+	topics := make([]string, 0)
+	topicSpec := make([]TopicSpecification, 0)
+
+	for i := 0; i < numTopics; i++ {
+		topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Intn(100000))
+		topics = append(topics, topic)
+		topicSpec = append(
+			topicSpec, TopicSpecification{Topic: topic, NumPartitions: i + 1})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	topicResult, err := admin.CreateTopics(ctx, topicSpec)
+
+	if err != nil {
+		t.Fatalf("Failed to create topics: %s\n", err)
+	}
+
+	for i := 0; i < numTopics; i++ {
+		if topicResult[i].Error.Code() != ErrNoError {
+			t.Fatalf("Failed to create topic %s: %s", topicSpec[i].Topic, topicResult[i].Error)
+		}
+	}
+
+	// Join a consumer group and subscribe to the created topics,
+	// commit some offsets to read later.
+	group := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Intn(100000))
+	conf = &ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+		"group.id":          group,
+		"auto.offset.reset": "end",
+	}
+	conf.updateFromTestconf()
+
+	consumer, err := NewConsumer(conf)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %s\n", err)
+	}
+	defer consumer.Close()
+
+	if err = consumer.SubscribeTopics(topics, nil); err != nil {
+		t.Fatalf("Failed to subscribe to topics: %s\n", err)
+	}
+
+	// Poll for a while, wait for rebalance.
+	consumer.Poll(10000)
+
+	for i := 0; i < numTopics; i++ {
+		for j := 0; j < topicSpec[i].NumPartitions; j++ {
+			_, err = consumer.CommitOffsets([]TopicPartition{
+				{
+					Topic:     &topics[i],
+					Partition: int32(j),
+					Offset:    Offset((i * topicSpec[i].NumPartitions) + j),
+				},
+			})
+			if err != nil {
+				t.Fatalf("Could not commit for %s:%d: %s\n", topics[i], j, err)
+			}
+		}
+	}
+
+	// List consumer group offsets.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	offsets, err := admin.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{{Group: group}},
+		SetAdminRequireStableOffsets(true))
+
+	if err != nil {
+		t.Fatalf("Failed to get consumer group offsets: %s\n", err)
+	}
+
+	if len(offsets.ConsumerGroupsTopicPartitions) != 1 {
+		t.Fatal("Consumer group offsets is empty")
+	}
+
+	toppars := offsets.ConsumerGroupsTopicPartitions[0].Partitions
+
+	// Use linear search - okay for small numTopics. Since the returned list
+	// is not ordered in any particular way.
+	matchedToppars := 0
+	for i := 0; i < numTopics; i++ {
+		for k := 0; k < len(toppars); k++ {
+			if topics[i] != *toppars[k].Topic {
+				continue
+			}
+			matchedToppars++
+			partition := int(toppars[k].Partition)
+			expectedOffset := i*topicSpec[i].NumPartitions + partition
+
+			if toppars[k].Offset != Offset(expectedOffset) {
+				t.Fatalf("Expected offset %d for %s:%d, got %d\n",
+					expectedOffset, topics[i], partition, toppars[k].Offset)
+			}
+		}
+	}
+
+	totalPartitions := ((numTopics + 1) * numTopics) / 2
+	if matchedToppars != totalPartitions {
+		t.Fatalf("Expected to match %d total topic partitions, matched %d\n",
+			totalPartitions, matchedToppars)
+	}
+}
+
+// Test consumer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 	t := its.T()
 
@@ -1690,7 +1850,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 }
 
-//Test consumer GetWatermarkOffsets API
+// Test consumer GetWatermarkOffsets API
 func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	t := its.T()
 
@@ -1745,7 +1905,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 
 }
 
-//TestConsumerOffsetsForTimes
+// TestConsumerOffsetsForTimes
 func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 	t := its.T()
 
@@ -1840,7 +2000,7 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	t.Logf("Meta data for consumer: %v\n", metaData)
 }
 
-//Test producer QueryWatermarkOffsets API
+// Test producer QueryWatermarkOffsets API
 func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	t := its.T()
 
@@ -1882,7 +2042,7 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	}
 }
 
-//Test producer GetMetadata API
+// Test producer GetMetadata API
 func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	t := its.T()
 
@@ -2393,6 +2553,135 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 	c.Close()
 
+}
+
+// TestUserScramTestAdminClient_UserScramCredentialsCredentialsAPI describes
+// the SCRAM credentials for a user, upserts some credentials, describes them
+// again to check insertion, deletes them, and finally describes them once again
+// to check deletion.
+func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
+	t := its.T()
+	ac, err := NewAdminClient(&ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create Admin Client: %s\n", err)
+	}
+	defer ac.Close()
+
+	users := []string{"non-existent"}
+
+	// Call DescribeUserScramCredentials
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr := ac.DescribeUserScramCredentials(ctx, users)
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+
+	// Check Describe result
+	if len(describeRes.Descriptions) != 1 {
+		t.Fatalf("Expected 1 user in Describe Result, got %d\n", len(describeRes.Descriptions))
+	}
+	description, ok := describeRes.Descriptions[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+
+	if description.Error.Code() != ErrResourceNotFound {
+		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
+	}
+
+	// Call AlterUserScramCredentials for Upsert
+	upsertions := []UserScramCredentialUpsertion{
+		{
+			User: "non-existent",
+			ScramCredentialInfo: ScramCredentialInfo{
+				Mechanism: ScramMechanismSHA256, Iterations: 10000},
+			Password: []byte("password"),
+			Salt:     []byte("salt"),
+		}}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	alterRes, alterErr := ac.AlterUserScramCredentials(ctx, upsertions, nil)
+
+	// Check Upsert result
+	if alterErr != nil {
+		t.Fatalf("Failed to Alter the User Scram Credentials: %s\n", alterErr)
+	}
+	if len(alterRes.Errors) != 1 {
+		t.Fatalf("Expected 1 user in Alter Result, got %d\n", len(alterRes.Errors))
+	}
+	kErr, ok := alterRes.Errors[upsertions[0].User]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if kErr.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %d", kErr.Code())
+	}
+
+	// Call DescribeUserScramCredentials to verify upsert
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
+
+	// Check Describe result
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+	description, ok = describeRes.Descriptions[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if description.Error.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %s", description.Error.Code())
+	}
+	if description.ScramCredentialInfos[0].Iterations != 10000 {
+		t.Fatalf("Iterations field doesn't match the upserted value. Expected 10000, got %d",
+			description.ScramCredentialInfos[0].Iterations)
+	}
+	if description.ScramCredentialInfos[0].Mechanism != ScramMechanismSHA256 {
+		t.Fatalf("Mechanism field doesn't match the upserted value. Expected %s, got %s",
+			ScramMechanismSHA256, description.ScramCredentialInfos[0].Mechanism)
+	}
+
+	// Call AlterUserScramCredentials for Delete
+	deletions := []UserScramCredentialDeletion{
+		{User: "non-existent", Mechanism: ScramMechanismSHA256}}
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	alterRes, alterErr = ac.AlterUserScramCredentials(ctx, nil, deletions)
+
+	// Check Delete result
+	if alterErr != nil {
+		t.Fatalf("Failed to alter user scram credentials: %s\n", alterErr)
+	}
+	kErr, ok = alterRes.Errors[upsertions[0].User]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if kErr.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %d", kErr.Code())
+	}
+
+	// Call DescribeUserScramCredentials to verify delete
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
+
+	// Check Describe result
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+	description, ok = describeRes.Descriptions[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+
+	if description.Error.Code() != ErrResourceNotFound {
+		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
+	}
 }
 
 func TestIntegration(t *testing.T) {
