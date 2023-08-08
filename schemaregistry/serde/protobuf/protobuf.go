@@ -18,6 +18,7 @@ package protobuf
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -346,27 +347,88 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 }
 
 // Deserialize implements deserialization of Protobuf data
+// TODO for recordNameStrategy, should get an []records
+// then find which one match the payload
+// then unmarshall,
+// the same for .DeserializeInto()
+
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+	bytesRead, messageDesc, info, err := s.setMessageDesciptor(topic, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.deserializePayload(bytesRead, messageDesc, topic, info, payload)
+}
+
+// that would be specific to recordName
+func (s *Deserializer) DeserializeRecordName(subjects []string, payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
-	if err != nil {
-		return nil, err
+
+	switch len(subjects) {
+	case 0:
+		return nil, errors.New("No subject")
+	case 1:
+		bytesRead, messageDesc, info, err := s.setMessageDesciptor(subjects[0], payload)
+		if err != nil {
+			return nil, err
+		}
+
+		if subjects[0] == messageDesc.GetFullyQualifiedName() {
+			return s.deserializePayload(bytesRead, messageDesc, subjects[0], info, payload)
+		}
+	default:
+		if len(subjects) > 1 {
+			for _, subject := range subjects {
+				bytesRead, messageDesc, info, err := s.setMessageDesciptor(subject, payload)
+				if err != nil {
+					return nil, err
+				}
+
+				if subject != messageDesc.GetFullyQualifiedName() {
+					// TODO delete this log
+					log.Println("Subject does not match the GetFullyQualifiedName")
+					continue
+				} else {
+					return s.deserializePayload(bytesRead, messageDesc, subject, info, payload)
+				}
+			}
+		}
 	}
+	return nil, errors.New("Subject unfound in the registery")
+}
+
+// isSchemaMatchSubject shiuld be for topicName and recordName
+func (s *Deserializer) setMessageDesciptor(subject string, payload []byte) (int, *desc.MessageDescriptor, schemaregistry.SchemaInfo, error) {
+
+	var info = schemaregistry.SchemaInfo{}
+	info, err := s.GetSchema(subject, payload)
+	if err != nil {
+		return 0, nil, info, err
+	}
+
 	fd, err := s.toFileDesc(info)
 	if err != nil {
-		return nil, err
+		return 0, nil, info, err
 	}
 	bytesRead, msgIndexes, err := readMessageIndexes(payload[5:])
 	if err != nil {
-		return nil, err
+		return 0, nil, info, err
 	}
 	messageDesc, err := toMessageDesc(fd, msgIndexes)
 	if err != nil {
-		return nil, err
+		return 0, nil, info, err
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+
+	return bytesRead, messageDesc, info, nil
+}
+
+// deserializePayload should be use for topicName and recordName
+func (s *Deserializer) deserializePayload(bytesRead int, messageDesc *desc.MessageDescriptor, subject string, info schemaregistry.SchemaInfo, payload []byte) (interface{}, error) {
+
+	subject, err := s.SubjectNameStrategy(subject, s.SerdeType, info)
 	if err != nil {
 		return nil, err
 	}

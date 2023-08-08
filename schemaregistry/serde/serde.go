@@ -65,6 +65,7 @@ type Deserializer interface {
 	ConfigureDeserializer(client schemaregistry.Client, serdeType Type, conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
+	DeserializeRecordName(subjects []string, payload []byte) (interface{}, error)
 	Deserialize(topic string, payload []byte) (interface{}, error)
 	// DeserializeInto will unmarshal data into the given object.
 	DeserializeInto(topic string, payload []byte, msg interface{}) error
@@ -99,6 +100,7 @@ func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, serde
 	s.Client = client
 	s.Conf = conf
 	s.SerdeType = serdeType
+	// TODO depends on the serdeType it will be TopicNamStrategy or recordNameStrategy
 	s.SubjectNameStrategy = TopicNameStrategy
 	return nil
 }
@@ -117,6 +119,8 @@ func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, s
 
 // SubjectNameStrategyFunc determines the subject for the given parameters
 type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
+
+// TODO implement the RecordNameStrategy which will be the same as TopicNameStrategy...
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
 func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
