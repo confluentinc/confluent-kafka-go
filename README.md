@@ -182,9 +182,10 @@ Prebuilt librdkafka binaries are included with the Go client and librdkafka
 does not need to be installed separately on the build or target system.
 The following platforms are supported by the prebuilt librdkafka binaries:
 
- * Mac OSX x64
- * glibc-based Linux x64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
- - musl-based Linux 64 (Alpine) - without GSSAPI/Kerberos support
+ * Mac OSX x64 and arm64
+ * glibc-based Linux x64 and arm64 (e.g., RedHat, Debian, CentOS, Ubuntu, etc) - without GSSAPI/Kerberos support
+ * musl-based Linux amd64 and arm64 (Alpine) - without GSSAPI/Kerberos support
+ * Windows amd64 - without GSSAPI/Kerberos support
 
 When building your application for Alpine Linux (musl libc) you must pass
 `-tags musl` to `go get`, `go build`, etc.
@@ -208,7 +209,8 @@ repositories or using [Confluent's Deb repository](http://docs.confluent.io/curr
 - For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
 - For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install pkg-config if you don't already have it: `brew install librdkafka pkg-config`.
 - For Alpine: `apk add librdkafka-dev pkgconf`
-- confluent-kafka-go is not supported on Windows.
+- For Windows: there are no official/supported packages, but static builds are included for Windows/x64.
+  Installing from source is needed only for GSSAPI/Kerberos support.
 - For source builds, see instructions below.
 
 Build from source:
