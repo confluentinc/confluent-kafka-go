@@ -65,10 +65,11 @@ type Deserializer interface {
 	ConfigureDeserializer(client schemaregistry.Client, serdeType Type, conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
-	DeserializeRecordName(subjects []string, payload []byte) (interface{}, error)
+	DeserializeRecordName(subjects map[string]interface{}, payload []byte) (interface{}, error)
 	Deserialize(topic string, payload []byte) (interface{}, error)
 	// DeserializeInto will unmarshal data into the given object.
 	DeserializeInto(topic string, payload []byte, msg interface{}) error
+	DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error
 	Close()
 }
 
@@ -204,15 +205,18 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 }
 
 // GetSchema returns a schema for a payload
-func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
+func (s *BaseDeserializer) GetSchema(subject string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
 	if payload[0] != magicByte {
 		return info, fmt.Errorf("unknown magic byte")
 	}
 	id := binary.BigEndian.Uint32(payload[1:5])
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
-	if err != nil {
-		return info, err
+	if subject != "" {
+		var err error
+		subject, err = s.SubjectNameStrategy(subject, s.SerdeType, info)
+		if err != nil {
+			return info, err
+		}
 	}
 	return s.Client.GetBySubjectAndID(subject, int(id))
 }
