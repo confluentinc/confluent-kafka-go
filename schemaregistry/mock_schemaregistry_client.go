@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -69,6 +70,7 @@ var _ Client = new(mockclient)
 
 // Register registers Schema aliased with subject
 func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
+
 	schemaJSON, err := schema.MarshalJSON()
 	if err != nil {
 		return -1, err
@@ -77,6 +79,7 @@ func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool)
 		subject: subject,
 		json:    string(schemaJSON),
 	}
+
 	c.schemaCacheLock.RLock()
 	idCacheEntryVal, ok := c.schemaCache[cacheKey]
 	if idCacheEntryVal.softDeleted {
@@ -91,11 +94,14 @@ func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool)
 	if err != nil {
 		return -1, err
 	}
+
 	c.schemaCacheLock.Lock()
 	c.schemaCache[cacheKey] = idCacheEntry{id, false}
 	c.schemaCacheLock.Unlock()
 	return id, nil
 }
+
+var idRecordNameStrategy = 0
 
 func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, error) {
 	var id = -1
@@ -111,15 +117,32 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, 
 	if err != nil {
 		return -1, err
 	}
-	if id < 0 {
-		id = c.counter.increment()
+
+	// only recordNameStrategy(in the tests) get a name package.type
+	// otherwise all idCacheKey get the same id == 1 which is incorrect
+	subjectRecordNameStrategy := strings.Split(subject, ".")
+	if len(subjectRecordNameStrategy) > 1 {
+		idRecordNameStrategy += 1
 		idCacheKey := subjectID{
 			subject: subject,
-			id:      id,
+			id:      idRecordNameStrategy,
 		}
+		id = idRecordNameStrategy
 		c.idCacheLock.Lock()
 		c.idCache[idCacheKey] = &schema
 		c.idCacheLock.Unlock()
+
+	} else {
+		if id < 0 {
+			id = c.counter.increment()
+			idCacheKey := subjectID{
+				subject: subject,
+				id:      id,
+			}
+			c.idCacheLock.Lock()
+			c.idCache[idCacheKey] = &schema
+			c.idCacheLock.Unlock()
+		}
 	}
 	return id, nil
 }
@@ -153,18 +176,35 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 		subject: subject,
 		id:      id,
 	}
-	c.idCacheLock.RLock()
-	info, ok := c.idCache[cacheKey]
-	c.idCacheLock.RUnlock()
-	if ok {
-		return *info, nil
+
+	if len(subject) > 0 {
+		c.idCacheLock.RLock()
+		info, ok := c.idCache[cacheKey]
+		c.idCacheLock.RUnlock()
+		if ok {
+			return *info, nil
+		}
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, url.QueryEscape(subject)),
+			Err: errors.New("Subject Not Found"),
+		}
+		return SchemaInfo{}, &posErr
+	} else {
+		// in GetBySubjectAndID even is the subject is empty,
+		// the schema's information is queried using only its ID
+		for k, v := range c.idCache {
+			if k.id == id {
+				return *v, nil
+			}
+		}
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, url.QueryEscape(subject)),
+			Err: errors.New("Subject Not Found"),
+		}
+		return SchemaInfo{}, &posErr
 	}
-	posErr := url.Error{
-		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, url.QueryEscape(subject)),
-		Err: errors.New("Subject Not Found"),
-	}
-	return SchemaInfo{}, &posErr
 }
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found
@@ -177,6 +217,7 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 		subject: subject,
 		json:    string(schemaJSON),
 	}
+
 	c.schemaCacheLock.RLock()
 	idCacheEntryVal, ok := c.schemaCache[cacheKey]
 	if idCacheEntryVal.softDeleted {

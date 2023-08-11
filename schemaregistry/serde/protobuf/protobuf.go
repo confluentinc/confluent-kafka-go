@@ -367,6 +367,7 @@ func (s *Deserializer) DeserializeRecordName(subjects map[string]interface{}, pa
 	}
 
 	msgFullyQlfName := messageDesc.GetFullyQualifiedName()
+
 	if _, ok := subjects[msgFullyQlfName]; ok {
 		return s.deserializePayload(bytesRead, messageDesc, msgFullyQlfName, info, payload)
 	} else {
@@ -438,6 +439,7 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 	return proto.Unmarshal(payload[5+bytesRead:], protoMsg)
 }
 
+// DeserializeIntoRecordName deserialize bytes with recordNameStrategy to some given objects
 func (s *Deserializer) DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error {
 	if payload == nil {
 		return nil
