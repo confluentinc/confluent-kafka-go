@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"strings"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
@@ -347,7 +348,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize deserialize events with subjects register with the TopicNameStrategy
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	bytesRead, messageDesc, info, err := s.setMessageDesciptor(topic, payload)
+	bytesRead, messageDesc, info, err := s.setMessageDescriptor(topic, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +362,7 @@ func (s *Deserializer) DeserializeRecordName(subjects map[string]interface{}, pa
 		return nil, nil
 	}
 
-	bytesRead, messageDesc, info, err := s.setMessageDesciptor("", payload)
+	bytesRead, messageDesc, info, err := s.setMessageDescriptor("", payload)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +376,7 @@ func (s *Deserializer) DeserializeRecordName(subjects map[string]interface{}, pa
 	}
 }
 
-func (s *Deserializer) setMessageDesciptor(subject string, payload []byte) (int, *desc.MessageDescriptor, schemaregistry.SchemaInfo, error) {
+func (s *Deserializer) setMessageDescriptor(subject string, payload []byte) (int, *desc.MessageDescriptor, schemaregistry.SchemaInfo, error) {
 
 	var info = schemaregistry.SchemaInfo{}
 	info, err := s.GetSchema(subject, payload)
@@ -425,6 +426,12 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 	if payload == nil {
 		return nil
 	}
+
+	bytesRead, messageDesc, _, err := s.setMessageDescriptor(topic, payload)
+	if err != nil {
+		return err
+	}
+
 	var protoMsg proto.Message
 	switch t := msg.(type) {
 	case proto.Message:
@@ -432,10 +439,12 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 	default:
 		return fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
 	}
-	bytesRead, _, err := readMessageIndexes(payload[5:])
-	if err != nil {
-		return err
+
+	protoInfo := reflect.TypeOf(protoMsg).Elem()
+	if protoInfo.Name() != messageDesc.GetName() {
+		return fmt.Errorf("recipient proto object '%v' differs from incoming events", protoInfo.Name())
 	}
+
 	return proto.Unmarshal(payload[5+bytesRead:], protoMsg)
 }
 
@@ -445,17 +454,13 @@ func (s *Deserializer) DeserializeIntoRecordName(subjects map[string]interface{}
 		return nil
 	}
 
-	_, messageDesc, _, err := s.setMessageDesciptor("", payload)
+	bytesRead, messageDesc, _, err := s.setMessageDescriptor("", payload)
 	if err != nil {
 		return err
 	}
 
 	msgFullyQlfName := messageDesc.GetFullyQualifiedName()
 	if msg, ok := subjects[msgFullyQlfName]; ok {
-		bytesRead, _, err := readMessageIndexes(payload[5:])
-		if err != nil {
-			return err
-		}
 		var protoMsg proto.Message
 		switch t := msg.(type) {
 		case proto.Message:
@@ -463,6 +468,12 @@ func (s *Deserializer) DeserializeIntoRecordName(subjects map[string]interface{}
 		default:
 			return fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
 		}
+
+		protoInfo := reflect.TypeOf(protoMsg).Elem()
+		if protoInfo.Name() != messageDesc.GetName() {
+			return fmt.Errorf("recipient proto object '%v' differs from incoming events", protoInfo.Name())
+		}
+
 		return proto.Unmarshal(payload[5+bytesRead:], protoMsg)
 	} else {
 		return fmt.Errorf("unfound subject declaration for %v", msgFullyQlfName)
