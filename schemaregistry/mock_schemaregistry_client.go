@@ -119,7 +119,7 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, 
 	}
 
 	// only recordNameStrategy(in the tests) get a name package.type
-	// otherwise all idCacheKey get the same id == 1 which is incorrect
+	// otherwise all idCacheKey get the same id == 1
 	subjectRecordNameStrategy := strings.Split(subject, ".")
 	if len(subjectRecordNameStrategy) > 1 {
 		idRecordNameStrategy += 1

@@ -101,7 +101,6 @@ func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, serde
 	s.Client = client
 	s.Conf = conf
 	s.SerdeType = serdeType
-	// TODO depends on the serdeType it will be TopicNamStrategy or recordNameStrategy
 	s.SubjectNameStrategy = TopicNameStrategy
 	return nil
 }
@@ -120,8 +119,6 @@ func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, s
 
 // SubjectNameStrategyFunc determines the subject for the given parameters
 type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
-
-// TODO implement the RecordNameStrategy which will be the same as TopicNameStrategy...
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
 func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {

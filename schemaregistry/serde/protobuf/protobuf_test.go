@@ -464,7 +464,7 @@ func TestProtobufSerdeDeserializeIntoRecordNameInvalidObjectReceiverType(t *test
 	serde.MaybeFail("deserializeIntoRecordNameValidSchema", serde.Expect(err.Error(), "deserialization target must be a protobuf message. Got '{}'"))
 }
 
-func TestProtobufSerdeDeserializeIntoRecordNameInvalidObjectReveiver(t *testing.T) {
+func TestProtobufSerdeDeserializeIntoRecordNameInvalidObjectReceiver(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.NewConfig("mock://")
