@@ -35,9 +35,10 @@ import (
 // It must be invoked whenever kafka.OAuthBearerTokenRefresh appears on the client's event channel,
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
 // previously-received token is 80% of the way to its expiration time).
-func handleProducerJWTTokenRefreshEvent(ctx context.Context, client kafka.Handle, principal, socketPath string, audience []string) {
+func handleProducerJWTTokenRefreshEvent(ctx context.Context, client kafka.Handle,
+	principal, socketPath string, audience []string, lkc string) {
 	fmt.Fprintf(os.Stderr, "Token refresh\n")
-	oauthBearerToken, closer, retrieveErr := retrieveProducerJWTToken(ctx, principal, socketPath, audience)
+	oauthBearerToken, closer, retrieveErr := retrieveProducerJWTToken(ctx, principal, socketPath, audience, lkc)
 	defer closer()
 	if retrieveErr != nil {
 		fmt.Fprintf(os.Stderr, "%% Token retrieval error: %v\n", retrieveErr)
@@ -51,7 +52,7 @@ func handleProducerJWTTokenRefreshEvent(ctx context.Context, client kafka.Handle
 	}
 }
 
-func retrieveProducerJWTToken(ctx context.Context, principal, socketPath string, audience []string) (kafka.OAuthBearerToken, func() error, error) {
+func retrieveProducerJWTToken(ctx context.Context, principal, socketPath string, audience []string, lkc string) (kafka.OAuthBearerToken, func() error, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	jwtSource, err := workloadapi.NewJWTSource(
@@ -77,8 +78,7 @@ func retrieveProducerJWTToken(ctx context.Context, principal, socketPath string,
 	}
 
 	extensions := map[string]string{
-		"logicalCluster": "lkc-2ym8wo",
-		"identityPoolId": "pool-W9j5",
+		"logicalCluster": lkc,
 	}
 	oauthBearerToken := kafka.OAuthBearerToken{
 		TokenValue: jwtSVID.Marshal(),
@@ -94,14 +94,11 @@ func main() {
 
 	bootstrapServers := os.Getenv("BOOTSTRAP_SERVERS")
 	topic := os.Getenv("TOPIC")
+	// TODO: get the principal from the subject claims in token
 	principal := os.Getenv("PRINCIPAL")
 	socketPath := os.Getenv("SOCKET_PATH")
 	audience := []string{"audience1", "audience2"}
-
-	//if bootstrapServers == "" || topic == "" || principal == "" || socketPath == "" {
-	//	fmt.Fprintln(os.Stderr, "ERROR: Missing required environment variables.")
-	//	os.Exit(1)
-	//}
+	lkc := os.Getenv("LKC")
 
 	// You'll probably need to modify this configuration to
 	// match your environment.
@@ -130,7 +127,7 @@ func main() {
 				continue
 			}
 
-			handleProducerJWTTokenRefreshEvent(ctx, p, principal, socketPath, audience)
+			handleProducerJWTTokenRefreshEvent(ctx, p, principal, socketPath, audience, lkc)
 		}
 	}(p.Events())
 
