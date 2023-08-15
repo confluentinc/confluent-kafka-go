@@ -172,16 +172,23 @@ type subjectID struct {
 	id      int
 }
 
+type subjectVersion struct {
+	subject string
+	version int
+}
+
 /* HTTP(S) Schema Registry Client and schema caches */
 type client struct {
 	sync.Mutex
-	restService      *restService
-	schemaCache      cache.Cache
-	schemaCacheLock  sync.RWMutex
-	idCache          cache.Cache
-	idCacheLock      sync.RWMutex
-	versionCache     cache.Cache
-	versionCacheLock sync.RWMutex
+	restService              *restService
+	schemaToIdCache          cache.Cache
+	schemaToIdCacheLock      sync.RWMutex
+	idToSchemaCache          cache.Cache
+	idToSchemaCacheLock      sync.RWMutex
+	schemaToVersionCache     cache.Cache
+	schemaToVersionCacheLock sync.RWMutex
+	versionToSchemaCache     cache.Cache
+	versionToSchemaCacheLock sync.RWMutex
 }
 
 var _ Client = new(client)
@@ -217,11 +224,11 @@ func NewClient(conf *Config) (Client, error) {
 			return nil, err
 		}
 		mock := &mockclient{
-			url:                url,
-			schemaCache:        make(map[subjectJSON]idCacheEntry),
-			idCache:            make(map[subjectID]*SchemaInfo),
-			versionCache:       make(map[subjectJSON]versionCacheEntry),
-			compatibilityCache: make(map[string]Compatibility),
+			url:                  url,
+			schemaToIdCache:      make(map[subjectJSON]idCacheEntry),
+			idToSchemaCache:      make(map[subjectID]*SchemaInfo),
+			schemaToVersionCache: make(map[subjectJSON]versionCacheEntry),
+			compatibilityCache:   make(map[string]Compatibility),
 		}
 		return mock, nil
 	}
@@ -231,32 +238,39 @@ func NewClient(conf *Config) (Client, error) {
 		return nil, err
 	}
 
-	var schemaCache cache.Cache
-	var idCache cache.Cache
-	var versionCache cache.Cache
+	var schemaToIdCache cache.Cache
+	var idToSchemaCache cache.Cache
+	var schemaToVersionCache cache.Cache
+	var versionToSchemaCache cache.Cache
 	if conf.CacheCapacity != 0 {
-		schemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		schemaToIdCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
 			return nil, err
 		}
-		idCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		idToSchemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
 			return nil, err
 		}
-		versionCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		schemaToVersionCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		if err != nil {
+			return nil, err
+		}
+		versionToSchemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		schemaCache = cache.NewMapCache()
-		idCache = cache.NewMapCache()
-		versionCache = cache.NewMapCache()
+		schemaToIdCache = cache.NewMapCache()
+		idToSchemaCache = cache.NewMapCache()
+		schemaToVersionCache = cache.NewMapCache()
+		versionToSchemaCache = cache.NewMapCache()
 	}
 	handle := &client{
-		restService:  restService,
-		schemaCache:  schemaCache,
-		idCache:      idCache,
-		versionCache: versionCache,
+		restService:          restService,
+		schemaToIdCache:      schemaToIdCache,
+		idToSchemaCache:      idToSchemaCache,
+		schemaToVersionCache: schemaToVersionCache,
+		versionToSchemaCache: versionToSchemaCache,
 	}
 	return handle, nil
 }
@@ -271,9 +285,9 @@ func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaCacheLock.RLock()
-	idValue, ok := c.schemaCache.Get(cacheKey)
-	c.schemaCacheLock.RUnlock()
+	c.schemaToIdCacheLock.RLock()
+	idValue, ok := c.schemaToIdCache.Get(cacheKey)
+	c.schemaToIdCacheLock.RUnlock()
 	if ok {
 		return idValue.(int), nil
 	}
@@ -281,20 +295,20 @@ func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	c.schemaCacheLock.Lock()
+	c.schemaToIdCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	idValue, ok = c.schemaCache.Get(cacheKey)
+	idValue, ok = c.schemaToIdCache.Get(cacheKey)
 	if !ok {
 		err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 		if err == nil {
-			c.schemaCache.Put(cacheKey, metadata.ID)
+			c.schemaToIdCache.Put(cacheKey, metadata.ID)
 		} else {
 			metadata.ID = -1
 		}
 	} else {
 		metadata.ID = idValue.(int)
 	}
-	c.schemaCacheLock.Unlock()
+	c.schemaToIdCacheLock.Unlock()
 	return metadata.ID, err
 }
 
@@ -305,18 +319,18 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 		subject: subject,
 		id:      id,
 	}
-	c.idCacheLock.RLock()
-	infoValue, ok := c.idCache.Get(cacheKey)
-	c.idCacheLock.RUnlock()
+	c.idToSchemaCacheLock.RLock()
+	infoValue, ok := c.idToSchemaCache.Get(cacheKey)
+	c.idToSchemaCacheLock.RUnlock()
 	if ok {
 		return *infoValue.(*SchemaInfo), nil
 	}
 
 	metadata := SchemaMetadata{}
 	newInfo := &SchemaInfo{}
-	c.idCacheLock.Lock()
+	c.idToSchemaCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	infoValue, ok = c.idCache.Get(cacheKey)
+	infoValue, ok = c.idToSchemaCache.Get(cacheKey)
 	if !ok {
 		if len(subject) > 0 {
 			err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
@@ -329,12 +343,12 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 				SchemaType: metadata.SchemaType,
 				References: metadata.References,
 			}
-			c.idCache.Put(cacheKey, newInfo)
+			c.idToSchemaCache.Put(cacheKey, newInfo)
 		}
 	} else {
 		newInfo = infoValue.(*SchemaInfo)
 	}
-	c.idCacheLock.Unlock()
+	c.idToSchemaCacheLock.Unlock()
 	return *newInfo, err
 }
 
@@ -348,9 +362,9 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaCacheLock.RLock()
-	idValue, ok := c.schemaCache.Get(cacheKey)
-	c.schemaCacheLock.RUnlock()
+	c.schemaToIdCacheLock.RLock()
+	idValue, ok := c.schemaToIdCache.Get(cacheKey)
+	c.schemaToIdCacheLock.RUnlock()
 	if ok {
 		return idValue.(int), nil
 	}
@@ -358,20 +372,20 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	c.schemaCacheLock.Lock()
+	c.schemaToIdCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	idValue, ok = c.schemaCache.Get(cacheKey)
+	idValue, ok = c.schemaToIdCache.Get(cacheKey)
 	if !ok {
 		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 		if err == nil {
-			c.schemaCache.Put(cacheKey, metadata.ID)
+			c.schemaToIdCache.Put(cacheKey, metadata.ID)
 		} else {
 			metadata.ID = -1
 		}
 	} else {
 		metadata.ID = idValue.(int)
 	}
-	c.schemaCacheLock.Unlock()
+	c.schemaToIdCacheLock.Unlock()
 	return metadata.ID, err
 }
 
@@ -386,8 +400,29 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
+	cacheKey := subjectVersion{
+		subject: subject,
+		version: version,
+	}
+	c.versionToSchemaCacheLock.RLock()
+	metadataValue, ok := c.versionToSchemaCache.Get(cacheKey)
+	c.versionToSchemaCacheLock.RUnlock()
+	if ok {
+		return *metadataValue.(*SchemaMetadata), nil
+	}
 
+	c.versionToSchemaCacheLock.Lock()
+	// another goroutine could have already put it in cache
+	metadataValue, ok = c.versionToSchemaCache.Get(cacheKey)
+	if !ok {
+		err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
+		if err == nil {
+			c.versionToSchemaCache.Put(cacheKey, &result)
+		}
+	} else {
+		result = *metadataValue.(*SchemaMetadata)
+	}
+	c.versionToSchemaCacheLock.Unlock()
 	return result, err
 }
 
@@ -411,9 +446,9 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.versionCacheLock.RLock()
-	versionValue, ok := c.versionCache.Get(cacheKey)
-	c.versionCacheLock.RUnlock()
+	c.schemaToVersionCacheLock.RLock()
+	versionValue, ok := c.schemaToVersionCache.Get(cacheKey)
+	c.schemaToVersionCacheLock.RUnlock()
 	if ok {
 		return versionValue.(int), nil
 	}
@@ -421,20 +456,20 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	c.versionCacheLock.Lock()
+	c.schemaToVersionCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	versionValue, ok = c.versionCache.Get(cacheKey)
+	versionValue, ok = c.schemaToVersionCache.Get(cacheKey)
 	if !ok {
 		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 		if err == nil {
-			c.versionCache.Put(cacheKey, metadata.Version)
+			c.schemaToVersionCache.Put(cacheKey, metadata.Version)
 		} else {
 			metadata.Version = -1
 		}
 	} else {
 		metadata.Version = versionValue.(int)
 	}
-	c.versionCacheLock.Unlock()
+	c.schemaToVersionCacheLock.Unlock()
 	return metadata.Version, err
 }
 
@@ -450,30 +485,40 @@ func (c *client) GetAllSubjects() ([]string, error) {
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
 func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
-	c.schemaCacheLock.Lock()
-	for keyValue := range c.schemaCache.ToMap() {
+	c.schemaToIdCacheLock.Lock()
+	for keyValue := range c.schemaToIdCache.ToMap() {
 		key := keyValue.(subjectJSON)
 		if key.subject == subject {
-			c.schemaCache.Delete(key)
+			c.schemaToIdCache.Delete(key)
 		}
 	}
-	c.schemaCacheLock.Unlock()
-	c.versionCacheLock.Lock()
-	for keyValue := range c.versionCache.ToMap() {
+	c.schemaToIdCacheLock.Unlock()
+	c.schemaToVersionCacheLock.Lock()
+	for keyValue := range c.schemaToVersionCache.ToMap() {
 		key := keyValue.(subjectJSON)
 		if key.subject == subject {
-			c.versionCache.Delete(key)
+			c.schemaToVersionCache.Delete(key)
 		}
 	}
-	c.versionCacheLock.Unlock()
-	c.idCacheLock.Lock()
-	for keyValue := range c.idCache.ToMap() {
+	c.schemaToVersionCacheLock.Unlock()
+	if permanent {
+		c.versionToSchemaCacheLock.Lock()
+		for keyValue := range c.versionToSchemaCache.ToMap() {
+			key := keyValue.(subjectVersion)
+			if key.subject == subject {
+				c.versionToSchemaCache.Delete(key)
+			}
+		}
+		c.versionToSchemaCacheLock.Unlock()
+	}
+	c.idToSchemaCacheLock.Lock()
+	for keyValue := range c.idToSchemaCache.ToMap() {
 		key := keyValue.(subjectID)
 		if key.subject == subject {
-			c.idCache.Delete(key)
+			c.idToSchemaCache.Delete(key)
 		}
 	}
-	c.idCacheLock.Unlock()
+	c.idToSchemaCacheLock.Unlock()
 	var result []int
 	err = c.restService.handleRequest(newRequest("DELETE", subjectsDelete, nil, url.PathEscape(subject), permanent), &result)
 	return result, err
@@ -482,35 +527,44 @@ func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, e
 // DeleteSubjectVersion removes the version identified by delete from the subject's registration
 // Returns integer id for the deleted version
 func (c *client) DeleteSubjectVersion(subject string, version int, permanent bool) (deleted int, err error) {
-	c.versionCacheLock.Lock()
-	for keyValue, value := range c.versionCache.ToMap() {
+	c.schemaToVersionCacheLock.Lock()
+	for keyValue, value := range c.schemaToVersionCache.ToMap() {
 		key := keyValue.(subjectJSON)
 		if key.subject == subject && value == version {
-			c.versionCache.Delete(key)
+			c.schemaToVersionCache.Delete(key)
 			schemaJSON := key.json
 			cacheKeySchema := subjectJSON{
 				subject: subject,
 				json:    string(schemaJSON),
 			}
-			c.schemaCacheLock.Lock()
-			idValue, ok := c.schemaCache.Get(cacheKeySchema)
+			c.schemaToIdCacheLock.Lock()
+			idValue, ok := c.schemaToIdCache.Get(cacheKeySchema)
 			if ok {
-				c.schemaCache.Delete(cacheKeySchema)
+				c.schemaToIdCache.Delete(cacheKeySchema)
 			}
-			c.schemaCacheLock.Unlock()
+			c.schemaToIdCacheLock.Unlock()
 			if ok {
 				id := idValue.(int)
-				c.idCacheLock.Lock()
+				c.idToSchemaCacheLock.Lock()
 				cacheKeyID := subjectID{
 					subject: subject,
 					id:      id,
 				}
-				c.idCache.Delete(cacheKeyID)
-				c.idCacheLock.Unlock()
+				c.idToSchemaCache.Delete(cacheKeyID)
+				c.idToSchemaCacheLock.Unlock()
 			}
 		}
 	}
-	c.versionCacheLock.Unlock()
+	c.schemaToVersionCacheLock.Unlock()
+	if permanent {
+		c.versionToSchemaCacheLock.Lock()
+		cacheKey := subjectVersion{
+			subject: subject,
+			version: version,
+		}
+		c.versionToSchemaCache.Delete(cacheKey)
+		c.versionToSchemaCacheLock.Unlock()
+	}
 	var result int
 	err = c.restService.handleRequest(newRequest("DELETE", versionsDelete, nil, url.PathEscape(subject), version, permanent), &result)
 	return result, err
