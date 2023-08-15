@@ -1,0 +1,13 @@
+version: '3'
+services:
+  consumer:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+     - BOOTSTRAP_SERVERS=pkc-devcc97qpm5.us-west-2.aws.devel.cpdev.cloud:9092
+     - TOPIC=kafka-spire-native
+     - PRINCIPAL=sub
+     - SOCKET_PATH=unix:/opt/spire/sockets/workload_api.sock
+     - LKC=lkc-devcczwnq87
