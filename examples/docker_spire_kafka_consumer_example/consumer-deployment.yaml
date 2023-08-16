@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.26.0 (40646f47)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: consumer
+  name: consumer-chang
+  namespace: pkc-devcc97qpm5
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: consumer
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.26.0 (40646f47)
+      creationTimestamp: null
+      labels:
+        io.kompose.service: consumer
+    spec:
+      containers:
+        - env:
+            - name: BOOTSTRAP_SERVERS
+              value: pkc-devcc97qpm5.us-west-2.aws.devel.cpdev.cloud:9092
+            - name: LKC
+              value: lkc-devcczwjmmd
+            - name: PRINCIPAL
+              value: sub
+            - name: SOCKET_PATH
+              value: unix:/opt/spire/sockets/workload_api.sock
+            - name: TOPIC
+              value: kafka-spire-native
+          image: 755363985185.dkr.ecr.us-west-2.amazonaws.com/docker/dev/cc-base:kafka-consumer-spire-chang
+          imagePullPolicy: Always
+          name: consumer-chang
+          resources: {}
+          volumeMounts:
+            - mountPath: /opt/spire/sockets
+              name: spire-agent-socket
+              readOnly: true
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /opt/spire/sockets
+            type: DirectoryOrCreate
+      restartPolicy: Always
+status: {}
