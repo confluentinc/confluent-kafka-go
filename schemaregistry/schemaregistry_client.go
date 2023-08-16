@@ -501,16 +501,14 @@ func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, e
 		}
 	}
 	c.schemaToVersionCacheLock.Unlock()
-	if permanent {
-		c.versionToSchemaCacheLock.Lock()
-		for keyValue := range c.versionToSchemaCache.ToMap() {
-			key := keyValue.(subjectVersion)
-			if key.subject == subject {
-				c.versionToSchemaCache.Delete(key)
-			}
+	c.versionToSchemaCacheLock.Lock()
+	for keyValue := range c.versionToSchemaCache.ToMap() {
+		key := keyValue.(subjectVersion)
+		if key.subject == subject {
+			c.versionToSchemaCache.Delete(key)
 		}
-		c.versionToSchemaCacheLock.Unlock()
 	}
+	c.versionToSchemaCacheLock.Unlock()
 	c.idToSchemaCacheLock.Lock()
 	for keyValue := range c.idToSchemaCache.ToMap() {
 		key := keyValue.(subjectID)
@@ -556,15 +554,13 @@ func (c *client) DeleteSubjectVersion(subject string, version int, permanent boo
 		}
 	}
 	c.schemaToVersionCacheLock.Unlock()
-	if permanent {
-		c.versionToSchemaCacheLock.Lock()
-		cacheKey := subjectVersion{
-			subject: subject,
-			version: version,
-		}
-		c.versionToSchemaCache.Delete(cacheKey)
-		c.versionToSchemaCacheLock.Unlock()
+	c.versionToSchemaCacheLock.Lock()
+	cacheKey := subjectVersion{
+		subject: subject,
+		version: version,
 	}
+	c.versionToSchemaCache.Delete(cacheKey)
+	c.versionToSchemaCacheLock.Unlock()
 	var result int
 	err = c.restService.handleRequest(newRequest("DELETE", versionsDelete, nil, url.PathEscape(subject), version, permanent), &result)
 	return result, err
