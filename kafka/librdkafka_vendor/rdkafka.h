@@ -1,7 +1,8 @@
 /*
  * librdkafka - Apache Kafka C library
  *
- * Copyright (c) 2012-2022 Magnus Edenhill
+ * Copyright (c) 2012-2022, Magnus Edenhill
+ *               2023, Confluent Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -908,7 +909,6 @@ typedef struct rd_kafka_topic_partition_s {
                                   *   rd_kafka_t INSTANCES. */
 } rd_kafka_topic_partition_t;
 
-
 /**
  * @brief Destroy a rd_kafka_topic_partition_t.
  * @remark This must not be called for elements in a topic partition list.
@@ -952,7 +952,6 @@ typedef struct rd_kafka_topic_partition_list_s {
         rd_kafka_topic_partition_t *elems; /**< Element array[] */
 } rd_kafka_topic_partition_list_t;
 
-
 /**
  * @brief Create a new list/vector Topic+Partition container.
  *
@@ -969,7 +968,6 @@ typedef struct rd_kafka_topic_partition_list_s {
  */
 RD_EXPORT
 rd_kafka_topic_partition_list_t *rd_kafka_topic_partition_list_new(int size);
-
 
 /**
  * @brief Free all resources used by the list and the list itself.
@@ -2101,7 +2099,7 @@ void rd_kafka_conf_set_log_cb(rd_kafka_conf_t *conf,
  *                 rd_kafka_conf_set_opaque().
  *
  * For more information on the format of \p json, see
- * https://github.com/edenhill/librdkafka/wiki/Statistics
+ * https://github.com/confluentinc/librdkafka/wiki/Statistics
  *
  * If the application wishes to hold on to the \p json pointer and free
  * it at a later time it must return 1 from the \p stats_cb.
@@ -5366,7 +5364,12 @@ typedef int rd_kafka_event_type_t;
 #define RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT 0x8000
 /** AlterConsumerGroupOffsets_result_t */
 #define RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT 0x10000
-
+/** IncrementalAlterConfigs_result_t */
+#define RD_KAFKA_EVENT_INCREMENTALALTERCONFIGS_RESULT 0x20000
+/** DescribeUserScramCredentials_result_t */
+#define RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT 0x40000
+/** AlterUserScramCredentials_result_t */
+#define RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT 0x80000
 
 /**
  * @returns the event type for the given event.
@@ -5513,6 +5516,7 @@ int rd_kafka_event_error_is_fatal(rd_kafka_event_t *rkev);
  *  - RD_KAFKA_EVENT_DESCRIBEACLS_RESULT
  *  - RD_KAFKA_EVENT_DELETEACLS_RESULT
  *  - RD_KAFKA_EVENT_ALTERCONFIGS_RESULT
+ *  - RD_KAFKA_EVENT_INCREMENTAL_ALTERCONFIGS_RESULT
  *  - RD_KAFKA_EVENT_DESCRIBECONFIGS_RESULT
  *  - RD_KAFKA_EVENT_DELETEGROUPS_RESULT
  *  - RD_KAFKA_EVENT_DELETECONSUMERGROUPOFFSETS_RESULT
@@ -5616,6 +5620,8 @@ typedef rd_kafka_event_t rd_kafka_DeleteAcls_result_t;
 typedef rd_kafka_event_t rd_kafka_CreatePartitions_result_t;
 /*! AlterConfigs result type */
 typedef rd_kafka_event_t rd_kafka_AlterConfigs_result_t;
+/*! IncrementalAlterConfigs result type */
+typedef rd_kafka_event_t rd_kafka_IncrementalAlterConfigs_result_t;
 /*! CreateTopics result type */
 typedef rd_kafka_event_t rd_kafka_DescribeConfigs_result_t;
 /*! DeleteRecords result type */
@@ -5632,6 +5638,10 @@ typedef rd_kafka_event_t rd_kafka_DeleteConsumerGroupOffsets_result_t;
 typedef rd_kafka_event_t rd_kafka_AlterConsumerGroupOffsets_result_t;
 /*! ListConsumerGroupOffsets result type */
 typedef rd_kafka_event_t rd_kafka_ListConsumerGroupOffsets_result_t;
+/*! DescribeUserScramCredentials result type */
+typedef rd_kafka_event_t rd_kafka_DescribeUserScramCredentials_result_t;
+/*! AlterUserScramCredentials result type */
+typedef rd_kafka_event_t rd_kafka_AlterUserScramCredentials_result_t;
 
 /**
  * @brief Get CreateTopics result.
@@ -5680,6 +5690,18 @@ rd_kafka_event_CreatePartitions_result(rd_kafka_event_t *rkev);
  */
 RD_EXPORT const rd_kafka_AlterConfigs_result_t *
 rd_kafka_event_AlterConfigs_result(rd_kafka_event_t *rkev);
+
+/**
+ * @brief Get IncrementalAlterConfigs result.
+ *
+ * @returns the result of a IncrementalAlterConfigs request, or NULL if event is
+ * of different type.
+ *
+ * Event types:
+ *   RD_KAFKA_EVENT_INCREMENTALALTERCONFIGS_RESULT
+ */
+RD_EXPORT const rd_kafka_IncrementalAlterConfigs_result_t *
+rd_kafka_event_IncrementalAlterConfigs_result(rd_kafka_event_t *rkev);
 
 /**
  * @brief Get DescribeConfigs result.
@@ -5788,6 +5810,21 @@ RD_EXPORT const rd_kafka_DeleteAcls_result_t *
 rd_kafka_event_DeleteAcls_result(rd_kafka_event_t *rkev);
 
 /**
+ * @brief Get ListConsumerGroupOffsets result.
+ *
+ * @returns the result of a ListConsumerGroupOffsets request, or NULL if
+ *          event is of different type.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p rkev object.
+ *
+ * Event types:
+ *   RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT
+ */
+RD_EXPORT const rd_kafka_ListConsumerGroupOffsets_result_t *
+rd_kafka_event_ListConsumerGroupOffsets_result(rd_kafka_event_t *rkev);
+
+/**
  * @brief Get AlterConsumerGroupOffsets result.
  *
  * @returns the result of a AlterConsumerGroupOffsets request, or NULL if
@@ -5803,19 +5840,34 @@ RD_EXPORT const rd_kafka_AlterConsumerGroupOffsets_result_t *
 rd_kafka_event_AlterConsumerGroupOffsets_result(rd_kafka_event_t *rkev);
 
 /**
- * @brief Get ListConsumerGroupOffsets result.
+ * @brief Get DescribeUserScramCredentials result.
  *
- * @returns the result of a ListConsumerGroupOffsets request, or NULL if
+ * @returns the result of a DescribeUserScramCredentials request, or NULL if
  *          event is of different type.
  *
  * @remark The lifetime of the returned memory is the same
  *         as the lifetime of the \p rkev object.
  *
  * Event types:
- *   RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT
+ *   RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT
  */
-RD_EXPORT const rd_kafka_ListConsumerGroupOffsets_result_t *
-rd_kafka_event_ListConsumerGroupOffsets_result(rd_kafka_event_t *rkev);
+RD_EXPORT const rd_kafka_DescribeUserScramCredentials_result_t *
+rd_kafka_event_DescribeUserScramCredentials_result(rd_kafka_event_t *rkev);
+
+/**
+ * @brief Get AlterUserScramCredentials result.
+ *
+ * @returns the result of a AlterUserScramCredentials request, or NULL if
+ *          event is of different type.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p rkev object.
+ *
+ * Event types:
+ *   RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT
+ */
+RD_EXPORT const rd_kafka_AlterUserScramCredentials_result_t *
+rd_kafka_event_AlterUserScramCredentials_result(rd_kafka_event_t *rkev);
 
 /**
  * @brief Poll a queue for an event for max \p timeout_ms.
@@ -6720,6 +6772,12 @@ typedef enum rd_kafka_admin_op_t {
         RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS,
         /** AlterConsumerGroupOffsets */
         RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS,
+        /** IncrementalAlterConfigs */
+        RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS,
+        /** DescribeUserScramCredentials */
+        RD_KAFKA_ADMIN_OP_DESCRIBEUSERSCRAMCREDENTIALS,
+        /** AlterUserScramCredentials */
+        RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
         RD_KAFKA_ADMIN_OP__CNT /**< Number of ops defined */
 } rd_kafka_admin_op_t;
 
@@ -6855,6 +6913,8 @@ rd_kafka_AdminOptions_set_validate_only(rd_kafka_AdminOptions_t *options,
  * the following exceptions:
  *   - AlterConfigs with a BROKER resource are sent to the broker id set
  *     as the resource name.
+ *   - IncrementalAlterConfigs with a BROKER resource are sent to the broker id
+ *     set as the resource name.
  *   - DescribeConfigs with a BROKER resource are sent to the broker id set
  *     as the resource name.
  *
@@ -7416,6 +7476,18 @@ typedef enum rd_kafka_ResourcePatternType_t {
 } rd_kafka_ResourcePatternType_t;
 
 /**
+ * @enum rd_kafka_AlterConfigOpType_t
+ * @brief Incremental alter configs operations.
+ */
+typedef enum rd_kafka_AlterConfigOpType_t {
+        RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET      = 0,
+        RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE   = 1,
+        RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND   = 2,
+        RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT = 3,
+        RD_KAFKA_ALTER_CONFIG_OP_TYPE__CNT,
+} rd_kafka_AlterConfigOpType_t;
+
+/**
  * @returns a string representation of the \p resource_pattern_type
  */
 RD_EXPORT const char *rd_kafka_ResourcePatternType_name(
@@ -7478,6 +7550,31 @@ RD_EXPORT rd_kafka_resp_err_t
 rd_kafka_ConfigResource_set_config(rd_kafka_ConfigResource_t *config,
                                    const char *name,
                                    const char *value);
+
+
+/**
+ * @brief Add the value of the configuration entry for a subsequent
+ *        incremental alter config operation. APPEND and SUBTRACT are
+ *        possible for list-type configuration entries only.
+ *
+ * @param config ConfigResource to add config property to.
+ * @param name Configuration name, depends on resource type.
+ * @param op_type Operation type, one of rd_kafka_AlterConfigOpType_t.
+ * @param value Configuration value, depends on resource type and \p name.
+ *              Set to \c NULL, only with with op_type set to DELETE,
+ *              to revert configuration value to default.
+ *
+ * @returns NULL on success, or an rd_kafka_error_t *
+ *          with the corresponding error code and string.
+ *          Error ownership belongs to the caller.
+ *          Possible error codes:
+ *          - RD_KAFKA_RESP_ERR__INVALID_ARG on invalid input.
+ */
+RD_EXPORT rd_kafka_error_t *rd_kafka_ConfigResource_add_incremental_config(
+    rd_kafka_ConfigResource_t *config,
+    const char *name,
+    rd_kafka_AlterConfigOpType_t op_type,
+    const char *value);
 
 
 /**
@@ -7545,6 +7642,8 @@ rd_kafka_ConfigResource_error_string(const rd_kafka_ConfigResource_t *config);
  *         since these resource requests must be sent to the broker specified
  *         in the resource.
  *
+ * @deprecated Use rd_kafka_IncrementalAlterConfigs().
+ *
  */
 RD_EXPORT
 void rd_kafka_AlterConfigs(rd_kafka_t *rk,
@@ -7575,6 +7674,66 @@ void rd_kafka_AlterConfigs(rd_kafka_t *rk,
 RD_EXPORT const rd_kafka_ConfigResource_t **
 rd_kafka_AlterConfigs_result_resources(
     const rd_kafka_AlterConfigs_result_t *result,
+    size_t *cntp);
+
+
+
+/*
+ * IncrementalAlterConfigs - alter cluster configuration incrementally.
+ *
+ */
+
+
+/**
+ * @brief Incrementally update the configuration for the specified resources.
+ *        Updates are not transactional so they may succeed for some resources
+ *        while fail for others. The configs for a particular resource are
+ *        updated atomically, executing the corresponding incremental operations
+ *        on the provided configurations.
+ *
+ * @remark Requires broker version >=2.3.0
+ *
+ * @remark Multiple resources and resource types may be set, but at most one
+ *         resource of type \c RD_KAFKA_RESOURCE_BROKER is allowed per call
+ *         since these resource requests must be sent to the broker specified
+ *         in the resource. Broker option will be ignored in this case.
+ *
+ * @param rk Client instance.
+ * @param configs Array of config entries to alter.
+ * @param config_cnt Number of elements in \p configs array.
+ * @param options Optional admin options, or NULL for defaults.
+ * @param rkqu Queue to emit result on.
+ */
+RD_EXPORT
+void rd_kafka_IncrementalAlterConfigs(rd_kafka_t *rk,
+                                      rd_kafka_ConfigResource_t **configs,
+                                      size_t config_cnt,
+                                      const rd_kafka_AdminOptions_t *options,
+                                      rd_kafka_queue_t *rkqu);
+
+
+/*
+ * IncrementalAlterConfigs result type and methods
+ */
+
+/**
+ * @brief Get an array of resource results from a IncrementalAlterConfigs
+ * result.
+ *
+ * Use \c rd_kafka_ConfigResource_error() and
+ * \c rd_kafka_ConfigResource_error_string() to extract per-resource error
+ * results on the returned array elements.
+ *
+ * The returned object life-times are the same as the \p result object.
+ *
+ * @param result Result object to get resource results from.
+ * @param cntp is updated to the number of elements in the array.
+ *
+ * @returns an array of ConfigResource elements, or NULL if not available.
+ */
+RD_EXPORT const rd_kafka_ConfigResource_t **
+rd_kafka_IncrementalAlterConfigs_result_resources(
+    const rd_kafka_IncrementalAlterConfigs_result_t *result,
     size_t *cntp);
 
 
@@ -8452,6 +8611,245 @@ RD_EXPORT const rd_kafka_group_result_t **
 rd_kafka_DeleteConsumerGroupOffsets_result_groups(
     const rd_kafka_DeleteConsumerGroupOffsets_result_t *result,
     size_t *cntp);
+
+/**@}*/
+
+
+/**
+ * @name Admin API - User SCRAM credentials
+ * @{
+ */
+
+/**
+ * @enum rd_kafka_ScramMechanism_t
+ * @brief Apache Kafka ScramMechanism values.
+ */
+typedef enum rd_kafka_ScramMechanism_t {
+        RD_KAFKA_SCRAM_MECHANISM_UNKNOWN = 0,
+        RD_KAFKA_SCRAM_MECHANISM_SHA_256 = 1,
+        RD_KAFKA_SCRAM_MECHANISM_SHA_512 = 2,
+        RD_KAFKA_SCRAM_MECHANISM__CNT
+} rd_kafka_ScramMechanism_t;
+
+/**
+ * @brief Scram credential info.
+ *        Mechanism and iterations for a SASL/SCRAM
+ *        credential associated with a user.
+ */
+typedef struct rd_kafka_ScramCredentialInfo_s rd_kafka_ScramCredentialInfo_t;
+
+/**
+ * @brief Returns the mechanism of a given ScramCredentialInfo.
+ */
+RD_EXPORT
+rd_kafka_ScramMechanism_t rd_kafka_ScramCredentialInfo_mechanism(
+    const rd_kafka_ScramCredentialInfo_t *scram_credential_info);
+
+/**
+ * @brief Returns the iterations of a given ScramCredentialInfo.
+ */
+RD_EXPORT
+int32_t rd_kafka_ScramCredentialInfo_iterations(
+    const rd_kafka_ScramCredentialInfo_t *scram_credential_info);
+
+/**
+ * @brief Representation of all SASL/SCRAM credentials associated
+ *        with a user that can be retrieved,
+ *        or an error indicating why credentials
+ *        could not be retrieved.
+ */
+typedef struct rd_kafka_UserScramCredentialsDescription_s
+    rd_kafka_UserScramCredentialsDescription_t;
+
+/**
+ * @brief Returns the username of a UserScramCredentialsDescription.
+ */
+RD_EXPORT
+const char *rd_kafka_UserScramCredentialsDescription_user(
+    const rd_kafka_UserScramCredentialsDescription_t *description);
+
+/**
+ * @brief Returns the error associated with a UserScramCredentialsDescription.
+ */
+RD_EXPORT
+const rd_kafka_error_t *rd_kafka_UserScramCredentialsDescription_error(
+    const rd_kafka_UserScramCredentialsDescription_t *description);
+
+/**
+ * @brief Returns the count of ScramCredentialInfos of a
+ * UserScramCredentialsDescription.
+ */
+RD_EXPORT
+size_t rd_kafka_UserScramCredentialsDescription_scramcredentialinfo_count(
+    const rd_kafka_UserScramCredentialsDescription_t *description);
+
+/**
+ * @brief Returns the ScramCredentialInfo at index idx of
+ * UserScramCredentialsDescription.
+ */
+RD_EXPORT
+const rd_kafka_ScramCredentialInfo_t *
+rd_kafka_UserScramCredentialsDescription_scramcredentialinfo(
+    const rd_kafka_UserScramCredentialsDescription_t *description,
+    size_t idx);
+
+/**
+ * @brief Get an array of descriptions from a DescribeUserScramCredentials
+ * result.
+ *
+ * The returned value life-time is the same as the \p result object.
+ *
+ * @param result Result to get descriptions from.
+ * @param cntp is updated to the number of elements in the array.
+ */
+RD_EXPORT
+const rd_kafka_UserScramCredentialsDescription_t **
+rd_kafka_DescribeUserScramCredentials_result_descriptions(
+    const rd_kafka_DescribeUserScramCredentials_result_t *result,
+    size_t *cntp);
+
+/**
+ * @brief Describe SASL/SCRAM credentials.
+ *        This operation is supported by brokers with version 2.7.0 or higher.
+ *
+ * @param rk Client instance.
+ * @param users The users for which credentials are to be described.
+ *              All users' credentials are described if NULL.
+ * @param user_cnt Number of elements in \p users array.
+ * @param options Optional admin options, or NULL for defaults.
+ * @param rkqu Queue to emit result on.
+ */
+RD_EXPORT
+void rd_kafka_DescribeUserScramCredentials(
+    rd_kafka_t *rk,
+    const char **users,
+    size_t user_cnt,
+    const rd_kafka_AdminOptions_t *options,
+    rd_kafka_queue_t *rkqu);
+
+/**
+ * @brief A request to alter a user's SASL/SCRAM credentials.
+ */
+typedef struct rd_kafka_UserScramCredentialAlteration_s
+    rd_kafka_UserScramCredentialAlteration_t;
+
+/**
+ * @brief Allocates a new UserScramCredentialUpsertion given its fields.
+ *        If salt isn't given a 64 B salt is generated using OpenSSL
+ *        RAND_priv_bytes, if available.
+ *
+ * @param username The username (not empty).
+ * @param mechanism SASL/SCRAM mechanism.
+ * @param iterations SASL/SCRAM iterations.
+ * @param password Password bytes (not empty).
+ * @param password_size Size of \p password (greater than 0).
+ * @param salt Salt bytes (optional).
+ * @param salt_size Size of \p salt (optional).
+ *
+ * @remark A random salt is generated, when NULL, only if OpenSSL >= 1.1.1.
+ *         Otherwise it's a required param.
+ *
+ * @return A newly created instance of rd_kafka_UserScramCredentialAlteration_t.
+ *         Ownership belongs to the caller, use
+ *         rd_kafka_UserScramCredentialAlteration_destroy to destroy.
+ */
+RD_EXPORT
+rd_kafka_UserScramCredentialAlteration_t *
+rd_kafka_UserScramCredentialUpsertion_new(const char *username,
+                                          rd_kafka_ScramMechanism_t mechanism,
+                                          int32_t iterations,
+                                          const unsigned char *password,
+                                          size_t password_size,
+                                          const unsigned char *salt,
+                                          size_t salt_size);
+
+/**
+ * @brief Allocates a new UserScramCredentialDeletion given its fields.
+ *
+ * @param username The username (not empty).
+ * @param mechanism SASL/SCRAM mechanism.
+ * @return A newly created instance of rd_kafka_UserScramCredentialAlteration_t.
+ *         Ownership belongs to the caller, use
+ *         rd_kafka_UserScramCredentialAlteration_destroy to destroy.
+ */
+RD_EXPORT
+rd_kafka_UserScramCredentialAlteration_t *
+rd_kafka_UserScramCredentialDeletion_new(const char *username,
+                                         rd_kafka_ScramMechanism_t mechanism);
+
+
+/**
+ * @brief Destroys a UserScramCredentialAlteration given its pointer
+ */
+RD_EXPORT
+void rd_kafka_UserScramCredentialAlteration_destroy(
+    rd_kafka_UserScramCredentialAlteration_t *alteration);
+
+/**
+ * @brief Destroys an array of UserScramCredentialAlteration
+ */
+RD_EXPORT
+void rd_kafka_UserScramCredentialAlteration_destroy_array(
+    rd_kafka_UserScramCredentialAlteration_t **alterations,
+    size_t alteration_cnt);
+
+/**
+ * @brief Result of a single user SCRAM alteration.
+ */
+typedef struct rd_kafka_AlterUserScramCredentials_result_response_s
+    rd_kafka_AlterUserScramCredentials_result_response_t;
+
+/**
+ * @brief Returns the username for a
+ * rd_kafka_AlterUserScramCredentials_result_response.
+ */
+RD_EXPORT
+const char *rd_kafka_AlterUserScramCredentials_result_response_user(
+    const rd_kafka_AlterUserScramCredentials_result_response_t *response);
+
+/**
+ * @brief Returns the error of a
+ * rd_kafka_AlterUserScramCredentials_result_response.
+ */
+RD_EXPORT
+const rd_kafka_error_t *
+rd_kafka_AlterUserScramCredentials_result_response_error(
+    const rd_kafka_AlterUserScramCredentials_result_response_t *response);
+
+/**
+ * @brief Get an array of responses from a AlterUserScramCredentials result.
+ *
+ * The returned value life-time is the same as the \p result object.
+ *
+ * @param result Result to get responses from.
+ * @param cntp is updated to the number of elements in the array.
+ */
+RD_EXPORT
+const rd_kafka_AlterUserScramCredentials_result_response_t **
+rd_kafka_AlterUserScramCredentials_result_responses(
+    const rd_kafka_AlterUserScramCredentials_result_t *result,
+    size_t *cntp);
+
+/**
+ * @brief Alter SASL/SCRAM credentials.
+ *        This operation is supported by brokers with version 2.7.0 or higher.
+ *
+ * @remark For upsertions to be processed, librdkfka must be build with
+ *         OpenSSL support. It's needed to calculate the HMAC.
+ *
+ * @param rk Client instance.
+ * @param alterations The alterations to be applied.
+ * @param alteration_cnt Number of elements in \p alterations array.
+ * @param options Optional admin options, or NULL for defaults.
+ * @param rkqu Queue to emit result on.
+ */
+RD_EXPORT
+void rd_kafka_AlterUserScramCredentials(
+    rd_kafka_t *rk,
+    rd_kafka_UserScramCredentialAlteration_t **alterations,
+    size_t alteration_cnt,
+    const rd_kafka_AdminOptions_t *options,
+    rd_kafka_queue_t *rkqu);
 
 /**@}*/
 

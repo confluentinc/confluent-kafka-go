@@ -76,7 +76,7 @@ func retrieveJWTToken(ctx context.Context, principal, socketPath string, audienc
 	}
 
 	extensions := map[string]string{
-		"logicalCluster": "lkc-0yoqvq",
+		"logicalCluster": "lkc-devcczwnq0d",
 		"identityPoolId": "pool-W9j5",
 	}
 	oauthBearerToken := kafka.OAuthBearerToken{
