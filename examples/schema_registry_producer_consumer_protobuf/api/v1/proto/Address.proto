@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package another.v1;
+
+option go_package = "./api/v1/proto";
+
+message Address {
+	string street = 1;
+	string city = 2;
+}
