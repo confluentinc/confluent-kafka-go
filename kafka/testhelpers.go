@@ -27,11 +27,6 @@ import (
 	"time"
 )
 
-/*
-#include "select_rdkafka.h"
-*/
-import "C"
-
 var testconf struct {
 	Docker       bool
 	Semaphore    bool
@@ -156,7 +151,7 @@ func getMessageCountInTopic(topic string) (int, error) {
 
 	t, ok := metadata.Topics[topic]
 	if !ok {
-		return 0, newError(C.RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC)
+		return 0, NewError(ErrUnknownTopic, "", false)
 	}
 
 	cnt := 0
