@@ -92,12 +92,12 @@ func TestNewRestService(t *testing.T) {
 		t.Errorf("Should work with empty config, got %s", err)
 	}
 
-	conf.BaseClient = new(http.Client)
+	conf.HTTPClient = new(http.Client)
 	rest, err = newRestService(conf)
 	if err != nil {
 		t.Errorf("Should work with base client set, got %s", err)
 	}
-	if rest.Client != conf.BaseClient {
-		t.Errorf("Should use BaseClient if provided")
+	if rest.Client != conf.HTTPClient {
+		t.Errorf("Should use HTTPClient if provided")
 	}
 }

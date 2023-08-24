@@ -54,10 +54,10 @@ type Config struct {
 	// CacheCapacity positive integer or zero for unbounded capacity
 	CacheCapacity int
 
-	// BaseClient will override the default http.Client.
+	// HTTPClient will override the default http.Client.
 	//
 	// The TLS and Timeout configuration above will still be applied.
-	BaseClient *http.Client
+	HTTPClient *http.Client
 }
 
 // NewConfig returns a new configuration instance with sane defaults.
