@@ -93,11 +93,11 @@ func (mc *MockCluster) SetRoundtripDuration(brokerID int, duration time.Duration
 }
 
 // CreateTopic creates a topic without having to use a producer
-func (mc *MockCluster) CreateTopic(topic string, partitons, replicationFactor int) error {
+func (mc *MockCluster) CreateTopic(topic string, partitions, replicationFactor int) error {
 	topicStr := C.CString(topic)
 	defer C.free(unsafe.Pointer(topicStr))
 
-	cError := C.rd_kafka_mock_topic_create(mc.mcluster, topicStr, C.int(partitons), C.int(replicationFactor))
+	cError := C.rd_kafka_mock_topic_create(mc.mcluster, topicStr, C.int(partitions), C.int(replicationFactor))
 	if cError != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cError)
 	}
