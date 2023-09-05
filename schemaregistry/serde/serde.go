@@ -16,7 +16,6 @@
 
 package serde
 
-import "C"
 import (
 	"bytes"
 	"encoding/binary"
