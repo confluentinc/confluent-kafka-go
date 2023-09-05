@@ -99,6 +99,25 @@ TopicDescription_by_idx(const rd_kafka_TopicDescription_t **result_topics, size_
 	return result_topics[idx];
 }
 
+static const rd_kafka_TopicPartitionInfo_t *
+TopicPartitionInfo_by_idx(const rd_kafka_TopicPartitionInfo_t **partitions, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return partitions[idx];
+}
+
+static const rd_kafka_AclOperation_t AclOperation_by_idx(const rd_kafka_AclOperation_t *acl_operations, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return RD_KAFKA_ACL_OPERATION_UNKNOWN;
+	return acl_operations[idx];
+}
+
+static const rd_kafka_Node_t *Node_by_idx(const rd_kafka_Node_t **nodes, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return nodes[idx];
+}
+
 static const rd_kafka_UserScramCredentialsDescription_t *
 DescribeUserScramCredentials_result_description_by_idx(const rd_kafka_UserScramCredentialsDescription_t **descriptions, size_t cnt, size_t idx) {
 	if (idx >= cnt)
@@ -269,7 +288,7 @@ type ConsumerGroupDescription struct {
 	Coordinator Node
 	// Members list.
 	Members []MemberDescription
-	// Acl operations allowed list
+	// Operations allowed for group
 	AuthorizedOperations []ACLOperation
 }
 
@@ -280,18 +299,16 @@ type DescribeConsumerGroupsResult struct {
 	ConsumerGroupDescriptions []ConsumerGroupDescription
 }
 
-// Partition information
-type PartitionInfo struct {
-	// Partition Id.
-	Id int
-	// Error, if any, of partition. Check with `Error.Code() != ErrNoError.
-	Error Error
+// Topic Partition information
+type TopicPartitionInfo struct {
+	// Partition id.
+	Partition int
 	// Leader broker.
-	Leader int
-	// Replica broker.
-	Replicas []int
-	// In-Sync-Replica brokers.
-	ISRs []int
+	Leader *Node
+	// Replicas of partition.
+	Replicas []Node
+	// In-Sync-Replicas of partition.
+	Isr []Node
 }
 
 // TopicDescription represents the result of DescribeTopics for
@@ -301,10 +318,12 @@ type TopicDescription struct {
 	Topic string
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
+	// Is the topic is internal to Kafka?
+	IsInternal bool
 	// Partitions' information list.
-	Partitions []PartitionInfo
-	// Topic Acl operations allowed list
-	TopicAuthorizedOperations []ACLOperation
+	Partitions []TopicPartitionInfo
+	// Operations allowed for topic.
+	AuthorizedOperations []ACLOperation
 }
 
 // DescribeTopicsResult represents the result of a
@@ -314,17 +333,16 @@ type DescribeTopicsResult struct {
 	TopicDescriptions []TopicDescription
 }
 
-// ClusterDescription represents the result of DescribeCluster for
-// the cluster.
-type ClusterDescription struct {
-	// Current cluster id in cluster.
-	ClusterID string
-	// Current controller id in cluster.
-	ControllerID int
-	// Slice of nodes in cluster.
+// DescribeClusterResult represents the result of DescribeCluster.
+type DescribeClusterResult struct {
+	// Cluster id for cluster.
+	ClusterId string
+	// Current controller node for cluster.
+	Controller *Node
+	// List of nodes in cluster.
 	Nodes []Node
-	// Cluster Acl operations allowed slice.
-	ClusterAuthorizedOperations []ACLOperation
+	// Operations allowed for cluster.
+	AuthorizedOperations []ACLOperation
 }
 
 // DeleteConsumerGroupsResult represents the result of a DeleteConsumerGroups
@@ -1046,6 +1064,40 @@ func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCn
 	return result, nil
 }
 
+func (a *AdminClient) cToAuthorizedOperations(
+	cAuthorizedOperations *C.rd_kafka_AclOperation_t, cAuthorizedOperationCnt C.size_t) []ACLOperation {
+	if cAuthorizedOperations == nil {
+		return nil
+	}
+
+	authorizedOperations := make([]ACLOperation, int(cAuthorizedOperationCnt))
+	for i := 0; i < int(cAuthorizedOperationCnt); i++ {
+		cAuthorizedOperation := C.AclOperation_by_idx(
+			cAuthorizedOperations, cAuthorizedOperationCnt, C.size_t(i))
+		authorizedOperations[i] = ACLOperation(cAuthorizedOperation)
+	}
+
+	return authorizedOperations
+}
+
+func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
+	node := Node{ID: -1}
+	if cNode == nil {
+		return node
+	}
+
+	node.Host = C.GoString(C.rd_kafka_Node_host(cNode))
+	node.Port = int(C.rd_kafka_Node_port(cNode))
+
+	cRack := C.rd_kafka_Node_rack_id(cNode)
+	if cRack != nil {
+		rackId := C.GoString(cRack)
+		node.RackId = &rackId
+	}
+
+	return node
+}
+
 // cToConsumerGroupDescriptions converts a C rd_kafka_ConsumerGroupDescription_t
 // array to a Go ConsumerGroupDescription slice.
 func (a *AdminClient) cToConsumerGroupDescriptions(
@@ -1068,11 +1120,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			C.rd_kafka_ConsumerGroupDescription_state(cGroup))
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
-		coordinator := Node{
-			ID:   int(C.rd_kafka_Node_id(cNode)),
-			Host: C.GoString(C.rd_kafka_Node_host(cNode)),
-			Port: int(C.rd_kafka_Node_port(cNode)),
-		}
+		coordinator := a.cToNode(cNode)
 
 		membersCount := int(
 			C.rd_kafka_ConsumerGroupDescription_member_count(cGroup))
@@ -1102,14 +1150,10 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			}
 		}
 
-		acl_operations_cnt := int(
-			C.rd_kafka_ConsumerGroupDescription_authorized_operations_count(cGroup))
-		authorizedOperations := make([]ACLOperation, acl_operations_cnt)
-		for aclidx := 0; aclidx < acl_operations_cnt; aclidx++ {
-			aclop := int(
-				C.rd_kafka_ConsumerGroupDescription_authorized_operation(cGroup, C.size_t(aclidx)))
-			authorizedOperations[aclidx] = ACLOperation(aclop)
-		}
+		cAuthorizedOperationsCnt := C.size_t(0)
+		cAuthorizedOperations := C.rd_kafka_ConsumerGroupDescription_authorized_operations(
+			cGroup, &cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 		result[idx] = ConsumerGroupDescription{
 			GroupID:               groupID,
@@ -1125,6 +1169,38 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 	return result
 }
 
+func (a *AdminClient) cToNodes(cNodes **C.rd_kafka_Node_t, cNodeCnt C.size_t) []Node {
+	nodes := make([]Node, int(cNodeCnt))
+	for i := 0; i < int(cNodeCnt); i++ {
+		cNode := C.Node_by_idx(cNodes, cNodeCnt, C.size_t(i))
+		nodes[i] = a.cToNode(cNode)
+	}
+	return nodes
+}
+
+func (a *AdminClient) cToTopicPartitionInfo(partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
+	cPartitionId := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
+	info := TopicPartitionInfo{
+		Partition: int(cPartitionId),
+	}
+
+	cLeader := C.rd_kafka_TopicPartitionInfo_leader(partitionInfo)
+	if cLeader != nil {
+		leader := a.cToNode(cLeader)
+		info.Leader = &leader
+	}
+
+	cReplicaCnt := C.size_t(0)
+	cReplicas := C.rd_kafka_TopicPartitionInfo_replicas(partitionInfo, &cReplicaCnt)
+	info.Replicas = a.cToNodes(cReplicas, cReplicaCnt)
+
+	cIsrCnt := C.size_t(0)
+	cIsr := C.rd_kafka_TopicPartitionInfo_isr(partitionInfo, &cIsrCnt)
+	info.Isr = a.cToNodes(cIsr, cIsrCnt)
+
+	return info
+}
+
 // cToTopicDescriptions converts a C rd_kafka_TopicDescription_t
 // array to a Go TopicDescription slice.
 func (a *AdminClient) cToTopicDescriptions(
@@ -1136,58 +1212,30 @@ func (a *AdminClient) cToTopicDescriptions(
 			cTopics, cTopicCount, C.size_t(idx))
 
 		topic := C.GoString(
-			C.rd_kafka_TopicDescription_topic_name(cTopic))
+			C.rd_kafka_TopicDescription_name(cTopic))
 		err := newErrorFromCError(
 			C.rd_kafka_TopicDescription_error(cTopic))
-		partition_cnt := int(
-			C.rd_kafka_TopicDescription_topic_partition_cnt(cTopic))
 
-		partitions := make([]PartitionInfo, partition_cnt)
+		cPartitionInfoCnt := C.size_t(0)
+		cPartitionInfos := C.rd_kafka_TopicDescription_partitions(cTopic, &cPartitionInfoCnt)
 
-		for pidx := 0; pidx < partition_cnt; pidx++ {
-			id := int(
-				C.rd_kafka_TopicDescription_partiton_id(cTopic, C.int(pidx)))
-			leader := int(
-				C.rd_kafka_TopicDescription_partiton_leader(cTopic, C.int(pidx)))
-			partition_error := newErrorFromCError(
-				C.rd_kafka_TopicDescription_partition_error(cTopic, C.int(pidx)))
-			replicas_cnt := int(
-				C.rd_kafka_TopicDescription_partiton_replica_cnt(cTopic, C.int(pidx)))
-			isrs_cnt := int(
-				C.rd_kafka_TopicDescription_partiton_isr_cnt(cTopic, C.int(pidx)))
-			replicas := make([]int, replicas_cnt)
-			isrs := make([]int, isrs_cnt)
-			for ridx := 0; ridx < replicas_cnt; ridx++ {
-				replicas[ridx] = int(
-					C.rd_kafka_TopicDescription_partiton_replica_idx(cTopic, C.int(pidx), C.int(ridx)))
-			}
-			for isridx := 0; isridx < isrs_cnt; isridx++ {
-				isrs[isridx] = int(
-					C.rd_kafka_TopicDescription_partiton_isrs_idx(cTopic, C.int(pidx), C.int(isridx)))
-			}
-			partitions[pidx] = PartitionInfo{
-				Id:       id,
-				Error:    partition_error,
-				Leader:   leader,
-				Replicas: replicas,
-				ISRs:     isrs,
-			}
+		partitions := make([]TopicPartitionInfo, int(cPartitionInfoCnt))
+
+		for pidx := 0; pidx < int(cPartitionInfoCnt); pidx++ {
+			cPartitionInfo := C.TopicPartitionInfo_by_idx(cPartitionInfos, cPartitionInfoCnt, C.size_t(pidx))
+			partitions[pidx] = a.cToTopicPartitionInfo(cPartitionInfo)
 		}
 
-		topic_authorized_operations_cnt := int(
-			C.rd_kafka_TopicDescription_topic_authorized_operations_cnt(cTopic))
-		topicauthorizedOperations := make([]ACLOperation, topic_authorized_operations_cnt)
-		for aclidx := 0; aclidx < topic_authorized_operations_cnt; aclidx++ {
-			aclop := int(
-				C.rd_kafka_TopicDescription_authorized_operation_idx(cTopic, C.size_t(aclidx)))
-			topicauthorizedOperations[aclidx] = ACLOperation(aclop)
-		}
+		cAuthorizedOperationsCnt := C.size_t(0)
+		cAuthorizedOperations := C.rd_kafka_TopicDescription_authorized_operations(
+			cTopic, &cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 		result[idx] = TopicDescription{
-			Topic:                     topic,
-			Error:                     err,
-			Partitions:                partitions,
-			TopicAuthorizedOperations: topicauthorizedOperations,
+			Topic:                topic,
+			Error:                err,
+			Partitions:           partitions,
+			AuthorizedOperations: authorizedOperations,
 		}
 	}
 	return result
@@ -1196,42 +1244,31 @@ func (a *AdminClient) cToTopicDescriptions(
 // cToClusterDescriptions converts a C rd_kafka_TopicDescription_t
 // to a Go ClusterDescription.
 func (a *AdminClient) cToClusterDescription(
-	cClusterDesc *C.rd_kafka_ClusterDescription_t) (result ClusterDescription) {
-	clusterID := C.GoString(
-		C.rd_kafka_ClusterDescription_cluster_id(cClusterDesc))
-	controllerID := int(
-		C.rd_kafka_ClusterDescription_controller_id(cClusterDesc))
-	node_cnt := int(
-		C.rd_kafka_ClusterDescription_node_cnt(cClusterDesc))
-	nodes := make([]Node, node_cnt)
-	for nidx := 0; nidx < node_cnt; nidx++ {
-		cNode := C.rd_kafka_ClusterDescription_node_idx(cClusterDesc, C.int(nidx))
-		id := int(C.rd_kafka_Node_id(cNode))
-		host := C.GoString(C.rd_kafka_Node_host(cNode))
-		port := int(C.rd_kafka_Node_port(cNode))
-		nodes[nidx] = Node{
-			ID:   id,
-			Host: host,
-			Port: port,
-		}
-	}
-	cluster_authorized_operations_cnt := int(
-		C.rd_kafka_ClusterDescription_cluster_acl_operations_cnt(cClusterDesc))
-	clusterAuthorizedOperations := make([]ACLOperation, cluster_authorized_operations_cnt)
-	for aclidx := 0; aclidx < cluster_authorized_operations_cnt; aclidx++ {
-		aclop := int(
-			C.rd_kafka_ClusterDescription_authorized_operation_idx(cClusterDesc, C.size_t(aclidx)))
-		clusterAuthorizedOperations[aclidx] = ACLOperation(aclop)
+	cResult *C.rd_kafka_DescribeTopics_result_t) (result DescribeClusterResult) {
+	clusterID := C.GoString(C.rd_kafka_DescribeCluster_result_cluster_id(cResult))
+
+	var controller *Node = nil
+	cController := C.rd_kafka_DescribeCluster_result_controller(cResult)
+	if cController != nil {
+		controllerValue := a.cToNode(cController)
+		controller = &controllerValue
 	}
 
-	result = ClusterDescription{
-		ClusterID:                   clusterID,
-		ControllerID:                controllerID,
-		Nodes:                       nodes,
-		ClusterAuthorizedOperations: clusterAuthorizedOperations,
-	}
+	cNodeCnt := C.size_t(0)
+	cNodes := C.rd_kafka_DescribeCluster_result_nodes(cResult, &cNodeCnt)
+	nodes := a.cToNodes(cNodes, cNodeCnt)
 
-	return result
+	cAuthorizedOperationsCnt := C.size_t(0)
+	cAuthorizedOperations := C.rd_kafka_DescribeCluster_result_authorized_operations(
+		cResult, &cAuthorizedOperationsCnt)
+	authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+
+	return DescribeClusterResult{
+		ClusterId:            clusterID,
+		Controller:           controller,
+		Nodes:                nodes,
+		AuthorizedOperations: authorizedOperations,
+	}
 }
 
 // cToDescribeUserScramCredentialsResult converts a C
@@ -2585,7 +2622,7 @@ func (a *AdminClient) DescribeTopics(
 		return result, err
 	}
 
-	// Convert topic names into char** required by the implementation.
+	// Convert topic names into char**.
 	cTopicNameList := make([]*C.char, len(topics))
 	cTopicNameCount := C.size_t(len(topics))
 
@@ -2598,6 +2635,9 @@ func (a *AdminClient) DescribeTopics(
 	if cTopicNameCount > 0 {
 		cTopicNameListPtr = ((**C.char)(&cTopicNameList[0]))
 	}
+
+	// Convert char** of topic names into rd_kafka_TopicCollection_t*
+	cTopicCollection := C.rd_kafka_TopicCollection_new_from_names(cTopicNameListPtr, cTopicNameCount)
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
 	genericOptions := make([]AdminOption, len(options))
@@ -2618,8 +2658,7 @@ func (a *AdminClient) DescribeTopics(
 	// Call rd_kafka_DescribeTopics (asynchronous).
 	C.rd_kafka_DescribeTopics(
 		a.handle.rk,
-		cTopicNameListPtr,
-		cTopicNameCount,
+		cTopicCollection,
 		cOptions,
 		cQueue)
 
@@ -2652,13 +2691,12 @@ func (a *AdminClient) DescribeTopics(
 // id along with a slice of Nodes. It also has a slice of allowed ACLOperations.
 func (a *AdminClient) DescribeCluster(
 	ctx context.Context,
-	options ...DescribeClusterAdminOption) (result ClusterDescription, err error) {
-
-	clusterDesc := ClusterDescription{}
+	options ...DescribeClusterAdminOption) (result DescribeClusterResult, err error) {
 	err = a.verifyClient()
 	if err != nil {
 		return result, err
 	}
+	clusterDesc := DescribeClusterResult{}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
 	genericOptions := make([]AdminOption, len(options))
@@ -2693,8 +2731,7 @@ func (a *AdminClient) DescribeCluster(
 	cRes := C.rd_kafka_event_DescribeCluster_result(rkev)
 
 	// Convert result from C to Go.
-	cClusterDesc := C.rd_kafka_DescribeCluster_result_description(cRes)
-	clusterDesc = a.cToClusterDescription(cClusterDesc)
+	clusterDesc = a.cToClusterDescription(cRes)
 
 	return clusterDesc, nil
 }

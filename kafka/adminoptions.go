@@ -311,13 +311,17 @@ func (ao AdminOptionMatchConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOp
 //
 // Default: false
 //
-// Valid for DescribeConsumerGroups.
+// Valid for DescribeConsumerGroups, DescribeTopics, DescribeCluster.
 type AdminOptionIncludeAuthorizedOperations struct {
 	isSet bool
 	val   bool
 }
 
 func (ao AdminOptionIncludeAuthorizedOperations) supportsDescribeConsumerGroups() {
+}
+func (ao AdminOptionIncludeAuthorizedOperations) supportsDescribeTopics() {
+}
+func (ao AdminOptionIncludeAuthorizedOperations) supportsDescribeCluster() {
 }
 
 func (ao AdminOptionIncludeAuthorizedOperations) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
@@ -340,90 +344,8 @@ func (ao AdminOptionIncludeAuthorizedOperations) apply(cOptions *C.rd_kafka_Admi
 //
 // Default: false
 //
-// Valid for DescribeConsumerGroups.
+// Valid for DescribeConsumerGroups, DescribeTopics, DescribeCluster.
 func SetAdminOptionIncludeAuthorizedOperations(val bool) (ao AdminOptionIncludeAuthorizedOperations) {
-	ao.isSet = true
-	ao.val = val
-	return ao
-}
-
-// AdminOptionIncludeTopicAuthorizedOperations decides if the broker should return include
-// topic authorized operations.
-//
-// Default: false
-//
-// Valid for DescribeTopics.
-type AdminOptionIncludeTopicAuthorizedOperations struct {
-	isSet bool
-	val   bool
-}
-
-func (ao AdminOptionIncludeTopicAuthorizedOperations) supportsDescribeTopics() {
-}
-
-func (ao AdminOptionIncludeTopicAuthorizedOperations) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
-	if !ao.isSet {
-		return nil
-	}
-
-	cError := C.rd_kafka_AdminOptions_set_include_topic_authorized_operations(
-		cOptions, bool2cint(ao.val))
-	if cError != nil {
-		C.rd_kafka_AdminOptions_destroy(cOptions)
-		return newErrorFromCErrorDestroy(cError)
-	}
-
-	return nil
-}
-
-// SetAdminOptionIncludeTopicAuthorizedOperations decides if the broker should return include
-// topic authorized operations.
-//
-// Default: false
-//
-// Valid for DescribeTopics.
-func SetAdminOptionIncludeTopicAuthorizedOperations(val bool) (ao AdminOptionIncludeTopicAuthorizedOperations) {
-	ao.isSet = true
-	ao.val = val
-	return ao
-}
-
-// AdminOptionIncludeClusterAuthorizedOperations decides if the broker should return include
-// cluster authorized operations.
-//
-// Default: false
-//
-// Valid for DescribeCluster.
-type AdminOptionIncludeClusterAuthorizedOperations struct {
-	isSet bool
-	val   bool
-}
-
-func (ao AdminOptionIncludeClusterAuthorizedOperations) supportsDescribeCluster() {
-}
-
-func (ao AdminOptionIncludeClusterAuthorizedOperations) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
-	if !ao.isSet {
-		return nil
-	}
-
-	cError := C.rd_kafka_AdminOptions_set_include_cluster_authorized_operations(
-		cOptions, bool2cint(ao.val))
-	if cError != nil {
-		C.rd_kafka_AdminOptions_destroy(cOptions)
-		return newErrorFromCErrorDestroy(cError)
-	}
-
-	return nil
-}
-
-// SetAdminOptionIncludeClusterAuthorizedOperations decides if the broker should return include
-// cluster authorized operations.
-//
-// Default: false
-//
-// Valid for DescribeCluster.
-func SetAdminOptionIncludeClusterAuthorizedOperations(val bool) (ao AdminOptionIncludeClusterAuthorizedOperations) {
 	ao.isSet = true
 	ao.val = val
 	return ao

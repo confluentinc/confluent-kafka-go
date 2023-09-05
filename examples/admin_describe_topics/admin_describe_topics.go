@@ -31,17 +31,17 @@ func main() {
 	if len(os.Args) < 4 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_topic_authorized_operations"+
+			"Usage: %s <bootstrap-servers> <include_authorized_operations"+
 				" <topic1> [<topic2> ...]\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	include_topic_authorized_operations, err_operations := strconv.ParseBool(os.Args[2])
+	include_authorized_operations, err_operations := strconv.ParseBool(os.Args[2])
 	if err_operations != nil {
 		fmt.Printf(
-			"Failed to parse value of include_topic_authorized_operations %s: %s\n", os.Args[2], err_operations)
+			"Failed to parse value of include_authorized_operations %s: %s\n", os.Args[2], err_operations)
 		os.Exit(1)
 	}
 	topics := os.Args[3:]
@@ -60,8 +60,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	describeTopicsResult, err := a.DescribeTopics(
-		ctx, topics, kafka.SetAdminOptionIncludeTopicAuthorizedOperations(
-			include_topic_authorized_operations))
+		ctx, topics, kafka.SetAdminOptionIncludeAuthorizedOperations(
+			include_authorized_operations))
 	if err != nil {
 		fmt.Printf("Failed to describe topics: %s\n", err)
 		os.Exit(1)
@@ -78,33 +78,17 @@ func main() {
 		}
 		fmt.Printf("Topic: %s has succeeded\n",
 			t.Topic)
-		if include_topic_authorized_operations == true {
-			fmt.Printf("Allowed acl operations:\n")
-			for i := 0; i < len(t.TopicAuthorizedOperations); i++ {
-				fmt.Printf("\t%s\n", t.TopicAuthorizedOperations[i])
-			}
+		if include_authorized_operations == true {
+			fmt.Printf("Allowed operations: %s\n", t.AuthorizedOperations)
 		}
 		for i := 0; i < len(t.Partitions); i++ {
-			if t.Partitions[i].Error.Code() != 0 {
-				fmt.Printf("Partition with id: %d"+
-					"has error: %s\n\n",
-					t.Partitions[i].Id, t.Partitions[i].Error)
-				continue
-			}
-			fmt.Printf("Partition id: %d with leader: %d\n",
-				t.Partitions[i].Id, t.Partitions[i].Leader)
-			fmt.Printf("The in-sync replica count is: %d, they are: ",
-				len(t.Partitions[i].ISRs))
-			for j := 0; j < len(t.Partitions[i].ISRs); j++ {
-				fmt.Printf("%d ", t.Partitions[i].ISRs[j])
-			}
-			fmt.Printf("\n")
-			fmt.Printf("The replica count is: %d, they are: ",
-				len(t.Partitions[i].Replicas))
-			for j := 0; j < len(t.Partitions[i].Replicas); j++ {
-				fmt.Printf("%d ", t.Partitions[i].Replicas[j])
-			}
-			fmt.Printf("\n\n")
+			fmt.Printf("\tPartition id: %d with leader: %s\n",
+				t.Partitions[i].Partition, t.Partitions[i].Leader)
+			fmt.Printf("\t\tThe in-sync replica count is: %d, they are: \n\t\t%s\n",
+				len(t.Partitions[i].Isr), t.Partitions[i].Isr)
+
+			fmt.Printf("\t\tThe replica count is: %d, they are: \n\t\t%s\n",
+				len(t.Partitions[i].Replicas), t.Partitions[i].Replicas)
 		}
 		fmt.Printf("\n")
 	}
