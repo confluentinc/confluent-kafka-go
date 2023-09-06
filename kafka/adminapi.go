@@ -299,6 +299,12 @@ type DescribeConsumerGroupsResult struct {
 	ConsumerGroupDescriptions []ConsumerGroupDescription
 }
 
+// TopicCollection represents a collection of topics.
+type TopicCollection struct {
+	// Slice of topic names.
+	Names []string
+}
+
 // Topic Partition information
 type TopicPartitionInfo struct {
 	// Partition id.
@@ -1064,8 +1070,11 @@ func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCn
 	return result, nil
 }
 
+// cToAuthorizedOperations converts a C AclOperation_t array to a Go
+// ACLOperation list.
 func (a *AdminClient) cToAuthorizedOperations(
-	cAuthorizedOperations *C.rd_kafka_AclOperation_t, cAuthorizedOperationCnt C.size_t) []ACLOperation {
+	cAuthorizedOperations *C.rd_kafka_AclOperation_t,
+	cAuthorizedOperationCnt C.size_t) []ACLOperation {
 	if cAuthorizedOperations == nil {
 		return nil
 	}
@@ -1080,6 +1089,7 @@ func (a *AdminClient) cToAuthorizedOperations(
 	return authorizedOperations
 }
 
+// cToNode converts a C Node_t* to a Go Node.
 func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
 	node := Node{ID: -1}
 	if cNode == nil {
@@ -1096,6 +1106,17 @@ func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
 	}
 
 	return node
+}
+
+// cToNode converts a C Node_t array to a Go Node list.
+func (a *AdminClient) cToNodes(
+	cNodes **C.rd_kafka_Node_t, cNodeCnt C.size_t) []Node {
+	nodes := make([]Node, int(cNodeCnt))
+	for i := 0; i < int(cNodeCnt); i++ {
+		cNode := C.Node_by_idx(cNodes, cNodeCnt, C.size_t(i))
+		nodes[i] = a.cToNode(cNode)
+	}
+	return nodes
 }
 
 // cToConsumerGroupDescriptions converts a C rd_kafka_ConsumerGroupDescription_t
@@ -1153,7 +1174,8 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 		cAuthorizedOperationsCnt := C.size_t(0)
 		cAuthorizedOperations := C.rd_kafka_ConsumerGroupDescription_authorized_operations(
 			cGroup, &cAuthorizedOperationsCnt)
-		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations,
+			cAuthorizedOperationsCnt)
 
 		result[idx] = ConsumerGroupDescription{
 			GroupID:               groupID,
@@ -1169,16 +1191,10 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 	return result
 }
 
-func (a *AdminClient) cToNodes(cNodes **C.rd_kafka_Node_t, cNodeCnt C.size_t) []Node {
-	nodes := make([]Node, int(cNodeCnt))
-	for i := 0; i < int(cNodeCnt); i++ {
-		cNode := C.Node_by_idx(cNodes, cNodeCnt, C.size_t(i))
-		nodes[i] = a.cToNode(cNode)
-	}
-	return nodes
-}
-
-func (a *AdminClient) cToTopicPartitionInfo(partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
+// cToTopicPartitionInfo converts a C TopicPartitionInfo_t into a Go
+// TopicPartitionInfo.
+func (a *AdminClient) cToTopicPartitionInfo(
+	partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
 	cPartitionId := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
 	info := TopicPartitionInfo{
 		Partition: int(cPartitionId),
@@ -1191,7 +1207,8 @@ func (a *AdminClient) cToTopicPartitionInfo(partitionInfo *C.rd_kafka_TopicParti
 	}
 
 	cReplicaCnt := C.size_t(0)
-	cReplicas := C.rd_kafka_TopicPartitionInfo_replicas(partitionInfo, &cReplicaCnt)
+	cReplicas := C.rd_kafka_TopicPartitionInfo_replicas(
+		partitionInfo, &cReplicaCnt)
 	info.Replicas = a.cToNodes(cReplicas, cReplicaCnt)
 
 	cIsrCnt := C.size_t(0)
@@ -1201,8 +1218,8 @@ func (a *AdminClient) cToTopicPartitionInfo(partitionInfo *C.rd_kafka_TopicParti
 	return info
 }
 
-// cToTopicDescriptions converts a C rd_kafka_TopicDescription_t
-// array to a Go TopicDescription slice.
+// cToTopicDescriptions converts a C TopicDescription_t
+// array to a Go TopicDescription list.
 func (a *AdminClient) cToTopicDescriptions(
 	cTopics **C.rd_kafka_TopicDescription_t,
 	cTopicCount C.size_t) (result []TopicDescription) {
@@ -1241,9 +1258,9 @@ func (a *AdminClient) cToTopicDescriptions(
 	return result
 }
 
-// cToClusterDescriptions converts a C rd_kafka_TopicDescription_t
-// to a Go ClusterDescription.
-func (a *AdminClient) cToClusterDescription(
+// cToDescribeClusterResult converts a C DescribeTopics_result_t to a Go
+// DescribeClusterResult.
+func (a *AdminClient) cToDescribeClusterResult(
 	cResult *C.rd_kafka_DescribeTopics_result_t) (result DescribeClusterResult) {
 	clusterID := C.GoString(C.rd_kafka_DescribeCluster_result_cluster_id(cResult))
 
@@ -1259,9 +1276,11 @@ func (a *AdminClient) cToClusterDescription(
 	nodes := a.cToNodes(cNodes, cNodeCnt)
 
 	cAuthorizedOperationsCnt := C.size_t(0)
-	cAuthorizedOperations := C.rd_kafka_DescribeCluster_result_authorized_operations(
-		cResult, &cAuthorizedOperationsCnt)
-	authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+	cAuthorizedOperations :=
+		C.rd_kafka_DescribeCluster_result_authorized_operations(
+			cResult, &cAuthorizedOperationsCnt)
+	authorizedOperations := a.cToAuthorizedOperations(
+		cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 	return DescribeClusterResult{
 		ClusterId:            clusterID,
@@ -2603,7 +2622,7 @@ func (a *AdminClient) DescribeConsumerGroups(
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `topics` - Slice of groups to describe. This should not be nil/empty.
+//   - `topics` - Collection of topics to describe. This should not be nil/empty.
 //   - `options` - DescribeTopicsAdminOption options.
 //
 // Returns DescribeTopicsResult, which contains a slice of
@@ -2613,7 +2632,7 @@ func (a *AdminClient) DescribeConsumerGroups(
 // errors. Individual TopicDescriptions also have a
 // slice of allowed ACLOperations.
 func (a *AdminClient) DescribeTopics(
-	ctx context.Context, topics []string,
+	ctx context.Context, topics TopicCollection,
 	options ...DescribeTopicsAdminOption) (result DescribeTopicsResult, err error) {
 
 	describeResult := DescribeTopicsResult{}
@@ -2623,10 +2642,10 @@ func (a *AdminClient) DescribeTopics(
 	}
 
 	// Convert topic names into char**.
-	cTopicNameList := make([]*C.char, len(topics))
-	cTopicNameCount := C.size_t(len(topics))
+	cTopicNameList := make([]*C.char, len(topics.Names))
+	cTopicNameCount := C.size_t(len(topics.Names))
 
-	for idx, topic := range topics {
+	for idx, topic := range topics.Names {
 		cTopicNameList[idx] = C.CString(topic)
 		defer C.free(unsafe.Pointer(cTopicNameList[idx]))
 	}
@@ -2637,7 +2656,9 @@ func (a *AdminClient) DescribeTopics(
 	}
 
 	// Convert char** of topic names into rd_kafka_TopicCollection_t*
-	cTopicCollection := C.rd_kafka_TopicCollection_new_from_names(cTopicNameListPtr, cTopicNameCount)
+	cTopicCollection := C.rd_kafka_TopicCollection_new_from_names(
+		cTopicNameListPtr, cTopicNameCount)
+	defer C.rd_kafka_TopicCollection_destroy(cTopicCollection)
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
 	genericOptions := make([]AdminOption, len(options))
@@ -2687,8 +2708,8 @@ func (a *AdminClient) DescribeTopics(
 //     indefinite.
 //   - `options` - DescribeClusterAdminOption options.
 //
-// Returns ClusterDescription, which contains current cluster and controller
-// id along with a slice of Nodes. It also has a slice of allowed ACLOperations.
+// Returns ClusterDescription, which contains current cluster ID and controller
+// along with a slice of Nodes. It also has a slice of allowed ACLOperations.
 func (a *AdminClient) DescribeCluster(
 	ctx context.Context,
 	options ...DescribeClusterAdminOption) (result DescribeClusterResult, err error) {
@@ -2731,7 +2752,7 @@ func (a *AdminClient) DescribeCluster(
 	cRes := C.rd_kafka_event_DescribeCluster_result(rkev)
 
 	// Convert result from C to Go.
-	clusterDesc = a.cToClusterDescription(cRes)
+	clusterDesc = a.cToDescribeClusterResult(cRes)
 
 	return clusterDesc, nil
 }
@@ -2744,9 +2765,8 @@ func (a *AdminClient) DescribeCluster(
 //   - `options` - DeleteConsumerGroupsAdminOption options.
 //
 // Returns a DeleteConsumerGroupsResult containing a slice of ConsumerGroupResult, with
-//
-//	group-level errors, (if any) contained inside; and an error that is not nil
-//	for client level errors.
+// group-level errors, (if any) contained inside; and an error that is not nil
+// for client level errors.
 func (a *AdminClient) DeleteConsumerGroups(
 	ctx context.Context,
 	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupsResult, err error) {

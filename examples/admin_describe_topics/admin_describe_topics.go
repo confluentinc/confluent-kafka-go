@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ func main() {
 	include_authorized_operations, err_operations := strconv.ParseBool(os.Args[2])
 	if err_operations != nil {
 		fmt.Printf(
-			"Failed to parse value of include_authorized_operations %s: %s\n", os.Args[2], err_operations)
+			"Failed to parse value of include_authorized_operations %s: %s\n",
+			os.Args[2], err_operations)
 		os.Exit(1)
 	}
 	topics := os.Args[3:]
@@ -60,7 +61,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	describeTopicsResult, err := a.DescribeTopics(
-		ctx, topics, kafka.SetAdminOptionIncludeAuthorizedOperations(
+		ctx, kafka.TopicCollection{Names: topics},
+		kafka.SetAdminOptionIncludeAuthorizedOperations(
 			include_authorized_operations))
 	if err != nil {
 		fmt.Printf("Failed to describe topics: %s\n", err)
@@ -76,9 +78,8 @@ func main() {
 				t.Topic, t.Error)
 			continue
 		}
-		fmt.Printf("Topic: %s has succeeded\n",
-			t.Topic)
-		if include_authorized_operations == true {
+		fmt.Printf("Topic: %s has succeeded\n", t.Topic)
+		if include_authorized_operations {
 			fmt.Printf("Allowed operations: %s\n", t.AuthorizedOperations)
 		}
 		for i := 0; i < len(t.Partitions); i++ {
@@ -86,7 +87,6 @@ func main() {
 				t.Partitions[i].Partition, t.Partitions[i].Leader)
 			fmt.Printf("\t\tThe in-sync replica count is: %d, they are: \n\t\t%s\n",
 				len(t.Partitions[i].Isr), t.Partitions[i].Isr)
-
 			fmt.Printf("\t\tThe replica count is: %d, they are: \n\t\t%s\n",
 				len(t.Partitions[i].Replicas), t.Partitions[i].Replicas)
 		}

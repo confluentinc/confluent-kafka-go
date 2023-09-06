@@ -150,6 +150,8 @@ func (cm *ConfigMap) updateFromTestconf() error {
 
 }
 
+// updateToSaslAuthentication updates an existing ConfigMap with SASL related
+// settings. Returns error in case a broker with SASL is not configured.
 func (cm *ConfigMap) updateToSaslAuthentication() error {
 	if testconf.BrokersSasl == "" {
 		return errors.New("BrokersSasl must be set in test config")
@@ -260,6 +262,9 @@ func waitTopicInMetadata(H Handle, topic string, timeoutMs int) error {
 
 }
 
+// createAdminClientImpl is the implementation for createAdminClient and
+// createAdminClientWithSasl. It creates a new admin client, or skips the test
+// in case it can't be created.
 func createAdminClientImpl(t *testing.T, withSasl bool) (a *AdminClient) {
 	numver, strver := LibraryVersion()
 	if numver < 0x000b0500 {

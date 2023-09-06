@@ -306,7 +306,7 @@ func (ao AdminOptionMatchConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOp
 	return nil
 }
 
-// AdminOptionIncludeAuthorizedOperations decides if the broker should return include
+// AdminOptionIncludeAuthorizedOperations decides if the broker should return
 // authorized operations.
 //
 // Default: false
@@ -339,7 +339,7 @@ func (ao AdminOptionIncludeAuthorizedOperations) apply(cOptions *C.rd_kafka_Admi
 	return nil
 }
 
-// SetAdminOptionIncludeAuthorizedOperations decides if the broker should return include
+// SetAdminOptionIncludeAuthorizedOperations decides if the broker should return
 // authorized operations.
 //
 // Default: false
@@ -445,7 +445,7 @@ type DescribeConsumerGroupsAdminOption interface {
 
 // DescribeTopicsAdminOption - see setter.
 //
-// See SetAdminRequestTimeout.
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
 type DescribeTopicsAdminOption interface {
 	supportsDescribeTopics()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
@@ -453,7 +453,7 @@ type DescribeTopicsAdminOption interface {
 
 // DescribeClusterAdminOption - see setter.
 //
-// See SetAdminRequestTimeout.
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
 type DescribeClusterAdminOption interface {
 	supportsDescribeCluster()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
@@ -461,7 +461,7 @@ type DescribeClusterAdminOption interface {
 
 // DeleteConsumerGroupsAdminOption - see setters.
 //
-// See SetAdminRequestTimeout.
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
 type DeleteConsumerGroupsAdminOption interface {
 	supportsDeleteConsumerGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error

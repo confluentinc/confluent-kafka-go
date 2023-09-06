@@ -60,7 +60,8 @@ func main() {
 	// Call DescribeConsumerGroups.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups, kafka.SetAdminOptionIncludeAuthorizedOperations(include_authorized_operations))
+	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups,
+		kafka.SetAdminOptionIncludeAuthorizedOperations(include_authorized_operations))
 	if err != nil {
 		fmt.Printf("Failed to describe groups: %s\n", err)
 		os.Exit(1)
@@ -79,11 +80,8 @@ func main() {
 			"Members: %+v\n",
 			g.GroupID, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
 			g.State, g.Coordinator, g.Members)
-		if include_authorized_operations == true {
-			fmt.Printf("Allowed acl operations:\n")
-			for i := 0; i < len(g.AuthorizedOperations); i++ {
-				fmt.Printf("\t%s\n", g.AuthorizedOperations[i])
-			}
+		if include_authorized_operations {
+			fmt.Printf("Allowed operations: %s\n", g.AuthorizedOperations)
 		}
 		fmt.Printf("\n")
 	}

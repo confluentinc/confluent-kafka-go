@@ -33,7 +33,7 @@ services:
       KAFKA_SUPER_USERS: "User:ANONYMOUS"
 
   kafka_auth:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka
     depends_on:
       - zookeeper_auth
     ports:

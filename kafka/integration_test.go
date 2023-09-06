@@ -833,7 +833,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
 // list consumer groups and describe consumer group APIs of the admin client.
 //
-//	We test the following situations:
+// We test the following situations:
 //
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
@@ -1099,7 +1099,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 // working of the DescribeConsumerGroups API of the admin client for fetching
 // authorized operations (KIP-430).
 //
-//	We test the following situations:
+// We test the following situations:
 //
 // 1. Default ACLs on group.
 // 2. Modified ACLs on group.
@@ -1117,7 +1117,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 	ac := createAdminClientWithSasl(t)
 	defer ac.Close()
 
-	// Create a topic - we need to create here because we need 2 partitions.
+	// Create a topic.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := ac.CreateTopics(ctx, []TopicSpecification{
@@ -1222,7 +1222,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 // TestAdminClient_DescribeCluster validates the working of the
 // DescribeCluster API of the admin client.
 //
-//	We test the following situations:
+// We test the following situations:
 //
 // 1. DescribeCluster without ACLs.
 // 2. DescribeCluster with default ACLs.
@@ -1340,7 +1340,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 // TestAdminClient_DescribeTopics validates the working of the
 // DescribeTopics API of the admin client.
 //
-//	We test the following situations:
+// We test the following situations:
 //
 // 1. DescribeTopics without ACLs.
 // 2. DescribeTopics with default ACLs.
@@ -1377,7 +1377,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	topicDescResult, err := ac.DescribeTopics(
-		ctx, []string{topic, "nonexistent"},
+		ctx, TopicCollection{Names: []string{topic, "nonexistent"}},
 		SetAdminRequestTimeout(30*time.Second))
 	assert.Nil(err, "DescribeTopics should not fail")
 
@@ -1433,7 +1433,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	topicDescResult, err = ac.DescribeTopics(
-		ctx, []string{topic},
+		ctx, TopicCollection{Names: []string{topic}},
 		SetAdminRequestTimeout(30*time.Second),
 		SetAdminOptionIncludeAuthorizedOperations(true))
 
@@ -1484,7 +1484,8 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	topicDescResult, err = ac.DescribeTopics(
-		ctx, []string{topic}, SetAdminRequestTimeout(time.Second),
+		ctx, TopicCollection{Names: []string{topic}},
+		SetAdminRequestTimeout(time.Second*30),
 		SetAdminOptionIncludeAuthorizedOperations(true))
 
 	assert.Nil(err, "DescribeTopics should not fail")
