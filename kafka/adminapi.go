@@ -92,6 +92,32 @@ ConsumerGroupDescription_by_idx(const rd_kafka_ConsumerGroupDescription_t **resu
 	return result_groups[idx];
 }
 
+static const rd_kafka_TopicDescription_t *
+TopicDescription_by_idx(const rd_kafka_TopicDescription_t **result_topics, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return result_topics[idx];
+}
+
+static const rd_kafka_TopicPartitionInfo_t *
+TopicPartitionInfo_by_idx(const rd_kafka_TopicPartitionInfo_t **partitions, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return partitions[idx];
+}
+
+static const rd_kafka_AclOperation_t AclOperation_by_idx(const rd_kafka_AclOperation_t *acl_operations, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return RD_KAFKA_ACL_OPERATION_UNKNOWN;
+	return acl_operations[idx];
+}
+
+static const rd_kafka_Node_t *Node_by_idx(const rd_kafka_Node_t **nodes, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return nodes[idx];
+}
+
 static const rd_kafka_UserScramCredentialsDescription_t *
 DescribeUserScramCredentials_result_description_by_idx(const rd_kafka_UserScramCredentialsDescription_t **descriptions, size_t cnt, size_t idx) {
 	if (idx >= cnt)
@@ -262,6 +288,8 @@ type ConsumerGroupDescription struct {
 	Coordinator Node
 	// Members list.
 	Members []MemberDescription
+	// Operations allowed for group
+	AuthorizedOperations []ACLOperation
 }
 
 // DescribeConsumerGroupsResult represents the result of a
@@ -269,6 +297,52 @@ type ConsumerGroupDescription struct {
 type DescribeConsumerGroupsResult struct {
 	// Slice of ConsumerGroupDescription.
 	ConsumerGroupDescriptions []ConsumerGroupDescription
+}
+
+// Topic Partition information
+type TopicPartitionInfo struct {
+	// Partition id.
+	Partition int
+	// Leader broker.
+	Leader *Node
+	// Replicas of partition.
+	Replicas []Node
+	// In-Sync-Replicas of partition.
+	Isr []Node
+}
+
+// TopicDescription represents the result of DescribeTopics for
+// a single topic.
+type TopicDescription struct {
+	// Topic name.
+	Topic string
+	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
+	Error Error
+	// Is the topic is internal to Kafka?
+	IsInternal bool
+	// Partitions' information list.
+	Partitions []TopicPartitionInfo
+	// Operations allowed for topic.
+	AuthorizedOperations []ACLOperation
+}
+
+// DescribeTopicsResult represents the result of a
+// DescribeTopics call.
+type DescribeTopicsResult struct {
+	// Slice of TopicDescription.
+	TopicDescriptions []TopicDescription
+}
+
+// DescribeClusterResult represents the result of DescribeCluster.
+type DescribeClusterResult struct {
+	// Cluster id for cluster.
+	ClusterId string
+	// Current controller node for cluster.
+	Controller *Node
+	// List of nodes in cluster.
+	Nodes []Node
+	// Operations allowed for cluster.
+	AuthorizedOperations []ACLOperation
 }
 
 // DeleteConsumerGroupsResult represents the result of a DeleteConsumerGroups
@@ -990,6 +1064,40 @@ func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCn
 	return result, nil
 }
 
+func (a *AdminClient) cToAuthorizedOperations(
+	cAuthorizedOperations *C.rd_kafka_AclOperation_t, cAuthorizedOperationCnt C.size_t) []ACLOperation {
+	if cAuthorizedOperations == nil {
+		return nil
+	}
+
+	authorizedOperations := make([]ACLOperation, int(cAuthorizedOperationCnt))
+	for i := 0; i < int(cAuthorizedOperationCnt); i++ {
+		cAuthorizedOperation := C.AclOperation_by_idx(
+			cAuthorizedOperations, cAuthorizedOperationCnt, C.size_t(i))
+		authorizedOperations[i] = ACLOperation(cAuthorizedOperation)
+	}
+
+	return authorizedOperations
+}
+
+func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
+	node := Node{ID: -1}
+	if cNode == nil {
+		return node
+	}
+
+	node.Host = C.GoString(C.rd_kafka_Node_host(cNode))
+	node.Port = int(C.rd_kafka_Node_port(cNode))
+
+	cRack := C.rd_kafka_Node_rack_id(cNode)
+	if cRack != nil {
+		rackId := C.GoString(cRack)
+		node.RackId = &rackId
+	}
+
+	return node
+}
+
 // cToConsumerGroupDescriptions converts a C rd_kafka_ConsumerGroupDescription_t
 // array to a Go ConsumerGroupDescription slice.
 func (a *AdminClient) cToConsumerGroupDescriptions(
@@ -1012,11 +1120,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			C.rd_kafka_ConsumerGroupDescription_state(cGroup))
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
-		coordinator := Node{
-			ID:   int(C.rd_kafka_Node_id(cNode)),
-			Host: C.GoString(C.rd_kafka_Node_host(cNode)),
-			Port: int(C.rd_kafka_Node_port(cNode)),
-		}
+		coordinator := a.cToNode(cNode)
 
 		membersCount := int(
 			C.rd_kafka_ConsumerGroupDescription_member_count(cGroup))
@@ -1046,6 +1150,11 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			}
 		}
 
+		cAuthorizedOperationsCnt := C.size_t(0)
+		cAuthorizedOperations := C.rd_kafka_ConsumerGroupDescription_authorized_operations(
+			cGroup, &cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+
 		result[idx] = ConsumerGroupDescription{
 			GroupID:               groupID,
 			Error:                 err,
@@ -1054,9 +1163,112 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			State:                 state,
 			Coordinator:           coordinator,
 			Members:               members,
+			AuthorizedOperations:  authorizedOperations,
 		}
 	}
 	return result
+}
+
+func (a *AdminClient) cToNodes(cNodes **C.rd_kafka_Node_t, cNodeCnt C.size_t) []Node {
+	nodes := make([]Node, int(cNodeCnt))
+	for i := 0; i < int(cNodeCnt); i++ {
+		cNode := C.Node_by_idx(cNodes, cNodeCnt, C.size_t(i))
+		nodes[i] = a.cToNode(cNode)
+	}
+	return nodes
+}
+
+func (a *AdminClient) cToTopicPartitionInfo(partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
+	cPartitionId := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
+	info := TopicPartitionInfo{
+		Partition: int(cPartitionId),
+	}
+
+	cLeader := C.rd_kafka_TopicPartitionInfo_leader(partitionInfo)
+	if cLeader != nil {
+		leader := a.cToNode(cLeader)
+		info.Leader = &leader
+	}
+
+	cReplicaCnt := C.size_t(0)
+	cReplicas := C.rd_kafka_TopicPartitionInfo_replicas(partitionInfo, &cReplicaCnt)
+	info.Replicas = a.cToNodes(cReplicas, cReplicaCnt)
+
+	cIsrCnt := C.size_t(0)
+	cIsr := C.rd_kafka_TopicPartitionInfo_isr(partitionInfo, &cIsrCnt)
+	info.Isr = a.cToNodes(cIsr, cIsrCnt)
+
+	return info
+}
+
+// cToTopicDescriptions converts a C rd_kafka_TopicDescription_t
+// array to a Go TopicDescription slice.
+func (a *AdminClient) cToTopicDescriptions(
+	cTopics **C.rd_kafka_TopicDescription_t,
+	cTopicCount C.size_t) (result []TopicDescription) {
+	result = make([]TopicDescription, cTopicCount)
+	for idx := 0; idx < int(cTopicCount); idx++ {
+		cTopic := C.TopicDescription_by_idx(
+			cTopics, cTopicCount, C.size_t(idx))
+
+		topic := C.GoString(
+			C.rd_kafka_TopicDescription_name(cTopic))
+		err := newErrorFromCError(
+			C.rd_kafka_TopicDescription_error(cTopic))
+
+		cPartitionInfoCnt := C.size_t(0)
+		cPartitionInfos := C.rd_kafka_TopicDescription_partitions(cTopic, &cPartitionInfoCnt)
+
+		partitions := make([]TopicPartitionInfo, int(cPartitionInfoCnt))
+
+		for pidx := 0; pidx < int(cPartitionInfoCnt); pidx++ {
+			cPartitionInfo := C.TopicPartitionInfo_by_idx(cPartitionInfos, cPartitionInfoCnt, C.size_t(pidx))
+			partitions[pidx] = a.cToTopicPartitionInfo(cPartitionInfo)
+		}
+
+		cAuthorizedOperationsCnt := C.size_t(0)
+		cAuthorizedOperations := C.rd_kafka_TopicDescription_authorized_operations(
+			cTopic, &cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+
+		result[idx] = TopicDescription{
+			Topic:                topic,
+			Error:                err,
+			Partitions:           partitions,
+			AuthorizedOperations: authorizedOperations,
+		}
+	}
+	return result
+}
+
+// cToClusterDescriptions converts a C rd_kafka_TopicDescription_t
+// to a Go ClusterDescription.
+func (a *AdminClient) cToClusterDescription(
+	cResult *C.rd_kafka_DescribeTopics_result_t) (result DescribeClusterResult) {
+	clusterID := C.GoString(C.rd_kafka_DescribeCluster_result_cluster_id(cResult))
+
+	var controller *Node = nil
+	cController := C.rd_kafka_DescribeCluster_result_controller(cResult)
+	if cController != nil {
+		controllerValue := a.cToNode(cController)
+		controller = &controllerValue
+	}
+
+	cNodeCnt := C.size_t(0)
+	cNodes := C.rd_kafka_DescribeCluster_result_nodes(cResult, &cNodeCnt)
+	nodes := a.cToNodes(cNodes, cNodeCnt)
+
+	cAuthorizedOperationsCnt := C.size_t(0)
+	cAuthorizedOperations := C.rd_kafka_DescribeCluster_result_authorized_operations(
+		cResult, &cAuthorizedOperationsCnt)
+	authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+
+	return DescribeClusterResult{
+		ClusterId:            clusterID,
+		Controller:           controller,
+		Nodes:                nodes,
+		AuthorizedOperations: authorizedOperations,
+	}
 }
 
 // cToDescribeUserScramCredentialsResult converts a C
@@ -1101,7 +1313,6 @@ func cToDescribeUserScramCredentialsResult(
 		userDescription.ScramCredentialInfos = scramCredentialInfos
 		result[user] = userDescription
 	}
-
 	return result
 }
 
@@ -2384,6 +2595,145 @@ func (a *AdminClient) DescribeConsumerGroups(
 	describeResult.ConsumerGroupDescriptions = a.cToConsumerGroupDescriptions(cGroups, cGroupCount)
 
 	return describeResult, nil
+}
+
+// DescribeTopics describes topics from cluster as specified by the
+// topics list.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `topics` - Slice of groups to describe. This should not be nil/empty.
+//   - `options` - DescribeTopicsAdminOption options.
+//
+// Returns DescribeTopicsResult, which contains a slice of
+// TopicDescriptions corresponding to the input topics, plus an error
+// that is not `nil` for client level errors. Individual
+// TopicDescriptions inside the slice should also be checked for
+// errors. Individual TopicDescriptions also have a
+// slice of allowed ACLOperations.
+func (a *AdminClient) DescribeTopics(
+	ctx context.Context, topics []string,
+	options ...DescribeTopicsAdminOption) (result DescribeTopicsResult, err error) {
+
+	describeResult := DescribeTopicsResult{}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	// Convert topic names into char**.
+	cTopicNameList := make([]*C.char, len(topics))
+	cTopicNameCount := C.size_t(len(topics))
+
+	for idx, topic := range topics {
+		cTopicNameList[idx] = C.CString(topic)
+		defer C.free(unsafe.Pointer(cTopicNameList[idx]))
+	}
+
+	var cTopicNameListPtr **C.char
+	if cTopicNameCount > 0 {
+		cTopicNameListPtr = ((**C.char)(&cTopicNameList[0]))
+	}
+
+	// Convert char** of topic names into rd_kafka_TopicCollection_t*
+	cTopicCollection := C.rd_kafka_TopicCollection_new_from_names(cTopicNameListPtr, cTopicNameCount)
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBETOPICS, genericOptions)
+	if err != nil {
+		return describeResult, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeTopics (asynchronous).
+	C.rd_kafka_DescribeTopics(
+		a.handle.rk,
+		cTopicCollection,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT)
+	if err != nil {
+		return describeResult, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeTopics_result(rkev)
+
+	// Convert result from C to Go.
+	var cTopicCount C.size_t
+	cTopics := C.rd_kafka_DescribeTopics_result_topics(cRes, &cTopicCount)
+	describeResult.TopicDescriptions = a.cToTopicDescriptions(cTopics, cTopicCount)
+
+	return describeResult, nil
+}
+
+// DescribeCluster describes the cluster
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `options` - DescribeClusterAdminOption options.
+//
+// Returns ClusterDescription, which contains current cluster and controller
+// id along with a slice of Nodes. It also has a slice of allowed ACLOperations.
+func (a *AdminClient) DescribeCluster(
+	ctx context.Context,
+	options ...DescribeClusterAdminOption) (result DescribeClusterResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+	clusterDesc := DescribeClusterResult{}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER, genericOptions)
+	if err != nil {
+		return clusterDesc, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeCluster (asynchronous).
+	C.rd_kafka_DescribeCluster(
+		a.handle.rk,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT)
+	if err != nil {
+		return clusterDesc, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeCluster_result(rkev)
+
+	// Convert result from C to Go.
+	clusterDesc = a.cToClusterDescription(cRes)
+
+	return clusterDesc, nil
 }
 
 // DeleteConsumerGroups deletes a batch of consumer groups.

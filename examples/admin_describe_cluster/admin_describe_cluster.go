@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Describe consumer groups
+// Describe topics
 package main
 
 import (
@@ -28,11 +28,10 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 4 {
+	if len(os.Args) < 3 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_authorized_operations>"+
-				" <group1> [<group2> ...]\n",
+			"Usage: %s <bootstrap-servers> <include_authorized_operations\n",
 			os.Args[0])
 		os.Exit(1)
 	}
@@ -45,8 +44,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	groups := os.Args[3:]
-
 	// Create a new AdminClient.
 	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": bootstrapServers,
@@ -57,34 +54,21 @@ func main() {
 	}
 	defer a.Close()
 
-	// Call DescribeConsumerGroups.
+	// Call DescribeCluster.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups, kafka.SetAdminOptionIncludeAuthorizedOperations(include_authorized_operations))
+	clusterDesc, err := a.DescribeCluster(
+		ctx, kafka.SetAdminOptionIncludeAuthorizedOperations(
+			include_authorized_operations))
 	if err != nil {
-		fmt.Printf("Failed to describe groups: %s\n", err)
+		fmt.Printf("Failed to describe cluster: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Print results
-	fmt.Printf("A total of %d consumer group(s) described:\n\n",
-		len(describeGroupsResult.ConsumerGroupDescriptions))
-	for _, g := range describeGroupsResult.ConsumerGroupDescriptions {
-		fmt.Printf("GroupId: %s\n"+
-			"Error: %s\n"+
-			"IsSimpleConsumerGroup: %v\n"+
-			"PartitionAssignor: %s\n"+
-			"State: %s\n"+
-			"Coordinator: %+v\n"+
-			"Members: %+v\n",
-			g.GroupID, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
-			g.State, g.Coordinator, g.Members)
-		if include_authorized_operations == true {
-			fmt.Printf("Allowed acl operations:\n")
-			for i := 0; i < len(g.AuthorizedOperations); i++ {
-				fmt.Printf("\t%s\n", g.AuthorizedOperations[i])
-			}
-		}
-		fmt.Printf("\n")
+	fmt.Printf("ClusterId: %s\nController: %s\nNodes: %s\n",
+		clusterDesc.ClusterId, clusterDesc.Controller, clusterDesc.Nodes)
+	if include_authorized_operations == true {
+		fmt.Printf("Allowed operations: %s\n", clusterDesc.AuthorizedOperations)
 	}
 }
