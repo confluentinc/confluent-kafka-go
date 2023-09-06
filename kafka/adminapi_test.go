@@ -485,6 +485,49 @@ func testAdminAPIsDescribeConsumerGroups(
 	}
 }
 
+func testAdminAPIsDescribeTopics(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err := a.DescribeTopics(
+		ctx, TopicCollection{}, SetAdminRequestTimeout(time.Second))
+	if descres.TopicDescriptions != nil || err == nil {
+		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+			descres, err)
+	}
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg with empty topics list, but got %s", err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err = a.DescribeTopics(
+		ctx, TopicCollection{Names: []string{"test"}},
+		SetAdminRequestTimeout(time.Second))
+	if descres.TopicDescriptions != nil || err == nil {
+		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+			descres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+	}
+}
+
+func testAdminAPIsDescribeCluster(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	descres, err := a.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second))
+	if descres.Nodes != nil || err == nil {
+		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+			descres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+	}
+}
+
 func testAdminAPIsDeleteConsumerGroups(
 	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
@@ -909,6 +952,8 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsListConsumerGroups(what, a, expDuration, t)
 	testAdminAPIsDescribeConsumerGroups(what, a, expDuration, t)
+	testAdminAPIsDescribeTopics(what, a, expDuration, t)
+	testAdminAPIsDescribeCluster(what, a, expDuration, t)
 	testAdminAPIsDeleteConsumerGroups(what, a, expDuration, t)
 
 	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)

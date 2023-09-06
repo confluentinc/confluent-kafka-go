@@ -110,7 +110,9 @@ func checkGroupDesc(
 		groupDesc.Coordinator.Host == "" ||
 		// We will run all our tests on non-simple consumer groups only.
 		groupDesc.IsSimpleConsumerGroup ||
-		len(groupDesc.Members) != len(clientIDToPartitions) {
+		len(groupDesc.Members) != len(clientIDToPartitions) ||
+		// We don't set IncludeAuthorizedOperations while using helper.
+		len(groupDesc.AuthorizedOperations) > 0 {
 		return false
 	}
 
@@ -831,7 +833,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
 // list consumer groups and describe consumer group APIs of the admin client.
 //
-//	We test the following situations:
+// We test the following situations:
 //
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
@@ -1091,6 +1093,417 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 		t.Errorf("Consumer group %s should not be present\n", groupID)
 		return
 	}
+}
+
+// TestAdminClient_DescribeConsumerGroupsAuthorizedOperations validates the
+// working of the DescribeConsumerGroups API of the admin client for fetching
+// authorized operations (KIP-430).
+//
+// We test the following situations:
+//
+// 1. Default ACLs on group.
+// 2. Modified ACLs on group.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorizedOperations() {
+	t := its.T()
+	assert := its.Assert()
+
+	// Generating a new topic/groupID to ensure a fresh group/topic is created.
+	rand.Seed(time.Now().Unix())
+	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+
+	clientID := "test.client.1"
+
+	ac := createAdminClientWithSasl(t)
+	defer ac.Close()
+
+	// Create a topic.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	assert.Nil(err, "CreateTopics should succeed")
+
+	// Delete the topic after the test is done.
+	defer func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		assert.Nil(err, "DeleteTopics should succeed")
+	}()
+
+	// Create a consumer so that a consumer group might be created
+	config := &ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+		"group.id":          groupID,
+		"client.id":         clientID,
+	}
+	config.updateFromTestconf()
+	consumer, err := NewConsumer(config)
+	assert.Nil(err, "NewConsumer should succeed")
+
+	// Close the consumer after the test is done
+	defer consumer.Close()
+
+	consumer.Subscribe(topic, nil)
+
+	// Call Poll to trigger a rebalance and give it enough time to finish.
+	consumer.Poll(10 * 1000)
+
+	// 1. Default ACLs on group.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	groupDescResult, err := ac.DescribeConsumerGroups(
+		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+	assert.Nil(err, "DescribeConsumerGroups should succeed")
+
+	groupDescs := groupDescResult.ConsumerGroupDescriptions
+	assert.Len(groupDescs, 1, "Describing one group should give exactly one result")
+
+	groupDesc := &groupDescs[0]
+	assert.NotEmpty(groupDesc.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	assert.ElementsMatch(groupDesc.AuthorizedOperations,
+		[]ACLOperation{
+			ACLOperationRead,
+			ACLOperationDelete,
+			ACLOperationDescribe})
+
+	// Change the ACLs on the group
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceGroup,
+			Name:                groupID,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
+	// 2. Modified ACLs on group.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	groupDescResult, err = ac.DescribeConsumerGroups(
+		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+	assert.Nil(err, "DescribeConsumerGroups should succeed")
+
+	groupDescs = groupDescResult.ConsumerGroupDescriptions
+	assert.Len(groupDescs, 1,
+		"Describing one group should give exactly one result")
+
+	groupDesc = &groupDescs[0]
+	assert.NotEmpty(groupDesc.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	// Read permissions implicitly allows Describe.
+	assert.ElementsMatch(groupDesc.AuthorizedOperations,
+		[]ACLOperation{ACLOperationRead, ACLOperationDescribe})
+}
+
+// TestAdminClient_DescribeCluster validates the working of the
+// DescribeCluster API of the admin client.
+//
+// We test the following situations:
+//
+// 1. DescribeCluster without ACLs.
+// 2. DescribeCluster with default ACLs.
+// 3. DescribeCluster with modified ACLs.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
+	t := its.T()
+	assert := its.Assert()
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// 1. DescribeCluster without ACLs.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err := ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second*30))
+
+	// There are fields which cannot be checked, like controller, or the value
+	// of the cluster ID. We try checking for the existence in cases we can.
+	assert.Nil(err, "DescribeCluster should not throw an error")
+	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
+	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.Nodes[0].Host,
+		"First node's host should be non-empty")
+	assert.Empty(descres.AuthorizedOperations,
+		"Authorized operations should be empty, not requested")
+
+	// Tests for Authorized Operations need a broker with SASL authentication.
+	// This may be a different broker than the usual broker, so we create a
+	// new AdminClient.
+	ac = createAdminClientWithSasl(t)
+	defer ac.Close()
+
+	// 2. DescribeCluster with default ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err = ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second*30),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeCluster should not throw an error")
+	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
+	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.Nodes[0].Host,
+		"First node's host should be non-empty")
+	assert.NotEmpty(descres.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	assert.ElementsMatch(descres.AuthorizedOperations,
+		[]ACLOperation{
+			ACLOperationCreate, ACLOperationAlter, ACLOperationDescribe,
+			ACLOperationClusterAction, ACLOperationDescribeConfigs,
+			ACLOperationAlterConfigs, ACLOperationIdempotentWrite})
+
+	// Create some ACL bindings on the cluster.
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second*30))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
+	// 3. DescribeCluster with modified ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err = ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second*30),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeCluster should not throw an error")
+	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
+	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.Nodes[0].Host,
+		"First node's host should be non-empty")
+	assert.NotEmpty(descres.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	// Alter permissions implicitly allow Describe.
+	assert.ElementsMatch(descres.AuthorizedOperations,
+		[]ACLOperation{ACLOperationDescribe, ACLOperationAlter})
+
+	// Clean up cluster ACLs for subsequent tests.
+	aclBindingFilters := ACLBindingFilters{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeMatch,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+		SetAdminRequestTimeout(time.Second*30))
+	assert.Nil(err, "DeleteACLs should not throw an error")
+}
+
+// TestAdminClient_DescribeTopics validates the working of the
+// DescribeTopics API of the admin client.
+//
+// We test the following situations:
+//
+// 1. DescribeTopics without ACLs.
+// 2. DescribeTopics with default ACLs.
+// 3. DescribeTopics with modified ACLs.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
+	t := its.T()
+	assert := its.Assert()
+	rand.Seed(time.Now().Unix())
+
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// Create a topic
+	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	assert.Nil(err, "CreateTopics should not fail")
+
+	// Delete the topic after the test is done.
+	defer func(ac *AdminClient) {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		assert.Nil(err, "DeleteTopics should not fail")
+	}(ac)
+
+	// 1. DescribeTopics without ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err := ac.DescribeTopics(
+		ctx, TopicCollection{Names: []string{topic, "nonexistent"}},
+		SetAdminRequestTimeout(30*time.Second))
+	assert.Nil(err, "DescribeTopics should not fail")
+
+	topicDescs := topicDescResult.TopicDescriptions
+	assert.Len(topicDescs, 2,
+		"Describing two topics should give exactly two results")
+	assert.Equal(topicDescs[0].Topic, topic,
+		"First result topic should match request topic")
+	assert.Equal(topicDescs[1].Topic, "nonexistent",
+		"Second result topic should match request topic")
+	assert.Equal(topicDescs[1].Error.Code(), ErrUnknownTopicOrPart,
+		"Expected correct error for nonexistent topic")
+
+	topicDesc := topicDescs[0]
+	assert.Equal(topicDesc.Error.Code(), ErrNoError,
+		"Topic description should not have an error")
+	assert.False(topicDesc.IsInternal, "Topic should not be internal")
+	assert.Empty(topicDesc.AuthorizedOperations,
+		"Topic should not have authorized operations")
+
+	assert.Len(topicDesc.Partitions, 2, "Topic should have two partitions")
+	assert.GreaterOrEqual(len(topicDesc.Partitions[0].Replicas), 1,
+		"At least one replica should exist for partition")
+
+	// Tests for Authorized Operations need a broker with SASL authentication.
+	// This may be a different broker than the usual broker, so we create a
+	// new AdminClient.
+	ac = createAdminClientWithSasl(t)
+	defer ac.Close()
+
+	// Create a topic - the broker may be different for SASL, so we need to
+	// ensure that a topic is created.
+	topic = fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err = ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	assert.Nil(err, "CreateTopics should not fail")
+
+	// Delete the second topic after the test is done.
+	defer func(ac *AdminClient) {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		assert.Nil(err, "DeleteTopics should not fail")
+	}(ac)
+
+	// 2. DescribeTopics with default ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err = ac.DescribeTopics(
+		ctx, TopicCollection{Names: []string{topic}},
+		SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeTopics should not fail")
+
+	topicDescs = topicDescResult.TopicDescriptions
+	assert.Len(topicDescs, 1,
+		"Describing one topic should give exactly one result")
+	assert.Equal(topicDescs[0].Topic, topic,
+		"First result topic should match request topic")
+
+	topicDesc = topicDescs[0]
+	assert.Equal(topicDesc.Error.Code(), ErrNoError,
+		"Topic description should not have an error")
+	assert.NotEmpty(topicDesc.AuthorizedOperations,
+		"Topic should have authorized operations")
+	assert.ElementsMatch(topicDesc.AuthorizedOperations, []ACLOperation{
+		ACLOperationRead, ACLOperationWrite, ACLOperationCreate,
+		ACLOperationDelete, ACLOperationAlter, ACLOperationDescribe,
+		ACLOperationDescribeConfigs, ACLOperationAlterConfigs})
+
+	// Create some ACL bindings on the topic.
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
+	// 3. DescribeTopics with modified ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err = ac.DescribeTopics(
+		ctx, TopicCollection{Names: []string{topic}},
+		SetAdminRequestTimeout(time.Second*30),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeTopics should not fail")
+
+	topicDescs = topicDescResult.TopicDescriptions
+	assert.Len(topicDescs, 1,
+		"Describing one topic should give exactly one result")
+	assert.Equal(topicDescs[0].Topic, topic,
+		"First result topic should match request topic")
+
+	topicDesc = topicDescs[0]
+	assert.Equal(topicDesc.Error.Code(), ErrNoError,
+		"Topic description should not have an error")
+	assert.NotEmpty(topicDesc.AuthorizedOperations,
+		"Topic should have authorized operations")
+	// Read permissions implicitly allows Describe.
+	assert.ElementsMatch(topicDesc.AuthorizedOperations,
+		[]ACLOperation{ACLOperationRead, ACLOperationDescribe})
 }
 
 func (its *IntegrationTestSuite) TestAdminTopics() {
