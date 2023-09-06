@@ -2,7 +2,13 @@
 
 # v2.3.0
 
-This is a maintenance release.
+This is a feature release.
+
+ * Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
+   (#964, @jainruchir).
+ * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses.
+   (#964, @jainruchir).
 
 ## Fixes
 
