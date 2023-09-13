@@ -29,7 +29,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-// handleJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
+// handleJWTTokenRefreshEvent retrieves JWT from the SPIFFE workload API and
 // sets the token on the client for use in any future authentication attempt.
 // It must be invoked whenever kafka.OAuthBearerTokenRefresh appears on the client's event channel,
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
