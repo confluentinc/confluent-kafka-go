@@ -31,7 +31,7 @@ func main() {
 	if len(os.Args) < 4 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_authorized_operations"+
+			"Usage: %s <bootstrap-servers> <include_authorized_operations>"+
 				" <topic1> [<topic2> ...]\n",
 			os.Args[0])
 		os.Exit(1)
@@ -61,7 +61,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	describeTopicsResult, err := a.DescribeTopics(
-		ctx, kafka.TopicCollection{Names: topics},
+		ctx, kafka.NewTopicCollectionOfTopicNames(topics),
 		kafka.SetAdminOptionIncludeAuthorizedOperations(
 			include_authorized_operations))
 	if err != nil {
@@ -75,10 +75,10 @@ func main() {
 	for _, t := range describeTopicsResult.TopicDescriptions {
 		if t.Error.Code() != 0 {
 			fmt.Printf("Topic: %s has error: %s\n",
-				t.Topic, t.Error)
+				t.Name, t.Error)
 			continue
 		}
-		fmt.Printf("Topic: %s has succeeded\n", t.Topic)
+		fmt.Printf("Topic: %s has succeeded\n", t.Name)
 		if include_authorized_operations {
 			fmt.Printf("Allowed operations: %s\n", t.AuthorizedOperations)
 		}

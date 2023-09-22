@@ -490,7 +490,7 @@ func testAdminAPIsDescribeTopics(
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 	descres, err := a.DescribeTopics(
-		ctx, TopicCollection{}, SetAdminRequestTimeout(time.Second))
+		ctx, NewTopicCollectionOfTopicNames(nil), SetAdminRequestTimeout(time.Second))
 	if descres.TopicDescriptions != nil || err == nil {
 		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
 			descres, err)
@@ -502,7 +502,7 @@ func testAdminAPIsDescribeTopics(
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 	descres, err = a.DescribeTopics(
-		ctx, TopicCollection{Names: []string{"test"}},
+		ctx, NewTopicCollectionOfTopicNames([]string{"test"}),
 		SetAdminRequestTimeout(time.Second))
 	if descres.TopicDescriptions != nil || err == nil {
 		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",

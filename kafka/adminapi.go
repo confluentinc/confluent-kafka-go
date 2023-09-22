@@ -302,7 +302,15 @@ type DescribeConsumerGroupsResult struct {
 // TopicCollection represents a collection of topics.
 type TopicCollection struct {
 	// Slice of topic names.
-	Names []string
+	topicNames []string
+}
+
+// NewTopicCollectionOfTopicNames creates a new TopicCollection based on a list
+// of topic names.
+func NewTopicCollectionOfTopicNames(names []string) TopicCollection {
+	return TopicCollection{
+		topicNames: names,
+	}
 }
 
 // Topic Partition information
@@ -321,7 +329,7 @@ type TopicPartitionInfo struct {
 // a single topic.
 type TopicDescription struct {
 	// Topic name.
-	Topic string
+	Name string
 	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
 	Error Error
 	// Is the topic is internal to Kafka?
@@ -1090,22 +1098,31 @@ func (a *AdminClient) cToAuthorizedOperations(
 }
 
 // cToNode converts a C Node_t* to a Go Node.
+// cNode must not be nil.
 func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
-	node := Node{ID: -1}
-	if cNode == nil {
-		return node
+	node := Node{
+		ID:   int(C.rd_kafka_Node_id(cNode)),
+		Host: C.GoString(C.rd_kafka_Node_host(cNode)),
+		Port: int(C.rd_kafka_Node_port(cNode)),
 	}
 
-	node.Host = C.GoString(C.rd_kafka_Node_host(cNode))
-	node.Port = int(C.rd_kafka_Node_port(cNode))
-
-	cRack := C.rd_kafka_Node_rack_id(cNode)
+	cRack := C.rd_kafka_Node_rack(cNode)
 	if cRack != nil {
 		rackId := C.GoString(cRack)
-		node.RackId = &rackId
+		node.Rack = &rackId
 	}
 
 	return node
+}
+
+// cToNodePtr converts a C Node_t* to a Go *Node.
+func (a *AdminClient) cToNodePtr(cNode *C.rd_kafka_Node_t) *Node {
+	if cNode == nil {
+		return nil
+	}
+
+	node := a.cToNode(cNode)
+	return &node
 }
 
 // cToNode converts a C Node_t array to a Go Node list.
@@ -1201,10 +1218,7 @@ func (a *AdminClient) cToTopicPartitionInfo(
 	}
 
 	cLeader := C.rd_kafka_TopicPartitionInfo_leader(partitionInfo)
-	if cLeader != nil {
-		leader := a.cToNode(cLeader)
-		info.Leader = &leader
-	}
+	info.Leader = a.cToNodePtr(cLeader)
 
 	cReplicaCnt := C.size_t(0)
 	cReplicas := C.rd_kafka_TopicPartitionInfo_replicas(
@@ -1221,17 +1235,25 @@ func (a *AdminClient) cToTopicPartitionInfo(
 // cToTopicDescriptions converts a C TopicDescription_t
 // array to a Go TopicDescription list.
 func (a *AdminClient) cToTopicDescriptions(
-	cTopics **C.rd_kafka_TopicDescription_t,
-	cTopicCount C.size_t) (result []TopicDescription) {
-	result = make([]TopicDescription, cTopicCount)
-	for idx := 0; idx < int(cTopicCount); idx++ {
+	cTopicDescriptions **C.rd_kafka_TopicDescription_t,
+	cTopicDescriptionCount C.size_t) (result []TopicDescription) {
+	result = make([]TopicDescription, cTopicDescriptionCount)
+	for idx := 0; idx < int(cTopicDescriptionCount); idx++ {
 		cTopic := C.TopicDescription_by_idx(
-			cTopics, cTopicCount, C.size_t(idx))
+			cTopicDescriptions, cTopicDescriptionCount, C.size_t(idx))
 
-		topic := C.GoString(
+		topicName := C.GoString(
 			C.rd_kafka_TopicDescription_name(cTopic))
 		err := newErrorFromCError(
 			C.rd_kafka_TopicDescription_error(cTopic))
+
+		if err.Code() != ErrNoError {
+			result[idx] = TopicDescription{
+				Name:  topicName,
+				Error: err,
+			}
+			continue
+		}
 
 		cPartitionInfoCnt := C.size_t(0)
 		cPartitionInfos := C.rd_kafka_TopicDescription_partitions(cTopic, &cPartitionInfoCnt)
@@ -1249,7 +1271,7 @@ func (a *AdminClient) cToTopicDescriptions(
 		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 		result[idx] = TopicDescription{
-			Topic:                topic,
+			Name:                 topicName,
 			Error:                err,
 			Partitions:           partitions,
 			AuthorizedOperations: authorizedOperations,
@@ -1266,10 +1288,7 @@ func (a *AdminClient) cToDescribeClusterResult(
 
 	var controller *Node = nil
 	cController := C.rd_kafka_DescribeCluster_result_controller(cResult)
-	if cController != nil {
-		controllerValue := a.cToNode(cController)
-		controller = &controllerValue
-	}
+	controller = a.cToNodePtr(cController)
 
 	cNodeCnt := C.size_t(0)
 	cNodes := C.rd_kafka_DescribeCluster_result_nodes(cResult, &cNodeCnt)
@@ -2642,10 +2661,10 @@ func (a *AdminClient) DescribeTopics(
 	}
 
 	// Convert topic names into char**.
-	cTopicNameList := make([]*C.char, len(topics.Names))
-	cTopicNameCount := C.size_t(len(topics.Names))
+	cTopicNameList := make([]*C.char, len(topics.topicNames))
+	cTopicNameCount := C.size_t(len(topics.topicNames))
 
-	for idx, topic := range topics.Names {
+	for idx, topic := range topics.topicNames {
 		cTopicNameList[idx] = C.CString(topic)
 		defer C.free(unsafe.Pointer(cTopicNameList[idx]))
 	}
@@ -2656,7 +2675,7 @@ func (a *AdminClient) DescribeTopics(
 	}
 
 	// Convert char** of topic names into rd_kafka_TopicCollection_t*
-	cTopicCollection := C.rd_kafka_TopicCollection_new_from_names(
+	cTopicCollection := C.rd_kafka_TopicCollection_of_topic_names(
 		cTopicNameListPtr, cTopicNameCount)
 	defer C.rd_kafka_TopicCollection_destroy(cTopicCollection)
 
@@ -2694,9 +2713,11 @@ func (a *AdminClient) DescribeTopics(
 	cRes := C.rd_kafka_event_DescribeTopics_result(rkev)
 
 	// Convert result from C to Go.
-	var cTopicCount C.size_t
-	cTopics := C.rd_kafka_DescribeTopics_result_topics(cRes, &cTopicCount)
-	describeResult.TopicDescriptions = a.cToTopicDescriptions(cTopics, cTopicCount)
+	var cTopicDescriptionCount C.size_t
+	cTopicDescriptions :=
+		C.rd_kafka_DescribeTopics_result_topics(cRes, &cTopicDescriptionCount)
+	describeResult.TopicDescriptions =
+		a.cToTopicDescriptions(cTopicDescriptions, cTopicDescriptionCount)
 
 	return describeResult, nil
 }

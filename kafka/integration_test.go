@@ -1138,9 +1138,13 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 
 	// Create a consumer so that a consumer group might be created
 	config := &ConfigMap{
-		"bootstrap.servers": testconf.Brokers,
+		"bootstrap.servers": testconf.BrokersSasl,
 		"group.id":          groupID,
 		"client.id":         clientID,
+		"sasl.username":     testconf.SaslUsername,
+		"sasl.password":     testconf.SaslPassword,
+		"sasl.mechanism":    testconf.SaslMechanism,
+		"security.protocol": "SASL_PLAINTEXT",
 	}
 	config.updateFromTestconf()
 	consumer, err := NewConsumer(config)
@@ -1166,6 +1170,8 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 	assert.Len(groupDescs, 1, "Describing one group should give exactly one result")
 
 	groupDesc := &groupDescs[0]
+	assert.Equal(groupDesc.Error.Code(), ErrNoError,
+		"Group description should succeed")
 	assert.NotEmpty(groupDesc.AuthorizedOperations,
 		"Authorized operations should not be empty")
 	assert.ElementsMatch(groupDesc.AuthorizedOperations,
@@ -1189,6 +1195,26 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
+
+	// Delete group ACLs to keep the test cluster clean.
+	defer func() {
+		aclBindingFilters := ACLBindingFilters{
+			{
+				Type:                ResourceGroup,
+				Name:                groupID,
+				ResourcePatternType: ResourcePatternTypeLiteral,
+				Principal:           "User:*",
+				Host:                "*",
+				Operation:           ACLOperationRead,
+				PermissionType:      ACLPermissionTypeAllow,
+			},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+			SetAdminRequestTimeout(time.Second*30))
+		assert.Nil(err, "DeleteACLs should not throw an error")
+	}()
 
 	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
 		SetAdminRequestTimeout(time.Second))
@@ -1300,6 +1326,26 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 		resultCreateACLs[0].Error.Code(), ErrNoError,
 		"CreateACLs result should not have an error")
 
+	// Clean up cluster ACLs for subsequent tests.
+	defer func() {
+		aclBindingFilters := ACLBindingFilters{
+			{
+				Type:                ResourceBroker,
+				Name:                "kafka-cluster",
+				ResourcePatternType: ResourcePatternTypeMatch,
+				Principal:           "User:*",
+				Host:                "*",
+				Operation:           ACLOperationAlter,
+				PermissionType:      ACLPermissionTypeAllow,
+			},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+			SetAdminRequestTimeout(time.Second*30))
+		assert.Nil(err, "DeleteACLs should not throw an error")
+	}()
+
 	// 3. DescribeCluster with modified ACLs.
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -1317,24 +1363,6 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 	// Alter permissions implicitly allow Describe.
 	assert.ElementsMatch(descres.AuthorizedOperations,
 		[]ACLOperation{ACLOperationDescribe, ACLOperationAlter})
-
-	// Clean up cluster ACLs for subsequent tests.
-	aclBindingFilters := ACLBindingFilters{
-		{
-			Type:                ResourceBroker,
-			Name:                "kafka-cluster",
-			ResourcePatternType: ResourcePatternTypeMatch,
-			Principal:           "User:*",
-			Host:                "*",
-			Operation:           ACLOperationAlter,
-			PermissionType:      ACLPermissionTypeAllow,
-		},
-	}
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	_, err = ac.DeleteACLs(ctx, aclBindingFilters,
-		SetAdminRequestTimeout(time.Second*30))
-	assert.Nil(err, "DeleteACLs should not throw an error")
 }
 
 // TestAdminClient_DescribeTopics validates the working of the
@@ -1377,16 +1405,16 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	topicDescResult, err := ac.DescribeTopics(
-		ctx, TopicCollection{Names: []string{topic, "nonexistent"}},
+		ctx, NewTopicCollectionOfTopicNames([]string{topic, "nonexistent"}),
 		SetAdminRequestTimeout(30*time.Second))
 	assert.Nil(err, "DescribeTopics should not fail")
 
 	topicDescs := topicDescResult.TopicDescriptions
 	assert.Len(topicDescs, 2,
 		"Describing two topics should give exactly two results")
-	assert.Equal(topicDescs[0].Topic, topic,
+	assert.Equal(topicDescs[0].Name, topic,
 		"First result topic should match request topic")
-	assert.Equal(topicDescs[1].Topic, "nonexistent",
+	assert.Equal(topicDescs[1].Name, "nonexistent",
 		"Second result topic should match request topic")
 	assert.Equal(topicDescs[1].Error.Code(), ErrUnknownTopicOrPart,
 		"Expected correct error for nonexistent topic")
@@ -1433,7 +1461,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	topicDescResult, err = ac.DescribeTopics(
-		ctx, TopicCollection{Names: []string{topic}},
+		ctx, NewTopicCollectionOfTopicNames([]string{topic}),
 		SetAdminRequestTimeout(30*time.Second),
 		SetAdminOptionIncludeAuthorizedOperations(true))
 
@@ -1442,7 +1470,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	topicDescs = topicDescResult.TopicDescriptions
 	assert.Len(topicDescs, 1,
 		"Describing one topic should give exactly one result")
-	assert.Equal(topicDescs[0].Topic, topic,
+	assert.Equal(topicDescs[0].Name, topic,
 		"First result topic should match request topic")
 
 	topicDesc = topicDescs[0]
@@ -1471,6 +1499,26 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
+	// Delete topic ACLs to keep the test cluster clean.
+	defer func() {
+		aclBindingFilters := ACLBindingFilters{
+			{
+				Type:                ResourceTopic,
+				Name:                topic,
+				ResourcePatternType: ResourcePatternTypeLiteral,
+				Principal:           "User:*",
+				Host:                "*",
+				Operation:           ACLOperationRead,
+				PermissionType:      ACLPermissionTypeAllow,
+			},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+			SetAdminRequestTimeout(time.Second*30))
+		assert.Nil(err, "DeleteACLs should not throw an error")
+	}()
+
 	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
 		SetAdminRequestTimeout(time.Second))
 	assert.Nil(err, "CreateACLs should not throw an error")
@@ -1484,7 +1532,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	topicDescResult, err = ac.DescribeTopics(
-		ctx, TopicCollection{Names: []string{topic}},
+		ctx, NewTopicCollectionOfTopicNames([]string{topic}),
 		SetAdminRequestTimeout(time.Second*30),
 		SetAdminOptionIncludeAuthorizedOperations(true))
 
@@ -1493,7 +1541,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	topicDescs = topicDescResult.TopicDescriptions
 	assert.Len(topicDescs, 1,
 		"Describing one topic should give exactly one result")
-	assert.Equal(topicDescs[0].Topic, topic,
+	assert.Equal(topicDescs[0].Name, topic,
 		"First result topic should match request topic")
 
 	topicDesc = topicDescs[0]

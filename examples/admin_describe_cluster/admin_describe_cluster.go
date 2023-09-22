@@ -31,7 +31,7 @@ func main() {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_authorized_operations\n",
+			"Usage: %s <bootstrap-servers> <include_authorized_operations>\n",
 			os.Args[0])
 		os.Exit(1)
 	}

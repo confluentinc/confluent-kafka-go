@@ -275,8 +275,7 @@ func createAdminClientImpl(t *testing.T, withSasl bool) (a *AdminClient) {
 		t.Skipf("Missing testconf.json")
 	}
 
-	brokers := testconf.Brokers
-	conf := ConfigMap{"bootstrap.servers": brokers}
+	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
 	conf.updateFromTestconf()
 	if withSasl {
 		if err := conf.updateToSaslAuthentication(); err != nil {

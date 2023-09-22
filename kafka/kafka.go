@@ -327,7 +327,7 @@ type Node struct {
 	// Node port.
 	Port int
 	// Node rack (may be nil)
-	RackId *string
+	Rack *string
 }
 
 func (n Node) String() string {
