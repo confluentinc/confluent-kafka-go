@@ -80,7 +80,7 @@ func (s *GenericSerializer) addFullyQualifiedNameToSchema(avroStr, msgFQN string
 	return json.Marshal(data)
 }
 
-// Serialize implements serialization of generic Avro data
+// SerializeRecordName implements serialization of generic Avro data
 func (s *GenericSerializer) SerializeRecordName(msg interface{}, subject ...string) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
@@ -192,8 +192,6 @@ func (s *GenericDeserializer) DeserializeRecordName(payload []byte) (interface{}
 	namespace := data["namespace"].(string)
 	fullyQualifiedName := fmt.Sprintf("%s.%s", namespace, name)
 
-	// fmt.Println("see the info schema: ", info.Schema)
-
 	writer, name, err := s.toType(info)
 	if err != nil {
 		return nil, err
@@ -228,6 +226,7 @@ func (s *GenericDeserializer) DeserializeRecordName(payload []byte) (interface{}
 
 }
 
+// DeserializeIntoRecordName implements deserialization of generic Avro data
 func (s *GenericDeserializer) DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error {
 	if payload == nil {
 		return fmt.Errorf("Empty payload")

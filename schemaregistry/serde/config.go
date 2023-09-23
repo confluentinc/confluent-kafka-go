@@ -46,6 +46,7 @@ func NewSerializerConfig() *SerializerConfig {
 	return c
 }
 
+// NewSerializerConfigTopRecNameStrat set the configurations for the TopicRecordNameStrategy
 func NewSerializerConfigTopRecNameStrat() *SerializerConfig {
 	c := NewSerializerConfig()
 

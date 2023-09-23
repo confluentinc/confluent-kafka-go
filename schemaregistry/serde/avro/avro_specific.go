@@ -146,7 +146,7 @@ func (s *SpecificSerializer) addFullyQualifiedNameToSchema(avroStr string, msg i
 	return modifiedJSON, fullyQualifiedName, nil
 }
 
-// Serialize implements serialization of generic Avro data
+// SerializeRecordName implements serialization of generic Avro data
 func (s *SpecificSerializer) SerializeRecordName(msg interface{}, subject ...string) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
@@ -203,6 +203,7 @@ func NewSpecificDeserializer(client schemaregistry.Client, serdeType serde.Type,
 	return s, nil
 }
 
+// DeserializeRecordName implements deserialization of specific Avro data
 func (s *SpecificDeserializer) DeserializeRecordName(payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
@@ -274,6 +275,7 @@ func (s *SpecificDeserializer) DeserializeRecordName(payload []byte) (interface{
 	return avroMsg, nil
 }
 
+// DeserializeIntoRecordName implements deserialization of specific Avro data
 func (s *SpecificDeserializer) DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error {
 	if payload == nil {
 		return nil

@@ -88,13 +88,11 @@ func (sd *SchemaInfo) MarshalJSON() ([]byte, error) {
 		Schema     string      `json:"schema,omitempty"`
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
-		// SchemaFullyQualifiedName string      `json:"schemaFullyQualifiedName,omitempty"`
-		Subject string `json:"subject,omitempty"`
+		Subject    string      `json:"subject,omitempty"`
 	}{
 		sd.Schema,
 		sd.SchemaType,
 		sd.References,
-		// sd.SchemaFullyQualifiedName, // added
 		sd.Subject,
 	})
 }
@@ -106,8 +104,7 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 		Schema     string      `json:"schema,omitempty"`
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
-		// SchemaFullyQualifiedName string      `json:"schemaFullyQualifiedName,omitempty"`
-		Subject string `json:"subject,omitempty"`
+		Subject    string      `json:"subject,omitempty"`
 	}
 
 	err = json.Unmarshal(b, &tmp)
@@ -115,7 +112,6 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 	sd.Schema = tmp.Schema
 	sd.SchemaType = tmp.SchemaType
 	sd.References = tmp.References
-	// sd.SchemaFullyQualifiedName = tmp.SchemaFullyQualifiedName // added
 	sd.Subject = tmp.Subject
 
 	return err
@@ -138,7 +134,6 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		ID         int         `json:"id,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
-		// SchemaFullyQualifiedName string      `json:"schemaFullyQualifiedName,omitempty"`
 	}{
 		sd.Schema,
 		sd.SchemaType,
@@ -146,7 +141,6 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		sd.ID,
 		sd.Subject,
 		sd.Version,
-		// sd.SchemaFullyQualifiedName,
 	})
 }
 
@@ -160,7 +154,6 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 		ID         int         `json:"id,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
-		// SchemaFullyQualifiedName string      `json:"schemaFullyQualifiedName,omitempty"`
 	}
 
 	err = json.Unmarshal(b, &tmp)
@@ -171,7 +164,6 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 	sd.ID = tmp.ID
 	sd.Subject = tmp.Subject
 	sd.Version = tmp.Version
-	// sd.SchemaFullyQualifiedName = tmp.SchemaFullyQualifiedName
 
 	return err
 }
@@ -368,7 +360,6 @@ func (c *client) GetByID(id int) (schema SchemaInfo, err error) {
 		}
 
 	} else {
-		// newInfo = subjIDPayload.(subjectOnlyIDPayload).SchemaInfo
 		newInfo = subjIDPayload.(*SchemaInfo)
 	}
 
@@ -376,7 +367,7 @@ func (c *client) GetByID(id int) (schema SchemaInfo, err error) {
 	return *newInfo, err
 }
 
-// GetBySubjectAndID returns the schema identified by id
+// GetBySubjectAndID returns the schema identified by subject and id or id
 // Returns Schema object on success
 func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error) {
 	cacheKey := subjectID{
@@ -402,11 +393,10 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 			err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &metadata)
 		}
 		if err == nil {
-			// newInfo = &SchemaInfo{
 			newInfo.Schema = metadata.Schema
 			newInfo.SchemaType = metadata.SchemaType
 			newInfo.References = metadata.References
-			//}
+
 			c.idToSchemaCache.Put(cacheKey, newInfo)
 		}
 	} else {
@@ -430,7 +420,6 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 
 	c.schemaToIdCacheLock.RLock()
 	idValue, ok := c.schemaToIdCache.Get(cacheKey)
-	// log.Println("schemaregistry_client.go - GetID - idValue from cache: ", idValue)
 	c.schemaToIdCacheLock.RUnlock()
 	if ok {
 		return idValue.(int), nil
