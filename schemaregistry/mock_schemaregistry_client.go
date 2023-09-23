@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -54,10 +55,12 @@ type idCacheEntry struct {
 type mockclient struct {
 	sync.Mutex
 	url                      *url.URL
-	schemaToIDCache          map[subjectJSON]idCacheEntry
-	schemaToIDCacheLock      sync.RWMutex
+	schemaToIdCache          map[subjectJSON]idCacheEntry
+	schemaToIdCacheLock      sync.RWMutex
 	idToSchemaCache          map[subjectID]*SchemaInfo
 	idToSchemaCacheLock      sync.RWMutex
+	idCache                  map[subjectOnlyID]*SchemaInfo
+	idCacheLock              sync.RWMutex
 	schemaToVersionCache     map[subjectJSON]versionCacheEntry
 	schemaToVersionCacheLock sync.RWMutex
 	compatibilityCache       map[string]Compatibility
@@ -73,27 +76,92 @@ func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool)
 	if err != nil {
 		return -1, err
 	}
+
 	cacheKey := subjectJSON{
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaToIDCacheLock.RLock()
-	idCacheEntryVal, ok := c.schemaToIDCache[cacheKey]
+	c.schemaToIdCacheLock.RLock()
+	idCacheEntryVal, ok := c.schemaToIdCache[cacheKey]
 	if idCacheEntryVal.softDeleted {
 		ok = false
 	}
-	c.schemaToIDCacheLock.RUnlock()
+	c.schemaToIdCacheLock.RUnlock()
 	if ok {
 		return idCacheEntryVal.id, nil
 	}
 
-	id, err = c.getIDFromRegistry(subject, schema)
+	// extract the fullyQualifiedName from the subject
+	parts := strings.Split(subject, ".")
+	var fullQualifName string
+	if len(parts) == 2 {
+		fullQualifName = parts[0]
+	} else if len(parts) > 2 {
+		for i := 0; i < len(parts)-1; i++ {
+			if i == 0 {
+				fullQualifName = parts[i]
+			} else {
+				fullQualifName += fmt.Sprintf(".%v", parts[i])
+			}
+		}
+	}
+	if parts[0] == "jsonschema" ||
+		fullQualifName == "avro" ||
+		fullQualifName == "recordname" ||
+		fullQualifName == "python.test.advanced" {
+
+		// case of recordName(id c.schemaToIdCache[cacheKey] unfound id == 0)
+		id, err = c.getIDFromRegistryRecordName(subject, idCacheEntryVal.id, schema)
+		if err != nil {
+			return -1, err
+		}
+	} else {
+
+		id, err = c.getIDFromRegistry(subject, schema)
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	c.schemaToIdCacheLock.Lock()
+	c.schemaToIdCache[cacheKey] = idCacheEntry{id, false}
+	c.schemaToIdCacheLock.Unlock()
+
+	return id, nil
+}
+
+func (c *mockclient) getIDFromRegistryRecordName(subject string, id int, schema SchemaInfo) (int, error) {
+
+	if id > 0 {
+		c.idCacheLock.RLock()
+		for key, _ := range c.idCache {
+			if key.id == id {
+				id = key.id
+				break
+			}
+		}
+		c.idCacheLock.RUnlock()
+	}
+
+	err := c.generateVersion(subject, schema)
 	if err != nil {
 		return -1, err
 	}
-	c.schemaToIDCacheLock.Lock()
-	c.schemaToIDCache[cacheKey] = idCacheEntry{id, false}
-	c.schemaToIDCacheLock.Unlock()
+	if id < 1 {
+		id = c.counter.increment()
+		id += len(c.idCache)
+		idCacheKey := subjectOnlyID{
+			id: id,
+		}
+
+		c.idCacheLock.Lock()
+		if c.idCache == nil {
+			c.idCache = make(map[subjectOnlyID]*SchemaInfo)
+		}
+		c.idCache[idCacheKey] = &schema
+		c.idCacheLock.Unlock()
+	}
+
 	return id, nil
 }
 
@@ -146,6 +214,30 @@ func (c *mockclient) generateVersion(subject string, schema SchemaInfo) error {
 	return nil
 }
 
+// TODO to implement
+func (c *mockclient) GetByID(id int) (schema SchemaInfo, err error) {
+	cacheKey := subjectOnlyID{
+		id: id,
+	}
+	c.idCacheLock.RLock()
+	info, ok := c.idCache[cacheKey]
+	c.idCacheLock.RUnlock()
+	if ok {
+		return *info, nil
+	}
+	subject := ""
+	posErr := url.Error{
+		Op: "GET",
+		// TODO
+		// URL: c.url.String() + fmt.Sprintf(schemasByID, id, id),
+		URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, url.QueryEscape(subject)),
+		Err: errors.New("Subject Not Found"),
+	}
+	return SchemaInfo{}, &posErr
+
+	// return SchemaInfo{}, nil
+}
+
 // GetBySubjectAndID returns the schema identified by id
 // Returns Schema object on success
 func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error) {
@@ -177,12 +269,12 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaToIDCacheLock.RLock()
-	idCacheEntryVal, ok := c.schemaToIDCache[cacheKey]
+	c.schemaToIdCacheLock.RLock()
+	idCacheEntryVal, ok := c.schemaToIdCache[cacheKey]
 	if idCacheEntryVal.softDeleted {
 		ok = false
 	}
-	c.schemaToIDCacheLock.RUnlock()
+	c.schemaToIdCacheLock.RUnlock()
 	if ok {
 		return idCacheEntryVal.id, nil
 	}
@@ -308,9 +400,9 @@ func (c *mockclient) deleteVersion(key subjectJSON, version int, permanent bool)
 
 func (c *mockclient) deleteID(key subjectJSON, id int, permanent bool) {
 	if permanent {
-		delete(c.schemaToIDCache, key)
+		delete(c.schemaToIdCache, key)
 	} else {
-		c.schemaToIDCache[key] = idCacheEntry{id, true}
+		c.schemaToIdCache[key] = idCacheEntry{id, true}
 	}
 }
 
@@ -360,13 +452,13 @@ func (c *mockclient) GetAllSubjects() ([]string, error) {
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
 func (c *mockclient) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
-	c.schemaToIDCacheLock.Lock()
-	for key, value := range c.schemaToIDCache {
+	c.schemaToIdCacheLock.Lock()
+	for key, value := range c.schemaToIdCache {
 		if key.subject == subject && (!value.softDeleted || permanent) {
 			c.deleteID(key, value.id, permanent)
 		}
 	}
-	c.schemaToIDCacheLock.Unlock()
+	c.schemaToIdCacheLock.Unlock()
 	c.schemaToVersionCacheLock.Lock()
 	for key, value := range c.schemaToVersionCache {
 		if key.subject == subject && (!value.softDeleted || permanent) {
@@ -402,12 +494,12 @@ func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent
 				subject: subject,
 				json:    string(schemaJSON),
 			}
-			c.schemaToIDCacheLock.Lock()
-			idSchemaEntryVal, ok := c.schemaToIDCache[cacheKeySchema]
+			c.schemaToIdCacheLock.Lock()
+			idSchemaEntryVal, ok := c.schemaToIdCache[cacheKeySchema]
 			if ok {
 				c.deleteID(key, idSchemaEntryVal.id, permanent)
 			}
-			c.schemaToIDCacheLock.Unlock()
+			c.schemaToIdCacheLock.Unlock()
 			if permanent && ok {
 				c.idToSchemaCacheLock.Lock()
 				cacheKeyID := subjectID{

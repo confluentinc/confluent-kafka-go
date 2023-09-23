@@ -18,13 +18,14 @@ package jsonschema
 
 import (
 	"encoding/json"
-	"io"
-	"strings"
-
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/invopop/jsonschema"
 	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
+	"io"
+	"reflect"
+	"strings"
 )
 
 // Serializer represents a JSON Schema serializer
@@ -59,15 +60,19 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
+
 	jschema := jsonschema.Reflect(msg)
+
 	raw, err := json.Marshal(jschema)
 	if err != nil {
 		return nil, err
 	}
+
 	info := schemaregistry.SchemaInfo{
 		Schema:     string(raw),
 		SchemaType: "JSON",
 	}
+
 	id, err := s.GetID(topic, msg, info)
 	if err != nil {
 		return nil, err
@@ -97,6 +102,103 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		return nil, err
 	}
 	return payload, nil
+
+}
+
+func (s *Serializer) addFullyQualifiedNameToSchema(jsonBytes []byte, msgFQN string) ([]byte, error) {
+	var data map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &data); err != nil {
+		return nil, err
+	}
+
+	parts := strings.Split(msgFQN, ".")
+	if len(parts) > 0 {
+		var namespace string
+		var name string
+		if len(parts) == 2 {
+			namespace = parts[0]
+			name = parts[1]
+		} else if len(parts) > 2 {
+			for i := 0; i < len(parts)-1; i++ {
+				if i == 0 {
+					namespace += parts[0]
+				} else {
+					namespace += fmt.Sprintf(".%v", parts[i])
+				}
+			}
+			name = parts[len(parts)-1]
+
+		}
+		data["name"] = name
+		data["namespace"] = namespace
+	}
+	return json.Marshal(data)
+}
+
+// SerializeRecordName implements serialization of generic data to JSON
+func (s *Serializer) SerializeRecordName(msg interface{}, subject ...string) ([]byte, error) {
+	if msg == nil {
+		return nil, nil
+	}
+
+	// get the fully qualified name
+	msgFQN := reflect.TypeOf(msg).String()
+	msgFQN = strings.TrimLeft(msgFQN, "*") // in case
+
+	if len(subject) > 0 {
+		if msgFQN != subject[0] {
+			return nil, fmt.Errorf(`the payload's fullyQualifiedName: '%v' does not match the subject: '%v'`, msgFQN, subject[0])
+		}
+	}
+
+	jschema := jsonschema.Reflect(msg)
+
+	// Marshal the schema into a JSON []byte
+	schemaBytes, err := json.Marshal(jschema)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := s.addFullyQualifiedNameToSchema(schemaBytes, msgFQN)
+	if err != nil {
+		fmt.Println("Error marshaling JSON when adding fullyQualifiedName:", err)
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     string(raw),
+		SchemaType: "JSON",
+	}
+
+	id, err := s.GetID(msgFQN, msg, info)
+	if err != nil {
+		return nil, err
+	}
+	raw, err = json.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+	if s.validate {
+		// Need to unmarshal to pure interface
+		var obj interface{}
+		err = json.Unmarshal(raw, &obj)
+		if err != nil {
+			return nil, err
+		}
+		jschema, err := toJSONSchema(s.Client, info)
+		if err != nil {
+			return nil, err
+		}
+		err = jschema.Validate(obj)
+		if err != nil {
+			return nil, err
+		}
+	}
+	payload, err := s.WriteBytes(id, raw)
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
+
 }
 
 // NewDeserializer creates a JSON deserializer for generic objects
@@ -108,6 +210,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	if err != nil {
 		return nil, err
 	}
+	s.MessageFactory = s.jsonMessageFactory
 	return s, nil
 }
 
@@ -120,6 +223,7 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 	if err != nil {
 		return nil, err
 	}
+
 	if s.validate {
 		// Need to unmarshal to pure interface
 		var obj interface{}
@@ -140,15 +244,150 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 	if err != nil {
 		return nil, err
 	}
+
 	msg, err := s.MessageFactory(subject, "")
 	if err != nil {
 		return nil, err
 	}
+
 	err = json.Unmarshal(payload[5:], msg)
 	if err != nil {
 		return nil, err
 	}
 	return msg, nil
+}
+
+func (s *Deserializer) deserializeStringField(bytes []byte, fieldName string) (string, error) {
+	var fieldNameBytes []byte
+	var fieldValueBytes []byte
+	fieldNameLen := 0
+	readingFieldName := true
+
+	for _, b := range bytes {
+		if readingFieldName {
+			if fieldNameLen == 0 {
+				// The first byte of the field name indicates its length
+				fieldNameLen = int(b)
+			} else {
+				// Accumulate bytes for the field name
+				fieldNameBytes = append(fieldNameBytes, b)
+				if len(fieldNameBytes) == fieldNameLen {
+					readingFieldName = false
+				}
+			}
+		} else {
+			// Accumulate bytes for the field value
+			fieldValueBytes = append(fieldValueBytes, b)
+		}
+	}
+
+	if fieldName != string(fieldNameBytes) {
+		return "", fmt.Errorf("field not found: %s", fieldName)
+	}
+
+	return string(fieldValueBytes), nil
+}
+
+// DeserializeRecordName deserialise bytes
+func (s *Deserializer) DeserializeRecordName(payload []byte) (interface{}, error) {
+	if payload == nil {
+		return nil, nil
+	}
+
+	info, err := s.GetSchema("", payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// recreate the fullyQualifiedName
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(info.Schema), &data); err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
+	}
+	name := data["name"].(string)
+	namespace := data["namespace"].(string)
+	fullyQualifiedName := fmt.Sprintf("%s.%s", namespace, name)
+
+	if s.validate {
+		// Need to unmarshal to pure interface
+		var obj interface{}
+		err = json.Unmarshal(payload[5:], &obj)
+		if err != nil {
+			return nil, err
+		}
+		jschema, err := toJSONSchema(s.Client, info)
+		if err != nil {
+			return nil, err
+		}
+		err = jschema.Validate(obj)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	subject, err := s.SubjectNameStrategy(fullyQualifiedName, s.SerdeType, info)
+	if err != nil {
+		return nil, err
+	}
+
+	msg, err := s.MessageFactory(subject, fullyQualifiedName)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(payload[5:], msg)
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
+// DeserializeIntoRecordName deserialize bytes into the map interface{}
+func (s *Deserializer) DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error {
+	if payload == nil {
+		return fmt.Errorf("Empty payload")
+	}
+
+	info, err := s.GetSchema("", payload)
+	if err != nil {
+		return err
+	}
+
+	// recreate the fullyQualifiedName
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(info.Schema), &data); err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
+	}
+	fullyQualifiedName := fmt.Sprintf("%s.%s", data["namespace"].(string), data["name"].(string))
+
+	v, ok := subjects[fullyQualifiedName]
+	if !ok {
+		return fmt.Errorf("unfound subject declaration")
+	}
+
+	if s.validate {
+		// Need to unmarshal to pure interface
+		var obj interface{}
+		err = json.Unmarshal(payload[5:], &obj)
+		if err != nil {
+			return err
+		}
+		jschema, err := toJSONSchema(s.Client, info)
+		if err != nil {
+			return err
+		}
+		err = jschema.Validate(obj)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = json.Unmarshal(payload[5:], v)
+	if err != nil {
+		return err
+	}
+	return nil
+
 }
 
 // DeserializeInto implements deserialization of generic data from JSON to the given object
@@ -198,4 +437,9 @@ func toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*j
 		return nil, err
 	}
 	return compiler.Compile(url)
+}
+
+func (s *Deserializer) jsonMessageFactory(subject string, name string) (interface{}, error) {
+	var msg map[string]interface{}
+	return &msg, nil
 }

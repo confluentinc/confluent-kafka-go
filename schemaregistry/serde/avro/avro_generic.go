@@ -17,7 +17,10 @@
 package avro
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
+	"strings"
 	"unsafe"
 
 	"github.com/actgardner/gogen-avro/v10/parser"
@@ -25,6 +28,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/heetch/avro"
+	"github.com/linkedin/goavro"
 )
 
 // GenericSerializer represents a generic Avro serializer
@@ -50,6 +54,81 @@ func NewGenericSerializer(client schemaregistry.Client, serdeType serde.Type, co
 	return s, nil
 }
 
+func (s *GenericSerializer) addFullyQualifiedNameToSchema(avroStr, msgFQN string) ([]byte, error) {
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(avroStr), &data); err != nil {
+		return nil, err
+	}
+
+	parts := strings.Split(msgFQN, ".")
+	if len(parts) > 0 {
+		var namespace string
+		if len(parts) == 2 {
+			namespace = parts[0]
+		} else if len(parts) > 2 {
+			for i := 0; i < len(parts)-1; i++ {
+				if i == 0 {
+					namespace += parts[0]
+				} else {
+					namespace += fmt.Sprintf(".%v", parts[i])
+				}
+			}
+
+		}
+		data["namespace"] = namespace
+	}
+	return json.Marshal(data)
+}
+
+// Serialize implements serialization of generic Avro data
+func (s *GenericSerializer) SerializeRecordName(msg interface{}, subject ...string) ([]byte, error) {
+	if msg == nil {
+		return nil, nil
+	}
+
+	msgFQN := reflect.TypeOf(msg).String()
+	msgFQN = strings.TrimLeft(msgFQN, "*") // in case
+
+	if len(subject) > 0 {
+		if msgFQN != subject[0] {
+			return nil, fmt.Errorf(`the payload's fullyQualifiedName: '%v' does not match the subject: '%v'`, msgFQN, subject[0])
+		}
+	}
+
+	val := reflect.ValueOf(msg)
+	if val.Kind() == reflect.Ptr {
+		// avro.TypeOf expects an interface containing a non-pointer
+		msg = val.Elem().Interface()
+	}
+	avroType, err := avro.TypeOf(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	modifiedJSON, err := s.addFullyQualifiedNameToSchema(avroType.String(), msgFQN)
+	if err != nil {
+		return nil, err
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema: string(modifiedJSON),
+	}
+
+	id, err := s.GetID(msgFQN, msg, info)
+	if err != nil {
+		return nil, err
+	}
+	msgBytes, _, err := avro.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := s.WriteBytes(id, msgBytes)
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
 // Serialize implements serialization of generic Avro data
 func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
@@ -64,6 +143,7 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
+
 	info := schemaregistry.SchemaInfo{
 		Schema: avroType.String(),
 	}
@@ -89,7 +169,96 @@ func NewGenericDeserializer(client schemaregistry.Client, serdeType serde.Type, 
 	if err != nil {
 		return nil, err
 	}
+	s.MessageFactory = s.avroMessageFactory
 	return s, nil
+}
+
+func (s *GenericDeserializer) DeserializeRecordName(payload []byte) (interface{}, error) {
+	if payload == nil {
+		return nil, nil
+	}
+
+	info, err := s.GetSchema("", payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// recreate the fullyQualifiedName
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(info.Schema), &data); err != nil {
+		return nil, err
+	}
+	name := data["name"].(string)
+	namespace := data["namespace"].(string)
+	fullyQualifiedName := fmt.Sprintf("%s.%s", namespace, name)
+
+	// fmt.Println("see the info schema: ", info.Schema)
+
+	writer, name, err := s.toType(info)
+	if err != nil {
+		return nil, err
+	}
+
+	subject, err := s.SubjectNameStrategy(fullyQualifiedName, s.SerdeType, info)
+	if err != nil {
+		return nil, err
+	}
+
+	msg, err := s.MessageFactory(subject, fullyQualifiedName)
+	if err != nil {
+		return nil, err
+	}
+
+	if msg == struct{}{} {
+		codec, err := goavro.NewCodec(info.Schema)
+		if err != nil {
+			return nil, err
+		}
+
+		native, _, err := codec.NativeFromBinary(payload[5:])
+		if err != nil {
+			return nil, err
+		}
+
+		return native, nil
+	}
+
+	_, err = avro.Unmarshal(payload[5:], msg, writer)
+	return msg, err
+
+}
+
+func (s *GenericDeserializer) DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error {
+	if payload == nil {
+		return fmt.Errorf("Empty payload")
+	}
+
+	info, err := s.GetSchema("", payload)
+	if err != nil {
+		return err
+	}
+
+	// recreate the fullyQualifiedName
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(info.Schema), &data); err != nil {
+		return err
+	}
+	name := data["name"].(string)
+	namespace := data["namespace"].(string)
+	fullyQualifiedName := fmt.Sprintf("%s.%s", namespace, name)
+
+	v, ok := subjects[fullyQualifiedName]
+	if !ok {
+		return fmt.Errorf("unfound subject declaration")
+	}
+
+	writer, name, err := s.toType(info)
+	if err != nil {
+		return err
+	}
+
+	_, err = avro.Unmarshal(payload[5:], v, writer)
+	return err
 }
 
 // Deserialize implements deserialization of generic Avro data
@@ -101,6 +270,7 @@ func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interfa
 	if err != nil {
 		return nil, err
 	}
+
 	writer, name, err := s.toType(info)
 	if err != nil {
 		return nil, err
@@ -113,6 +283,21 @@ func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interfa
 	if err != nil {
 		return nil, err
 	}
+
+	if msg == struct{}{} {
+		codec, err := goavro.NewCodec(info.Schema)
+		if err != nil {
+			return nil, err
+		}
+
+		native, _, err := codec.NativeFromBinary(payload[5:])
+		if err != nil {
+			return nil, err
+		}
+
+		return native, nil
+	}
+
 	_, err = avro.Unmarshal(payload[5:], msg, writer)
 	return msg, err
 }
@@ -147,6 +332,11 @@ func (s *GenericDeserializer) toType(schema schemaregistry.SchemaInfo) (*avro.Ty
 func (s *GenericDeserializer) toAvroType(schema schemaregistry.SchemaInfo) (schema.AvroType, error) {
 	ns := parser.NewNamespace(false)
 	return resolveAvroReferences(s.Client, schema, ns)
+}
+
+func (s *GenericDeserializer) avroMessageFactory(subject string, name string) (interface{}, error) {
+
+	return struct{}{}, nil
 }
 
 // From https://stackoverflow.com/questions/42664837/how-to-access-unexported-struct-fields/43918797#43918797
