@@ -2802,18 +2802,18 @@ func (a *AdminClient) ListOffsets(
 
 	// Convert result from C to Go.
 	var cPartitionCount C.size_t
-	cPartitionCount = C.rd_kafka_ListOffsets_result_get_count(cRes)
+	var cResultInfos **C.rd_kafka_ListOffsetResultInfo_t
+	cResultInfos = C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
 	for itr := 0; itr < int(cPartitionCount); itr++ {
 		var cElement *C.rd_kafka_ListOffsetResultInfo_t
 		var cPartition *C.rd_kafka_topic_partition_t
 		var goTopic string
 		goValue := ListOffsetResultInfo{}
-		cElement = C.rd_kafka_ListOffsets_result_get_element(cRes, C.size_t(itr))
-		cPartition = C.rd_kafka_ListOffsetResultInfo_get_topic_partition(cElement)
+		cPartition = C.rd_kafka_ListOffsetResultInfo_topic_partition(cResultInfos[itr])
 		goTopic = C.GoString(cPartition.topic)
 		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
 		goValue.Offset = int64(cPartition.offset)
-		goValue.Timestamp = int64(C.rd_kafka_ListOffsetResultInfo_get_timestamp(cElement))
+		goValue.Timestamp = int64(C.rd_kafka_ListOffsetResultInfo_timestamp(cElement))
 		goValue.LeaderEpoch = -1
 		goValue.Err = newError(cPartition.err)
 		result[goPartition] = goValue
