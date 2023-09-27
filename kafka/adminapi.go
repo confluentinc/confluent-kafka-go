@@ -2734,6 +2734,94 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	return result, nil
 }
 
+type OffsetSpec int
+
+const (
+	MaxTimestampOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP)
+	EarliestOffsetSpec     = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_EARLIEST)
+	LatestOffsetSpec       = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_LATEST)
+)
+
+type ListOffsetResultInfo struct {
+	Offset      int64
+	Timestamp   int64
+	LeaderEpoch int
+	Err         Error
+}
+
+func (a *AdminClient) ListOffsets(
+	ctx context.Context, requests map[TopicPartition]int64,
+	options ...ListOffsetsAdminOption) (result map[TopicPartition]ListOffsetResultInfo, err error) {
+	result = make(map[TopicPartition]ListOffsetResultInfo)
+	if len(requests) < 1 {
+		return result, fmt.Errorf(
+			"expected length of requests should be >= 1, got %d",
+			len(requests))
+	}
+	var topic_partitions *C.rd_kafka_topic_partition_list_t
+	topic_partitions = C.rd_kafka_topic_partition_list_new(C.int(len(requests)))
+
+	for tp, offsetvalue := range requests {
+		var topic_partition *C.rd_kafka_topic_partition_t
+		topic_partition = C.rd_kafka_topic_partition_list_add(topic_partitions, C.CString(*tp.Topic), C.int32_t(tp.Partition))
+		topic_partition.offset = C.int64_t(offsetvalue)
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_LISTOFFSETS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_AlterConsumerGroupOffsets (asynchronous).
+	C.rd_kafka_ListOffsets(
+		a.handle.rk,
+		topic_partitions,
+		cOptions,
+		cQueue)
+	defer C.rd_kafka_topic_partition_list_destroy(topic_partitions)
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_LISTOFFSETS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_ListOffsets_result(rkev)
+
+	// Convert result from C to Go.
+	var cPartitionCount C.size_t
+	var cResultInfos **C.rd_kafka_ListOffsetResultInfo_t
+	cResultInfos = C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
+	for itr := 0; itr < int(cPartitionCount); itr++ {
+		var cElement *C.rd_kafka_ListOffsetResultInfo_t
+		var cPartition *C.rd_kafka_topic_partition_t
+		var goTopic string
+		goValue := ListOffsetResultInfo{}
+		cPartition = C.rd_kafka_ListOffsetResultInfo_topic_partition(cResultInfos[itr])
+		goTopic = C.GoString(cPartition.topic)
+		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
+		goValue.Offset = int64(cPartition.offset)
+		goValue.Timestamp = int64(C.rd_kafka_ListOffsetResultInfo_timestamp(cElement))
+		goValue.LeaderEpoch = -1
+		goValue.Err = newError(cPartition.err)
+		result[goPartition] = goValue
+	}
+
+	return result, nil
+}
+
 // AlterUserScramCredentials alters SASL/SCRAM credentials.
 // The pair (user, mechanism) must be unique among upsertions and deletions.
 //
