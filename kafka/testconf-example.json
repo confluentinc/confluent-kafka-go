@@ -1,5 +1,5 @@
 {
-    "Brokers": "mybroker or $BROKERS env",
+    "Brokers": "localhost:9092",
     "Topic": "test",
     "GroupID": "testgroup",
     "PerfMsgCount": 1000000,
