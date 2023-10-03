@@ -171,6 +171,49 @@ func SetAdminRequestTimeout(t time.Duration) (ao AdminOptionRequestTimeout) {
 	return ao
 }
 
+type IsolationLevel int
+
+const (
+	ReadUncommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED)
+	ReadCommitted   = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED)
+)
+
+type AdminOptionIsolationLevel struct {
+	isSet bool
+	val   IsolationLevel
+}
+
+func (ao AdminOptionIsolationLevel) supportsListOffsets() {
+}
+func (ao AdminOptionIsolationLevel) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
+	if !ao.isSet {
+		return nil
+	}
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cErr := C.rd_kafka_AdminOptions_set_isolation_level(
+		cOptions, C.rd_kafka_isolation_level_t(ao.val),
+		cErrstr, cErrstrSize)
+	if cErr != 0 {
+		C.rd_kafka_AdminOptions_destroy(cOptions)
+		return newCErrorFromString(cErr,
+			fmt.Sprintf("%s", C.GoString(cErrstr)))
+
+	}
+
+	return nil
+
+}
+
+func SetAdminIsolationLevel(isolation_level IsolationLevel) (ao AdminOptionIsolationLevel) {
+	ao.isSet = true
+	ao.val = isolation_level
+	return ao
+}
+
 // AdminOptionValidateOnly tells the broker to only validate the request,
 // without performing the requested operation (create topics, etc).
 //
@@ -431,6 +474,12 @@ type DescribeUserScramCredentialsAdminOption interface {
 // See SetAdminRequestTimeout.
 type AlterUserScramCredentialsAdminOption interface {
 	supportsAlterUserScramCredentials()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// ListOffsetsAdminOption - see setter.
+type ListOffsetsAdminOption interface {
+	supportsListOffsets()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
