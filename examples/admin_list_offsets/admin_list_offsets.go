@@ -55,7 +55,7 @@ func main() {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
-	// map[TopicPartition]ListOffsetResultInfo
+	// map[TopicPartition]ListOffsetsResultInfo
 	// Print results
 	for tp, info := range results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)

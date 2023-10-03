@@ -2685,6 +2685,8 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	}
 }
 
+// Tests ListOffsets API which describes
+// the offset of a TopicPartiton corresponding to the OffsetSpec provided.
 func (its *IntegrationTestSuite) TestListOffsets() {
 	t := its.T()
 	bootstrapServers := testconf.Brokers
@@ -2753,7 +2755,7 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 
 	tp1 := TopicPartition{Topic: &goTopic, Partition: 0}
 	requests[tp1] = int64(EarliestOffsetSpec)
-	var results map[TopicPartition]ListOffsetResultInfo
+	var results map[TopicPartition]ListOffsetsResultInfo
 	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
 	if err != nil {
 		t.Fatalf("Unable to ListOffsets, error : %s", err)
