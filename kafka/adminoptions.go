@@ -208,9 +208,9 @@ func (ao AdminOptionIsolationLevel) apply(cOptions *C.rd_kafka_AdminOptions_t) e
 
 }
 
-func SetAdminIsolationLevel(isolation_level IsolationLevel) (ao AdminOptionIsolationLevel) {
+func SetAdminIsolationLevel(isolationLevel IsolationLevel) (ao AdminOptionIsolationLevel) {
 	ao.isSet = true
-	ao.val = isolation_level
+	ao.val = isolationLevel
 	return ao
 }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
-
 	"path"
 	"reflect"
 	"runtime"
@@ -2690,40 +2689,28 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 func (its *IntegrationTestSuite) TestListOffsets() {
 	t := its.T()
 	bootstrapServers := testconf.Brokers
+	rand.Seed(time.Now().Unix())
+	assert := its.Assert()
 
 	// Create a new AdminClient.
-	// AdminClient can also be instantiated using an existing
-	// Producer or Consumer instance, see NewAdminClientFromProducer and
-	// NewAdminClientFromConsumer.
-	a, err := NewAdminClient(&ConfigMap{"bootstrap.servers": bootstrapServers})
-	if err != nil {
-		t.Fatalf("Unable to create Admin Client, error : %s", err)
-	}
+	a := createAdminClient(t)
+	defer a.Close()
 
-	// Contexts are used to abort or limit the amount of time
-	// the Admin call blocks waiting for a result.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	requests := make(map[TopicPartition]int64)
-	goTopic := "topicname"
+	topicPartitionOffsets := make(map[TopicPartition]OffsetSpec)
+	goTopic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
 
 	var topics []TopicSpecification
 	topics = append(topics, TopicSpecification{Topic: goTopic, NumPartitions: 1, ReplicationFactor: 1})
-	create_topic_result, create_topic_err := a.CreateTopics(ctx, topics)
-	if create_topic_err != nil {
-		t.Fatalf("Unable to create topic, error : %s", err)
-	} else {
-		if create_topic_result[0].Error.Code() != 0 {
-			t.Fatalf("Errorcode should be 0 instead it is %d", create_topic_result[0].Error.Code())
-		}
-	}
+	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
+	assert.Nil(createTopicError, "Create Topics request failure.")
+	assert.Equal(createTopicResult[0].Error.Code(), 0, "Create Topics Error Code should be 0.")
 
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
-
-	if err != nil {
-		t.Fatalf("Unable to create Producer, error : %s", err)
-	}
+	assert.Nil(err, "Unable to create Producer.")
+	defer p.Close()
 
 	timestamp := time.Now()
 	t1 := timestamp.Add(time.Second * 100)
@@ -2754,46 +2741,40 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	p.Flush(5 * 1000)
 
 	tp1 := TopicPartition{Topic: &goTopic, Partition: 0}
-	requests[tp1] = int64(EarliestOffsetSpec)
+	topicPartitionOffsets[tp1] = EarliestOffsetSpec
 	var results map[TopicPartition]ListOffsetsResultInfo
-	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
-	if err != nil {
-		t.Fatalf("Unable to ListOffsets, error : %s", err)
-	}
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	assert.Nil(err, "ListOffsets request failed.")
+
 	for _, info := range results {
-		if (info.Err.Code() != 0) || (info.Offset != 0) {
-			t.Fatalf("Error code should be 0 and offset should be 0, instead Error code is %d and Offset is %d\n", info.Err.Code(), info.Offset)
-		}
+		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
+		assert.Equal(info.Offset, 0, "Offset should be 0.")
 	}
-	requests[tp1] = int64(LatestOffsetSpec)
-	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
-	if err != nil {
-		t.Fatalf("Unable to ListOffsets, error : %s", err)
-	}
+
+	topicPartitionOffsets[tp1] = LatestOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	assert.Nil(err, "ListOffsets request failed.")
+
 	for _, info := range results {
-		if (info.Err.Code() != 0) || (info.Offset != 3) {
-			t.Fatalf("Error code should be 0 and offset should be 3, instead Error code is %d and Offset is %d\n", info.Err.Code(), info.Offset)
-		}
+		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
+		assert.Equal(info.Offset, 0, "Offset should be 3.")
 	}
-	requests[tp1] = int64(MaxTimestampOffsetSpec)
-	results, err = a.ListOffsets(ctx, requests, SetAdminIsolationLevel(ReadCommitted))
-	if err != nil {
-		t.Fatalf("Unable to ListOffsets, error : %s", err)
-	}
+
+	topicPartitionOffsets[tp1] = MaxTimestampOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	assert.Nil(err, "ListOffsets request failed.")
+
 	for _, info := range results {
-		if (info.Err.Code() != 0) || (info.Offset != 1) {
-			t.Fatalf("Error code should be 0 and offset should be 1, instead Error code is %d and Offset is %d\n", info.Err.Code(), info.Offset)
-		}
+		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
+		assert.Equal(info.Offset, 0, "Offset should be 1.")
 	}
 	var del_topics []string
 	del_topics = append(del_topics, goTopic)
 	_, err = a.DeleteTopics(ctx, del_topics)
-	if err != nil {
-		t.Fatalf("Unable to Delete Topics, error : %s", err)
-	}
-	a.Close()
-	p.Close()
+	assert.Nil(err, "DeleteTopics request failed.")
+
 }
+
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()

@@ -45,12 +45,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	requests := make(map[kafka.TopicPartition]int64)
+	topicPartitionOffsets := make(map[kafka.TopicPartition]kafka.OffsetSpec)
 	goTopic := "topicname"
 	tp1 := kafka.TopicPartition{Topic: &goTopic, Partition: 0}
-	requests[tp1] = int64(kafka.EarliestOffsetSpec)
+	topicPartitionOffsets[tp1] = kafka.EarliestOffsetSpec
 
-	results, err := a.ListOffsets(ctx, requests, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
+	results, err := a.ListOffsets(ctx, topicPartitionOffsets, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
 	if err != nil {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
@@ -59,8 +59,8 @@ func main() {
 	// Print results
 	for tp, info := range results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
-		if info.Err.Code() != 0 {
-			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Err.Code(), info.Err.String())
+		if info.Error.Code() != 0 {
+			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
 		} else {
 			fmt.Printf("	Offset : %d Timestamp : %d\n\n", info.Offset, info.Timestamp)
 		}
@@ -113,44 +113,44 @@ func main() {
 	}, nil)
 
 	p.Flush(5 * 1000)
-	requests[tp1] = int64(kafka.EarliestOffsetSpec)
-	results, err = a.ListOffsets(ctx, requests, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
+	topicPartitionOffsets[tp1] = kafka.EarliestOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
 	if err != nil {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
 	for tp, info := range results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
-		if info.Err.Code() != 0 {
-			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Err.Code(), info.Err.String())
+		if info.Error.Code() != 0 {
+			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
 		} else {
 			fmt.Printf("	Offset : %d Timestamp : %d\n\n", info.Offset, info.Timestamp)
 		}
 	}
-	requests[tp1] = int64(kafka.LatestOffsetSpec)
-	results, err = a.ListOffsets(ctx, requests, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
+	topicPartitionOffsets[tp1] = kafka.LatestOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
 	if err != nil {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
 	for tp, info := range results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
-		if info.Err.Code() != 0 {
-			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Err.Code(), info.Err.String())
+		if info.Error.Code() != 0 {
+			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
 		} else {
 			fmt.Printf("	Offset : %d Timestamp : %d\n\n", info.Offset, info.Timestamp)
 		}
 	}
-	requests[tp1] = int64(kafka.MaxTimestampOffsetSpec)
-	results, err = a.ListOffsets(ctx, requests, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
+	topicPartitionOffsets[tp1] = kafka.MaxTimestampOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
 	if err != nil {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
 	for tp, info := range results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
-		if info.Err.Code() != 0 {
-			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Err.Code(), info.Err.String())
+		if info.Error.Code() != 0 {
+			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
 		} else {
 			fmt.Printf("	Offset : %d Timestamp : %d\n\n", info.Offset, info.Timestamp)
 		}
