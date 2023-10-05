@@ -897,6 +897,39 @@ type AlterUserScramCredentialsResult struct {
 	Errors map[string]Error
 }
 
+// OffsetSpec
+// OffsetSpec specifies desired offsets while using ListOffsets.
+type OffsetSpec int64
+
+const (
+	// MaxTimestampOffsetSpec is used to describe the offset with the Max Timestamp which may be different then LatestOffsetSpec as Timestamp can be set client side.
+	MaxTimestampOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP)
+	// EarliestOffsetSpec is used to describe the earliest offset for the TopicPartition.
+	EarliestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_EARLIEST)
+	// LatestOffsetSpec is used to describe the latest offset for the TopicPartition.
+	LatestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_LATEST)
+)
+
+// Creates an OffsetSpec corresponding to the timestamp.
+func NewOffsetSpecOfTimestamp(timestamp int64) OffsetSpec {
+	return OffsetSpec(timestamp)
+}
+
+// ListOffsetsResultInfo
+// Describes the result of ListOffsets request for a Topic Partition.
+type ListOffsetsResultInfo struct {
+	Offset      int64
+	Timestamp   int64
+	LeaderEpoch int
+	Error       Error
+}
+
+// ListOffsetsResult
+// Holds the map of TopicPartition into ListOffsetsResultInfo for a request.
+type ListOffsetsResult struct {
+	Results map[TopicPartition]ListOffsetsResultInfo
+}
+
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -2731,6 +2764,95 @@ func (a *AdminClient) DescribeUserScramCredentials(
 
 	// Convert result from C to Go.
 	result.Descriptions = cToDescribeUserScramCredentialsResult(cRes)
+	return result, nil
+}
+
+// cToListOffsetsResult converts a C
+// rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
+func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
+	var result ListOffsetsResult
+	result.Results = make(map[TopicPartition]ListOffsetsResultInfo)
+	var cPartitionCount C.size_t
+	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
+	for itr := 0; itr < int(cPartitionCount); itr++ {
+		goValue := ListOffsetsResultInfo{}
+		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfos[itr])
+		goTopic := C.GoString(cPartition.topic)
+		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
+		goValue.Offset = int64(cPartition.offset)
+		goValue.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfos[itr]))
+		goValue.LeaderEpoch = -1
+		goValue.Error = newError(cPartition.err)
+		result.Results[goPartition] = goValue
+	}
+	return result
+}
+
+// ListOffsets describe offsets for the
+// specified TopicPartiton based on an OffsetSpec.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it holds either the OffsetSpec enum value or timestamp.
+//   - `options` - ListOffsetsAdminOption options.
+//
+// Returns a ListOffsetsResult.
+// Each TopicPartition's ListOffset can have an individual error.
+func (a *AdminClient) ListOffsets(
+	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
+	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
+	if len(topicPartitionOffsets) < 1 || topicPartitionOffsets == nil {
+		newErrorFromString
+		return nil, newErrorFromString(ErrInvalidArg, "expected map[TopicPartition]OffsetSpec of length greater or equal 1.")
+	}
+
+	topicPartitions := C.rd_kafka_topic_partition_list_new(C.int(len(topicPartitionOffsets)))
+	defer C.rd_kafka_topic_partition_list_destroy(topicPartitions)
+
+	for tp, offsetValue := range topicPartitionOffsets {
+		cStr := C.CString(*tp.Topic)
+		defer C.free(unsafe.Pointer(cStr))
+		topicPartitions = C.rd_kafka_topic_partition_list_add(topicPartitions, cStr, C.int32_t(tp.Partition))
+		topicPartitions.offset = C.int64_t(offsetValue)
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_LISTOFFSETS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_ListOffsets (asynchronous).
+	C.rd_kafka_ListOffsets(
+		a.handle.rk,
+		topic_partitions,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_LISTOFFSETS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_ListOffsets_result(rkev)
+
+	// Convert result from C to Go.
+	result := cToListOffsetsResult(cRes)
+
 	return result, nil
 }
 
