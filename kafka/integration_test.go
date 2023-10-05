@@ -2742,11 +2742,11 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 
 	tp1 := TopicPartition{Topic: &goTopic, Partition: 0}
 	topicPartitionOffsets[tp1] = EarliestOffsetSpec
-	var results map[TopicPartition]ListOffsetsResultInfo
+	var results ListOffsetsResult
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
 	assert.Nil(err, "ListOffsets request failed.")
 
-	for _, info := range results {
+	for _, info := range results.Results {
 		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
 		assert.Equal(info.Offset, 0, "Offset should be 0.")
 	}
@@ -2755,7 +2755,7 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
 	assert.Nil(err, "ListOffsets request failed.")
 
-	for _, info := range results {
+	for _, info := range results.Results {
 		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
 		assert.Equal(info.Offset, 0, "Offset should be 3.")
 	}
@@ -2764,7 +2764,7 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
 	assert.Nil(err, "ListOffsets request failed.")
 
-	for _, info := range results {
+	for _, info := range results.Results {
 		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
 		assert.Equal(info.Offset, 0, "Offset should be 1.")
 	}

@@ -57,7 +57,7 @@ func main() {
 	}
 	// map[TopicPartition]ListOffsetsResultInfo
 	// Print results
-	for tp, info := range results {
+	for tp, info := range results.Results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != 0 {
 			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
@@ -119,7 +119,7 @@ func main() {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
-	for tp, info := range results {
+	for tp, info := range results.Results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != 0 {
 			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
@@ -133,7 +133,7 @@ func main() {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
-	for tp, info := range results {
+	for tp, info := range results.Results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != 0 {
 			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
@@ -147,7 +147,7 @@ func main() {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
-	for tp, info := range results {
+	for tp, info := range results.Results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != 0 {
 			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())

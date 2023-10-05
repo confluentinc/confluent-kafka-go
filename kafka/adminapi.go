@@ -924,6 +924,12 @@ type ListOffsetsResultInfo struct {
 	Error       Error
 }
 
+// ListOffsetsResult
+// Holds the map of TopicPartition into ListOffsetsResultInfo for a request.
+type ListOffsetsResult struct {
+	Results map[TopicPartition]ListOffsetsResultInfo
+}
+
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -2761,6 +2767,27 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	return result, nil
 }
 
+// cToListOffsetsResult converts a C
+// rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
+func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
+	var result ListOffsetsResult
+	result.Results = make(map[TopicPartition]ListOffsetsResultInfo)
+	var cPartitionCount C.size_t
+	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
+	for itr := 0; itr < int(cPartitionCount); itr++ {
+		goValue := ListOffsetsResultInfo{}
+		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfos[itr])
+		goTopic := C.GoString(cPartition.topic)
+		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
+		goValue.Offset = int64(cPartition.offset)
+		goValue.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfos[itr]))
+		goValue.LeaderEpoch = -1
+		goValue.Error = newError(cPartition.err)
+		result.Results[goPartition] = goValue
+	}
+	return result
+}
+
 // ListOffsets describe offsets for the
 // specified TopicPartiton based on an OffsetSpec.
 //
@@ -2770,12 +2797,11 @@ func (a *AdminClient) DescribeUserScramCredentials(
 //   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it holds either the OffsetSpec enum value or timestamp.
 //   - `options` - ListOffsetsAdminOption options.
 //
-// Returns a map from TopicPartition to ListOffsetsResultInfo.
+// Returns a ListOffsetsResult.
 // Each TopicPartition's ListOffset can have an individual error.
 func (a *AdminClient) ListOffsets(
 	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
-	options ...ListOffsetsAdminOption) (result map[TopicPartition]ListOffsetsResultInfo, err error) {
-	result = make(map[TopicPartition]ListOffsetsResultInfo)
+	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
 	if len(topicPartitionOffsets) < 1 || topicPartitionOffsets == nil {
 		newErrorFromString
 		return nil, newErrorFromString(ErrInvalidArg, "expected map[TopicPartition]OffsetSpec of length greater or equal 1.")
@@ -2799,7 +2825,7 @@ func (a *AdminClient) ListOffsets(
 	cOptions, err := adminOptionsSetup(
 		a.handle, C.RD_KAFKA_ADMIN_OP_LISTOFFSETS, genericOptions)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -2807,36 +2833,25 @@ func (a *AdminClient) ListOffsets(
 	cQueue := C.rd_kafka_queue_new(a.handle.rk)
 	defer C.rd_kafka_queue_destroy(cQueue)
 
-	// Call rd_kafka_AlterConsumerGroupOffsets (asynchronous).
+	// Call rd_kafka_ListOffsets (asynchronous).
 	C.rd_kafka_ListOffsets(
 		a.handle.rk,
 		topic_partitions,
 		cOptions,
 		cQueue)
+
 	// Wait for result, error or context timeout.
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_LISTOFFSETS_RESULT)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
 	cRes := C.rd_kafka_event_ListOffsets_result(rkev)
 
 	// Convert result from C to Go.
-	var cPartitionCount C.size_t
-	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
-	for itr := 0; itr < int(cPartitionCount); itr++ {
-		goValue := ListOffsetsResultInfo{}
-		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfos[itr])
-		goTopic := C.GoString(cPartition.topic)
-		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
-		goValue.Offset = int64(cPartition.offset)
-		goValue.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfos[itr]))
-		goValue.LeaderEpoch = -1
-		goValue.Error = newError(cPartition.err)
-		result[goPartition] = goValue
-	}
+	result := cToListOffsetsResult(cRes)
 
 	return result, nil
 }
