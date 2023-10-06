@@ -1,17 +1,26 @@
 # Confluent's Golang client for Apache Kafka
 
-# vNext
 
-This is a maintenence release.
+# v2.3.0
+
+This is a feature release.
 
 ## Fixes
 
- * Fixes an issue with `Producer.Flush`. It was waiting for 
+ * Fixes a bug in the mock schema registry client where the wrong ID was being
+   returned for pre-registered schema (#971, @srlk).
+ * Fixes an issue with `Producer.Flush`. It was waiting for
    `queue.buffering.max.ms` while flushing (#1013).
+
 
 # v2.2.0
 
 This is a feature release.
+
+ * [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#945).
+ * [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1004).
 
 ## Fixes
 
@@ -24,7 +33,7 @@ This is a feature release.
  * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
 
 confluent-kafka-go is based on librdkafka v2.2.0, see the
-[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0-RC1)
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 

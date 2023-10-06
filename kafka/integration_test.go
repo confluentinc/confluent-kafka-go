@@ -1331,8 +1331,6 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	// Configuration alterations are currently atomic, all values
 	// need to be passed, otherwise non-passed values will be reverted
 	// to their default values.
-	// Future versions will allow incremental updates:
-	// https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API
 	newConfig := make(map[string]string)
 	for _, entry := range describeRes[0].Config {
 		newConfig[entry.Name] = entry.Value
@@ -1351,6 +1349,44 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	if err != nil {
 		t.Fatalf("Alter configs request failed: %v", err)
 	}
+
+	validateConfig(t, alterRes, expResources, false)
+
+	// Read back config to validate
+	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic}}
+	describeRes, err = a.DescribeConfigs(ctx, configResources)
+	if err != nil {
+		t.Fatalf("Describe configs request failed: %v", err)
+	}
+
+	validateConfig(t, describeRes, expResources, true)
+
+	// This is for incremental-alter.
+	// We don't need to pass all configs. Just need to pass the configs
+	// that are intended to change.
+	newConfig = make(map[string]string)
+	opsMap := make(map[string]AlterConfigOpType)
+
+	// Change something
+	newConfig["retention.ms"] = "86000000"
+	opsMap["retention.ms"] = AlterConfigOpTypeSet
+	// Default value for cleanup.policy(type=list) is delete
+	newConfig["cleanup.policy"] = "compact"
+	opsMap["cleanup.policy"] = AlterConfigOpTypeAppend
+	newConfig["message.timestamp.type"] = ""
+	// Default value for message.timestamp.type is CreateTime
+	opsMap["message.timestamp.type"] = AlterConfigOpTypeDelete
+
+	configResources = []ConfigResource{{Type: ResourceTopic, Name: topic,
+		Config: StringMapToIncrementalConfigEntries(newConfig, opsMap)}}
+	alterRes, err = a.IncrementalAlterConfigs(ctx, configResources)
+	if err != nil {
+		t.Fatalf("Incremental Alter Configs request failed: %v", err)
+	}
+
+	expResources[0].Config["retention.ms"] = ConfigEntryResult{Name: "retention.ms", Value: "86000000"}
+	expResources[0].Config["cleanup.policy"] = ConfigEntryResult{Name: "cleanup.policy", Value: "delete,compact"}
+	expResources[0].Config["message.timestamp.type"] = ConfigEntryResult{Name: "message.timestamp.type", Value: "CreateTime"}
 
 	validateConfig(t, alterRes, expResources, false)
 
@@ -2517,6 +2553,135 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 	c.Close()
 
+}
+
+// TestUserScramTestAdminClient_UserScramCredentialsCredentialsAPI describes
+// the SCRAM credentials for a user, upserts some credentials, describes them
+// again to check insertion, deletes them, and finally describes them once again
+// to check deletion.
+func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
+	t := its.T()
+	ac, err := NewAdminClient(&ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create Admin Client: %s\n", err)
+	}
+	defer ac.Close()
+
+	users := []string{"non-existent"}
+
+	// Call DescribeUserScramCredentials
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr := ac.DescribeUserScramCredentials(ctx, users)
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+
+	// Check Describe result
+	if len(describeRes.Descriptions) != 1 {
+		t.Fatalf("Expected 1 user in Describe Result, got %d\n", len(describeRes.Descriptions))
+	}
+	description, ok := describeRes.Descriptions[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+
+	if description.Error.Code() != ErrResourceNotFound {
+		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
+	}
+
+	// Call AlterUserScramCredentials for Upsert
+	upsertions := []UserScramCredentialUpsertion{
+		{
+			User: "non-existent",
+			ScramCredentialInfo: ScramCredentialInfo{
+				Mechanism: ScramMechanismSHA256, Iterations: 10000},
+			Password: []byte("password"),
+			Salt:     []byte("salt"),
+		}}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	alterRes, alterErr := ac.AlterUserScramCredentials(ctx, upsertions, nil)
+
+	// Check Upsert result
+	if alterErr != nil {
+		t.Fatalf("Failed to Alter the User Scram Credentials: %s\n", alterErr)
+	}
+	if len(alterRes.Errors) != 1 {
+		t.Fatalf("Expected 1 user in Alter Result, got %d\n", len(alterRes.Errors))
+	}
+	kErr, ok := alterRes.Errors[upsertions[0].User]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if kErr.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %d", kErr.Code())
+	}
+
+	// Call DescribeUserScramCredentials to verify upsert
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
+
+	// Check Describe result
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+	description, ok = describeRes.Descriptions[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if description.Error.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %s", description.Error.Code())
+	}
+	if description.ScramCredentialInfos[0].Iterations != 10000 {
+		t.Fatalf("Iterations field doesn't match the upserted value. Expected 10000, got %d",
+			description.ScramCredentialInfos[0].Iterations)
+	}
+	if description.ScramCredentialInfos[0].Mechanism != ScramMechanismSHA256 {
+		t.Fatalf("Mechanism field doesn't match the upserted value. Expected %s, got %s",
+			ScramMechanismSHA256, description.ScramCredentialInfos[0].Mechanism)
+	}
+
+	// Call AlterUserScramCredentials for Delete
+	deletions := []UserScramCredentialDeletion{
+		{User: "non-existent", Mechanism: ScramMechanismSHA256}}
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	alterRes, alterErr = ac.AlterUserScramCredentials(ctx, nil, deletions)
+
+	// Check Delete result
+	if alterErr != nil {
+		t.Fatalf("Failed to alter user scram credentials: %s\n", alterErr)
+	}
+	kErr, ok = alterRes.Errors[upsertions[0].User]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+	if kErr.Code() != ErrNoError {
+		t.Fatalf("Error code should be ErrNoError instead it is %d", kErr.Code())
+	}
+
+	// Call DescribeUserScramCredentials to verify delete
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	describeRes, describeErr = ac.DescribeUserScramCredentials(ctx, users)
+
+	// Check Describe result
+	if describeErr != nil {
+		t.Fatalf("Failed to Describe the User Scram Credentials: %s\n", describeErr)
+	}
+	description, ok = describeRes.Descriptions[users[0]]
+	if !ok {
+		t.Fatalf("Did not find expected user %s in results\n", users[0])
+	}
+
+	if description.Error.Code() != ErrResourceNotFound {
+		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
+	}
 }
 
 func TestIntegration(t *testing.T) {
