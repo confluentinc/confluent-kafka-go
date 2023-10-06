@@ -2,12 +2,12 @@
 
 # v2.3.0
 
-This is a maintenance release.
-
-## Fixes
+This is a feature release.
 
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * The minimum version of Go supported has been changed from 1.16 to 1.17
+   (#PRId).
 
 
 # v2.2.0
