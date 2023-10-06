@@ -1,13 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+
 # v2.3.0
 
-This is a maintenance release.
+This is a feature release.
 
 ## Fixes
 
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * Fixes an issue with `Producer.Flush`. It was waiting for
+   `queue.buffering.max.ms` while flushing (#1013).
 
 
 # v2.2.0
