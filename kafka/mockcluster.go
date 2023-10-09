@@ -115,6 +115,18 @@ func (mc *MockCluster) SetBrokerUp(brokerID int) error {
 	return nil
 }
 
+// CreateTopic creates a topic without having to use a producer
+func (mc *MockCluster) CreateTopic(topic string, partitions, replicationFactor int) error {
+	topicStr := C.CString(topic)
+	defer C.free(unsafe.Pointer(topicStr))
+
+	cError := C.rd_kafka_mock_topic_create(mc.mcluster, topicStr, C.int(partitions), C.int(replicationFactor))
+	if cError != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cError)
+	}
+	return nil
+}
+
 // Close and destroy the MockCluster
 func (mc *MockCluster) Close() {
 	C.rd_kafka_mock_cluster_destroy(mc.mcluster)

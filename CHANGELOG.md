@@ -8,6 +8,7 @@ This is a feature release.
    availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
 
 
 # v2.2.0
