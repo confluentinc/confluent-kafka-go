@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2682,6 +2682,97 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 	if description.Error.Code() != ErrResourceNotFound {
 		t.Fatalf("Error should be ErrResourceNotFound instead it is %s", description.Error.Code())
 	}
+}
+
+// Tests ListOffsets API which describes
+// the offset of a TopicPartiton corresponding to the OffsetSpec provided.
+func (its *IntegrationTestSuite) TestListOffsets() {
+	t := its.T()
+	bootstrapServers := testconf.Brokers
+	rand.Seed(time.Now().Unix())
+	assert := its.Assert()
+
+	// Create a new AdminClient.
+	a := createAdminClient(t)
+	defer a.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	topicPartitionOffsets := make(map[TopicPartition]OffsetSpec)
+	goTopic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+
+	var topics []TopicSpecification
+	topics = append(topics, TopicSpecification{Topic: goTopic, NumPartitions: 1, ReplicationFactor: 1})
+	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
+	assert.Nil(createTopicError, "Create Topics request failure.")
+	assert.Equal(createTopicResult[0].Error.Code(), 0, "Create Topics Error Code should be 0.")
+
+	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
+	assert.Nil(err, "Unable to create Producer.")
+	defer p.Close()
+
+	timestamp := time.Now()
+	t1 := timestamp.Add(time.Second * 100)
+	t2 := timestamp.Add(time.Second * 300)
+	t3 := timestamp.Add(time.Second * 200)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		Value:          []byte("Message-1"),
+		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		Timestamp:      t1,
+	}, nil)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		Value:          []byte("Message-2"),
+		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		Timestamp:      t2,
+	}, nil)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		Value:          []byte("Message-3"),
+		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		Timestamp:      t3,
+	}, nil)
+
+	p.Flush(5 * 1000)
+
+	tp1 := TopicPartition{Topic: &goTopic, Partition: 0}
+	topicPartitionOffsets[tp1] = EarliestOffsetSpec
+	var results ListOffsetsResult
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	assert.Nil(err, "ListOffsets request failed.")
+
+	for _, info := range results.Results {
+		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
+		assert.Equal(info.Offset, 0, "Offset should be 0.")
+	}
+
+	topicPartitionOffsets[tp1] = LatestOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	assert.Nil(err, "ListOffsets request failed.")
+
+	for _, info := range results.Results {
+		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
+		assert.Equal(info.Offset, 0, "Offset should be 3.")
+	}
+
+	topicPartitionOffsets[tp1] = MaxTimestampOffsetSpec
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	assert.Nil(err, "ListOffsets request failed.")
+
+	for _, info := range results.Results {
+		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
+		assert.Equal(info.Offset, 0, "Offset should be 1.")
+	}
+	var del_topics []string
+	del_topics = append(del_topics, goTopic)
+	_, err = a.DeleteTopics(ctx, del_topics)
+	assert.Nil(err, "DeleteTopics request failed.")
+
 }
 
 func TestIntegration(t *testing.T) {
