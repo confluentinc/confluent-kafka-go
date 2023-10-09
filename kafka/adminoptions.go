@@ -194,13 +194,11 @@ func (ao AdminOptionIsolationLevel) apply(cOptions *C.rd_kafka_AdminOptions_t) e
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
 	defer C.free(unsafe.Pointer(cErrstr))
 
-	cErr := C.rd_kafka_AdminOptions_set_isolation_level(
-		cOptions, C.rd_kafka_isolation_level_t(ao.val),
-		cErrstr, cErrstrSize)
-	if cErr != 0 {
+	cError := C.rd_kafka_AdminOptions_set_isolation_level(
+		cOptions, C.rd_kafka_IsolationLevel_t(ao.val))
+	if cError != nil {
 		C.rd_kafka_AdminOptions_destroy(cOptions)
-		return newCErrorFromString(cErr,
-			fmt.Sprintf("%s", C.GoString(cErrstr)))
+		return newErrorFromCErrorDestroy(cError)
 
 	}
 
