@@ -40,19 +40,21 @@ import (
 	"google.golang.org/genproto/googleapis/type/fraction"
 	"google.golang.org/genproto/googleapis/type/latlng"
 	"google.golang.org/genproto/googleapis/type/money"
+	"google.golang.org/genproto/googleapis/type/month"
 	"google.golang.org/genproto/googleapis/type/postaladdress"
 	"google.golang.org/genproto/googleapis/type/quaternion"
 	"google.golang.org/genproto/googleapis/type/timeofday"
-	"google.golang.org/genproto/protobuf/field_mask"
-	"google.golang.org/genproto/protobuf/source_context"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/apipb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/sourcecontextpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/typepb"
@@ -88,17 +90,17 @@ func init() {
 		"google/type/fraction.proto":           fraction.File_google_type_fraction_proto,
 		"google/type/latlng.proto":             latlng.File_google_type_latlng_proto,
 		"google/type/money.proto":              money.File_google_type_money_proto,
-		"google/type/month.proto":              money.File_google_type_money_proto,
+		"google/type/month.proto":              month.File_google_type_month_proto,
 		"google/type/postal_address.proto":     postaladdress.File_google_type_postal_address_proto,
 		"google/type/quaternion.proto":         quaternion.File_google_type_quaternion_proto,
 		"google/type/timeofday.proto":          timeofday.File_google_type_timeofday_proto,
 		"google/protobuf/any.proto":            anypb.File_google_protobuf_any_proto,
-		"google/protobuf/api.proto":            anypb.File_google_protobuf_any_proto,
+		"google/protobuf/api.proto":            apipb.File_google_protobuf_api_proto,
 		"google/protobuf/descriptor.proto":     descriptorpb.File_google_protobuf_descriptor_proto,
 		"google/protobuf/duration.proto":       durationpb.File_google_protobuf_duration_proto,
 		"google/protobuf/empty.proto":          emptypb.File_google_protobuf_empty_proto,
-		"google/protobuf/field_mask.proto":     field_mask.File_google_protobuf_field_mask_proto,
-		"google/protobuf/source_context.proto": source_context.File_google_protobuf_source_context_proto,
+		"google/protobuf/field_mask.proto":     fieldmaskpb.File_google_protobuf_field_mask_proto,
+		"google/protobuf/source_context.proto": sourcecontextpb.File_google_protobuf_source_context_proto,
 		"google/protobuf/struct.proto":         structpb.File_google_protobuf_struct_proto,
 		"google/protobuf/timestamp.proto":      timestamppb.File_google_protobuf_timestamp_proto,
 		"google/protobuf/type.proto":           typepb.File_google_protobuf_type_proto,
@@ -193,10 +195,10 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 
 func (s *Serializer) toProtobufSchema(msg proto.Message) (*desc.FileDescriptor, map[string]string, error) {
 	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(msg))
-	fileDesc := messageDesc.GetFile()
 	if err != nil {
 		return nil, nil, err
 	}
+	fileDesc := messageDesc.GetFile()
 	deps := make(map[string]string)
 	err = s.toDependencies(fileDesc, deps)
 	if err != nil {
@@ -438,6 +440,9 @@ func readMessageIndexes(payload []byte) (int, []int, error) {
 	arrayLen, bytesRead := binary.Varint(payload)
 	if bytesRead <= 0 {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
+	}
+	if arrayLen < 0 {
+		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
 	}
 	if arrayLen == 0 {
 		// Handle the optimization for the first message in the schema

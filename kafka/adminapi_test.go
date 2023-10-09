@@ -526,6 +526,46 @@ func testAdminAPIsListConsumerGroupOffsets(
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
+
+	// Test with nil topic partitions list, denoting all topic partitions.
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	lres, err = a.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				nil,
+			},
+		},
+		SetAdminRequireStableOffsets(false))
+	if lres.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			lres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	// Test with empty topic partitions list - should error due to an invalid argument.
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	lres, err = a.ListConsumerGroupOffsets(
+		ctx,
+		[]ConsumerGroupTopicPartitions{
+			{
+				"test",
+				[]TopicPartition{},
+			},
+		},
+		SetAdminRequireStableOffsets(false))
+	if lres.ConsumerGroupsTopicPartitions != nil || err == nil {
+		t.Fatalf("Expected ListConsumerGroupOffsets to fail, but got result: %v, err: %v",
+			lres, err)
+	}
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err.(Error).Code())
+	}
 }
 
 func testAdminAPIsAlterConsumerGroupOffsets(
@@ -553,6 +593,75 @@ func testAdminAPIsAlterConsumerGroupOffsets(
 	}
 	if ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+}
+func testAdminAPIsUserScramCredentials(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	var users []string
+
+	// With nil users
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_, describeErr := a.DescribeUserScramCredentials(ctx, users)
+	if describeErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			describeErr, ctx.Err())
+	}
+
+	// With one user
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	users = append(users, "non-existent")
+	_, describeErr = a.DescribeUserScramCredentials(ctx, users)
+	if describeErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			describeErr, ctx.Err())
+	}
+
+	// With duplicate users
+	users = append(users, "non-existent")
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	users = append(users, "non-existent")
+	_, describeErr = a.DescribeUserScramCredentials(ctx, users)
+	if describeErr == nil || describeErr.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Duplicate user should give an InvalidArgument error, got %s\n", describeErr)
+	}
+
+	var upsertions []UserScramCredentialUpsertion
+	upsertions = append(upsertions,
+		UserScramCredentialUpsertion{
+			User: "non-existent",
+			ScramCredentialInfo: ScramCredentialInfo{
+				Mechanism: ScramMechanismSHA256, Iterations: 10000},
+			Password: []byte("password"),
+			Salt:     []byte("salt"),
+		})
+	var deletions []UserScramCredentialDeletion
+	deletions = append(deletions, UserScramCredentialDeletion{
+		User: "non-existent", Mechanism: ScramMechanismSHA256})
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_, alterErr := a.AlterUserScramCredentials(ctx, upsertions, deletions)
+	if alterErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			alterErr, ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_, alterErr = a.AlterUserScramCredentials(ctx, upsertions, nil)
+	if alterErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			alterErr, ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_, alterErr = a.AlterUserScramCredentials(ctx, nil, deletions)
+	if alterErr == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			alterErr, ctx.Err())
 	}
 }
 
@@ -752,6 +861,18 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
+	icres, err := a.IncrementalAlterConfigs(
+		ctx,
+		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
+	if icres != nil || err == nil {
+		t.Fatalf("Expected IncrementalAlterConfigs to fail, but got result: %v, err: %v", cres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
 	cres, err = a.DescribeConfigs(
 		ctx,
 		[]ConfigResource{{Type: ResourceTopic, Name: "topic"}})
@@ -792,6 +913,8 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)
 	testAdminAPIsAlterConsumerGroupOffsets(what, a, expDuration, t)
+
+	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.

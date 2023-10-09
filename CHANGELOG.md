@@ -1,11 +1,37 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.2.0
+## v2.3.0
 
 This is a feature release.
 
  * MockCluster can now be shutdown and started again to test broker
-   availability problems (@kkoehler, #998).
+   availability problems (#998, @kkoehler).
+ * Fixes a bug in the mock schema registry client where the wrong ID was being
+   returned for pre-registered schema (#971, @srlk).
+
+
+# v2.2.0
+
+This is a feature release.
+
+ * [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#945).
+ * [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1004).
+
+## Fixes
+
+ * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
+   an unchecked error (#997, @baganokodo2022).
+ * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+ * Allow fetching all partition offsets for a consumer group by passing a
+   `nil` slice in `AdminClient.ListConsumerGroupOffsets`, when earlier it
+   was not processing that correctly (#985, @alexandredantas).
+ * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
+
+confluent-kafka-go is based on librdkafka v2.2.0, see the
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.1.1

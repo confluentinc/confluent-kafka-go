@@ -95,7 +95,7 @@ func (c *LRUCache) Put(key interface{}, value interface{}) {
 			back := c.lruKeys.Back()
 			if back != nil {
 				value := c.lruKeys.Remove(back)
-				delete(c.lruElements, back)
+				delete(c.lruElements, value)
 				delete(c.entries, value)
 			}
 		}
