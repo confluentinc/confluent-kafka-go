@@ -1,9 +1,11 @@
 # Confluent's Golang client for Apache Kafka
 
-# v2.3.0
+## v2.3.0
 
 This is a feature release.
 
+ * MockCluster can now be shutdown and started again to test broker
+   availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
  * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
