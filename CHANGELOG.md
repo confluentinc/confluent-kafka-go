@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.2.1
+
+This is a maintenance release:
+
+* Bundles librdkafka v2.2.0.
+* SPIRE example [producer](examples/spire_producer.example), [consumer](examples/spire_consumer_example) for clients to fetch JWT token by communicating with SPIRE agent.
+
+
+confluent-kafka-go is based on librdkafka v2.2.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 # v2.2.0
 
