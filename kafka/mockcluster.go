@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,9 +83,32 @@ func (mc *MockCluster) BootstrapServers() string {
 }
 
 // SetRoundtripDuration sets the broker round-trip-time delay for the given broker.
+// Use brokerID -1 for all brokers, or >= 0 for a specific broker.
 func (mc *MockCluster) SetRoundtripDuration(brokerID int, duration time.Duration) error {
 	durationInMillis := C.int(duration.Milliseconds())
 	cError := C.rd_kafka_mock_broker_set_rtt(mc.mcluster, C.int(brokerID), durationInMillis)
+	if cError != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cError)
+	}
+	return nil
+}
+
+// SetBrokerDown disconnects the broker and disallows any new connections.
+// This does NOT trigger leader change.
+// Use brokerID -1 for all brokers, or >= 0 for a specific broker.
+func (mc *MockCluster) SetBrokerDown(brokerID int) error {
+	cError := C.rd_kafka_mock_broker_set_down(mc.mcluster, C.int(brokerID))
+	if cError != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		return newError(cError)
+	}
+	return nil
+}
+
+// SetBrokerUp makes the broker accept connections again.
+// This does NOT trigger leader change.
+// Use brokerID -1 for all brokers, or >= 0 for a specific broker.
+func (mc *MockCluster) SetBrokerUp(brokerID int) error {
+	cError := C.rd_kafka_mock_broker_set_up(mc.mcluster, C.int(brokerID))
 	if cError != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cError)
 	}
