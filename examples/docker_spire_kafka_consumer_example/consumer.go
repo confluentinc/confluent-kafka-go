@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Docker example consumer with a custom SPIRE token implementation.
+// Docker example consumer with a custom SPIFFE token implementation.
 package main
 
 import (
@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// handleJWTTokenRefreshEvent retrieves JWT from the SPIRE workload API and
+// handleJWTTokenRefreshEvent retrieves JWT from the SPIFFE workload API and
 // sets the token on the client for use in any future authentication attempt.
 // It must be invoked whenever kafka.OAuthBearerTokenRefresh appears on the client's event channel,
 // which will occur whenever the client requires a token (i.e. when it first starts and when the
@@ -91,7 +91,6 @@ func main() {
 
 	bootstrapServers := os.Getenv("BOOTSTRAP_SERVERS")
 	topic := os.Getenv("TOPIC")
-	// TODO: get the principal from the subject claims in token
 	principal := os.Getenv("PRINCIPAL")
 	socketPath := os.Getenv("SOCKET_PATH")
 	audience := []string{"audience1", "audience2"}
@@ -101,14 +100,10 @@ func main() {
 	fmt.Fprintf(os.Stderr, "bootstrapServers is: %s\n", bootstrapServers)
 
 	config := kafka.ConfigMap{
-		"bootstrap.servers":        bootstrapServers,
-		"security.protocol":        "SASL_SSL",
-		"sasl.mechanisms":          "OAUTHBEARER",
-		"sasl.oauthbearer.config":  principal,
-		"group.id":                 "myGroup",
-		"session.timeout.ms":       6000,
-		"auto.offset.reset":        "earliest",
-		"enable.auto.offset.store": false,
+		"bootstrap.servers":       bootstrapServers,
+		"security.protocol":       "SASL_SSL",
+		"sasl.mechanisms":         "OAUTHBEARER",
+		"sasl.oauthbearer.config": principal,
 	}
 
 	c, err := kafka.NewConsumer(&config)
@@ -151,21 +146,11 @@ func main() {
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
-				_, err := c.StoreMessage(e)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "%% Error storing offset after message %s:\n",
-						e.TopicPartition)
-				}
 			case kafka.Error:
 				// Errors should generally be considered
 				// informational, the client will try to
 				// automatically recover.
-				// But in this example we choose to terminate
-				// the application if all brokers are down.
 				fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
-				if e.Code() == kafka.ErrAllBrokersDown {
-					run = false
-				}
 			case kafka.OAuthBearerTokenRefresh:
 				handleJWTTokenRefreshEvent(ctx, c, principal, socketPath, audience, lkc)
 			default:
