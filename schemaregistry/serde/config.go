@@ -16,6 +16,10 @@
 
 package serde
 
+const (
+	topicRecordNameStrategy = "topicRecordNameStrategy"
+)
+
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
 	// AutoRegisterSchemas determines whether to automatically register schemas during serialization
@@ -26,6 +30,8 @@ type SerializerConfig struct {
 	UseLatestVersion bool
 	// NormalizeSchemas determines whether to normalize schemas during serialization
 	NormalizeSchemas bool
+
+	SubjectNameStrategy string
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
@@ -36,6 +42,15 @@ func NewSerializerConfig() *SerializerConfig {
 	c.UseSchemaID = -1
 	c.UseLatestVersion = false
 	c.NormalizeSchemas = false
+
+	return c
+}
+
+// NewSerializerConfigTopRecNameStrat set the configurations for the TopicRecordNameStrategy
+func NewSerializerConfigTopRecNameStrat() *SerializerConfig {
+	c := NewSerializerConfig()
+
+	c.SubjectNameStrategy = topicRecordNameStrategy
 
 	return c
 }

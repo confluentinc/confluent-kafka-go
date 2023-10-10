@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package test.v1;
+
+option go_package = "./api/v1/proto";
+
+message Person {
+	string name = 1;
+	float age = 2;
+	string address = 3;
+	int32 code_postal = 4;
+	string firstname = 5;
+	Test mytest = 6;
+};
+
+message Test{
+	string text = 1;
+}
+
+

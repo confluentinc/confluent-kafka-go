@@ -57,6 +57,7 @@ type Serializer interface {
 	// Serialize will serialize the given message, which should be a pointer.
 	// For example, in Protobuf, messages are always a pointer to a struct and never just a struct.
 	Serialize(topic string, msg interface{}) ([]byte, error)
+	SerializeRecordName(msg interface{}, subject ...string) ([]byte, error)
 	Close()
 }
 
@@ -64,10 +65,13 @@ type Serializer interface {
 type Deserializer interface {
 	ConfigureDeserializer(client schemaregistry.Client, serdeType Type, conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object
-	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
 	// DeserializeInto will unmarshal data into the given object.
 	DeserializeInto(topic string, payload []byte, msg interface{}) error
+
+	DeserializeRecordName(payload []byte) (interface{}, error)
+	DeserializeIntoRecordName(subjects map[string]interface{}, payload []byte) error
+
 	Close()
 }
 
@@ -99,7 +103,13 @@ func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, serde
 	s.Client = client
 	s.Conf = conf
 	s.SerdeType = serdeType
-	s.SubjectNameStrategy = TopicNameStrategy
+
+	if conf.SubjectNameStrategy == topicRecordNameStrategy {
+		s.SubjectNameStrategy = TopicRecordNameStrategy
+	} else {
+		s.SubjectNameStrategy = TopicNameStrategy
+	}
+
 	return nil
 }
 
@@ -127,29 +137,43 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 	return topic + suffix, nil
 }
 
+// TopicRecordNameStrategy creates a subject name by appending -[key|value] to the topic name.
+func TopicRecordNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+	suffix := "-value"
+	if serdeType == KeySerde {
+		suffix = "-key"
+	}
+	// TODO how to pass the fullyQualifiedName
+	// fullyQualifiedName := schema.Subject
+	// return fmt.Sprintf("%s-%s%s", topic, fullyQualifiedName, suffix), nil
+	return topic + suffix, nil
+}
+
 // GetID returns a schema ID for the given schema
-func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
+func (s *BaseSerializer) GetID(subject string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
 	autoRegister := s.Conf.AutoRegisterSchemas
 	useSchemaID := s.Conf.UseSchemaID
 	useLatest := s.Conf.UseLatestVersion
 	normalizeSchema := s.Conf.NormalizeSchemas
 
 	var id = -1
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	fullSubject, err := s.SubjectNameStrategy(subject, s.SerdeType, info)
 	if err != nil {
 		return -1, err
 	}
+
 	if autoRegister {
-		id, err = s.Client.Register(subject, info, normalizeSchema)
+		id, err = s.Client.Register(fullSubject, info, normalizeSchema)
 		if err != nil {
 			return -1, err
 		}
 	} else if useSchemaID >= 0 {
-		info, err = s.Client.GetBySubjectAndID(subject, useSchemaID)
+		info, err = s.Client.GetBySubjectAndID(fullSubject, useSchemaID)
 		if err != nil {
 			return -1, err
 		}
-		id, err = s.Client.GetID(subject, info, false)
+
+		id, err = s.Client.GetID(fullSubject, info, false)
 		if err != nil {
 			return -1, err
 		}
@@ -157,7 +181,7 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 			return -1, fmt.Errorf("failed to match schema ID (%d != %d)", id, useSchemaID)
 		}
 	} else if useLatest {
-		metadata, err := s.Client.GetLatestSchemaMetadata(subject)
+		metadata, err := s.Client.GetLatestSchemaMetadata(fullSubject)
 		if err != nil {
 			return -1, err
 		}
@@ -166,16 +190,17 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,
 		}
-		id, err = s.Client.GetID(subject, info, false)
+		id, err = s.Client.GetID(fullSubject, info, false)
 		if err != nil {
 			return -1, err
 		}
 	} else {
-		id, err = s.Client.GetID(subject, info, normalizeSchema)
+		id, err = s.Client.GetID(fullSubject, info, normalizeSchema)
 		if err != nil {
 			return -1, err
 		}
 	}
+
 	return id, nil
 }
 
@@ -200,17 +225,23 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 }
 
 // GetSchema returns a schema for a payload
-func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
+func (s *BaseDeserializer) GetSchema(subject string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
 	if payload[0] != magicByte {
 		return info, fmt.Errorf("unknown magic byte")
 	}
 	id := binary.BigEndian.Uint32(payload[1:5])
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
-	if err != nil {
-		return info, err
+	if subject != "" {
+		var err error
+		subject, err = s.SubjectNameStrategy(subject, s.SerdeType, info)
+		if err != nil {
+			return info, err
+		}
+
+		return s.Client.GetBySubjectAndID(subject, int(id))
+	} else {
+		return s.Client.GetByID(int(id))
 	}
-	return s.Client.GetBySubjectAndID(subject, int(id))
 }
 
 // ResolveReferences resolves schema references

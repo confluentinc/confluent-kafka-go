@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package recordname;
+option go_package="test/proto/recordname";
+
+message LinkedList {
+  int32 value = 1;
+  LinkedList next = 10;
+}
