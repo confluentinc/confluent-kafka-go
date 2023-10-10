@@ -9,6 +9,8 @@ This is a feature release.
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
  * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+ * Fixes an issue where `testing` was being imported by a non-test file,
+   testhelpers.go. (@dmlambea, #1049).
 
 
 # v2.2.0
