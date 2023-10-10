@@ -2,12 +2,13 @@
 
 # v2.3.0
 
-This is a maintenance release.
+This is a feature release.
 
-## Fixes
-
+ * MockCluster can now be shutdown and started again to test broker
+   availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
 
 
 # v2.2.0
