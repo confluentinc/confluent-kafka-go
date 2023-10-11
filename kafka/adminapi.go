@@ -106,6 +106,13 @@ AlterUserScramCredentials_result_response_by_idx(const rd_kafka_AlterUserScramCr
 	return responses[idx];
 }
 
+static const rd_kafka_ListOffsetsResultInfo_t *
+ListOffsetsResultInfo_by_idx(const rd_kafka_ListOffsetsResultInfo_t **result_infos, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return result_infos[idx];
+}
+
 static const rd_kafka_error_t *
 error_by_idx(const rd_kafka_error_t **errors, size_t cnt, size_t idx) {
 	if (idx >= cnt)
@@ -2770,17 +2777,17 @@ func (a *AdminClient) DescribeUserScramCredentials(
 // cToListOffsetsResult converts a C
 // rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
 func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
-	var result ListOffsetsResult
-	result.Results = make(map[TopicPartition]ListOffsetsResultInfo)
+	result = ListOffsetsResult{Results: make(map[TopicPartition]ListOffsetsResultInfo)}
 	var cPartitionCount C.size_t
 	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
 	for itr := 0; itr < int(cPartitionCount); itr++ {
+		cResultInfo := C.ListOffsetsResultInfo_by_idx(cResultInfos, cPartitionCount, C.size_t(itr))
 		goValue := ListOffsetsResultInfo{}
-		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfos[itr])
+		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfo)
 		goTopic := C.GoString(cPartition.topic)
 		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
 		goValue.Offset = int64(cPartition.offset)
-		goValue.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfos[itr]))
+		goValue.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
 		goValue.LeaderEpoch = -1
 		goValue.Error = newError(cPartition.err)
 		result.Results[goPartition] = goValue
@@ -2803,8 +2810,7 @@ func (a *AdminClient) ListOffsets(
 	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
 	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
 	if len(topicPartitionOffsets) < 1 || topicPartitionOffsets == nil {
-		newErrorFromString
-		return nil, newErrorFromString(ErrInvalidArg, "expected map[TopicPartition]OffsetSpec of length greater or equal 1.")
+		return result, newErrorFromString(ErrInvalidArg, "expected map[TopicPartition]OffsetSpec of length greater or equal 1.")
 	}
 
 	topicPartitions := C.rd_kafka_topic_partition_list_new(C.int(len(topicPartitionOffsets)))
@@ -2813,8 +2819,8 @@ func (a *AdminClient) ListOffsets(
 	for tp, offsetValue := range topicPartitionOffsets {
 		cStr := C.CString(*tp.Topic)
 		defer C.free(unsafe.Pointer(cStr))
-		topicPartitions = C.rd_kafka_topic_partition_list_add(topicPartitions, cStr, C.int32_t(tp.Partition))
-		topicPartitions.offset = C.int64_t(offsetValue)
+		topicPartition := C.rd_kafka_topic_partition_list_add(topicPartitions, cStr, C.int32_t(tp.Partition))
+		topicPartition.offset = C.int64_t(offsetValue)
 	}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
@@ -2825,7 +2831,7 @@ func (a *AdminClient) ListOffsets(
 	cOptions, err := adminOptionsSetup(
 		a.handle, C.RD_KAFKA_ADMIN_OP_LISTOFFSETS, genericOptions)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	defer C.rd_kafka_AdminOptions_destroy(cOptions)
 
@@ -2836,7 +2842,7 @@ func (a *AdminClient) ListOffsets(
 	// Call rd_kafka_ListOffsets (asynchronous).
 	C.rd_kafka_ListOffsets(
 		a.handle.rk,
-		topic_partitions,
+		topicPartitions,
 		cOptions,
 		cQueue)
 
@@ -2844,14 +2850,14 @@ func (a *AdminClient) ListOffsets(
 	rkev, err := a.waitResult(
 		ctx, cQueue, C.RD_KAFKA_EVENT_LISTOFFSETS_RESULT)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
 	cRes := C.rd_kafka_event_ListOffsets_result(rkev)
 
 	// Convert result from C to Go.
-	result := cToListOffsetsResult(cRes)
+	result = cToListOffsetsResult(cRes)
 
 	return result, nil
 }
