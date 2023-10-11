@@ -4973,6 +4973,16 @@ const char *rd_kafka_Node_host(const rd_kafka_Node_t *node);
 RD_EXPORT
 uint16_t rd_kafka_Node_port(const rd_kafka_Node_t *node);
 
+/**
+ * @brief Get the rack of \p node.
+ *
+ * @param node The Node instance
+ *
+ * @return The node rack id. May be NULL.
+ */
+RD_EXPORT
+const char *rd_kafka_Node_rack_id(const rd_kafka_Node_t *node);
+
 /**@}*/
 
 
@@ -5370,6 +5380,10 @@ typedef int rd_kafka_event_type_t;
 #define RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT 0x40000
 /** AlterUserScramCredentials_result_t */
 #define RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT 0x80000
+/** DescribeTopics_result_t */
+#define RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT 0x100000
+/** DescribeCluster_result_t */
+#define RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT 0x200000
 
 /**
  * @returns the event type for the given event.
@@ -5525,6 +5539,8 @@ int rd_kafka_event_error_is_fatal(rd_kafka_event_t *rkev);
  *  - RD_KAFKA_EVENT_DESCRIBECONSUMERGROUPS_RESULT
  *  - RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT
  *  - RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT
+ *  - RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT
+ *  - RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT
  */
 RD_EXPORT
 void *rd_kafka_event_opaque(rd_kafka_event_t *rkev);
@@ -5638,6 +5654,10 @@ typedef rd_kafka_event_t rd_kafka_DeleteConsumerGroupOffsets_result_t;
 typedef rd_kafka_event_t rd_kafka_AlterConsumerGroupOffsets_result_t;
 /*! ListConsumerGroupOffsets result type */
 typedef rd_kafka_event_t rd_kafka_ListConsumerGroupOffsets_result_t;
+/*! DescribeTopics result type */
+typedef rd_kafka_event_t rd_kafka_DescribeTopics_result_t;
+/*! DescribeCluster result type */
+typedef rd_kafka_event_t rd_kafka_DescribeCluster_result_t;
 /*! DescribeUserScramCredentials result type */
 typedef rd_kafka_event_t rd_kafka_DescribeUserScramCredentials_result_t;
 /*! AlterUserScramCredentials result type */
@@ -5755,6 +5775,35 @@ rd_kafka_event_ListConsumerGroups_result(rd_kafka_event_t *rkev);
 RD_EXPORT const rd_kafka_DescribeConsumerGroups_result_t *
 rd_kafka_event_DescribeConsumerGroups_result(rd_kafka_event_t *rkev);
 
+/**
+ * @brief Get DescribeTopics result.
+ *
+ * @returns the result of a DescribeTopics request, or NULL if event is
+ * of different type.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p rkev object.
+ *
+ * Event types:
+ *   RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT
+ */
+RD_EXPORT const rd_kafka_DescribeTopics_result_t *
+rd_kafka_event_DescribeTopics_result(rd_kafka_event_t *rkev);
+
+/**
+ * @brief Get DescribeCluster result.
+ *
+ * @returns the result of a DescribeCluster request, or NULL if event is
+ * of different type.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p rkev object.
+ *
+ * Event types:
+ *   RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT
+ */
+RD_EXPORT const rd_kafka_DescribeCluster_result_t *
+rd_kafka_event_DescribeCluster_result(rd_kafka_event_t *rkev);
 /**
  * @brief Get DeleteGroups result.
  *
@@ -6778,7 +6827,9 @@ typedef enum rd_kafka_admin_op_t {
         RD_KAFKA_ADMIN_OP_DESCRIBEUSERSCRAMCREDENTIALS,
         /** AlterUserScramCredentials */
         RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
-        RD_KAFKA_ADMIN_OP__CNT /**< Number of ops defined */
+        RD_KAFKA_ADMIN_OP_DESCRIBETOPICS,  /**< DescribeTopics */
+        RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER, /**< DescribeCluster */
+        RD_KAFKA_ADMIN_OP__CNT             /**< Number of ops defined */
 } rd_kafka_admin_op_t;
 
 /**
@@ -6958,6 +7009,25 @@ rd_kafka_error_t *rd_kafka_AdminOptions_set_require_stable_offsets(
     int true_or_false);
 
 /**
+ * @brief Whether broker should return authorized operations for the given
+ *        resource in the DescribeConsumerGroups, DescribeTopics, or
+ *        DescribeCluster calls.
+ *
+ * @param options Admin options.
+ * @param true_or_false Defaults to false.
+ *
+ * @return NULL on success, a new error instance that must be
+ *         released with rd_kafka_error_destroy() in case of error.
+ *
+ * @remark This option is valid for DescribeConsumerGroups, DescribeTopics,
+ *         DescribeCluster.
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_AdminOptions_set_include_authorized_operations(
+    rd_kafka_AdminOptions_t *options,
+    int true_or_false);
+
+/**
  * @brief Set consumer groups states to query for.
  *
  * @param options Admin options.
@@ -6983,7 +7053,37 @@ RD_EXPORT void
 rd_kafka_AdminOptions_set_opaque(rd_kafka_AdminOptions_t *options,
                                  void *ev_opaque);
 
+
+
+/**
+ * @enum rd_kafka_AclOperation_t
+ * @brief Apache Kafka ACL operation types. Common type for multiple Admin API
+ * functions.
+ */
+typedef enum rd_kafka_AclOperation_t {
+        RD_KAFKA_ACL_OPERATION_UNKNOWN = 0, /**< Unknown */
+        RD_KAFKA_ACL_OPERATION_ANY =
+            1, /**< In a filter, matches any AclOperation */
+        RD_KAFKA_ACL_OPERATION_ALL      = 2, /**< ALL operation */
+        RD_KAFKA_ACL_OPERATION_READ     = 3, /**< READ operation */
+        RD_KAFKA_ACL_OPERATION_WRITE    = 4, /**< WRITE operation */
+        RD_KAFKA_ACL_OPERATION_CREATE   = 5, /**< CREATE operation */
+        RD_KAFKA_ACL_OPERATION_DELETE   = 6, /**< DELETE operation */
+        RD_KAFKA_ACL_OPERATION_ALTER    = 7, /**< ALTER operation */
+        RD_KAFKA_ACL_OPERATION_DESCRIBE = 8, /**< DESCRIBE operation */
+        RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION =
+            9, /**< CLUSTER_ACTION operation */
+        RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS =
+            10, /**< DESCRIBE_CONFIGS operation */
+        RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS =
+            11, /**< ALTER_CONFIGS  operation */
+        RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE =
+            12, /**< IDEMPOTENT_WRITE operation */
+        RD_KAFKA_ACL_OPERATION__CNT
+} rd_kafka_AclOperation_t;
+
 /**@}*/
+
 
 /**
  * @name Admin API - Topics
@@ -7890,6 +7990,297 @@ rd_kafka_DeleteRecords_result_offsets(
 /**@}*/
 
 /**
+ * @name Admin API - DescribeTopics
+ * @{
+ */
+
+/**
+ * @brief Represents a collection of topics, to be passed to DescribeTopics.
+ *
+ */
+typedef struct rd_kafka_TopicCollection_s rd_kafka_TopicCollection_t;
+
+/**
+ * @brief TopicPartition represents a partition in the DescribeTopics result.
+ *
+ */
+typedef struct rd_kafka_TopicPartitionInfo_s rd_kafka_TopicPartitionInfo_t;
+
+/**
+ * @brief DescribeTopics result type.
+ *
+ */
+typedef struct rd_kafka_TopicDescription_s rd_kafka_TopicDescription_t;
+
+/**
+ * @brief Creates a new TopicCollection for passing to rd_kafka_DescribeTopics.
+ *
+ * @param topics A list of topics.
+ * @param topics_cnt Count of topics.
+ *
+ * @return a newly allocated TopicCollection object. Must be freed using
+ *         rd_kafka_TopicCollection_destroy when done.
+ */
+RD_EXPORT
+rd_kafka_TopicCollection_t *
+rd_kafka_TopicCollection_new_from_names(const char **topics, size_t topics_cnt);
+
+/**
+ * @brief Destroy and free a TopicCollection object created with
+ *        rd_kafka_TopicCollection_new_* methods.
+ */
+RD_EXPORT void
+rd_kafka_TopicCollection_destroy(rd_kafka_TopicCollection_t *topics);
+
+/**
+ * @brief Describe topics as specified by the \p topics
+ *        array of size \p topics_cnt elements.
+ *
+ * @param rk Client instance.
+ * @param topics Array of topics to describe.
+ * @param topics_cnt Number of elements in \p topics array.
+ * @param options Optional admin options, or NULL for defaults.
+ *                Valid options:
+ *                 - include_authorized_operations
+ * @param rkqu Queue to emit result on.
+ *
+ * @remark The result event type emitted on the supplied queue is of type
+ *         \c RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT
+ */
+RD_EXPORT
+void rd_kafka_DescribeTopics(rd_kafka_t *rk,
+                             const rd_kafka_TopicCollection_t *topics,
+                             const rd_kafka_AdminOptions_t *options,
+                             rd_kafka_queue_t *rkqu);
+
+/**
+ * @brief Get an array of topic results from a DescribeTopics result.
+ *
+ * @param result Result to get topics results from.
+ * @param cntp is updated to the number of elements in the array.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p result object.
+ */
+RD_EXPORT
+const rd_kafka_TopicDescription_t **rd_kafka_DescribeTopics_result_topics(
+    const rd_kafka_DescribeTopics_result_t *result,
+    size_t *cntp);
+
+
+/**
+ * @brief Gets an array of partitions for the \p topicdesc topic.
+ *
+ * @param topicdesc The topic description.
+ * @param cntp is updated to the number of partitions in the array.
+ *
+ * @return An array of TopicPartitionInfos.
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p topicdesc object.
+ */
+RD_EXPORT
+const rd_kafka_TopicPartitionInfo_t **rd_kafka_TopicDescription_partitions(
+    const rd_kafka_TopicDescription_t *topicdesc,
+    size_t *cntp);
+
+
+/**
+ * @brief Gets the partition id for \p partition.
+ *
+ * @param partition The partition info.
+ *
+ * @return The partition id.
+ */
+RD_EXPORT
+const int rd_kafka_TopicPartitionInfo_partition(
+    const rd_kafka_TopicPartitionInfo_t *partition);
+
+
+/**
+ * @brief Gets the partition leader for \p partition.
+ *
+ * @param partition The partition info.
+ *
+ * @return The partition leader.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p partition object.
+ */
+RD_EXPORT
+const rd_kafka_Node_t *rd_kafka_TopicPartitionInfo_leader(
+    const rd_kafka_TopicPartitionInfo_t *partition);
+
+/**
+ * @brief Gets the partition in-sync replicas for \p partition.
+ *
+ * @param partition The partition info.
+ * @param cntp is updated with in-sync replicas count.
+ *
+ * @return The in-sync replica nodes.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p partition object.
+ */
+RD_EXPORT
+const rd_kafka_Node_t **
+rd_kafka_TopicPartitionInfo_isr(const rd_kafka_TopicPartitionInfo_t *partition,
+                                size_t *cntp);
+
+/**
+ * @brief Gets the partition replicas for \p partition.
+ *
+ * @param partition The partition info.
+ * @param cntp is updated with partition replicas count.
+ *
+ * @return The partition replicas nodes.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p partition object.
+ */
+RD_EXPORT
+const rd_kafka_Node_t **rd_kafka_TopicPartitionInfo_replicas(
+    const rd_kafka_TopicPartitionInfo_t *partition,
+    size_t *cntp);
+
+/**
+ * @brief Gets the topic authorized ACL operations for the \p topicdesc topic.
+ *
+ * @param topicdesc The topic description.
+ * @param cntp is updated with authorized ACL operations count.
+ *
+ * @return The topic authorized operations.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p topicdesc object.
+ */
+RD_EXPORT
+const rd_kafka_AclOperation_t *rd_kafka_TopicDescription_authorized_operations(
+    const rd_kafka_TopicDescription_t *topicdesc,
+    size_t *cntp);
+
+/**
+ * @brief Gets the topic name for the \p topicdesc topic.
+ *
+ * @param topicdesc The topic description.
+ *
+ * @return The topic name.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p topicdesc object.
+ */
+RD_EXPORT
+const char *
+rd_kafka_TopicDescription_name(const rd_kafka_TopicDescription_t *topicdesc);
+
+/**
+ * @brief Gets if the \p topicdesc topic is internal.
+ *
+ * @param topicdesc The topic description.
+ *
+ * @return 1 if the topic is internal to Kafka, 0 otherwise.
+ */
+RD_EXPORT
+int rd_kafka_TopicDescription_is_internal(
+    const rd_kafka_TopicDescription_t *topicdesc);
+
+/**
+ * @brief Gets the error for the \p topicdesc topic.
+ *
+ * @param topicdesc The topic description.
+ *
+ * @return The topic description error.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p topicdesc object.
+ */
+RD_EXPORT
+const rd_kafka_error_t *
+rd_kafka_TopicDescription_error(const rd_kafka_TopicDescription_t *topicdesc);
+
+
+/**@}*/
+
+/**
+ * @name Admin API - DescribeCluster
+ * @{
+ */
+
+/**
+ * @brief Describes the cluster.
+ *
+ * @param rk Client instance.
+ * @param options Optional admin options, or NULL for defaults.
+ *                Valid options:
+ *                 - include_authorized_operations
+ * @param rkqu Queue to emit result on.
+ *
+ * @remark The result event type emitted on the supplied queue is of type
+ *         \c RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT
+ */
+RD_EXPORT
+void rd_kafka_DescribeCluster(rd_kafka_t *rk,
+                              const rd_kafka_AdminOptions_t *options,
+                              rd_kafka_queue_t *rkqu);
+
+/**
+ * @brief Gets the broker nodes for the \p result cluster.
+ *
+ * @param result The result of DescribeCluster.
+ * @param cntp is updated with the count of broker nodes.
+ *
+ * @return An array of broker nodes.
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p result object.
+ */
+RD_EXPORT
+const rd_kafka_Node_t **rd_kafka_DescribeCluster_result_nodes(
+    const rd_kafka_DescribeTopics_result_t *result,
+    size_t *cntp);
+
+/**
+ * @brief Gets the authorized ACL operations for the \p result cluster.
+ *
+ * @param result The result of DescribeCluster.
+ * @param cntp is updated with authorized ACL operations count.
+ *
+ * @return The cluster authorized operations.
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p result object.
+ */
+RD_EXPORT
+const rd_kafka_AclOperation_t *
+rd_kafka_DescribeCluster_result_authorized_operations(
+    const rd_kafka_DescribeTopics_result_t *result,
+    size_t *cntp);
+
+/**
+ * @brief Gets the current controller for the \p result cluster.
+ *
+ * @param result The result of DescribeCluster.
+ *
+ * @return The cluster current controller.
+ */
+RD_EXPORT
+const rd_kafka_Node_t *rd_kafka_DescribeCluster_result_controller(
+    const rd_kafka_DescribeTopics_result_t *result);
+
+/**
+ * @brief Gets the cluster id for the \p result cluster.
+ *
+ * @param result The result of DescribeCluster.
+ *
+ * @return The cluster id.
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p result object.
+ */
+RD_EXPORT
+const char *rd_kafka_DescribeCluster_result_cluster_id(
+    const rd_kafka_DescribeTopics_result_t *result);
+
+/**@}*/
+
+
+/**
  * @name Admin API - ListConsumerGroups
  * @{
  */
@@ -8027,6 +8418,8 @@ typedef struct rd_kafka_MemberAssignment_s rd_kafka_MemberAssignment_t;
  * @param groups Array of groups to describe.
  * @param groups_cnt Number of elements in \p groups array.
  * @param options Optional admin options, or NULL for defaults.
+ *                Valid options:
+ *                 - include_authorized_operations
  * @param rkqu Queue to emit result on.
  *
  * @remark The result event type emitted on the supplied queue is of type
@@ -8111,6 +8504,22 @@ RD_EXPORT
 const char *rd_kafka_ConsumerGroupDescription_partition_assignor(
     const rd_kafka_ConsumerGroupDescription_t *grpdesc);
 
+/**
+ * @brief Gets the authorized ACL operations for the \p grpdesc group.
+ *
+ * @param grpdesc The group description.
+ * @param cntp is updated with authorized ACL operations count.
+ *
+ * @return The group authorized operations.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p grpdesc object.
+ */
+RD_EXPORT
+const rd_kafka_AclOperation_t *
+rd_kafka_ConsumerGroupDescription_authorized_operations(
+    const rd_kafka_ConsumerGroupDescription_t *grpdesc,
+    size_t *cntp);
 
 /**
  * @brief Gets state for the \p grpdesc group.
@@ -8877,32 +9286,6 @@ typedef rd_kafka_AclBinding_t rd_kafka_AclBindingFilter_t;
 RD_EXPORT const rd_kafka_error_t *
 rd_kafka_acl_result_error(const rd_kafka_acl_result_t *aclres);
 
-
-/**
- * @enum rd_kafka_AclOperation_t
- * @brief Apache Kafka ACL operation types.
- */
-typedef enum rd_kafka_AclOperation_t {
-        RD_KAFKA_ACL_OPERATION_UNKNOWN = 0, /**< Unknown */
-        RD_KAFKA_ACL_OPERATION_ANY =
-            1, /**< In a filter, matches any AclOperation */
-        RD_KAFKA_ACL_OPERATION_ALL      = 2, /**< ALL operation */
-        RD_KAFKA_ACL_OPERATION_READ     = 3, /**< READ operation */
-        RD_KAFKA_ACL_OPERATION_WRITE    = 4, /**< WRITE operation */
-        RD_KAFKA_ACL_OPERATION_CREATE   = 5, /**< CREATE operation */
-        RD_KAFKA_ACL_OPERATION_DELETE   = 6, /**< DELETE operation */
-        RD_KAFKA_ACL_OPERATION_ALTER    = 7, /**< ALTER operation */
-        RD_KAFKA_ACL_OPERATION_DESCRIBE = 8, /**< DESCRIBE operation */
-        RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION =
-            9, /**< CLUSTER_ACTION operation */
-        RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS =
-            10, /**< DESCRIBE_CONFIGS operation */
-        RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS =
-            11, /**< ALTER_CONFIGS  operation */
-        RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE =
-            12, /**< IDEMPOTENT_WRITE operation */
-        RD_KAFKA_ACL_OPERATION__CNT
-} rd_kafka_AclOperation_t;
 
 /**
  * @returns a string representation of the \p acl_operation
