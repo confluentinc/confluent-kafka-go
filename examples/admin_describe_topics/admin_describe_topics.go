@@ -79,6 +79,7 @@ func main() {
 			continue
 		}
 		fmt.Printf("Topic: %s has succeeded\n", t.Name)
+		fmt.Printf("Topic Id: %s\n", t.TopicId)
 		if include_authorized_operations {
 			fmt.Printf("Allowed operations: %s\n", t.AuthorizedOperations)
 		}
