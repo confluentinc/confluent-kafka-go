@@ -61,6 +61,8 @@ Examples
   [library-version](library-version) - Show the library version
 
   [mockcluster_example](mockcluster_example) - Use a mock cluster for testing
+  
+  [mockcluster_failure_example](mockcluster_failure_example) - Use a mock cluster for failure testing
 
   [oauthbearer_consumer_example](oauthbearer_consumer_example) - Unsecured SASL/OAUTHBEARER consumer example
 

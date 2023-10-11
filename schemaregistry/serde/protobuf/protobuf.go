@@ -441,6 +441,9 @@ func readMessageIndexes(payload []byte) (int, []int, error) {
 	if bytesRead <= 0 {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
 	}
+	if arrayLen < 0 {
+		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
+	}
 	if arrayLen == 0 {
 		// Handle the optimization for the first message in the schema
 		return bytesRead, []int{0}, nil
