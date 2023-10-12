@@ -9,11 +9,13 @@ This is a feature release.
  * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
    Return authorized operations in Describe Responses.
    (#964, @jainruchir).
-
-## Fixes
-
+ * MockCluster can now be shutdown and started again to test broker
+   availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+ * Fixes an issue where `testing` was being imported by a non-test file,
+   testhelpers.go. (@dmlambea, #1049).
 
 
 # v2.2.0
