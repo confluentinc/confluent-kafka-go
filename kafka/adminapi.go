@@ -932,7 +932,7 @@ type ListOffsetsResultInfo struct {
 }
 
 // ListOffsetsResult
-// Holds the map of TopicPartition into ListOffsetsResultInfo for a request.
+// Holds the map of TopicPartition to ListOffsetsResultInfo for a request.
 type ListOffsetsResult struct {
 	Results map[TopicPartition]ListOffsetsResultInfo
 }
@@ -1142,6 +1142,27 @@ func cToDescribeUserScramCredentialsResult(
 		result[user] = userDescription
 	}
 
+	return result
+}
+
+// cToListOffsetsResult converts a C
+// rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
+func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
+	result = ListOffsetsResult{Results: make(map[TopicPartition]ListOffsetsResultInfo)}
+	var cPartitionCount C.size_t
+	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
+	for itr := 0; itr < int(cPartitionCount); itr++ {
+		cResultInfo := C.ListOffsetsResultInfo_by_idx(cResultInfos, cPartitionCount, C.size_t(itr))
+		Value := ListOffsetsResultInfo{}
+		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfo)
+		Topic := C.GoString(cPartition.topic)
+		Partition := TopicPartition{Topic: &Topic, Partition: int32(cPartition.partition)}
+		Value.Offset = int64(cPartition.offset)
+		Value.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
+		Value.LeaderEpoch = -1
+		Value.Error = newError(cPartition.err)
+		result.Results[Partition] = Value
+	}
 	return result
 }
 
@@ -2774,27 +2795,6 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	return result, nil
 }
 
-// cToListOffsetsResult converts a C
-// rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
-func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
-	result = ListOffsetsResult{Results: make(map[TopicPartition]ListOffsetsResultInfo)}
-	var cPartitionCount C.size_t
-	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
-	for itr := 0; itr < int(cPartitionCount); itr++ {
-		cResultInfo := C.ListOffsetsResultInfo_by_idx(cResultInfos, cPartitionCount, C.size_t(itr))
-		goValue := ListOffsetsResultInfo{}
-		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfo)
-		goTopic := C.GoString(cPartition.topic)
-		goPartition := TopicPartition{Topic: &goTopic, Partition: int32(cPartition.partition)}
-		goValue.Offset = int64(cPartition.offset)
-		goValue.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
-		goValue.LeaderEpoch = -1
-		goValue.Error = newError(cPartition.err)
-		result.Results[goPartition] = goValue
-	}
-	return result
-}
-
 // ListOffsets describe offsets for the
 // specified TopicPartiton based on an OffsetSpec.
 //
@@ -2810,7 +2810,7 @@ func (a *AdminClient) ListOffsets(
 	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
 	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
 	if len(topicPartitionOffsets) < 1 || topicPartitionOffsets == nil {
-		return result, newErrorFromString(ErrInvalidArg, "expected map[TopicPartition]OffsetSpec of length greater or equal 1.")
+		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets of size greater or equal 1.")
 	}
 
 	topicPartitions := C.rd_kafka_topic_partition_list_new(C.int(len(topicPartitionOffsets)))

@@ -2685,8 +2685,8 @@ func (its *IntegrationTestSuite) TestAdminClient_UserScramCredentials() {
 }
 
 // Tests ListOffsets API which describes
-// the offset of a TopicPartiton corresponding to the OffsetSpec provided.
-func (its *IntegrationTestSuite) TestListOffsets() {
+// the offset of a TopicPartition corresponding to the OffsetSpec provided.
+func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	t := its.T()
 	bootstrapServers := testconf.Brokers
 	rand.Seed(time.Now().Unix())
@@ -2700,13 +2700,12 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	defer cancel()
 
 	topicPartitionOffsets := make(map[TopicPartition]OffsetSpec)
-	goTopic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	Topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
 
-	var topics []TopicSpecification
-	topics = append(topics, TopicSpecification{Topic: goTopic, NumPartitions: 1, ReplicationFactor: 1})
+	topics := []TopicSpecification{TopicSpecification{Topic: Topic, NumPartitions: 1, ReplicationFactor: 1}}
 	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
-	assert.Nil(createTopicError, "Create Topics request failure.")
-	assert.Equal(createTopicResult[0].Error.Code(), ErrorCode(0), "Create Topics Error Code should be 0.")
+	assert.Nil(createTopicError, "Create Topics should not fail.")
+	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError, "Create Topics Error Code should be 0.")
 
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
 	assert.Nil(err, "Unable to create Producer.")
@@ -2718,60 +2717,57 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	t3 := timestamp.Add(time.Second * 200)
 
 	p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &Topic, Partition: 0},
 		Value:          []byte("Message-1"),
-		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 		Timestamp:      t1,
 	}, nil)
 
 	p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &Topic, Partition: 0},
 		Value:          []byte("Message-2"),
-		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 		Timestamp:      t2,
 	}, nil)
 
 	p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &goTopic, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &Topic, Partition: 0},
 		Value:          []byte("Message-3"),
-		Headers:        []Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 		Timestamp:      t3,
 	}, nil)
 
 	p.Flush(5 * 1000)
 
-	tp1 := TopicPartition{Topic: &goTopic, Partition: 0}
+	tp1 := TopicPartition{Topic: &Topic, Partition: 0}
 	topicPartitionOffsets[tp1] = EarliestOffsetSpec
 	var results ListOffsetsResult
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
-	assert.Nil(err, "ListOffsets request failed.")
+	assert.Nil(err, "ListOffsets should not fail.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), ErrorCode(0), "Error code should be 0.")
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be 0.")
 		assert.Equal(info.Offset, int64(0), "Offset should be 0.")
 	}
 
 	topicPartitionOffsets[tp1] = LatestOffsetSpec
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
-	assert.Nil(err, "ListOffsets request failed.")
+	assert.Nil(err, "ListOffsets should not fail.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), ErrorCode(0), "Error code should be 0.")
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be 0.")
 		assert.Equal(info.Offset, int64(3), "Offset should be 3.")
 	}
 
 	topicPartitionOffsets[tp1] = OffsetSpec(MaxTimestampOffsetSpec)
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
-	assert.Nil(err, "ListOffsets request failed.")
+	assert.Nil(err, "ListOffsets should not fail.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), ErrorCode(0), "Error code should be 0.")
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be 0.")
 		assert.Equal(info.Offset, int64(1), "Offset should be 1.")
 	}
-	var del_topics []string
-	del_topics = append(del_topics, goTopic)
-	_, err = a.DeleteTopics(ctx, del_topics)
-	assert.Nil(err, "DeleteTopics request failed.")
+
+	delTopics := []string{Topic}
+	_, err = a.DeleteTopics(ctx, delTopics)
+	assert.Nil(err, "DeleteTopics should not fail.")
 
 }
 

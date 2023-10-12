@@ -1,5 +1,5 @@
 /**
- * Copyright 2018 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Delete topics
+// List Offsets example
 package main
 
 import (
@@ -93,7 +93,7 @@ func main() {
 	// Print results
 	for tp, info := range results.Results {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
-		if info.Error.Code() != 0 {
+		if info.Error.Code() != kafka.ErrNoError {
 			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
 		} else {
 			fmt.Printf("	Offset : %d Timestamp : %d\n\n", info.Offset, info.Timestamp)

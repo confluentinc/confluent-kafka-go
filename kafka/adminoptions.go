@@ -178,6 +178,11 @@ const (
 	ReadCommitted   = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED)
 )
 
+// AdminOptionIsolationLevel sets the overall request IsolationLevel.
+//
+// Default: `ReadUncommitted`.
+//
+// Valid for all Admin API methods.
 type AdminOptionIsolationLevel struct {
 	isSet bool
 	val   IsolationLevel
@@ -206,6 +211,11 @@ func (ao AdminOptionIsolationLevel) apply(cOptions *C.rd_kafka_AdminOptions_t) e
 
 }
 
+// SetAdminIsolationLevel sets the overall IsolationLevel for a request.
+//
+// Default: `ReadUncommitted`.
+//
+// Valid for all Admin API methods.
 func SetAdminIsolationLevel(isolationLevel IsolationLevel) (ao AdminOptionIsolationLevel) {
 	ao.isSet = true
 	ao.val = isolationLevel
@@ -476,6 +486,8 @@ type AlterUserScramCredentialsAdminOption interface {
 }
 
 // ListOffsetsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminIsolationLevel.
 type ListOffsetsAdminOption interface {
 	supportsListOffsets()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
