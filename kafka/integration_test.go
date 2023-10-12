@@ -2706,7 +2706,7 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	topics = append(topics, TopicSpecification{Topic: goTopic, NumPartitions: 1, ReplicationFactor: 1})
 	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
 	assert.Nil(createTopicError, "Create Topics request failure.")
-	assert.Equal(createTopicResult[0].Error.Code(), 0, "Create Topics Error Code should be 0.")
+	assert.Equal(createTopicResult[0].Error.Code(), ErrorCode(0), "Create Topics Error Code should be 0.")
 
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
 	assert.Nil(err, "Unable to create Producer.")
@@ -2747,8 +2747,8 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	assert.Nil(err, "ListOffsets request failed.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
-		assert.Equal(info.Offset, 0, "Offset should be 0.")
+		assert.Equal(info.Error.Code(), ErrorCode(0), "Error code should be 0.")
+		assert.Equal(info.Offset, int64(0), "Offset should be 0.")
 	}
 
 	topicPartitionOffsets[tp1] = LatestOffsetSpec
@@ -2756,17 +2756,17 @@ func (its *IntegrationTestSuite) TestListOffsets() {
 	assert.Nil(err, "ListOffsets request failed.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
-		assert.Equal(info.Offset, 0, "Offset should be 3.")
+		assert.Equal(info.Error.Code(), ErrorCode(0), "Error code should be 0.")
+		assert.Equal(info.Offset, int64(3), "Offset should be 3.")
 	}
 
-	topicPartitionOffsets[tp1] = MaxTimestampOffsetSpec
+	topicPartitionOffsets[tp1] = OffsetSpec(MaxTimestampOffsetSpec)
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
 	assert.Nil(err, "ListOffsets request failed.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), 0, "Error code should be 0.")
-		assert.Equal(info.Offset, 0, "Offset should be 1.")
+		assert.Equal(info.Error.Code(), ErrorCode(0), "Error code should be 0.")
+		assert.Equal(info.Offset, int64(1), "Offset should be 1.")
 	}
 	var del_topics []string
 	del_topics = append(del_topics, goTopic)
