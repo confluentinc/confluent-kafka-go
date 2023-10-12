@@ -334,6 +334,28 @@ func (n Node) String() string {
 	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
 }
 
+// Uuid.
+type Uuid struct {
+	// Most Significant Bits.
+	mostSignificantBits int64
+	// Least Significant Bits.
+	leastSignificantBits int64
+	// Base64 representation
+	base64str string
+}
+
+func (uuid Uuid) String() string {
+	return uuid.base64str
+}
+
+func (uuid Uuid) GetMostSignificantBits() int64 {
+	return uuid.mostSignificantBits
+}
+
+func (uuid Uuid) GetLeastSignificantBits() int64 {
+	return uuid.leastSignificantBits
+}
+
 // ConsumerGroupTopicPartitions represents a consumer group's TopicPartitions.
 type ConsumerGroupTopicPartitions struct {
 	// Group name
