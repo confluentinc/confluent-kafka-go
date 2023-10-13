@@ -19,6 +19,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -28,15 +29,19 @@ import (
 )
 
 var testconf struct {
-	Docker       bool
-	Semaphore    bool
-	Brokers      string
-	Topic        string
-	GroupID      string
-	PerfMsgCount int
-	PerfMsgSize  int
-	Config       []string
-	conf         ConfigMap
+	Docker        bool
+	Semaphore     bool
+	Brokers       string
+	BrokersSasl   string
+	SaslUsername  string
+	SaslPassword  string
+	SaslMechanism string
+	Topic         string
+	GroupID       string
+	PerfMsgCount  int
+	PerfMsgSize   int
+	Config        []string
+	conf          ConfigMap
 }
 
 const defaulttestconfTopic = "test"
@@ -47,6 +52,10 @@ const defaulttestconfPerfMsgSize = 100
 var defaulttestconfConfig = [1]string{"api.version.request=true"}
 
 const defaulttestconfBrokers = "localhost:9092"
+const defaulttestconfBrokersSasl = "localhost:9093"
+const defaultSaslUsername = "testuser"
+const defaultSaslPassword = "testpass"
+const defaultSaslMechanism = "PLAIN"
 
 // flag for semaphore job
 var semaphoreJob = flag.Bool("clients.semaphore", false, "Tells if the job is running on Semaphore")
@@ -123,9 +132,14 @@ func testconfRead() bool {
 	testconf.GroupID = defaulttestconfGroupID
 	testconf.Topic = defaulttestconfTopic
 	testconf.Brokers = ""
+	testconf.BrokersSasl = ""
 
 	if testconf.Docker || testconf.Semaphore {
 		testconf.Brokers = defaulttestconfBrokers
+		testconf.BrokersSasl = defaulttestconfBrokersSasl
+		testconf.SaslUsername = defaultSaslUsername
+		testconf.SaslPassword = defaultSaslPassword
+		testconf.SaslMechanism = defaultSaslMechanism
 		return true
 	}
 
@@ -151,6 +165,10 @@ func testconfRead() bool {
 		testconf.Brokers = os.Getenv(testconf.Brokers[1:])
 	}
 
+	if len(testconf.BrokersSasl) > 0 && testconf.BrokersSasl[0] == '$' {
+		testconf.BrokersSasl = os.Getenv(testconf.BrokersSasl[1:])
+	}
+
 	return true
 }
 
@@ -170,6 +188,31 @@ func (cm *ConfigMap) updateFromTestconf() error {
 
 	return nil
 
+}
+
+// updateToSaslAuthentication updates an existing ConfigMap with SASL related
+// settings. Returns error in case a broker with SASL is not configured.
+func (cm *ConfigMap) updateToSaslAuthentication() error {
+	if testconf.BrokersSasl == "" {
+		return errors.New("BrokersSasl must be set in test config")
+	}
+	if len(testconf.SaslMechanism) == 0 {
+		return errors.New("SaslMechanism must be set in test config")
+	}
+	if len(testconf.SaslPassword) == 0 {
+		return errors.New("SaslPassword must be set in test config")
+	}
+	if len(testconf.SaslUsername) == 0 {
+		return errors.New("SaslUsername must be set in test config")
+	}
+
+	cm.SetKey("bootstrap.servers", testconf.BrokersSasl)
+	cm.SetKey("sasl.username", testconf.SaslUsername)
+	cm.SetKey("sasl.password", testconf.SaslPassword)
+	cm.SetKey("sasl.mechanisms", testconf.SaslMechanism)
+	cm.SetKey("security.protocol", "SASL_PLAINTEXT")
+
+	return nil
 }
 
 // Return the number of messages available in all partitions of a topic.
@@ -259,7 +302,10 @@ func waitTopicInMetadata(H Handle, topic string, timeoutMs int) error {
 
 }
 
-func createAdminClient(t *testing.T) (a *AdminClient) {
+// createAdminClientImpl is the implementation for createAdminClient and
+// createAdminClientWithSasl. It creates a new admin client, or skips the test
+// in case it can't be created.
+func createAdminClientImpl(t *testing.T, withSasl bool) (a *AdminClient) {
 	numver, strver := LibraryVersion()
 	if numver < 0x000b0500 {
 		t.Skipf("Requires librdkafka >=0.11.5 (currently on %s, 0x%x)", strver, numver)
@@ -271,6 +317,12 @@ func createAdminClient(t *testing.T) (a *AdminClient) {
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
 	conf.updateFromTestconf()
+	if withSasl {
+		if err := conf.updateToSaslAuthentication(); err != nil {
+			t.Skipf("Test requires SASL Authentication, but failed to set it up: %s", err)
+			return
+		}
+	}
 
 	/*
 	 * Create producer and produce a couple of messages with and without
@@ -282,6 +334,14 @@ func createAdminClient(t *testing.T) (a *AdminClient) {
 	}
 
 	return a
+}
+
+func createAdminClient(t *testing.T) (a *AdminClient) {
+	return createAdminClientImpl(t, false)
+}
+
+func createAdminClientWithSasl(t *testing.T) (a *AdminClient) {
+	return createAdminClientImpl(t, true)
 }
 
 func createTestTopic(t *testing.T, suffix string, numPartitions int, replicationFactor int) string {
