@@ -1196,6 +1196,15 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
 	// Delete group ACLs to keep the test cluster clean.
 	defer func() {
 		aclBindingFilters := ACLBindingFilters{
@@ -1215,15 +1224,6 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 			SetAdminRequestTimeout(time.Second*30))
 		assert.Nil(err, "DeleteACLs should not throw an error")
 	}()
-
-	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
-		SetAdminRequestTimeout(time.Second))
-	assert.Nil(err, "CreateACLs should not throw an error")
-	assert.Len(resultCreateACLs, 1,
-		"CreateACLs result should contain on result")
-	assert.Equal(
-		resultCreateACLs[0].Error.Code(), ErrNoError,
-		"CreateACLs result should not have an error")
 
 	// 2. Modified ACLs on group.
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
@@ -1499,6 +1499,15 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
 	// Delete topic ACLs to keep the test cluster clean.
 	defer func() {
 		aclBindingFilters := ACLBindingFilters{
@@ -1518,15 +1527,6 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 			SetAdminRequestTimeout(time.Second*30))
 		assert.Nil(err, "DeleteACLs should not throw an error")
 	}()
-
-	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
-		SetAdminRequestTimeout(time.Second))
-	assert.Nil(err, "CreateACLs should not throw an error")
-	assert.Len(resultCreateACLs, 1,
-		"CreateACLs result should contain on result")
-	assert.Equal(
-		resultCreateACLs[0].Error.Code(), ErrNoError,
-		"CreateACLs result should not have an error")
 
 	// 3. DescribeTopics with modified ACLs.
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)

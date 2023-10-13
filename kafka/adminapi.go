@@ -288,7 +288,7 @@ type ConsumerGroupDescription struct {
 	Coordinator Node
 	// Members list.
 	Members []MemberDescription
-	// Operations allowed for group
+	// Operations allowed for the group
 	AuthorizedOperations []ACLOperation
 }
 
@@ -319,9 +319,9 @@ type TopicPartitionInfo struct {
 	Partition int
 	// Leader broker.
 	Leader *Node
-	// Replicas of partition.
+	// Replicas of the partition.
 	Replicas []Node
-	// In-Sync-Replicas of partition.
+	// In-Sync-Replicas of the partition.
 	Isr []Node
 }
 
@@ -330,13 +330,13 @@ type TopicPartitionInfo struct {
 type TopicDescription struct {
 	// Topic name.
 	Name string
-	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
+	// Error, if any, of the result. Check with `Error.Code() != ErrNoError`.
 	Error Error
-	// Is the topic is internal to Kafka?
+	// Is the topic internal to Kafka?
 	IsInternal bool
 	// Partitions' information list.
 	Partitions []TopicPartitionInfo
-	// Operations allowed for topic.
+	// Operations allowed for the topic.
 	AuthorizedOperations []ACLOperation
 }
 
@@ -349,13 +349,13 @@ type DescribeTopicsResult struct {
 
 // DescribeClusterResult represents the result of DescribeCluster.
 type DescribeClusterResult struct {
-	// Cluster id for cluster.
+	// Cluster id for the cluster.
 	ClusterId string
-	// Current controller node for cluster.
+	// Current controller broker for the cluster.
 	Controller *Node
-	// List of nodes in cluster.
+	// List of brokers in the cluster.
 	Nodes []Node
-	// Operations allowed for cluster.
+	// Operations allowed for the cluster.
 	AuthorizedOperations []ACLOperation
 }
 
