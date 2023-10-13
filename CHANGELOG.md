@@ -4,6 +4,11 @@
 
 This is a feature release.
 
+ * Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
+   (#964, @jainruchir).
+ * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses.
+   (#964, @jainruchir).
  * MockCluster can now be shutdown and started again to test broker
    availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
