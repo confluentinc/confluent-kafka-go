@@ -2705,7 +2705,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	topics := []TopicSpecification{TopicSpecification{Topic: Topic, NumPartitions: 1, ReplicationFactor: 1}}
 	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
 	assert.Nil(createTopicError, "Create Topics should not fail.")
-	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError, "Create Topics Error Code should be 0.")
+	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError, "Create Topics Error Code should be ErrNoError.")
 
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
 	assert.Nil(err, "Unable to create Producer.")
@@ -2743,8 +2743,8 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	assert.Nil(err, "ListOffsets should not fail.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be 0.")
-		assert.Equal(info.Offset, int64(0), "Offset should be 0.")
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
+		assert.Equal(info.Offset, int64(0), "Offset should be ErrNoError.")
 	}
 
 	topicPartitionOffsets[tp1] = LatestOffsetSpec
@@ -2752,7 +2752,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	assert.Nil(err, "ListOffsets should not fail.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be 0.")
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(3), "Offset should be 3.")
 	}
 
@@ -2761,7 +2761,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	assert.Nil(err, "ListOffsets should not fail.")
 
 	for _, info := range results.Results {
-		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be 0.")
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(1), "Offset should be 1.")
 	}
 
