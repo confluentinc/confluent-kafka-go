@@ -143,17 +143,17 @@ func createTestMessages() {
 	i := 0
 
 	// a test message with default initialization
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0}}}
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0}}}
 	i++
 
 	// a test message for partition 0 with only Opaque specified
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
 	i++
 
 	// a test message for partition 0 with empty Value and Keys
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Value:  []byte(""),
 		Key:    []byte(""),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -161,7 +161,7 @@ func createTestMessages() {
 	i++
 
 	// a test message for partition 0 with Value, Key, and Opaque
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -169,14 +169,14 @@ func createTestMessages() {
 	i++
 
 	// a test message for partition 0 without  Value
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
 	i++
 
 	// a test message for partition 0 without Key
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
@@ -185,7 +185,7 @@ func createTestMessages() {
 	p0TestMsgs = testmsgs[:i]
 
 	// a test message for PartitonAny with Value, Key, and Opaque
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: PartitionAny},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: PartitionAny},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -195,7 +195,7 @@ func createTestMessages() {
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
 	testmsgs[i] = &testmsgType{expectedError: Error{code: ErrUnknownPartition},
-		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: int32(10000)},
+		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
 			Opaque: fmt.Sprintf("Op%d", i),
@@ -288,7 +288,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	}
 
 	//get the number of messages prior to producing more messages
-	prerunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
+	prerunMsgCnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Fatalf("Cannot get message count, Error: %s\n", err)
 	}
@@ -353,7 +353,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	p.Close()
 
 	//get the number of messages afterward
-	postrunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
+	postrunMsgCnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Fatalf("Cannot get message count, Error: %s\n", err)
 	}
@@ -413,7 +413,7 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 	mt := msgtrackerStart(t, expCnt)
 
 	t.Logf("%s, expecting %d messages", testname, expCnt)
-	c.Subscribe(testconf.Topic, rebalanceCb)
+	c.Subscribe(testconf.TopicName, rebalanceCb)
 
 	consumeFunc(c, &mt, expCnt)
 
@@ -621,7 +621,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 
 	for idx := 0; idx < numMessages; idx++ {
 		if err = producer.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		}, nil); err != nil {
 			t.Fatalf("Failed to produce message: %s", err)
 		}
@@ -644,7 +644,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	}
 
 	tps := []TopicPartition{
-		{Topic: &testconf.Topic, Partition: 0},
+		{Topic: &testconf.TopicName, Partition: 0},
 	}
 	err = consumer.Assign(tps)
 	if err != nil {
@@ -743,8 +743,8 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		}
 	}()
 
-	if err := consumer.Subscribe(testconf.Topic, nil); err != nil {
-		t.Errorf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
+	if err := consumer.Subscribe(testconf.TopicName, nil); err != nil {
+		t.Errorf("Failed to subscribe to %s: %s\n", testconf.TopicName, err)
 		return
 	}
 
@@ -844,7 +844,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 	// Generating a new topic/groupID to ensure a fresh group/topic is created.
 	rand.Seed(time.Now().Unix())
 	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
-	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
 	nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
 
 	clientID1 := "test.client.1"
@@ -1110,7 +1110,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 	// Generating a new topic/groupID to ensure a fresh group/topic is created.
 	rand.Seed(time.Now().Unix())
 	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
-	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
 
 	clientID := "test.client.1"
 
@@ -1382,7 +1382,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 	defer ac.Close()
 
 	// Create a topic
-	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err := ac.CreateTopics(ctx, []TopicSpecification{
@@ -1438,7 +1438,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 
 	// Create a topic - the broker may be different for SASL, so we need to
 	// ensure that a topic is created.
-	topic = fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	topic = fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err = ac.CreateTopics(ctx, []TopicSpecification{
@@ -1587,7 +1587,7 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 	expError := map[string]Error{}
 
 	for i := 0; i < topicCnt; i++ {
-		topic := fmt.Sprintf("%s-create-%d-%d", testconf.Topic, i, rand.Intn(100000))
+		topic := fmt.Sprintf("%s-create-%d-%d", testconf.TopicName, i, rand.Intn(100000))
 		newTopics[i] = TopicSpecification{
 			Topic:         topic,
 			NumPartitions: 1 + i*2,
@@ -1732,7 +1732,7 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	//  4) Read back config to verify
 	//  5) Delete the topic
 
-	topic := fmt.Sprintf("%s-config-%d", testconf.Topic, rand.Intn(100000))
+	topic := fmt.Sprintf("%s-config-%d", testconf.TopicName, rand.Intn(100000))
 
 	// Expected config
 	expResources := []ConfigResourceResult{
@@ -1889,12 +1889,12 @@ func (its *IntegrationTestSuite) TestAdminGetMetadata() {
 	}
 	defer a.Close()
 
-	metaData, err := a.GetMetadata(&testconf.Topic, false, 5*1000)
+	metaData, err := a.GetMetadata(&testconf.TopicName, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", testconf.TopicName, metaData)
 
 	metaData, err = a.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -1968,7 +1968,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	t := its.T()
 
 	rand.Seed(time.Now().Unix())
-	topic := testconf.Topic
+	topic := testconf.TopicName
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
 	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
@@ -2178,7 +2178,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 	topicSpec := make([]TopicSpecification, 0)
 
 	for i := 0; i < numTopics; i++ {
-		topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Intn(100000))
+		topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Intn(100000))
 		topics = append(topics, topic)
 		topicSpec = append(
 			topicSpec, TopicSpecification{Topic: topic, NumPartitions: i + 1})
@@ -2286,7 +2286,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
-	msgcnt, err := getMessageCountInTopic(testconf.Topic)
+	msgcnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
@@ -2300,7 +2300,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
-	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
+	newmsgcnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
@@ -2332,7 +2332,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	}
 	defer func() { _ = c.Close() }()
 
-	err = c.Subscribe(testconf.Topic, nil)
+	err = c.Subscribe(testconf.TopicName, nil)
 
 	// Prime topic with test messages
 	createTestMessages()
@@ -2349,13 +2349,13 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 		}
 	}
 
-	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
 		t.Fatalf("Error querying watermark offsets: %s", err)
 	}
 
 	// We are not currently testing the low watermark offset as it only gets set every 10s by the stits timer
-	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
+	_, getHigh, err := c.GetWatermarkOffsets(testconf.TopicName, 0)
 	if err != nil {
 		t.Fatalf("Error getting watermark offsets: %s", err)
 	}
@@ -2391,7 +2391,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		})
 
 	times := make([]TopicPartition, 1)
-	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
+	times[0] = TopicPartition{Topic: &testconf.TopicName, Partition: 0, Offset: 12345}
 	offsets, err := c.OffsetsForTimes(times, 5000)
 	if err != nil {
 		t.Errorf("OffsetsForTimes() failed: %s\n", err)
@@ -2403,7 +2403,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		return
 	}
 
-	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
+	if *offsets[0].Topic != testconf.TopicName || offsets[0].Partition != 0 {
 		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
 		return
 	}
@@ -2413,9 +2413,9 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		return
 	}
 
-	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, _, err := c.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
 
@@ -2446,12 +2446,12 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	}
 	defer c.Close()
 
-	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
+	metaData, err := c.GetMetadata(&testconf.TopicName, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", testconf.TopicName, metaData)
 
 	metaData, err = c.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -2476,13 +2476,13 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	}
 	defer p.Close()
 
-	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, high, err := p.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
 	cnt := high - low
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.TopicName, low, high)
 
 	createTestMessages()
 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
@@ -2490,12 +2490,12 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 			p.ProduceChannel() <- m
 		})
 
-	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, high, err = p.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.TopicName, low, high)
 	newcnt := high - low
 	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
 	if newcnt-cnt != int64(len(p0TestMsgs)) {
@@ -2518,12 +2518,12 @@ func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	}
 	defer p.Close()
 
-	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
+	metaData, err := p.GetMetadata(&testconf.TopicName, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", testconf.TopicName, metaData)
 
 	metaData, err = p.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -2766,7 +2766,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 
 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
-		"group.id":                 testconf.Topic,
+		"group.id":                 testconf.TopicName,
 		"enable.partition.eof":     true,
 	}
 
@@ -2781,8 +2781,8 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	t.Logf("Assign %s [0]", testconf.Topic)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+	t.Logf("Assign %s [0]", testconf.TopicName)
+	err = c.Assign([]TopicPartition{{Topic: &testconf.TopicName, Partition: 0,
 		Offset: OffsetEnd}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
@@ -2817,7 +2817,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	key := fmt.Sprintf("TS: %v", timestamp)
 	t.Logf("Producing message with timestamp %v", timestamp)
 	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Key:            []byte(key),
 		Timestamp:      timestamp},
 		drChan)
@@ -2896,7 +2896,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"api.version.request": true,
 		"enable.auto.commit":  false,
-		"group.id":            testconf.Topic,
+		"group.id":            testconf.TopicName,
 	}
 
 	conf.updateFromTestconf()
@@ -2947,7 +2947,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 	t.Logf("Producing %d messages", len(expMsgHeaders))
 	for _, hdrs := range expMsgHeaders {
 		err = p.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 			Headers:        hdrs},
 			drChan)
 	}
@@ -2981,7 +2981,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+	err = c.Assign([]TopicPartition{{Topic: &testconf.TopicName, Partition: 0,
 		Offset: firstOffset}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
