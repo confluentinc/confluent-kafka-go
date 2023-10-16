@@ -918,7 +918,7 @@ const (
 )
 
 // Creates an OffsetSpec corresponding to the timestamp.
-func NewOffsetSpecOfTimestamp(timestamp int64) OffsetSpec {
+func NewOffsetSpecForTimestamp(timestamp int64) OffsetSpec {
 	return OffsetSpec(timestamp)
 }
 

@@ -59,7 +59,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Invalid timestamp: %s\n", timestampErr)
 				os.Exit(1)
 			}
-			topicPartitionOffsets[tp] = kafka.NewOffsetSpecOfTimestamp(int64(timestamp))
+			topicPartitionOffsets[tp] = kafka.NewOffsetSpecForTimestamp(int64(timestamp))
 			i = i + 1
 		} else {
 			fmt.Fprintf(os.Stderr, "Invalid OffsetSpec.\n")
