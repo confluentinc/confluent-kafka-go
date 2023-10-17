@@ -313,7 +313,8 @@ func NewTopicCollectionOfTopicNames(names []string) TopicCollection {
 	}
 }
 
-// Topic Partition information
+// TopicPartitionInfo represents a specific partition's information inside a
+// TopicDescription.
 type TopicPartitionInfo struct {
 	// Partition id.
 	Partition int
@@ -350,7 +351,7 @@ type DescribeTopicsResult struct {
 // DescribeClusterResult represents the result of DescribeCluster.
 type DescribeClusterResult struct {
 	// Cluster id for the cluster.
-	ClusterId string
+	ClusterID string
 	// Current controller broker for the cluster.
 	Controller *Node
 	// List of brokers in the cluster.
@@ -1108,8 +1109,8 @@ func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
 
 	cRack := C.rd_kafka_Node_rack(cNode)
 	if cRack != nil {
-		rackId := C.GoString(cRack)
-		node.Rack = &rackId
+		rackID := C.GoString(cRack)
+		node.Rack = &rackID
 	}
 
 	return node
@@ -1212,9 +1213,9 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 // TopicPartitionInfo.
 func (a *AdminClient) cToTopicPartitionInfo(
 	partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
-	cPartitionId := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
+	cPartitionID := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
 	info := TopicPartitionInfo{
-		Partition: int(cPartitionId),
+		Partition: int(cPartitionID),
 	}
 
 	cLeader := C.rd_kafka_TopicPartitionInfo_leader(partitionInfo)
@@ -1302,7 +1303,7 @@ func (a *AdminClient) cToDescribeClusterResult(
 		cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 	return DescribeClusterResult{
-		ClusterId:            clusterID,
+		ClusterID:            clusterID,
 		Controller:           controller,
 		Nodes:                nodes,
 		AuthorizedOperations: authorizedOperations,
