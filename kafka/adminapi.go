@@ -904,7 +904,6 @@ type AlterUserScramCredentialsResult struct {
 	Errors map[string]Error
 }
 
-// OffsetSpec
 // OffsetSpec specifies desired offsets while using ListOffsets.
 type OffsetSpec int64
 
@@ -917,13 +916,12 @@ const (
 	LatestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_LATEST)
 )
 
-// Creates an OffsetSpec corresponding to the timestamp.
+// NewOffsetSpecForTimestamp creates an OffsetSpec corresponding to the timestamp.
 func NewOffsetSpecForTimestamp(timestamp int64) OffsetSpec {
 	return OffsetSpec(timestamp)
 }
 
-// ListOffsetsResultInfo
-// Describes the result of ListOffsets request for a Topic Partition.
+// ListOffsetsResultInfo describes the result of ListOffsets request for a Topic Partition.
 type ListOffsetsResultInfo struct {
 	Offset      int64
 	Timestamp   int64
@@ -931,8 +929,7 @@ type ListOffsetsResultInfo struct {
 	Error       Error
 }
 
-// ListOffsetsResult
-// Holds the map of TopicPartition to ListOffsetsResultInfo for a request.
+// ListOffsetsResult holds the map of TopicPartition to ListOffsetsResultInfo for a request.
 type ListOffsetsResult struct {
 	Results map[TopicPartition]ListOffsetsResultInfo
 }

@@ -171,11 +171,14 @@ func SetAdminRequestTimeout(t time.Duration) (ao AdminOptionRequestTimeout) {
 	return ao
 }
 
+// IsolationLevel is a type which is used for AdminOptions to set the IsolationLevel.
 type IsolationLevel int
 
 const (
+	// ReadUncommitted IsolationLevel
 	ReadUncommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED)
-	ReadCommitted   = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED)
+	// ReadCommitted IsolationLevel
+	ReadCommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED)
 )
 
 // AdminOptionIsolationLevel sets the overall request IsolationLevel.
