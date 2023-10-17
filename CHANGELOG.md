@@ -4,10 +4,15 @@
 
 This is a feature release.
 
+ * MockCluster can now be shutdown and started again to test broker
+   availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
  * The minimum version of Go supported has been changed from 1.16 to 1.17
    (#1074).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+ * Fixes an issue where `testing` was being imported by a non-test file,
+   testhelpers.go. (@dmlambea, #1049).
 
 
 # v2.2.0
