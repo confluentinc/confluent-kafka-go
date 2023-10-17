@@ -14,6 +14,10 @@ This is a feature release.
  * Fixes an issue where `testing` was being imported by a non-test file,
    testhelpers.go. (@dmlambea, #1049).
 
+confluent-kafka-go is based on librdkafka v2.3.0, see the
+[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0-RC3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 # v2.2.0
 
