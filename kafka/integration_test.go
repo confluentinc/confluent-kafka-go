@@ -110,7 +110,9 @@ func checkGroupDesc(
 		groupDesc.Coordinator.Host == "" ||
 		// We will run all our tests on non-simple consumer groups only.
 		groupDesc.IsSimpleConsumerGroup ||
-		len(groupDesc.Members) != len(clientIDToPartitions) {
+		len(groupDesc.Members) != len(clientIDToPartitions) ||
+		// We don't set IncludeAuthorizedOperations while using helper.
+		len(groupDesc.AuthorizedOperations) > 0 {
 		return false
 	}
 
@@ -141,17 +143,17 @@ func createTestMessages() {
 	i := 0
 
 	// a test message with default initialization
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0}}}
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0}}}
 	i++
 
 	// a test message for partition 0 with only Opaque specified
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
 	i++
 
 	// a test message for partition 0 with empty Value and Keys
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Value:  []byte(""),
 		Key:    []byte(""),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -159,7 +161,7 @@ func createTestMessages() {
 	i++
 
 	// a test message for partition 0 with Value, Key, and Opaque
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -167,14 +169,14 @@ func createTestMessages() {
 	i++
 
 	// a test message for partition 0 without  Value
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
 	i++
 
 	// a test message for partition 0 without Key
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
 	}}
@@ -183,7 +185,7 @@ func createTestMessages() {
 	p0TestMsgs = testmsgs[:i]
 
 	// a test message for PartitonAny with Value, Key, and Opaque
-	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: PartitionAny},
+	testmsgs[i] = &testmsgType{msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: PartitionAny},
 		Value:  []byte(fmt.Sprintf("value%d", i)),
 		Key:    []byte(fmt.Sprintf("key%d", i)),
 		Opaque: fmt.Sprintf("Op%d", i),
@@ -193,7 +195,7 @@ func createTestMessages() {
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
 	testmsgs[i] = &testmsgType{expectedError: Error{code: ErrUnknownPartition},
-		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: int32(10000)},
+		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
 			Opaque: fmt.Sprintf("Op%d", i),
@@ -286,7 +288,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	}
 
 	//get the number of messages prior to producing more messages
-	prerunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
+	prerunMsgCnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Fatalf("Cannot get message count, Error: %s\n", err)
 	}
@@ -351,7 +353,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 	p.Close()
 
 	//get the number of messages afterward
-	postrunMsgCnt, err := getMessageCountInTopic(testconf.Topic)
+	postrunMsgCnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Fatalf("Cannot get message count, Error: %s\n", err)
 	}
@@ -411,7 +413,7 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 	mt := msgtrackerStart(t, expCnt)
 
 	t.Logf("%s, expecting %d messages", testname, expCnt)
-	c.Subscribe(testconf.Topic, rebalanceCb)
+	c.Subscribe(testconf.TopicName, rebalanceCb)
 
 	consumeFunc(c, &mt, expCnt)
 
@@ -619,7 +621,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 
 	for idx := 0; idx < numMessages; idx++ {
 		if err = producer.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		}, nil); err != nil {
 			t.Fatalf("Failed to produce message: %s", err)
 		}
@@ -642,7 +644,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	}
 
 	tps := []TopicPartition{
-		{Topic: &testconf.Topic, Partition: 0},
+		{Topic: &testconf.TopicName, Partition: 0},
 	}
 	err = consumer.Assign(tps)
 	if err != nil {
@@ -741,8 +743,8 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		}
 	}()
 
-	if err := consumer.Subscribe(testconf.Topic, nil); err != nil {
-		t.Errorf("Failed to subscribe to %s: %s\n", testconf.Topic, err)
+	if err := consumer.Subscribe(testconf.TopicName, nil); err != nil {
+		t.Errorf("Failed to subscribe to %s: %s\n", testconf.TopicName, err)
 		return
 	}
 
@@ -831,7 +833,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
 // list consumer groups and describe consumer group APIs of the admin client.
 //
-//	We test the following situations:
+// We test the following situations:
 //
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
@@ -842,7 +844,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 	// Generating a new topic/groupID to ensure a fresh group/topic is created.
 	rand.Seed(time.Now().Unix())
 	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
-	topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
 	nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
 
 	clientID1 := "test.client.1"
@@ -1093,6 +1095,465 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 	}
 }
 
+// TestAdminClient_DescribeConsumerGroupsAuthorizedOperations validates the
+// working of the DescribeConsumerGroups API of the admin client for fetching
+// authorized operations (KIP-430).
+//
+// We test the following situations:
+//
+// 1. Default ACLs on group.
+// 2. Modified ACLs on group.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorizedOperations() {
+	t := its.T()
+	assert := its.Assert()
+
+	// Generating a new topic/groupID to ensure a fresh group/topic is created.
+	rand.Seed(time.Now().Unix())
+	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
+
+	clientID := "test.client.1"
+
+	ac := createAdminClientWithSasl(t)
+	defer ac.Close()
+
+	// Create a topic.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	assert.Nil(err, "CreateTopics should succeed")
+
+	// Delete the topic after the test is done.
+	defer func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		assert.Nil(err, "DeleteTopics should succeed")
+	}()
+
+	// Create a consumer so that a consumer group might be created
+	config := &ConfigMap{
+		"bootstrap.servers": testconf.BrokersSasl,
+		"group.id":          groupID,
+		"client.id":         clientID,
+		"sasl.username":     testconf.SaslUsername,
+		"sasl.password":     testconf.SaslPassword,
+		"sasl.mechanism":    testconf.SaslMechanism,
+		"security.protocol": "SASL_PLAINTEXT",
+	}
+	config.updateFromTestconf()
+	consumer, err := NewConsumer(config)
+	assert.Nil(err, "NewConsumer should succeed")
+
+	// Close the consumer after the test is done
+	defer consumer.Close()
+
+	consumer.Subscribe(topic, nil)
+
+	// Call Poll to trigger a rebalance and give it enough time to finish.
+	consumer.Poll(10 * 1000)
+
+	// 1. Default ACLs on group.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	groupDescResult, err := ac.DescribeConsumerGroups(
+		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+	assert.Nil(err, "DescribeConsumerGroups should succeed")
+
+	groupDescs := groupDescResult.ConsumerGroupDescriptions
+	assert.Len(groupDescs, 1, "Describing one group should give exactly one result")
+
+	groupDesc := &groupDescs[0]
+	assert.Equal(groupDesc.Error.Code(), ErrNoError,
+		"Group description should succeed")
+	assert.NotEmpty(groupDesc.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	assert.ElementsMatch(groupDesc.AuthorizedOperations,
+		[]ACLOperation{
+			ACLOperationRead,
+			ACLOperationDelete,
+			ACLOperationDescribe})
+
+	// Change the ACLs on the group
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceGroup,
+			Name:                groupID,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
+	// Delete group ACLs to keep the test cluster clean.
+	defer func() {
+		aclBindingFilters := ACLBindingFilters{
+			{
+				Type:                ResourceGroup,
+				Name:                groupID,
+				ResourcePatternType: ResourcePatternTypeLiteral,
+				Principal:           "User:*",
+				Host:                "*",
+				Operation:           ACLOperationRead,
+				PermissionType:      ACLPermissionTypeAllow,
+			},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+			SetAdminRequestTimeout(time.Second*30))
+		assert.Nil(err, "DeleteACLs should not throw an error")
+	}()
+
+	// 2. Modified ACLs on group.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	groupDescResult, err = ac.DescribeConsumerGroups(
+		ctx, []string{groupID}, SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+	assert.Nil(err, "DescribeConsumerGroups should succeed")
+
+	groupDescs = groupDescResult.ConsumerGroupDescriptions
+	assert.Len(groupDescs, 1,
+		"Describing one group should give exactly one result")
+
+	groupDesc = &groupDescs[0]
+	assert.NotEmpty(groupDesc.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	// Read permissions implicitly allows Describe.
+	assert.ElementsMatch(groupDesc.AuthorizedOperations,
+		[]ACLOperation{ACLOperationRead, ACLOperationDescribe})
+}
+
+// TestAdminClient_DescribeCluster validates the working of the
+// DescribeCluster API of the admin client.
+//
+// We test the following situations:
+//
+// 1. DescribeCluster without ACLs.
+// 2. DescribeCluster with default ACLs.
+// 3. DescribeCluster with modified ACLs.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
+	t := its.T()
+	assert := its.Assert()
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// 1. DescribeCluster without ACLs.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err := ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second*30))
+
+	// There are fields which cannot be checked, like controller, or the value
+	// of the cluster ID. We try checking for the existence in cases we can.
+	assert.Nil(err, "DescribeCluster should not throw an error")
+	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
+	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.Nodes[0].Host,
+		"First node's host should be non-empty")
+	assert.Empty(descres.AuthorizedOperations,
+		"Authorized operations should be empty, not requested")
+
+	// Tests for Authorized Operations need a broker with SASL authentication.
+	// This may be a different broker than the usual broker, so we create a
+	// new AdminClient.
+	ac = createAdminClientWithSasl(t)
+	defer ac.Close()
+
+	// 2. DescribeCluster with default ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err = ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second*30),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeCluster should not throw an error")
+	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
+	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.Nodes[0].Host,
+		"First node's host should be non-empty")
+	assert.NotEmpty(descres.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	assert.ElementsMatch(descres.AuthorizedOperations,
+		[]ACLOperation{
+			ACLOperationCreate, ACLOperationAlter, ACLOperationDescribe,
+			ACLOperationClusterAction, ACLOperationDescribeConfigs,
+			ACLOperationAlterConfigs, ACLOperationIdempotentWrite})
+
+	// Create some ACL bindings on the cluster.
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceBroker,
+			Name:                "kafka-cluster",
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationAlter,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second*30))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
+	// Clean up cluster ACLs for subsequent tests.
+	defer func() {
+		aclBindingFilters := ACLBindingFilters{
+			{
+				Type:                ResourceBroker,
+				Name:                "kafka-cluster",
+				ResourcePatternType: ResourcePatternTypeMatch,
+				Principal:           "User:*",
+				Host:                "*",
+				Operation:           ACLOperationAlter,
+				PermissionType:      ACLPermissionTypeAllow,
+			},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+			SetAdminRequestTimeout(time.Second*30))
+		assert.Nil(err, "DeleteACLs should not throw an error")
+	}()
+
+	// 3. DescribeCluster with modified ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	descres, err = ac.DescribeCluster(
+		ctx, SetAdminRequestTimeout(time.Second*30),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeCluster should not throw an error")
+	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
+	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.Nodes[0].Host,
+		"First node's host should be non-empty")
+	assert.NotEmpty(descres.AuthorizedOperations,
+		"Authorized operations should not be empty")
+	// Alter permissions implicitly allow Describe.
+	assert.ElementsMatch(descres.AuthorizedOperations,
+		[]ACLOperation{ACLOperationDescribe, ACLOperationAlter})
+}
+
+// TestAdminClient_DescribeTopics validates the working of the
+// DescribeTopics API of the admin client.
+//
+// We test the following situations:
+//
+// 1. DescribeTopics without ACLs.
+// 2. DescribeTopics with default ACLs.
+// 3. DescribeTopics with modified ACLs.
+func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
+	t := its.T()
+	assert := its.Assert()
+	rand.Seed(time.Now().Unix())
+
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// Create a topic
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	assert.Nil(err, "CreateTopics should not fail")
+
+	// Delete the topic after the test is done.
+	defer func(ac *AdminClient) {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		assert.Nil(err, "DeleteTopics should not fail")
+	}(ac)
+
+	// 1. DescribeTopics without ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err := ac.DescribeTopics(
+		ctx, NewTopicCollectionOfTopicNames([]string{topic, "nonexistent"}),
+		SetAdminRequestTimeout(30*time.Second))
+	assert.Nil(err, "DescribeTopics should not fail")
+
+	topicDescs := topicDescResult.TopicDescriptions
+	assert.Len(topicDescs, 2,
+		"Describing two topics should give exactly two results")
+	assert.Equal(topicDescs[0].Name, topic,
+		"First result topic should match request topic")
+	assert.Equal(topicDescs[1].Name, "nonexistent",
+		"Second result topic should match request topic")
+	assert.Equal(topicDescs[1].Error.Code(), ErrUnknownTopicOrPart,
+		"Expected correct error for nonexistent topic")
+
+	topicDesc := topicDescs[0]
+	assert.Equal(topicDesc.Error.Code(), ErrNoError,
+		"Topic description should not have an error")
+	assert.False(topicDesc.IsInternal, "Topic should not be internal")
+	assert.Empty(topicDesc.AuthorizedOperations,
+		"Topic should not have authorized operations")
+
+	assert.Len(topicDesc.Partitions, 2, "Topic should have two partitions")
+	assert.GreaterOrEqual(len(topicDesc.Partitions[0].Replicas), 1,
+		"At least one replica should exist for partition")
+
+	// Tests for Authorized Operations need a broker with SASL authentication.
+	// This may be a different broker than the usual broker, so we create a
+	// new AdminClient.
+	ac = createAdminClientWithSasl(t)
+	defer ac.Close()
+
+	// Create a topic - the broker may be different for SASL, so we need to
+	// ensure that a topic is created.
+	topic = fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err = ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 2,
+		},
+	})
+	assert.Nil(err, "CreateTopics should not fail")
+
+	// Delete the second topic after the test is done.
+	defer func(ac *AdminClient) {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		assert.Nil(err, "DeleteTopics should not fail")
+	}(ac)
+
+	// 2. DescribeTopics with default ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err = ac.DescribeTopics(
+		ctx, NewTopicCollectionOfTopicNames([]string{topic}),
+		SetAdminRequestTimeout(30*time.Second),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeTopics should not fail")
+
+	topicDescs = topicDescResult.TopicDescriptions
+	assert.Len(topicDescs, 1,
+		"Describing one topic should give exactly one result")
+	assert.Equal(topicDescs[0].Name, topic,
+		"First result topic should match request topic")
+
+	topicDesc = topicDescs[0]
+	assert.Equal(topicDesc.Error.Code(), ErrNoError,
+		"Topic description should not have an error")
+	assert.NotEmpty(topicDesc.AuthorizedOperations,
+		"Topic should have authorized operations")
+	assert.ElementsMatch(topicDesc.AuthorizedOperations, []ACLOperation{
+		ACLOperationRead, ACLOperationWrite, ACLOperationCreate,
+		ACLOperationDelete, ACLOperationAlter, ACLOperationDescribe,
+		ACLOperationDescribeConfigs, ACLOperationAlterConfigs})
+
+	// Create some ACL bindings on the topic.
+	newACLs := ACLBindings{
+		{
+			Type:                ResourceTopic,
+			Name:                topic,
+			ResourcePatternType: ResourcePatternTypeLiteral,
+			Principal:           "User:*",
+			Host:                "*",
+			Operation:           ACLOperationRead,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	resultCreateACLs, err := ac.CreateACLs(ctx, newACLs,
+		SetAdminRequestTimeout(time.Second))
+	assert.Nil(err, "CreateACLs should not throw an error")
+	assert.Len(resultCreateACLs, 1,
+		"CreateACLs result should contain on result")
+	assert.Equal(
+		resultCreateACLs[0].Error.Code(), ErrNoError,
+		"CreateACLs result should not have an error")
+
+	// Delete topic ACLs to keep the test cluster clean.
+	defer func() {
+		aclBindingFilters := ACLBindingFilters{
+			{
+				Type:                ResourceTopic,
+				Name:                topic,
+				ResourcePatternType: ResourcePatternTypeLiteral,
+				Principal:           "User:*",
+				Host:                "*",
+				Operation:           ACLOperationRead,
+				PermissionType:      ACLPermissionTypeAllow,
+			},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		_, err = ac.DeleteACLs(ctx, aclBindingFilters,
+			SetAdminRequestTimeout(time.Second*30))
+		assert.Nil(err, "DeleteACLs should not throw an error")
+	}()
+
+	// 3. DescribeTopics with modified ACLs.
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	topicDescResult, err = ac.DescribeTopics(
+		ctx, NewTopicCollectionOfTopicNames([]string{topic}),
+		SetAdminRequestTimeout(time.Second*30),
+		SetAdminOptionIncludeAuthorizedOperations(true))
+
+	assert.Nil(err, "DescribeTopics should not fail")
+
+	topicDescs = topicDescResult.TopicDescriptions
+	assert.Len(topicDescs, 1,
+		"Describing one topic should give exactly one result")
+	assert.Equal(topicDescs[0].Name, topic,
+		"First result topic should match request topic")
+
+	topicDesc = topicDescs[0]
+	assert.Equal(topicDesc.Error.Code(), ErrNoError,
+		"Topic description should not have an error")
+	assert.NotEmpty(topicDesc.AuthorizedOperations,
+		"Topic should have authorized operations")
+	// Read permissions implicitly allows Describe.
+	assert.ElementsMatch(topicDesc.AuthorizedOperations,
+		[]ACLOperation{ACLOperationRead, ACLOperationDescribe})
+}
+
 func (its *IntegrationTestSuite) TestAdminTopics() {
 	t := its.T()
 	rand.Seed(time.Now().Unix())
@@ -1126,7 +1587,7 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 	expError := map[string]Error{}
 
 	for i := 0; i < topicCnt; i++ {
-		topic := fmt.Sprintf("%s-create-%d-%d", testconf.Topic, i, rand.Intn(100000))
+		topic := fmt.Sprintf("%s-create-%d-%d", testconf.TopicName, i, rand.Intn(100000))
 		newTopics[i] = TopicSpecification{
 			Topic:         topic,
 			NumPartitions: 1 + i*2,
@@ -1271,7 +1732,7 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	//  4) Read back config to verify
 	//  5) Delete the topic
 
-	topic := fmt.Sprintf("%s-config-%d", testconf.Topic, rand.Intn(100000))
+	topic := fmt.Sprintf("%s-config-%d", testconf.TopicName, rand.Intn(100000))
 
 	// Expected config
 	expResources := []ConfigResourceResult{
@@ -1428,12 +1889,12 @@ func (its *IntegrationTestSuite) TestAdminGetMetadata() {
 	}
 	defer a.Close()
 
-	metaData, err := a.GetMetadata(&testconf.Topic, false, 5*1000)
+	metaData, err := a.GetMetadata(&testconf.TopicName, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", testconf.TopicName, metaData)
 
 	metaData, err = a.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -1507,7 +1968,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	t := its.T()
 
 	rand.Seed(time.Now().Unix())
-	topic := testconf.Topic
+	topic := testconf.TopicName
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
 	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
@@ -1717,7 +2178,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 	topicSpec := make([]TopicSpecification, 0)
 
 	for i := 0; i < numTopics; i++ {
-		topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Intn(100000))
+		topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Intn(100000))
 		topics = append(topics, topic)
 		topicSpec = append(
 			topicSpec, TopicSpecification{Topic: topic, NumPartitions: i + 1})
@@ -1825,7 +2286,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
-	msgcnt, err := getMessageCountInTopic(testconf.Topic)
+	msgcnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
@@ -1839,7 +2300,7 @@ func (its *IntegrationTestSuite) TestConsumerQueryWatermarkOffsets() {
 
 	// getMessageCountInTopic() uses consumer QueryWatermarkOffsets() API to
 	// get the number of messages in a topic
-	newmsgcnt, err := getMessageCountInTopic(testconf.Topic)
+	newmsgcnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err != nil {
 		t.Errorf("Cannot get message size. Error: %s\n", err)
 	}
@@ -1871,7 +2332,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	}
 	defer func() { _ = c.Close() }()
 
-	err = c.Subscribe(testconf.Topic, nil)
+	err = c.Subscribe(testconf.TopicName, nil)
 
 	// Prime topic with test messages
 	createTestMessages()
@@ -1888,13 +2349,13 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 		}
 	}
 
-	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	_, queryHigh, err := c.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
 		t.Fatalf("Error querying watermark offsets: %s", err)
 	}
 
 	// We are not currently testing the low watermark offset as it only gets set every 10s by the stits timer
-	_, getHigh, err := c.GetWatermarkOffsets(testconf.Topic, 0)
+	_, getHigh, err := c.GetWatermarkOffsets(testconf.TopicName, 0)
 	if err != nil {
 		t.Fatalf("Error getting watermark offsets: %s", err)
 	}
@@ -1930,7 +2391,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		})
 
 	times := make([]TopicPartition, 1)
-	times[0] = TopicPartition{Topic: &testconf.Topic, Partition: 0, Offset: 12345}
+	times[0] = TopicPartition{Topic: &testconf.TopicName, Partition: 0, Offset: 12345}
 	offsets, err := c.OffsetsForTimes(times, 5000)
 	if err != nil {
 		t.Errorf("OffsetsForTimes() failed: %s\n", err)
@@ -1942,7 +2403,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		return
 	}
 
-	if *offsets[0].Topic != testconf.Topic || offsets[0].Partition != 0 {
+	if *offsets[0].Topic != testconf.TopicName || offsets[0].Partition != 0 {
 		t.Errorf("OffsetsForTimes() returned wrong topic/partition\n")
 		return
 	}
@@ -1952,9 +2413,9 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		return
 	}
 
-	low, _, err := c.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, _, err := c.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
 
@@ -1985,12 +2446,12 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	}
 	defer c.Close()
 
-	metaData, err := c.GetMetadata(&testconf.Topic, false, 5*1000)
+	metaData, err := c.GetMetadata(&testconf.TopicName, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", testconf.TopicName, metaData)
 
 	metaData, err = c.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -2015,13 +2476,13 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	}
 	defer p.Close()
 
-	low, high, err := p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, high, err := p.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
 	cnt := high - low
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.TopicName, low, high)
 
 	createTestMessages()
 	producerTest(t, "Priming producer", p0TestMsgs, producerCtrl{silent: true},
@@ -2029,12 +2490,12 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 			p.ProduceChannel() <- m
 		})
 
-	low, high, err = p.QueryWatermarkOffsets(testconf.Topic, 0, 5*1000)
+	low, high, err = p.QueryWatermarkOffsets(testconf.TopicName, 0, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to query watermark offsets for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.Topic, low, high)
+	t.Logf("Watermark offsets fo topic %s: low=%d, high=%d\n", testconf.TopicName, low, high)
 	newcnt := high - low
 	t.Logf("count = %d, New count = %d\n", cnt, newcnt)
 	if newcnt-cnt != int64(len(p0TestMsgs)) {
@@ -2057,12 +2518,12 @@ func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	}
 	defer p.Close()
 
-	metaData, err := p.GetMetadata(&testconf.Topic, false, 5*1000)
+	metaData, err := p.GetMetadata(&testconf.TopicName, false, 5*1000)
 	if err != nil {
-		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.Topic, err)
+		t.Errorf("Failed to get meta data for topic %s. Error: %s\n", testconf.TopicName, err)
 		return
 	}
-	t.Logf("Meta data for topic %s: %v\n", testconf.Topic, metaData)
+	t.Logf("Meta data for topic %s: %v\n", testconf.TopicName, metaData)
 
 	metaData, err = p.GetMetadata(nil, true, 5*1000)
 	if err != nil {
@@ -2305,7 +2766,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 
 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
-		"group.id":                 testconf.Topic,
+		"group.id":                 testconf.TopicName,
 		"enable.partition.eof":     true,
 	}
 
@@ -2320,8 +2781,8 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	t.Logf("Assign %s [0]", testconf.Topic)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+	t.Logf("Assign %s [0]", testconf.TopicName)
+	err = c.Assign([]TopicPartition{{Topic: &testconf.TopicName, Partition: 0,
 		Offset: OffsetEnd}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
@@ -2356,7 +2817,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	key := fmt.Sprintf("TS: %v", timestamp)
 	t.Logf("Producing message with timestamp %v", timestamp)
 	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Key:            []byte(key),
 		Timestamp:      timestamp},
 		drChan)
@@ -2435,7 +2896,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"api.version.request": true,
 		"enable.auto.commit":  false,
-		"group.id":            testconf.Topic,
+		"group.id":            testconf.TopicName,
 	}
 
 	conf.updateFromTestconf()
@@ -2486,7 +2947,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 	t.Logf("Producing %d messages", len(expMsgHeaders))
 	for _, hdrs := range expMsgHeaders {
 		err = p.Produce(&Message{
-			TopicPartition: TopicPartition{Topic: &testconf.Topic, Partition: 0},
+			TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 			Headers:        hdrs},
 			drChan)
 	}
@@ -2520,7 +2981,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	err = c.Assign([]TopicPartition{{Topic: &testconf.Topic, Partition: 0,
+	err = c.Assign([]TopicPartition{{Topic: &testconf.TopicName, Partition: 0,
 		Offset: firstOffset}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
