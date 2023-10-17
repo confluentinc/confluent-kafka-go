@@ -17,10 +17,14 @@ Examples
   [admin_delete_topics](admin_delete_topics) - Delete topics
 
   [admin_describe_acls](admin_describe_acls) - Find Access Control Lists using a filter
-  
+
+  [admin_describe_cluster](admin_describe_cluster) - Describe cluster
+
   [admin_describe_config](admin_describe_config) - Describe broker, topic or group configs
 
   [admin_describe_consumer_groups](admin_describe_consumer_groups) - Describe one or more consumer groups
+
+  [admin_describe_topics](admin_describe_topics) - Describe topics
 
   [admin_list_consumer_group_offsets](admin_list_consumer_group_offsets) - List consumer group offsets
 
