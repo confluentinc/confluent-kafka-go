@@ -127,6 +127,10 @@ func (ao AdminOptionRequestTimeout) supportsListConsumerGroups() {
 }
 func (ao AdminOptionRequestTimeout) supportsDescribeConsumerGroups() {
 }
+func (ao AdminOptionRequestTimeout) supportsDescribeTopics() {
+}
+func (ao AdminOptionRequestTimeout) supportsDescribeCluster() {
+}
 func (ao AdminOptionRequestTimeout) supportsDeleteConsumerGroups() {
 }
 func (ao AdminOptionRequestTimeout) supportsListConsumerGroupOffsets() {
@@ -302,6 +306,51 @@ func (ao AdminOptionMatchConsumerGroupStates) apply(cOptions *C.rd_kafka_AdminOp
 	return nil
 }
 
+// AdminOptionIncludeAuthorizedOperations decides if the broker should return
+// authorized operations.
+//
+// Default: false
+//
+// Valid for DescribeConsumerGroups, DescribeTopics, DescribeCluster.
+type AdminOptionIncludeAuthorizedOperations struct {
+	isSet bool
+	val   bool
+}
+
+func (ao AdminOptionIncludeAuthorizedOperations) supportsDescribeConsumerGroups() {
+}
+func (ao AdminOptionIncludeAuthorizedOperations) supportsDescribeTopics() {
+}
+func (ao AdminOptionIncludeAuthorizedOperations) supportsDescribeCluster() {
+}
+
+func (ao AdminOptionIncludeAuthorizedOperations) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
+	if !ao.isSet {
+		return nil
+	}
+
+	cError := C.rd_kafka_AdminOptions_set_include_authorized_operations(
+		cOptions, bool2cint(ao.val))
+	if cError != nil {
+		C.rd_kafka_AdminOptions_destroy(cOptions)
+		return newErrorFromCErrorDestroy(cError)
+	}
+
+	return nil
+}
+
+// SetAdminOptionIncludeAuthorizedOperations decides if the broker should return
+// authorized operations.
+//
+// Default: false
+//
+// Valid for DescribeConsumerGroups, DescribeTopics, DescribeCluster.
+func SetAdminOptionIncludeAuthorizedOperations(val bool) (ao AdminOptionIncludeAuthorizedOperations) {
+	ao.isSet = true
+	ao.val = val
+	return ao
+}
+
 // SetAdminMatchConsumerGroupStates decides groups in which state(s) should be
 // listed.
 //
@@ -394,9 +443,25 @@ type DescribeConsumerGroupsAdminOption interface {
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
+// DescribeTopicsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
+type DescribeTopicsAdminOption interface {
+	supportsDescribeTopics()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DescribeClusterAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
+type DescribeClusterAdminOption interface {
+	supportsDescribeCluster()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
 // DeleteConsumerGroupsAdminOption - see setters.
 //
-// See SetAdminRequestTimeout.
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
 type DeleteConsumerGroupsAdminOption interface {
 	supportsDeleteConsumerGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error

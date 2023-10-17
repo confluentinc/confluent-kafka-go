@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Confluent Inc.
+ * Copyright 2023 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Describe consumer groups
+// Describe Cluster
 package main
 
 import (
@@ -28,11 +28,10 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 4 {
+	if len(os.Args) < 3 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_authorized_operations>"+
-				" <group1> [<group2> ...]\n",
+			"Usage: %s <bootstrap-servers> <include_authorized_operations>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
@@ -41,11 +40,10 @@ func main() {
 	include_authorized_operations, err_operations := strconv.ParseBool(os.Args[2])
 	if err_operations != nil {
 		fmt.Printf(
-			"Failed to parse value of include_authorized_operations %s: %s\n", os.Args[2], err_operations)
+			"Failed to parse value of include_authorized_operations %s: %s\n",
+			os.Args[2], err_operations)
 		os.Exit(1)
 	}
-
-	groups := os.Args[3:]
 
 	// Create a new AdminClient.
 	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
@@ -57,32 +55,21 @@ func main() {
 	}
 	defer a.Close()
 
-	// Call DescribeConsumerGroups.
+	// Call DescribeCluster.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups,
-		kafka.SetAdminOptionIncludeAuthorizedOperations(include_authorized_operations))
+	clusterDesc, err := a.DescribeCluster(
+		ctx, kafka.SetAdminOptionIncludeAuthorizedOperations(
+			include_authorized_operations))
 	if err != nil {
-		fmt.Printf("Failed to describe groups: %s\n", err)
+		fmt.Printf("Failed to describe cluster: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Print results
-	fmt.Printf("A total of %d consumer group(s) described:\n\n",
-		len(describeGroupsResult.ConsumerGroupDescriptions))
-	for _, g := range describeGroupsResult.ConsumerGroupDescriptions {
-		fmt.Printf("GroupId: %s\n"+
-			"Error: %s\n"+
-			"IsSimpleConsumerGroup: %v\n"+
-			"PartitionAssignor: %s\n"+
-			"State: %s\n"+
-			"Coordinator: %+v\n"+
-			"Members: %+v\n",
-			g.GroupID, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
-			g.State, g.Coordinator, g.Members)
-		if include_authorized_operations {
-			fmt.Printf("Allowed operations: %s\n", g.AuthorizedOperations)
-		}
-		fmt.Printf("\n")
+	fmt.Printf("ClusterId: %s\nController: %s\nNodes: %s\n",
+		clusterDesc.ClusterID, clusterDesc.Controller, clusterDesc.Nodes)
+	if include_authorized_operations {
+		fmt.Printf("Allowed operations: %s\n", clusterDesc.AuthorizedOperations)
 	}
 }
