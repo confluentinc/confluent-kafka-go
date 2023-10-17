@@ -1269,7 +1269,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 	// of the cluster ID. We try checking for the existence in cases we can.
 	assert.Nil(err, "DescribeCluster should not throw an error")
 	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
-	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.ClusterID, "Cluster id should be set")
 	assert.NotEmpty(descres.Nodes[0].Host,
 		"First node's host should be non-empty")
 	assert.Empty(descres.AuthorizedOperations,
@@ -1290,7 +1290,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 
 	assert.Nil(err, "DescribeCluster should not throw an error")
 	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
-	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.ClusterID, "Cluster id should be set")
 	assert.NotEmpty(descres.Nodes[0].Host,
 		"First node's host should be non-empty")
 	assert.NotEmpty(descres.AuthorizedOperations,
@@ -1355,7 +1355,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeCluster() {
 
 	assert.Nil(err, "DescribeCluster should not throw an error")
 	assert.NotEmpty(descres.Nodes, "Cluster nodes should not be empty")
-	assert.NotEmpty(descres.ClusterId, "Cluster id should be set")
+	assert.NotEmpty(descres.ClusterID, "Cluster id should be set")
 	assert.NotEmpty(descres.Nodes[0].Host,
 		"First node's host should be non-empty")
 	assert.NotEmpty(descres.AuthorizedOperations,

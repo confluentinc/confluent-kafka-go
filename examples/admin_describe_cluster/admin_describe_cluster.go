@@ -68,7 +68,7 @@ func main() {
 
 	// Print results
 	fmt.Printf("ClusterId: %s\nController: %s\nNodes: %s\n",
-		clusterDesc.ClusterId, clusterDesc.Controller, clusterDesc.Nodes)
+		clusterDesc.ClusterID, clusterDesc.Controller, clusterDesc.Nodes)
 	if include_authorized_operations {
 		fmt.Printf("Allowed operations: %s\n", clusterDesc.AuthorizedOperations)
 	}
