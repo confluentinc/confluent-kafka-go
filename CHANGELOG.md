@@ -15,9 +15,15 @@ This is a feature release.
    availability problems (#998, @kkoehler).
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * The minimum version of Go supported has been changed from 1.16 to 1.17
+   (#1074).
  * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
  * Fixes an issue where `testing` was being imported by a non-test file,
    testhelpers.go. (@dmlambea, #1049).
+
+confluent-kafka-go is based on librdkafka v2.3.0, see the
+[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0-RC3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 # v2.2.0
