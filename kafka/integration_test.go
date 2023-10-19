@@ -3161,7 +3161,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	defer cancel()
 
 	topicPartitionOffsets := make(map[TopicPartition]OffsetSpec)
-	Topic := fmt.Sprintf("%s-%d", testconf.Topic, rand.Int())
+	Topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
 
 	topics := []TopicSpecification{TopicSpecification{Topic: Topic, NumPartitions: 1, ReplicationFactor: 1}}
 	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
