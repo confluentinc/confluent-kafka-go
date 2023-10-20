@@ -334,8 +334,8 @@ func (n Node) String() string {
 	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
 }
 
-// Uuid.
-type Uuid struct {
+// Kafka UUID representation
+type UUID struct {
 	// Most Significant Bits.
 	mostSignificantBits int64
 	// Least Significant Bits.
@@ -344,15 +344,18 @@ type Uuid struct {
 	base64str string
 }
 
-func (uuid Uuid) String() string {
+// Base64 string representation of the UUID
+func (uuid UUID) String() string {
 	return uuid.base64str
 }
 
-func (uuid Uuid) GetMostSignificantBits() int64 {
+// Returns Most Significant 64 bits of the 128 bits UUID
+func (uuid UUID) GetMostSignificantBits() int64 {
 	return uuid.mostSignificantBits
 }
 
-func (uuid Uuid) GetLeastSignificantBits() int64 {
+// Returns Least Significant 64 bits of the 128 bits UUID
+func (uuid UUID) GetLeastSignificantBits() int64 {
 	return uuid.leastSignificantBits
 }
 
