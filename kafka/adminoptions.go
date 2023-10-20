@@ -437,7 +437,7 @@ type ListConsumerGroupsAdminOption interface {
 
 // DescribeConsumerGroupsAdminOption - see setter.
 //
-// See SetAdminRequestTimeout.
+// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
 type DescribeConsumerGroupsAdminOption interface {
 	supportsDescribeConsumerGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
@@ -461,7 +461,7 @@ type DescribeClusterAdminOption interface {
 
 // DeleteConsumerGroupsAdminOption - see setters.
 //
-// See SetAdminRequestTimeout, SetAdminOptionIncludeAuthorizedOperations.
+// See SetAdminRequestTimeout.
 type DeleteConsumerGroupsAdminOption interface {
 	supportsDeleteConsumerGroups()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
