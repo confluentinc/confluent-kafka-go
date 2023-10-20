@@ -284,8 +284,8 @@ type ConsumerGroupDescription struct {
 	PartitionAssignor string
 	// Consumer group state.
 	State ConsumerGroupState
-	// Consumer group coordinator (nil if not known).
-	Coordinator *Node
+	// Consumer group coordinator (has ID == -1 if not known).
+	Coordinator Node
 	// Members list.
 	Members []MemberDescription
 	// Operations allowed for the group (nil if not available or not requested)
@@ -1099,8 +1099,14 @@ func (a *AdminClient) cToAuthorizedOperations(
 }
 
 // cToNode converts a C Node_t* to a Go Node.
-// cNode must not be nil.
+// If cNode is nil returns a Node with ID: -1.
 func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
+	if cNode == nil {
+		return Node{
+			ID: -1,
+		}
+	}
+
 	node := Node{
 		ID:   int(C.rd_kafka_Node_id(cNode)),
 		Host: C.GoString(C.rd_kafka_Node_host(cNode)),
@@ -1159,7 +1165,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			C.rd_kafka_ConsumerGroupDescription_state(cGroup))
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
-		coordinator := a.cToNodePtr(cNode)
+		coordinator := a.cToNode(cNode)
 
 		membersCount := int(
 			C.rd_kafka_ConsumerGroupDescription_member_count(cGroup))
