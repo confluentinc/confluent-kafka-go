@@ -1420,6 +1420,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeTopics() {
 		"Expected correct error for nonexistent topic")
 
 	topicDesc := topicDescs[0]
+	assert.NotNil(topicDesc.TopicID)
 	assert.Equal(topicDesc.Error.Code(), ErrNoError,
 		"Topic description should not have an error")
 	assert.False(topicDesc.IsInternal, "Topic should not be internal")

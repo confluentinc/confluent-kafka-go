@@ -334,6 +334,31 @@ func (n Node) String() string {
 	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
 }
 
+// UUID Kafka UUID representation
+type UUID struct {
+	// Most Significant Bits.
+	mostSignificantBits int64
+	// Least Significant Bits.
+	leastSignificantBits int64
+	// Base64 representation
+	base64str string
+}
+
+// Base64 string representation of the UUID
+func (uuid UUID) String() string {
+	return uuid.base64str
+}
+
+// GetMostSignificantBits returns Most Significant 64 bits of the 128 bits UUID
+func (uuid UUID) GetMostSignificantBits() int64 {
+	return uuid.mostSignificantBits
+}
+
+// GetLeastSignificantBits returns Least Significant 64 bits of the 128 bits UUID
+func (uuid UUID) GetLeastSignificantBits() int64 {
+	return uuid.leastSignificantBits
+}
+
 // ConsumerGroupTopicPartitions represents a consumer group's TopicPartitions.
 type ConsumerGroupTopicPartitions struct {
 	// Group name

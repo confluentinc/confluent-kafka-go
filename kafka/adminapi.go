@@ -331,6 +331,8 @@ type TopicPartitionInfo struct {
 type TopicDescription struct {
 	// Topic name.
 	Name string
+	// Topic Id
+	TopicID UUID
 	// Error, if any, of the result. Check with `Error.Code() != ErrNoError`.
 	Error Error
 	// Is the topic internal to Kafka?
@@ -1098,6 +1100,16 @@ func (a *AdminClient) cToAuthorizedOperations(
 	return authorizedOperations
 }
 
+// cToUUID converts a C rd_kafka_Uuid_t to a Go UUID.
+func (a *AdminClient) cToUUID(cUUID *C.rd_kafka_Uuid_t) UUID {
+	uuid := UUID{
+		mostSignificantBits: int64(C.rd_kafka_Uuid_most_significant_bits(cUUID)),
+		leastSignificantBits: int64(C.rd_kafka_Uuid_least_significant_bits(cUUID)),
+		base64str: C.GoString(C.rd_kafka_Uuid_base64str(cUUID)),
+	}
+	return uuid
+}
+
 // cToNode converts a C Node_t* to a Go Node.
 // If cNode is nil returns a Node with ID: -1.
 func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
@@ -1251,6 +1263,7 @@ func (a *AdminClient) cToTopicDescriptions(
 
 		topicName := C.GoString(
 			C.rd_kafka_TopicDescription_name(cTopic))
+		TopicID := a.cToUUID(C.rd_kafka_TopicDescription_topic_id(cTopic))
 		err := newErrorFromCError(
 			C.rd_kafka_TopicDescription_error(cTopic))
 
@@ -1279,6 +1292,7 @@ func (a *AdminClient) cToTopicDescriptions(
 
 		result[idx] = TopicDescription{
 			Name:                 topicName,
+			TopicID:              TopicID,
 			Error:                err,
 			Partitions:           partitions,
 			AuthorizedOperations: authorizedOperations,
