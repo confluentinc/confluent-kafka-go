@@ -284,11 +284,11 @@ type ConsumerGroupDescription struct {
 	PartitionAssignor string
 	// Consumer group state.
 	State ConsumerGroupState
-	// Consumer group coordinator (broker).
-	Coordinator Node
+	// Consumer group coordinator (nil if not known).
+	Coordinator *Node
 	// Members list.
 	Members []MemberDescription
-	// Operations allowed for the group
+	// Operations allowed for the group (nil if not available or not requested)
 	AuthorizedOperations []ACLOperation
 }
 
@@ -337,7 +337,7 @@ type TopicDescription struct {
 	IsInternal bool
 	// Partitions' information list.
 	Partitions []TopicPartitionInfo
-	// Operations allowed for the topic.
+	// Operations allowed for the topic (nil if not available or not requested).
 	AuthorizedOperations []ACLOperation
 }
 
@@ -350,13 +350,13 @@ type DescribeTopicsResult struct {
 
 // DescribeClusterResult represents the result of DescribeCluster.
 type DescribeClusterResult struct {
-	// Cluster id for the cluster.
-	ClusterID string
-	// Current controller broker for the cluster.
+	// Cluster id for the cluster (always available if broker version >= 0.10.1.0, otherwise nil).
+	ClusterID *string
+	// Current controller broker for the cluster (nil if there is none).
 	Controller *Node
 	// List of brokers in the cluster.
 	Nodes []Node
-	// Operations allowed for the cluster.
+	// Operations allowed for the cluster (nil if not available or not requested).
 	AuthorizedOperations []ACLOperation
 }
 
@@ -973,7 +973,7 @@ type UserScramCredentialUpsertion struct {
 // DescribeUserScramCredentialsResult represents the result of a
 // DescribeUserScramCredentials call.
 type DescribeUserScramCredentialsResult struct {
-	// ConsumerGroupDescriptions - Map from user name
+	// Descriptions - Map from user name
 	// to UserScramCredentialsDescription
 	Descriptions map[string]UserScramCredentialsDescription
 }
@@ -1159,7 +1159,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			C.rd_kafka_ConsumerGroupDescription_state(cGroup))
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
-		coordinator := a.cToNode(cNode)
+		coordinator := a.cToNodePtr(cNode)
 
 		membersCount := int(
 			C.rd_kafka_ConsumerGroupDescription_member_count(cGroup))
@@ -1285,7 +1285,12 @@ func (a *AdminClient) cToTopicDescriptions(
 // DescribeClusterResult.
 func (a *AdminClient) cToDescribeClusterResult(
 	cResult *C.rd_kafka_DescribeTopics_result_t) (result DescribeClusterResult) {
-	clusterID := C.GoString(C.rd_kafka_DescribeCluster_result_cluster_id(cResult))
+	var clusterIDPtr *string = nil
+	cClusterID := C.rd_kafka_DescribeCluster_result_cluster_id(cResult)
+	if cClusterID != nil {
+		clusterID := C.GoString(cClusterID)
+		clusterIDPtr = &clusterID
+	}
 
 	var controller *Node = nil
 	cController := C.rd_kafka_DescribeCluster_result_controller(cResult)
@@ -1303,7 +1308,7 @@ func (a *AdminClient) cToDescribeClusterResult(
 		cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 	return DescribeClusterResult{
-		ClusterID:            clusterID,
+		ClusterID:            clusterIDPtr,
 		Controller:           controller,
 		Nodes:                nodes,
 		AuthorizedOperations: authorizedOperations,

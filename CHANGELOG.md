@@ -20,6 +20,8 @@ This is a feature release.
  * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
  * Fixes an issue where `testing` was being imported by a non-test file,
    testhelpers.go. (@dmlambea, #1049).
+ * Fix: `Coordinator` field in `ConsumerGroupDescription` is now a pointer to `Node` because
+   it can be `nil`, if not known. Avoids a C segmentation fault.
 
 confluent-kafka-go is based on librdkafka v2.3.0, see the
 [librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0-RC3)
