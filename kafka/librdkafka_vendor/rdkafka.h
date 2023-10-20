@@ -167,7 +167,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020200ff
+#define RD_KAFKA_VERSION 0x020300ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -262,6 +262,7 @@ typedef struct rd_kafka_error_s rd_kafka_error_t;
 typedef struct rd_kafka_headers_s rd_kafka_headers_t;
 typedef struct rd_kafka_group_result_s rd_kafka_group_result_t;
 typedef struct rd_kafka_acl_result_s rd_kafka_acl_result_t;
+typedef struct rd_kafka_Uuid_s rd_kafka_Uuid_t;
 /* @endcond */
 
 
@@ -1627,6 +1628,75 @@ rd_kafka_message_status(const rd_kafka_message_t *rkmessage);
 RD_EXPORT int32_t
 rd_kafka_message_leader_epoch(const rd_kafka_message_t *rkmessage);
 
+
+/**@}*/
+
+
+/**
+ * @name UUID
+ * @{
+ *
+ */
+
+/**
+ * @brief Computes base64 encoding for the given uuid string.
+ * @param uuid UUID for which base64 encoding is required.
+ *
+ * @return base64 encoded string for the given UUID or NULL in case of some
+ *         issue with the conversion or the conversion is not supported.
+ */
+RD_EXPORT const char *rd_kafka_Uuid_base64str(const rd_kafka_Uuid_t *uuid);
+
+/**
+ * @brief Gets least significant 64 bits for the given UUID.
+ *
+ * @param uuid UUID
+ *
+ * @return least significant 64 bits for the given UUID.
+ */
+RD_EXPORT int64_t
+rd_kafka_Uuid_least_significant_bits(const rd_kafka_Uuid_t *uuid);
+
+
+/**
+ * @brief Gets most significant 64 bits for the given UUID.
+ *
+ * @param uuid UUID
+ *
+ * @return most significant 64 bits for the given UUID.
+ */
+RD_EXPORT int64_t
+rd_kafka_Uuid_most_significant_bits(const rd_kafka_Uuid_t *uuid);
+
+
+/**
+ * @brief Creates a new UUID.
+ *
+ * @param most_significant_bits most significant 64 bits of the 128 bits UUID.
+ * @param least_significant_bits least significant 64 bits of the 128 bits UUID.
+ *
+ * @return A newly allocated UUID.
+ * @remark Must be freed after use using rd_kafka_Uuid_destroy()
+ */
+RD_EXPORT rd_kafka_Uuid_t *rd_kafka_Uuid_new(int64_t most_significant_bits,
+                                             int64_t least_significant_bits);
+
+/**
+ * @brief Copies the given UUID.
+ *
+ * @param uuid UUID to be copied.
+ *
+ * @return A newly allocated copy of the provided UUID.
+ * @remark Must be freed after use using rd_kafka_Uuid_destroy()
+ */
+RD_EXPORT rd_kafka_Uuid_t *rd_kafka_Uuid_copy(const rd_kafka_Uuid_t *uuid);
+
+/**
+ * @brief Destroy the provided uuid.
+ *
+ * @param uuid UUID
+ */
+RD_EXPORT void rd_kafka_Uuid_destroy(rd_kafka_Uuid_t *uuid);
 
 /**@}*/
 
@@ -4981,7 +5051,7 @@ uint16_t rd_kafka_Node_port(const rd_kafka_Node_t *node);
  * @return The node rack id. May be NULL.
  */
 RD_EXPORT
-const char *rd_kafka_Node_rack_id(const rd_kafka_Node_t *node);
+const char *rd_kafka_Node_rack(const rd_kafka_Node_t *node);
 
 /**@}*/
 
@@ -5384,6 +5454,8 @@ typedef int rd_kafka_event_type_t;
 #define RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT 0x100000
 /** DescribeCluster_result_t */
 #define RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT 0x200000
+/** ListOffsets_result_t */
+#define RD_KAFKA_EVENT_LISTOFFSETS_RESULT 0x400000
 
 /**
  * @returns the event type for the given event.
@@ -5541,6 +5613,7 @@ int rd_kafka_event_error_is_fatal(rd_kafka_event_t *rkev);
  *  - RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT
  *  - RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT
  *  - RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT
+ *  - RD_KAFKA_EVENT_LISTOFFSETS_RESULT
  */
 RD_EXPORT
 void *rd_kafka_event_opaque(rd_kafka_event_t *rkev);
@@ -5662,6 +5735,8 @@ typedef rd_kafka_event_t rd_kafka_DescribeCluster_result_t;
 typedef rd_kafka_event_t rd_kafka_DescribeUserScramCredentials_result_t;
 /*! AlterUserScramCredentials result type */
 typedef rd_kafka_event_t rd_kafka_AlterUserScramCredentials_result_t;
+/*! ListOffsets result type */
+typedef rd_kafka_event_t rd_kafka_ListOffsets_result_t;
 
 /**
  * @brief Get CreateTopics result.
@@ -5887,6 +5962,22 @@ rd_kafka_event_ListConsumerGroupOffsets_result(rd_kafka_event_t *rkev);
  */
 RD_EXPORT const rd_kafka_AlterConsumerGroupOffsets_result_t *
 rd_kafka_event_AlterConsumerGroupOffsets_result(rd_kafka_event_t *rkev);
+
+/**
+ * @brief Get ListOffsets result.
+ *
+ * @returns the result of a ListOffsets request, or NULL if
+ *          event is of different type.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p rkev object.
+ *
+ * Event types:
+ *   RD_KAFKA_EVENT_LISTOFFSETS_RESULT
+ */
+RD_EXPORT const rd_kafka_ListOffsets_result_t *
+rd_kafka_event_ListOffsets_result(rd_kafka_event_t *rkev);
+
 
 /**
  * @brief Get DescribeUserScramCredentials result.
@@ -6829,6 +6920,7 @@ typedef enum rd_kafka_admin_op_t {
         RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
         RD_KAFKA_ADMIN_OP_DESCRIBETOPICS,  /**< DescribeTopics */
         RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER, /**< DescribeCluster */
+        RD_KAFKA_ADMIN_OP_LISTOFFSETS,     /**< ListOffsets */
         RD_KAFKA_ADMIN_OP__CNT             /**< Number of ops defined */
 } rd_kafka_admin_op_t;
 
@@ -6845,6 +6937,18 @@ typedef enum rd_kafka_admin_op_t {
 
 
 typedef struct rd_kafka_AdminOptions_s rd_kafka_AdminOptions_t;
+
+/**
+ * @enum rd_kafka_IsolationLevel_t
+ *
+ * @brief IsolationLevel enum name for use with rd_kafka_AdminOptions_new()
+ *
+ * @sa rd_kafka_AdminOptions_new()
+ */
+typedef enum rd_kafka_IsolationLevel_t {
+        RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED = 0,
+        RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED   = 1
+} rd_kafka_IsolationLevel_t;
 
 /**
  * @brief Create a new AdminOptions object.
@@ -7044,6 +7148,14 @@ rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_states(
     rd_kafka_AdminOptions_t *options,
     const rd_kafka_consumer_group_state_t *consumer_group_states,
     size_t consumer_group_states_cnt);
+
+/**
+ * @brief Set Isolation Level to an allowed `rd_kafka_IsolationLevel_t` value.
+ */
+RD_EXPORT
+rd_kafka_error_t *
+rd_kafka_AdminOptions_set_isolation_level(rd_kafka_AdminOptions_t *options,
+                                          rd_kafka_IsolationLevel_t value);
 
 /**
  * @brief Set application opaque value that can be extracted from the
@@ -8023,7 +8135,7 @@ typedef struct rd_kafka_TopicDescription_s rd_kafka_TopicDescription_t;
  */
 RD_EXPORT
 rd_kafka_TopicCollection_t *
-rd_kafka_TopicCollection_new_from_names(const char **topics, size_t topics_cnt);
+rd_kafka_TopicCollection_of_topic_names(const char **topics, size_t topics_cnt);
 
 /**
  * @brief Destroy and free a TopicCollection object created with
@@ -8037,8 +8149,7 @@ rd_kafka_TopicCollection_destroy(rd_kafka_TopicCollection_t *topics);
  *        array of size \p topics_cnt elements.
  *
  * @param rk Client instance.
- * @param topics Array of topics to describe.
- * @param topics_cnt Number of elements in \p topics array.
+ * @param topics Collection of topics to describe.
  * @param options Optional admin options, or NULL for defaults.
  *                Valid options:
  *                 - include_authorized_operations
@@ -8148,7 +8259,8 @@ const rd_kafka_Node_t **rd_kafka_TopicPartitionInfo_replicas(
  * @param topicdesc The topic description.
  * @param cntp is updated with authorized ACL operations count.
  *
- * @return The topic authorized operations.
+ * @return The topic authorized operations. Is NULL if operations were not
+ *         requested.
  *
  * @remark The lifetime of the returned memory is the same
  *         as the lifetime of the \p topicdesc object.
@@ -8171,6 +8283,18 @@ const rd_kafka_AclOperation_t *rd_kafka_TopicDescription_authorized_operations(
 RD_EXPORT
 const char *
 rd_kafka_TopicDescription_name(const rd_kafka_TopicDescription_t *topicdesc);
+
+/**
+ * @brief Gets the topic id for the \p topicdesc topic.
+ *
+ * @param topicdesc The topic description.
+ * @return The topic id
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p topicdesc object.
+ */
+RD_EXPORT const rd_kafka_Uuid_t *rd_kafka_TopicDescription_topic_id(
+    const rd_kafka_TopicDescription_t *topicdesc);
 
 /**
  * @brief Gets if the \p topicdesc topic is internal.
@@ -8234,7 +8358,7 @@ void rd_kafka_DescribeCluster(rd_kafka_t *rk,
  */
 RD_EXPORT
 const rd_kafka_Node_t **rd_kafka_DescribeCluster_result_nodes(
-    const rd_kafka_DescribeTopics_result_t *result,
+    const rd_kafka_DescribeCluster_result_t *result,
     size_t *cntp);
 
 /**
@@ -8243,14 +8367,15 @@ const rd_kafka_Node_t **rd_kafka_DescribeCluster_result_nodes(
  * @param result The result of DescribeCluster.
  * @param cntp is updated with authorized ACL operations count.
  *
- * @return The cluster authorized operations.
+ * @return The cluster authorized operations. Is NULL if operations were not
+ *         requested.
  * @remark The lifetime of the returned memory is the same
  *         as the lifetime of the \p result object.
  */
 RD_EXPORT
 const rd_kafka_AclOperation_t *
 rd_kafka_DescribeCluster_result_authorized_operations(
-    const rd_kafka_DescribeTopics_result_t *result,
+    const rd_kafka_DescribeCluster_result_t *result,
     size_t *cntp);
 
 /**
@@ -8262,7 +8387,7 @@ rd_kafka_DescribeCluster_result_authorized_operations(
  */
 RD_EXPORT
 const rd_kafka_Node_t *rd_kafka_DescribeCluster_result_controller(
-    const rd_kafka_DescribeTopics_result_t *result);
+    const rd_kafka_DescribeCluster_result_t *result);
 
 /**
  * @brief Gets the cluster id for the \p result cluster.
@@ -8275,7 +8400,7 @@ const rd_kafka_Node_t *rd_kafka_DescribeCluster_result_controller(
  */
 RD_EXPORT
 const char *rd_kafka_DescribeCluster_result_cluster_id(
-    const rd_kafka_DescribeTopics_result_t *result);
+    const rd_kafka_DescribeCluster_result_t *result);
 
 /**@}*/
 
@@ -8510,7 +8635,8 @@ const char *rd_kafka_ConsumerGroupDescription_partition_assignor(
  * @param grpdesc The group description.
  * @param cntp is updated with authorized ACL operations count.
  *
- * @return The group authorized operations.
+ * @return The group authorized operations. Is NULL if operations were not
+ *         requested.
  *
  * @remark The lifetime of the returned memory is the same
  *         as the lifetime of the \p grpdesc object.
@@ -9023,6 +9149,92 @@ rd_kafka_DeleteConsumerGroupOffsets_result_groups(
 
 /**@}*/
 
+/**
+ * @name Admin API - ListOffsets
+ * @brief Given a topic_partition list, provides the offset information.
+ * @{
+ */
+
+/**
+ * @enum rd_kafka_OffsetSpec_t
+ * @brief Allows to specify the desired offsets when using ListOffsets.
+ */
+typedef enum rd_kafka_OffsetSpec_t {
+        /* Used to retrieve the offset with the largest timestamp of a partition
+         * as message timestamps can be specified client side this may not match
+         * the log end offset returned by SPEC_LATEST.
+         */
+        RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP = -3,
+        /* Used to retrieve the offset with the earliest timestamp of a
+           partition. */
+        RD_KAFKA_OFFSET_SPEC_EARLIEST = -2,
+        /* Used to retrieve the offset with the latest timestamp of a partition.
+         */
+        RD_KAFKA_OFFSET_SPEC_LATEST = -1,
+} rd_kafka_OffsetSpec_t;
+
+/**
+ * @brief Information returned from a ListOffsets call for a specific
+ *        `rd_kafka_topic_partition_t`.
+ */
+typedef struct rd_kafka_ListOffsetsResultInfo_s
+    rd_kafka_ListOffsetsResultInfo_t;
+
+/**
+ * @brief Returns the topic partition of the passed \p result_info.
+ */
+RD_EXPORT
+const rd_kafka_topic_partition_t *
+rd_kafka_ListOffsetsResultInfo_topic_partition(
+    const rd_kafka_ListOffsetsResultInfo_t *result_info);
+
+/**
+ * @brief Returns the timestamp corresponding to the offset in \p result_info.
+ */
+RD_EXPORT
+int64_t rd_kafka_ListOffsetsResultInfo_timestamp(
+    const rd_kafka_ListOffsetsResultInfo_t *result_info);
+
+/**
+ * @brief Returns the array of ListOffsetsResultInfo in \p result
+ *        and populates the size of the array in \p cntp.
+ */
+RD_EXPORT
+const rd_kafka_ListOffsetsResultInfo_t **
+rd_kafka_ListOffsets_result_infos(const rd_kafka_ListOffsets_result_t *result,
+                                  size_t *cntp);
+
+/**
+ * @brief List offsets for the specified \p topic_partitions.
+ *        This operation enables to find the beginning offset,
+ *        end offset as well as the offset matching a timestamp in partitions
+ *        or the offset with max timestamp.
+ *
+ * @param rk Client instance.
+ * @param topic_partitions topic_partition_list_t with the partitions and
+ *                         offsets to list. Each topic partition offset can be
+ *                         a value of the `rd_kafka_OffsetSpec_t` enum or
+ *                         a non-negative value, representing a timestamp,
+ *                         to query for the first offset after the
+ *                         given timestamp.
+ * @param options Optional admin options, or NULL for defaults.
+ * @param rkqu Queue to emit result on.
+ *
+ * Supported admin options:
+ *  - rd_kafka_AdminOptions_set_isolation_level() - default  \c
+ * RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED
+ *  - rd_kafka_AdminOptions_set_request_timeout() - default socket.timeout.ms
+ *
+ * @remark The result event type emitted on the supplied queue is of type
+ *         \c RD_KAFKA_EVENT_LISTOFFSETS_RESULT
+ */
+RD_EXPORT
+void rd_kafka_ListOffsets(rd_kafka_t *rk,
+                          rd_kafka_topic_partition_list_t *topic_partitions,
+                          const rd_kafka_AdminOptions_t *options,
+                          rd_kafka_queue_t *rkqu);
+
+/**@}*/
 
 /**
  * @name Admin API - User SCRAM credentials

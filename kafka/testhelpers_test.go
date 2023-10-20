@@ -36,7 +36,7 @@ var testconf struct {
 	SaslUsername  string
 	SaslPassword  string
 	SaslMechanism string
-	Topic         string
+	TopicName     string
 	GroupID       string
 	PerfMsgCount  int
 	PerfMsgSize   int
@@ -44,7 +44,7 @@ var testconf struct {
 	conf          ConfigMap
 }
 
-const defaulttestconfTopic = "test"
+const defaulttestconfTopicName = "test"
 const defaulttestconfGroupID = "testgroup"
 const defaulttestconfPerfMsgCount = 2000000
 const defaulttestconfPerfMsgSize = 100
@@ -130,7 +130,7 @@ func testconfRead() bool {
 	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
 	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
 	testconf.GroupID = defaulttestconfGroupID
-	testconf.Topic = defaulttestconfTopic
+	testconf.TopicName = defaulttestconfTopicName
 	testconf.Brokers = ""
 	testconf.BrokersSasl = ""
 
@@ -347,7 +347,7 @@ func createAdminClientWithSasl(t *testing.T) (a *AdminClient) {
 func createTestTopic(t *testing.T, suffix string, numPartitions int, replicationFactor int) string {
 	rand.Seed(time.Now().Unix())
 
-	topic := fmt.Sprintf("%s-%s-%d", testconf.Topic, suffix, rand.Intn(100000))
+	topic := fmt.Sprintf("%s-%s-%d", testconf.TopicName, suffix, rand.Intn(100000))
 
 	a := createAdminClient(t)
 	defer a.Close()

@@ -31,18 +31,18 @@ func main() {
 	if len(os.Args) < 4 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_authorized_operations>"+
+			"Usage: %s <bootstrap-servers> <includeAuthorizedOperations>"+
 				" <topic1> [<topic2> ...]\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	include_authorized_operations, err_operations := strconv.ParseBool(os.Args[2])
-	if err_operations != nil {
+	includeAuthorizedOperations, errOperations := strconv.ParseBool(os.Args[2])
+	if errOperations != nil {
 		fmt.Printf(
-			"Failed to parse value of include_authorized_operations %s: %s\n",
-			os.Args[2], err_operations)
+			"Failed to parse value of includeAuthorizedOperations %s: %s\n",
+			os.Args[2], errOperations)
 		os.Exit(1)
 	}
 	topics := os.Args[3:]
@@ -63,7 +63,7 @@ func main() {
 	describeTopicsResult, err := a.DescribeTopics(
 		ctx, kafka.NewTopicCollectionOfTopicNames(topics),
 		kafka.SetAdminOptionIncludeAuthorizedOperations(
-			include_authorized_operations))
+			includeAuthorizedOperations))
 	if err != nil {
 		fmt.Printf("Failed to describe topics: %s\n", err)
 		os.Exit(1)
@@ -80,7 +80,7 @@ func main() {
 		}
 		fmt.Printf("Topic: %s has succeeded\n", t.Name)
 		fmt.Printf("Topic Id: %s\n", t.TopicId)
-		if include_authorized_operations {
+		if includeAuthorizedOperations {
 			fmt.Printf("Allowed operations: %s\n", t.AuthorizedOperations)
 		}
 		for i := 0; i < len(t.Partitions); i++ {

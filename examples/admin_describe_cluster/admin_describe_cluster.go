@@ -31,17 +31,17 @@ func main() {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <include_authorized_operations>\n",
+			"Usage: %s <bootstrap-servers> <includeAuthorizedOperations>\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	include_authorized_operations, err_operations := strconv.ParseBool(os.Args[2])
-	if err_operations != nil {
+	includeAuthorizedOperations, errOperations := strconv.ParseBool(os.Args[2])
+	if errOperations != nil {
 		fmt.Printf(
-			"Failed to parse value of include_authorized_operations %s: %s\n",
-			os.Args[2], err_operations)
+			"Failed to parse value of includeAuthorizedOperations %s: %s\n",
+			os.Args[2], errOperations)
 		os.Exit(1)
 	}
 
@@ -60,7 +60,7 @@ func main() {
 	defer cancel()
 	clusterDesc, err := a.DescribeCluster(
 		ctx, kafka.SetAdminOptionIncludeAuthorizedOperations(
-			include_authorized_operations))
+			includeAuthorizedOperations))
 	if err != nil {
 		fmt.Printf("Failed to describe cluster: %s\n", err)
 		os.Exit(1)
@@ -68,8 +68,8 @@ func main() {
 
 	// Print results
 	fmt.Printf("ClusterId: %s\nController: %s\nNodes: %s\n",
-		clusterDesc.ClusterId, clusterDesc.Controller, clusterDesc.Nodes)
-	if include_authorized_operations {
+		clusterDesc.ClusterID, clusterDesc.Controller, clusterDesc.Nodes)
+	if includeAuthorizedOperations {
 		fmt.Printf("Allowed operations: %s\n", clusterDesc.AuthorizedOperations)
 	}
 }

@@ -288,7 +288,7 @@ type ConsumerGroupDescription struct {
 	Coordinator Node
 	// Members list.
 	Members []MemberDescription
-	// Operations allowed for group
+	// Operations allowed for the group
 	AuthorizedOperations []ACLOperation
 }
 
@@ -313,15 +313,16 @@ func NewTopicCollectionOfTopicNames(names []string) TopicCollection {
 	}
 }
 
-// Topic Partition information
+// TopicPartitionInfo represents a specific partition's information inside a
+// TopicDescription.
 type TopicPartitionInfo struct {
 	// Partition id.
 	Partition int
 	// Leader broker.
 	Leader *Node
-	// Replicas of partition.
+	// Replicas of the partition.
 	Replicas []Node
-	// In-Sync-Replicas of partition.
+	// In-Sync-Replicas of the partition.
 	Isr []Node
 }
 
@@ -332,13 +333,13 @@ type TopicDescription struct {
 	Name string
 	// Topic Id
 	TopicId Uuid
-	// Error, if any, of result. Check with `Error.Code() != ErrNoError`.
+	// Error, if any, of the result. Check with `Error.Code() != ErrNoError`.
 	Error Error
-	// Is the topic is internal to Kafka?
+	// Is the topic internal to Kafka?
 	IsInternal bool
 	// Partitions' information list.
 	Partitions []TopicPartitionInfo
-	// Operations allowed for topic.
+	// Operations allowed for the topic.
 	AuthorizedOperations []ACLOperation
 }
 
@@ -351,13 +352,13 @@ type DescribeTopicsResult struct {
 
 // DescribeClusterResult represents the result of DescribeCluster.
 type DescribeClusterResult struct {
-	// Cluster id for cluster.
-	ClusterId string
-	// Current controller node for cluster.
+	// Cluster id for the cluster.
+	ClusterID string
+	// Current controller broker for the cluster.
 	Controller *Node
-	// List of nodes in cluster.
+	// List of brokers in the cluster.
 	Nodes []Node
-	// Operations allowed for cluster.
+	// Operations allowed for the cluster.
 	AuthorizedOperations []ACLOperation
 }
 
@@ -1120,8 +1121,8 @@ func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
 
 	cRack := C.rd_kafka_Node_rack(cNode)
 	if cRack != nil {
-		rackId := C.GoString(cRack)
-		node.Rack = &rackId
+		rackID := C.GoString(cRack)
+		node.Rack = &rackID
 	}
 
 	return node
@@ -1224,9 +1225,9 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 // TopicPartitionInfo.
 func (a *AdminClient) cToTopicPartitionInfo(
 	partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
-	cPartitionId := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
+	cPartitionID := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
 	info := TopicPartitionInfo{
-		Partition: int(cPartitionId),
+		Partition: int(cPartitionID),
 	}
 
 	cLeader := C.rd_kafka_TopicPartitionInfo_leader(partitionInfo)
@@ -1316,7 +1317,7 @@ func (a *AdminClient) cToDescribeClusterResult(
 		cAuthorizedOperations, cAuthorizedOperationsCnt)
 
 	return DescribeClusterResult{
-		ClusterId:            clusterID,
+		ClusterID:            clusterID,
 		Controller:           controller,
 		Nodes:                nodes,
 		AuthorizedOperations: authorizedOperations,

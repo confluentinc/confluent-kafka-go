@@ -204,6 +204,7 @@ func configureTransport(conf *Config) (*http.Transport, error) {
 	timeout := conf.ConnectionTimeoutMs
 
 	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout: time.Duration(timeout) * time.Millisecond,
 		}).Dial,
