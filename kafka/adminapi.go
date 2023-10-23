@@ -1016,7 +1016,7 @@ func NewOffsetSpecForTimestamp(timestamp int64) OffsetSpec {
 type ListOffsetsResultInfo struct {
 	Offset      Offset
 	Timestamp   int64
-	LeaderEpoch *int
+	LeaderEpoch *int32
 	Error       Error
 }
 
@@ -1431,7 +1431,7 @@ func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOff
 		Partition := TopicPartition{Topic: &Topic, Partition: int32(cPartition.partition)}
 		resultInfo.Offset = Offset(cPartition.offset)
 		resultInfo.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
-		cLeaderEpoch := int(C.rd_kafka_topic_partition_get_leader_epoch(cPartition))
+		cLeaderEpoch := int32(C.rd_kafka_topic_partition_get_leader_epoch(cPartition))
 		if cLeaderEpoch >= 0 {
 			resultInfo.LeaderEpoch = &cLeaderEpoch
 		}
