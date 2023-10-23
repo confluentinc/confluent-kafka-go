@@ -208,8 +208,7 @@ func TestParallelConsumerCloses(t *testing.T) {
 
 	wg.Wait()
 
-	assert.True((err0 == nil) || (err1 == nil), "Exactly one of the errors must be nil")
-	assert.True((err0 != nil) || (err1 != nil), "Exactly one of the errors must be nil")
+	assert.True((err0 == nil) != (err1 == nil), "Exactly one of the errors must be nil")
 
 	if err0 != nil {
 		assert.Equal(err0.(Error).String(), "Consumer is already closing")
