@@ -175,6 +175,60 @@ func SetAdminRequestTimeout(t time.Duration) (ao AdminOptionRequestTimeout) {
 	return ao
 }
 
+// IsolationLevel is a type which is used for AdminOptions to set the IsolationLevel.
+type IsolationLevel int
+
+const (
+	// IsolationLevelReadUncommitted - read uncommitted isolation level
+	IsolationLevelReadUncommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED)
+	// IsolationLevelReadCommitted - read committed isolation level
+	IsolationLevelReadCommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED)
+)
+
+// AdminOptionIsolationLevel sets the overall request IsolationLevel.
+//
+// Default: `ReadUncommitted`.
+//
+// Valid for ListOffsets.
+type AdminOptionIsolationLevel struct {
+	isSet bool
+	val   IsolationLevel
+}
+
+func (ao AdminOptionIsolationLevel) supportsListOffsets() {
+}
+func (ao AdminOptionIsolationLevel) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
+	if !ao.isSet {
+		return nil
+	}
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	cError := C.rd_kafka_AdminOptions_set_isolation_level(
+		cOptions, C.rd_kafka_IsolationLevel_t(ao.val))
+	if cError != nil {
+		C.rd_kafka_AdminOptions_destroy(cOptions)
+		return newErrorFromCErrorDestroy(cError)
+
+	}
+
+	return nil
+
+}
+
+// SetAdminIsolationLevel sets the overall IsolationLevel for a request.
+//
+// Default: `ReadUncommitted`.
+//
+// Valid for ListOffsets.
+func SetAdminIsolationLevel(isolationLevel IsolationLevel) (ao AdminOptionIsolationLevel) {
+	ao.isSet = true
+	ao.val = isolationLevel
+	return ao
+}
+
 // AdminOptionValidateOnly tells the broker to only validate the request,
 // without performing the requested operation (create topics, etc).
 //
@@ -496,6 +550,14 @@ type DescribeUserScramCredentialsAdminOption interface {
 // See SetAdminRequestTimeout.
 type AlterUserScramCredentialsAdminOption interface {
 	supportsAlterUserScramCredentials()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// ListOffsetsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminIsolationLevel.
+type ListOffsetsAdminOption interface {
+	supportsListOffsets()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 
