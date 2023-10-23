@@ -3200,28 +3200,28 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	tp1 := TopicPartition{Topic: &Topic, Partition: 0}
 	topicPartitionOffsets[tp1] = EarliestOffsetSpec
 	var results ListOffsetsResult
-	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(IsolationLevelReadCommitted))
 	assert.Nil(err, "ListOffsets should not fail.")
 
-	for _, info := range results.Results {
+	for _, info := range results.ResultsInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(0), "Offset should be ErrNoError.")
 	}
 
 	topicPartitionOffsets[tp1] = LatestOffsetSpec
-	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(IsolationLevelReadCommitted))
 	assert.Nil(err, "ListOffsets should not fail.")
 
-	for _, info := range results.Results {
+	for _, info := range results.ResultsInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(3), "Offset should be 3.")
 	}
 
 	topicPartitionOffsets[tp1] = OffsetSpec(MaxTimestampOffsetSpec)
-	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(ReadCommitted))
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(IsolationLevelReadCommitted))
 	assert.Nil(err, "ListOffsets should not fail.")
 
-	for _, info := range results.Results {
+	for _, info := range results.ResultsInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(1), "Offset should be 1.")
 	}

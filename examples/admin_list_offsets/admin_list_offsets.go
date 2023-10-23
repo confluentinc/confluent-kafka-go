@@ -84,14 +84,15 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	results, err := a.ListOffsets(ctx, topicPartitionOffsets, kafka.SetAdminIsolationLevel(kafka.ReadCommitted))
+	results, err := a.ListOffsets(ctx, topicPartitionOffsets,
+		kafka.SetAdminIsolationLevel(kafka.IsolationLevelReadCommitted))
 	if err != nil {
 		fmt.Printf("Failed to List offsets: %v\n", err)
 		os.Exit(1)
 	}
 	// map[TopicPartition]ListOffsetsResultInfo
 	// Print results
-	for tp, info := range results.Results {
+	for tp, info := range results.ResultsInfos {
 		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != kafka.ErrNoError {
 			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())

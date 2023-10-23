@@ -1012,15 +1012,15 @@ func NewOffsetSpecForTimestamp(timestamp int64) OffsetSpec {
 
 // ListOffsetsResultInfo describes the result of ListOffsets request for a Topic Partition.
 type ListOffsetsResultInfo struct {
-	Offset      int64
+	Offset      Offset
 	Timestamp   int64
-	LeaderEpoch int
+	LeaderEpoch *int
 	Error       Error
 }
 
 // ListOffsetsResult holds the map of TopicPartition to ListOffsetsResultInfo for a request.
 type ListOffsetsResult struct {
-	Results map[TopicPartition]ListOffsetsResultInfo
+	ResultsInfos map[TopicPartition]ListOffsetsResultInfo
 }
 
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
@@ -1406,20 +1406,23 @@ func cToDescribeUserScramCredentialsResult(
 // cToListOffsetsResult converts a C
 // rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
 func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
-	result = ListOffsetsResult{Results: make(map[TopicPartition]ListOffsetsResultInfo)}
+	result = ListOffsetsResult{ResultsInfos: make(map[TopicPartition]ListOffsetsResultInfo)}
 	var cPartitionCount C.size_t
 	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
 	for itr := 0; itr < int(cPartitionCount); itr++ {
 		cResultInfo := C.ListOffsetsResultInfo_by_idx(cResultInfos, cPartitionCount, C.size_t(itr))
-		Value := ListOffsetsResultInfo{}
+		resultInfo := ListOffsetsResultInfo{}
 		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfo)
 		Topic := C.GoString(cPartition.topic)
 		Partition := TopicPartition{Topic: &Topic, Partition: int32(cPartition.partition)}
-		Value.Offset = int64(cPartition.offset)
-		Value.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
-		Value.LeaderEpoch = -1
-		Value.Error = newError(cPartition.err)
-		result.Results[Partition] = Value
+		resultInfo.Offset = Offset(cPartition.offset)
+		resultInfo.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
+		cLeaderEpoch := int(C.rd_kafka_topic_partition_get_leader_epoch(cPartition))
+		if cLeaderEpoch >= 0 {
+			resultInfo.LeaderEpoch = &cLeaderEpoch
+		}
+		resultInfo.Error = newError(cPartition.err)
+		result.ResultsInfos[Partition] = resultInfo
 	}
 	return result
 }
