@@ -19,7 +19,6 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -128,6 +127,15 @@ rd_kafka_resp_err_t err;
 }
 */
 import "C"
+
+// minInt64 finds the minimum of two int64s.
+// Required until we start using Go 1.18 with generic functions.
+func minInt64(a int64, b int64) int64 {
+	if a > b {
+		return b
+	}
+	return a
+}
 
 // Producer implements a High-level Apache Kafka Producer instance
 type Producer struct {
@@ -358,17 +366,37 @@ func (p *Producer) Len() int {
 // BUG: Tries to include messages on ProduceChannel, but it's not guaranteed to be reliable.
 func (p *Producer) Flush(timeoutMs int) int {
 	termChan := make(chan bool) // unused stand-in termChan
+	// used to specify timeout for the underlying flush
+	flushIntervalChan := make(chan int64)
 
-	d, _ := time.ParseDuration(fmt.Sprintf("%dms", timeoutMs))
-	tEnd := time.Now().Add(d)
+	// Keep calling rd_kafka_flush to ignore queue.buffering.max.ms, and
+	// account for any other state changes that the underlying library
+	// might do in case it is flushing.
+	go func() {
+		for flushInterval := range flushIntervalChan {
+			C.rd_kafka_flush(p.handle.rk, C.int(flushInterval))
+		}
+	}()
+
+	defer close(flushIntervalChan)
+
+	timeoutDuration := time.Duration(timeoutMs) * time.Millisecond
+	tEnd := time.Now().Add(timeoutDuration)
 	for p.Len() > 0 {
-		remain := tEnd.Sub(time.Now()).Seconds()
-		if remain <= 0.0 {
+		remain := time.Until(tEnd).Milliseconds()
+		if remain <= 0 {
 			return p.Len()
 		}
 
+		tWait := minInt64(100, remain)
+
+		// If the previous eventPoll returned immediately, and the previous
+		// rd_kafka_flush did not, we'll end up in a situation where this
+		// channel blocks. However, this is acceptable as it may block for
+		// a maximum of 100ms.
+		flushIntervalChan <- tWait
 		p.handle.eventPoll(p.events,
-			int(math.Min(100, remain*1000)), 1000, termChan)
+			int(tWait), 1000, termChan)
 	}
 
 	return 0
