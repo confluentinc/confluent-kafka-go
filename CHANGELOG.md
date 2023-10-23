@@ -5,12 +5,35 @@
 
 This is a feature release.
 
+ * Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
+   (#964, @jainruchir).
+ * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses.
+   (#964, @jainruchir).
+ * Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#964, @jainruchir).
+ * MockCluster can now be shutdown and started again to test broker
+   availability problems (#998, @kkoehler).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+
 ## Fixes
 
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
+ * The minimum version of Go supported has been changed from 1.16 to 1.17
+   (#1074).
+ * Fixes an issue where `testing` was being imported by a non-test file,
+   testhelpers.go. (@dmlambea, #1049).
+ * Fix: `Coordinator` field in `ConsumerGroupDescription` is optional, in case
+   it's not known, and contains a `Node` with ID -1 if not known.
+   Avoids a C segmentation fault.
  * Fixes an issue with `Producer.Flush`. It was waiting for
    `queue.buffering.max.ms` while flushing (#1013).
+
+confluent-kafka-go is based on librdkafka v2.3.0, see the
+[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0-RC3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 
 # v2.2.0
