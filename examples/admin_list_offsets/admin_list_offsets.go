@@ -30,30 +30,43 @@ func main() {
 
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <bootstrap-servers> <topicname> <partition> <EARLIEST/LATEST/MAXTIMESTAMP/TIMESTAMP t1> ..\n", os.Args[0])
+			"Usage: %s <bootstrap-servers> <topicname> <partition> <EARLIEST/LATEST/MAX_TIMESTAMP/TIMESTAMP t1> ..\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
 
-	args := len(os.Args)
+	argsCnt := len(os.Args)
 	i := 2
+	index := 0
 	topicPartitionOffsets := make(map[kafka.TopicPartition]kafka.OffsetSpec)
-	for i < args {
+	for i < argsCnt {
+		if i+3 > argsCnt {
+			fmt.Printf("Expected %d arguments for partition %d, got %d\n", 3, index, argsCnt-i)
+			os.Exit(1)
+		}
+
 		topicName := os.Args[i]
 		partition, err := strconv.Atoi(os.Args[i+1])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Invalid partition: %s\n", err)
 			os.Exit(1)
 		}
+
 		tp := kafka.TopicPartition{Topic: &topicName, Partition: int32(partition)}
+
 		if os.Args[i+2] == "EARLIEST" {
 			topicPartitionOffsets[tp] = kafka.EarliestOffsetSpec
 		} else if os.Args[i+2] == "LATEST" {
 			topicPartitionOffsets[tp] = kafka.LatestOffsetSpec
-		} else if os.Args[i+2] == "MAXTIMESTAMP" {
+		} else if os.Args[i+2] == "MAX_TIMESTAMP" {
 			topicPartitionOffsets[tp] = kafka.MaxTimestampOffsetSpec
 		} else if os.Args[i+2] == "TIMESTAMP" {
+			if i+4 > argsCnt {
+				fmt.Printf("Expected %d arguments for partition %d, got %d\n", 4, index, argsCnt-i)
+				os.Exit(1)
+			}
+
 			timestamp, timestampErr := strconv.Atoi(os.Args[i+3])
 			if timestampErr != nil {
 				fmt.Fprintf(os.Stderr, "Invalid timestamp: %s\n", timestampErr)
@@ -66,6 +79,7 @@ func main() {
 			os.Exit(1)
 		}
 		i = i + 3
+		index++
 	}
 
 	// Create a new AdminClient.
@@ -93,12 +107,11 @@ func main() {
 	// map[TopicPartition]ListOffsetsResultInfo
 	// Print results
 	for tp, info := range results.ResultsInfos {
-		fmt.Printf("Topic: %s Partition_Index : %d\n", *tp.Topic, tp.Partition)
+		fmt.Printf("Topic: %s Partition: %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != kafka.ErrNoError {
-			fmt.Printf("	ErrorCode : %d ErrorMessage : %s\n\n", info.Error.Code(), info.Error.String())
+			fmt.Printf("	ErrorCode: %d ErrorMessage: %s\n\n", info.Error.Code(), info.Error.String())
 		} else {
-			fmt.Printf("	Offset : %d Timestamp : %d\n\n", info.Offset, info.Timestamp)
+			fmt.Printf("	Offset: %d Timestamp: %d\n\n", info.Offset, info.Timestamp)
 		}
 	}
-
 }
