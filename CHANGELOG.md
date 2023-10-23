@@ -33,7 +33,7 @@ This is a feature release.
  * Fixes an issue where `testing` was being imported by a non-test file,
    testhelpers.go. (#1049, @dmlambea).
  * Fixes the optional `Coordinator` field in `ConsumerGroupDescription` in case
-   it's not known. It now and contains a `Node` with ID -1 in that case.
+   it's not known. It now contains a `Node` with ID -1 in that case.
    Avoids a C segmentation fault.
  * Fixes an issue with `Producer.Flush`. It was waiting for
    `queue.buffering.max.ms` while flushing (#1013).
