@@ -41,7 +41,7 @@ This is a feature release.
    consumer was closing, and during the final partition revoke (#1073).
 
 confluent-kafka-go is based on librdkafka v2.3.0, see the
-[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0-RC3)
+[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0-RC4)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
