@@ -1022,7 +1022,7 @@ type ListOffsetsResultInfo struct {
 
 // ListOffsetsResult holds the map of TopicPartition to ListOffsetsResultInfo for a request.
 type ListOffsetsResult struct {
-	ResultsInfos map[TopicPartition]ListOffsetsResultInfo
+	ResultInfos map[TopicPartition]ListOffsetsResultInfo
 }
 
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
@@ -1420,7 +1420,7 @@ func cToDescribeUserScramCredentialsResult(
 // cToListOffsetsResult converts a C
 // rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
 func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
-	result = ListOffsetsResult{ResultsInfos: make(map[TopicPartition]ListOffsetsResultInfo)}
+	result = ListOffsetsResult{ResultInfos: make(map[TopicPartition]ListOffsetsResultInfo)}
 	var cPartitionCount C.size_t
 	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
 	for itr := 0; itr < int(cPartitionCount); itr++ {
@@ -1436,7 +1436,7 @@ func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOff
 			resultInfo.LeaderEpoch = &cLeaderEpoch
 		}
 		resultInfo.Error = newError(cPartition.err)
-		result.ResultsInfos[Partition] = resultInfo
+		result.ResultInfos[Partition] = resultInfo
 	}
 	return result
 }
@@ -3231,8 +3231,8 @@ func (a *AdminClient) DescribeUserScramCredentials(
 func (a *AdminClient) ListOffsets(
 	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
 	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
-	if len(topicPartitionOffsets) < 1 || topicPartitionOffsets == nil {
-		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets of size greater or equal 1.")
+	if topicPartitionOffsets == nil {
+		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets parameter.")
 	}
 
 	topicPartitions := C.rd_kafka_topic_partition_list_new(C.int(len(topicPartitionOffsets)))
