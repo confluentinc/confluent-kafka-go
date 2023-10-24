@@ -106,7 +106,7 @@ func main() {
 	}
 	// map[TopicPartition]ListOffsetsResultInfo
 	// Print results
-	for tp, info := range results.ResultsInfos {
+	for tp, info := range results.ResultInfos {
 		fmt.Printf("Topic: %s Partition: %d\n", *tp.Topic, tp.Partition)
 		if info.Error.Code() != kafka.ErrNoError {
 			fmt.Printf("	ErrorCode: %d ErrorMessage: %s\n\n", info.Error.Code(), info.Error.String())
