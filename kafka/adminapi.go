@@ -1140,9 +1140,9 @@ func (a *AdminClient) cToAuthorizedOperations(
 // cToUUID converts a C rd_kafka_Uuid_t to a Go UUID.
 func (a *AdminClient) cToUUID(cUUID *C.rd_kafka_Uuid_t) UUID {
 	uuid := UUID{
-		mostSignificantBits: int64(C.rd_kafka_Uuid_most_significant_bits(cUUID)),
+		mostSignificantBits:  int64(C.rd_kafka_Uuid_most_significant_bits(cUUID)),
 		leastSignificantBits: int64(C.rd_kafka_Uuid_least_significant_bits(cUUID)),
-		base64str: C.GoString(C.rd_kafka_Uuid_base64str(cUUID)),
+		base64str:            C.GoString(C.rd_kafka_Uuid_base64str(cUUID)),
 	}
 	return uuid
 }
@@ -2750,6 +2750,11 @@ func (a *AdminClient) DescribeTopics(
 	// Convert topic names into char**.
 	cTopicNameList := make([]*C.char, len(topics.topicNames))
 	cTopicNameCount := C.size_t(len(topics.topicNames))
+
+	if topics.topicNames == nil {
+		return describeResult, newErrorFromString(ErrInvalidArg,
+			"TopicCollection of topic names cannot be nil")
+	}
 
 	for idx, topic := range topics.topicNames {
 		cTopicNameList[idx] = C.CString(topic)

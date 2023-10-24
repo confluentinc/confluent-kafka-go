@@ -487,29 +487,73 @@ func testAdminAPIsDescribeConsumerGroups(
 
 func testAdminAPIsDescribeTopics(
 	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
-	defer cancel()
-	descres, err := a.DescribeTopics(
-		ctx, NewTopicCollectionOfTopicNames(nil), SetAdminRequestTimeout(time.Second))
-	if descres.TopicDescriptions != nil || err == nil {
-		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
-			descres, err)
-	}
-	if err.(Error).Code() != ErrInvalidArg {
-		t.Fatalf("Expected ErrInvalidArg with empty topics list, but got %s", err)
-	}
+	requestTimeout := SetAdminRequestTimeout(time.Second)
+	for _, options := range [][]DescribeTopicsAdminOption{
+		{},
+		{requestTimeout},
+		{requestTimeout, SetAdminOptionIncludeAuthorizedOperations(true)},
+		{SetAdminOptionIncludeAuthorizedOperations(false)},
+	} {
 
-	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
-	defer cancel()
-	descres, err = a.DescribeTopics(
-		ctx, NewTopicCollectionOfTopicNames([]string{"test"}),
-		SetAdminRequestTimeout(time.Second))
-	if descres.TopicDescriptions != nil || err == nil {
-		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
-			descres, err)
-	}
-	if ctx.Err() != context.DeadlineExceeded {
-		t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+		// nil slice gives error
+		ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		descres, err := a.DescribeTopics(
+			ctx, NewTopicCollectionOfTopicNames(nil), options...)
+		if descres.TopicDescriptions != nil || err == nil {
+			t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+				descres, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg with nil slice, but got %s", err)
+		}
+
+		// Empty slice returns empty TopicDescription slice
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		descres, err = a.DescribeTopics(
+			ctx, NewTopicCollectionOfTopicNames([]string{}), options...)
+		if descres.TopicDescriptions == nil || err != nil {
+			t.Fatalf("Expected DescribeTopics to succeed, but got result: %v, err: %v",
+				descres, err)
+		}
+		if len(descres.TopicDescriptions) > 0 {
+			t.Fatalf("Expected an empty TopicDescription slice, but got %d elements",
+				len(descres.TopicDescriptions))
+		}
+
+		// Empty topic names
+		for _, topicCollection := range []TopicCollection{
+			NewTopicCollectionOfTopicNames([]string{""}),
+			NewTopicCollectionOfTopicNames([]string{"correct", ""}),
+		} {
+			ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+			defer cancel()
+			descres, err = a.DescribeTopics(
+				ctx, topicCollection,
+				options...)
+			if descres.TopicDescriptions != nil || err == nil {
+				t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+					descres, err)
+			}
+			if err.(Error).Code() != ErrInvalidArg {
+				t.Fatalf("Expected ErrInvalidArg, not %d %v", err.(Error).Code(), err.Error())
+			}
+		}
+
+		// Normal call
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		descres, err = a.DescribeTopics(
+			ctx, NewTopicCollectionOfTopicNames([]string{"test"}),
+			options...)
+		if descres.TopicDescriptions != nil || err == nil {
+			t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+				descres, err)
+		}
+		if ctx.Err() != context.DeadlineExceeded {
+			t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+		}
 	}
 }
 
