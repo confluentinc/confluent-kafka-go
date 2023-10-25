@@ -2728,7 +2728,8 @@ func (a *AdminClient) DescribeConsumerGroups(
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `topics` - Collection of topics to describe. This should not be nil/empty.
+//   - `topics` - Collection of topics to describe. This should not have nil
+//     topic names.
 //   - `options` - DescribeTopicsAdminOption options.
 //
 // Returns DescribeTopicsResult, which contains a slice of
@@ -3221,9 +3222,11 @@ func (a *AdminClient) DescribeUserScramCredentials(
 // specified TopicPartiton based on an OffsetSpec.
 //
 // Parameters:
+//
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it holds either the OffsetSpec enum value or timestamp.
+//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it
+//     holds either the OffsetSpec enum value or timestamp. Must not be nil.
 //   - `options` - ListOffsetsAdminOption options.
 //
 // Returns a ListOffsetsResult.
