@@ -1022,7 +1022,7 @@ type ListOffsetsResultInfo struct {
 
 // ListOffsetsResult holds the map of TopicPartition to ListOffsetsResultInfo for a request.
 type ListOffsetsResult struct {
-	ResultsInfos map[TopicPartition]ListOffsetsResultInfo
+	ResultInfos map[TopicPartition]ListOffsetsResultInfo
 }
 
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
@@ -1140,9 +1140,9 @@ func (a *AdminClient) cToAuthorizedOperations(
 // cToUUID converts a C rd_kafka_Uuid_t to a Go UUID.
 func (a *AdminClient) cToUUID(cUUID *C.rd_kafka_Uuid_t) UUID {
 	uuid := UUID{
-		mostSignificantBits: int64(C.rd_kafka_Uuid_most_significant_bits(cUUID)),
+		mostSignificantBits:  int64(C.rd_kafka_Uuid_most_significant_bits(cUUID)),
 		leastSignificantBits: int64(C.rd_kafka_Uuid_least_significant_bits(cUUID)),
-		base64str: C.GoString(C.rd_kafka_Uuid_base64str(cUUID)),
+		base64str:            C.GoString(C.rd_kafka_Uuid_base64str(cUUID)),
 	}
 	return uuid
 }
@@ -1420,7 +1420,7 @@ func cToDescribeUserScramCredentialsResult(
 // cToListOffsetsResult converts a C
 // rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
 func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
-	result = ListOffsetsResult{ResultsInfos: make(map[TopicPartition]ListOffsetsResultInfo)}
+	result = ListOffsetsResult{ResultInfos: make(map[TopicPartition]ListOffsetsResultInfo)}
 	var cPartitionCount C.size_t
 	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
 	for itr := 0; itr < int(cPartitionCount); itr++ {
@@ -1436,7 +1436,7 @@ func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOff
 			resultInfo.LeaderEpoch = &cLeaderEpoch
 		}
 		resultInfo.Error = newError(cPartition.err)
-		result.ResultsInfos[Partition] = resultInfo
+		result.ResultInfos[Partition] = resultInfo
 	}
 	return result
 }
@@ -2728,7 +2728,8 @@ func (a *AdminClient) DescribeConsumerGroups(
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `topics` - Collection of topics to describe. This should not be nil/empty.
+//   - `topics` - Collection of topics to describe. This should not have nil
+//     topic names.
 //   - `options` - DescribeTopicsAdminOption options.
 //
 // Returns DescribeTopicsResult, which contains a slice of
@@ -2750,6 +2751,11 @@ func (a *AdminClient) DescribeTopics(
 	// Convert topic names into char**.
 	cTopicNameList := make([]*C.char, len(topics.topicNames))
 	cTopicNameCount := C.size_t(len(topics.topicNames))
+
+	if topics.topicNames == nil {
+		return describeResult, newErrorFromString(ErrInvalidArg,
+			"TopicCollection of topic names cannot be nil")
+	}
 
 	for idx, topic := range topics.topicNames {
 		cTopicNameList[idx] = C.CString(topic)
@@ -3216,9 +3222,11 @@ func (a *AdminClient) DescribeUserScramCredentials(
 // specified TopicPartiton based on an OffsetSpec.
 //
 // Parameters:
+//
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it holds either the OffsetSpec enum value or timestamp.
+//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it
+//     holds either the OffsetSpec enum value or timestamp. Must not be nil.
 //   - `options` - ListOffsetsAdminOption options.
 //
 // Returns a ListOffsetsResult.
@@ -3226,8 +3234,8 @@ func (a *AdminClient) DescribeUserScramCredentials(
 func (a *AdminClient) ListOffsets(
 	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
 	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
-	if len(topicPartitionOffsets) < 1 || topicPartitionOffsets == nil {
-		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets of size greater or equal 1.")
+	if topicPartitionOffsets == nil {
+		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets parameter.")
 	}
 
 	topicPartitions := C.rd_kafka_topic_partition_list_new(C.int(len(topicPartitionOffsets)))
