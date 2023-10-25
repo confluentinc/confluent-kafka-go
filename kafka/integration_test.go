@@ -3206,7 +3206,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(IsolationLevelReadCommitted))
 	assert.Nil(err, "ListOffsets should not fail.")
 
-	for _, info := range results.ResultsInfos {
+	for _, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(0), "Offset should be ErrNoError.")
 	}
@@ -3215,7 +3215,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(IsolationLevelReadCommitted))
 	assert.Nil(err, "ListOffsets should not fail.")
 
-	for _, info := range results.ResultsInfos {
+	for _, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(3), "Offset should be 3.")
 	}
@@ -3224,7 +3224,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 	results, err = a.ListOffsets(ctx, topicPartitionOffsets, SetAdminIsolationLevel(IsolationLevelReadCommitted))
 	assert.Nil(err, "ListOffsets should not fail.")
 
-	for _, info := range results.ResultsInfos {
+	for _, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
 		assert.Equal(info.Offset, int64(1), "Offset should be 1.")
 	}

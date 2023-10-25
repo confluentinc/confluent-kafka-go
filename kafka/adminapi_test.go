@@ -487,29 +487,73 @@ func testAdminAPIsDescribeConsumerGroups(
 
 func testAdminAPIsDescribeTopics(
 	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
-	defer cancel()
-	descres, err := a.DescribeTopics(
-		ctx, NewTopicCollectionOfTopicNames(nil), SetAdminRequestTimeout(time.Second))
-	if descres.TopicDescriptions != nil || err == nil {
-		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
-			descres, err)
-	}
-	if err.(Error).Code() != ErrInvalidArg {
-		t.Fatalf("Expected ErrInvalidArg with empty topics list, but got %s", err)
-	}
+	requestTimeout := SetAdminRequestTimeout(time.Second)
+	for _, options := range [][]DescribeTopicsAdminOption{
+		{},
+		{requestTimeout},
+		{requestTimeout, SetAdminOptionIncludeAuthorizedOperations(true)},
+		{SetAdminOptionIncludeAuthorizedOperations(false)},
+	} {
 
-	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
-	defer cancel()
-	descres, err = a.DescribeTopics(
-		ctx, NewTopicCollectionOfTopicNames([]string{"test"}),
-		SetAdminRequestTimeout(time.Second))
-	if descres.TopicDescriptions != nil || err == nil {
-		t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
-			descres, err)
-	}
-	if ctx.Err() != context.DeadlineExceeded {
-		t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+		// nil slice gives error
+		ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		descres, err := a.DescribeTopics(
+			ctx, NewTopicCollectionOfTopicNames(nil), options...)
+		if descres.TopicDescriptions != nil || err == nil {
+			t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+				descres, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg with nil slice, but got %s", err)
+		}
+
+		// Empty slice returns empty TopicDescription slice
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		descres, err = a.DescribeTopics(
+			ctx, NewTopicCollectionOfTopicNames([]string{}), options...)
+		if descres.TopicDescriptions == nil || err != nil {
+			t.Fatalf("Expected DescribeTopics to succeed, but got result: %v, err: %v",
+				descres, err)
+		}
+		if len(descres.TopicDescriptions) > 0 {
+			t.Fatalf("Expected an empty TopicDescription slice, but got %d elements",
+				len(descres.TopicDescriptions))
+		}
+
+		// Empty topic names
+		for _, topicCollection := range []TopicCollection{
+			NewTopicCollectionOfTopicNames([]string{""}),
+			NewTopicCollectionOfTopicNames([]string{"correct", ""}),
+		} {
+			ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+			defer cancel()
+			descres, err = a.DescribeTopics(
+				ctx, topicCollection,
+				options...)
+			if descres.TopicDescriptions != nil || err == nil {
+				t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+					descres, err)
+			}
+			if err.(Error).Code() != ErrInvalidArg {
+				t.Fatalf("Expected ErrInvalidArg, not %d %v", err.(Error).Code(), err.Error())
+			}
+		}
+
+		// Normal call
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		descres, err = a.DescribeTopics(
+			ctx, NewTopicCollectionOfTopicNames([]string{"test"}),
+			options...)
+		if descres.TopicDescriptions != nil || err == nil {
+			t.Fatalf("Expected DescribeTopics to fail, but got result: %v, err: %v",
+				descres, err)
+		}
+		if ctx.Err() != context.DeadlineExceeded {
+			t.Fatalf("Expected DeadlineExceeded, not %s %v", err.(Error).Code(), ctx.Err())
+		}
 	}
 }
 
@@ -638,6 +682,135 @@ func testAdminAPIsAlterConsumerGroupOffsets(
 		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 }
+
+func testAdminAPIsListOffsets(
+	what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	topic := "test"
+	invalidTopic := ""
+	requestTimeout := SetAdminRequestTimeout(time.Second)
+
+	// Invalid option value
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	result, err := a.ListOffsets(
+		ctx,
+		map[TopicPartition]OffsetSpec{}, SetAdminRequestTimeout(-1))
+	if result.ResultInfos != nil || err == nil {
+		t.Fatalf("Expected ListOffsets to fail, but got result: %v, err: %v",
+			result, err)
+	}
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err)
+	}
+
+	for _, options := range [][]ListOffsetsAdminOption{
+		{},
+		{requestTimeout},
+		{requestTimeout, SetAdminIsolationLevel(IsolationLevelReadUncommitted)},
+		{SetAdminIsolationLevel(IsolationLevelReadCommitted)},
+	} {
+		// nil argument should fail, not being treated as empty
+		ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		result, err := a.ListOffsets(
+			ctx,
+			nil, options...)
+		if result.ResultInfos != nil || err == nil {
+			t.Fatalf("Expected ListOffsets to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg, not %v", err)
+		}
+
+		// Empty map returns empty ResultInfos
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		result, err = a.ListOffsets(
+			ctx,
+			map[TopicPartition]OffsetSpec{}, options...)
+		if result.ResultInfos == nil || err != nil {
+			t.Fatalf("Expected ListOffsets to succeed, but got result: %v, err: %v",
+				result, err)
+		}
+		if len(result.ResultInfos) > 0 {
+			t.Fatalf("Expected empty ResultInfos, not %v", result.ResultInfos)
+		}
+
+		// Invalid TopicPartition
+		for _, topicPartitionOffsets := range []map[TopicPartition]OffsetSpec{
+			{{Topic: &invalidTopic, Partition: 0}: EarliestOffsetSpec},
+			{{Topic: &topic, Partition: -1}: EarliestOffsetSpec},
+		} {
+			ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+			defer cancel()
+			result, err = a.ListOffsets(
+				ctx,
+				topicPartitionOffsets, options...)
+			if result.ResultInfos != nil || err == nil {
+				t.Fatalf("Expected ListOffsets to fail, but got result: %v, err: %v",
+					result, err)
+			}
+			if err.(Error).Code() != ErrInvalidArg {
+				t.Fatalf("Expected ErrInvalidArg, not %v", err)
+			}
+		}
+
+		// Same partition with different offsets
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		topicPartitionOffsets := map[TopicPartition]OffsetSpec{
+			{Topic: &topic, Partition: 0, Offset: 10}: EarliestOffsetSpec,
+			{Topic: &topic, Partition: 0, Offset: 20}: LatestOffsetSpec,
+		}
+		result, err = a.ListOffsets(
+			ctx,
+			topicPartitionOffsets, options...)
+		if result.ResultInfos != nil || err == nil {
+			t.Fatalf("Expected ListOffsets to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg, not %v", err)
+		}
+
+		// Two different partitions
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		topicPartitionOffsets = map[TopicPartition]OffsetSpec{
+			{Topic: &topic, Partition: 0, Offset: 10}: EarliestOffsetSpec,
+			{Topic: &topic, Partition: 1, Offset: 20}: EarliestOffsetSpec,
+		}
+		result, err = a.ListOffsets(
+			ctx,
+			topicPartitionOffsets, options...)
+		if result.ResultInfos != nil || err == nil {
+			t.Fatalf("Expected ListOffsets to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if ctx.Err() != context.DeadlineExceeded {
+			t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+		}
+
+		// Single partition
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		topicPartitionOffsets = map[TopicPartition]OffsetSpec{
+			{Topic: &topic, Partition: 0}: EarliestOffsetSpec,
+		}
+		result, err = a.ListOffsets(
+			ctx,
+			topicPartitionOffsets, options...)
+		if result.ResultInfos != nil || err == nil {
+			t.Fatalf("Expected ListOffsets to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if ctx.Err() != context.DeadlineExceeded {
+			t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
+		}
+	}
+}
+
 func testAdminAPIsUserScramCredentials(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
 	var users []string
 
@@ -958,6 +1131,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsListConsumerGroupOffsets(what, a, expDuration, t)
 	testAdminAPIsAlterConsumerGroupOffsets(what, a, expDuration, t)
+	testAdminAPIsListOffsets(what, a, expDuration, t)
 
 	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
 }
