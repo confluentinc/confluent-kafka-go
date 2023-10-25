@@ -137,6 +137,8 @@ func (ao AdminOptionRequestTimeout) supportsListConsumerGroupOffsets() {
 }
 func (ao AdminOptionRequestTimeout) supportsAlterConsumerGroupOffsets() {
 }
+func (ao AdminOptionRequestTimeout) supportsListOffsets() {
+}
 func (ao AdminOptionRequestTimeout) supportsDescribeUserScramCredentials() {
 }
 func (ao AdminOptionRequestTimeout) supportsAlterUserScramCredentials() {
