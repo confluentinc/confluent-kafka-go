@@ -7196,7 +7196,6 @@ typedef enum rd_kafka_AclOperation_t {
 
 /**@}*/
 
-
 /**
  * @name Admin API - Topics
  * @brief Topic related operations.
