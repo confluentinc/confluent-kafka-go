@@ -5,11 +5,14 @@
 
 This is a feature release.
 
- * Adds support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
+ * [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations): Adds support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
    (#964, @jainruchir).
  * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
    Return authorized operations in Describe Responses.
    (#964, @jainruchir).
+ * [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers):
+   Partial support of topic identifiers. Topic identifiers in metadata response
+   are available through the new `DescribeTopics` function (#1068).
  * Adds `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
    (currently, all Describe Responses) (#964, @jainruchir).
  * [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with
@@ -20,9 +23,7 @@ This is a feature release.
  * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
  * Honor `HTTPS_PROXY` environment variable, if set, for the Schema Registry
    client (#1065, @finncolman).
- * [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers):
-   Partial support of topic identifiers. Topic identifiers in metadata response
-   are available through the new `DescribeTopics` function (#1068).
+
 
 ## Fixes
 
