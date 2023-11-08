@@ -75,11 +75,19 @@ func testGetLatestSchemaMetadata(subject string) {
 	maybeFail(subject, err)
 }
 
-func testGetSchemaMetadata(subject string, versionID int, expected string) {
+func testGetLatestWithMetadata(subject string, filename string, expectedMetadata Metadata) {
+	actual, err := srClient.GetLatestWithMetadata(subject, map[string]string{"fileName": filename}, false)
+	// avoid nil pointer dereference
+	maybeFail(subject, err)
+	maybeFail(subject, expect(expectedMetadata, *actual.Metadata))
+}
+
+func testGetSchemaMetadata(subject string, versionID int, expectedSchema string, expectedMetadata Metadata) {
 	actual, err := srClient.GetSchemaMetadata(subject, versionID)
 	// avoid nil pointer dereference
 	maybeFail(subject, err)
-	maybeFail(subject, expect(expected, actual.Schema))
+	maybeFail(subject, expect(expectedSchema, actual.Schema))
+	maybeFail(subject, expect(expectedMetadata, *actual.Metadata))
 }
 
 func testGetVersion(subject string, schema SchemaInfo) (version int) {
@@ -194,16 +202,22 @@ func TestClient(t *testing.T) {
 	for idx, schemaTestVersions := range schemaTests {
 		var currentVersions = make([]int, 0)
 		subject := fmt.Sprintf("schema%d-key", idx)
-		srClient.DeleteSubject(subject, false)
-		srClient.DeleteSubject(subject, true)
+		_, _ = srClient.DeleteSubject(subject, false)
+		_, _ = srClient.DeleteSubject(subject, true)
 		subjects[idx] = subject
 		for _, schemaTest := range schemaTestVersions {
 			buff, err := ioutil.ReadFile(schemaTest)
 			if err != nil {
 				panic(err)
 			}
+			metadata := Metadata{
+				Properties: map[string]string{
+					"fileName": schemaTest,
+				},
+			}
 			schema := SchemaInfo{
-				Schema: string(buff),
+				Schema:   string(buff),
+				Metadata: &metadata,
 			}
 
 			id := testRegister(subject, schema)
@@ -212,8 +226,9 @@ func TestClient(t *testing.T) {
 			// The schema registry will return a normalized Avro Schema so we can't directly compare the two
 			// To work around this we retrieve a normalized schema from the Schema registry first for comparison
 			normalized := testGetBySubjectAndID(subject, id)
-			testGetSchemaMetadata(subject, version, normalized.Schema)
+			testGetSchemaMetadata(subject, version, normalized.Schema, metadata)
 			testGetLatestSchemaMetadata(subject)
+			testGetLatestWithMetadata(subject, schemaTest, metadata)
 
 			testUpdateCompatibility(subject, Forward, Forward)
 			testGetCompatibility(subject, Forward)
