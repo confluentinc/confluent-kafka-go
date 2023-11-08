@@ -392,9 +392,7 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
 // Returns SchemaMetadata object
 func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata, err error) {
-	err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), "latest"), &result)
-
-	return result, err
+	return c.GetSchemaMetadata(subject, -1)
 }
 
 // GetSchemaMetadata fetches the requested subject schema identified by version
