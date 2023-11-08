@@ -16,7 +16,10 @@
 
 package schemaregistry
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+)
 
 // Config is used to pass multiple configuration options to the Schema Registry client.
 type Config struct {
@@ -50,6 +53,9 @@ type Config struct {
 	RequestTimeoutMs int
 	// CacheCapacity positive integer or zero for unbounded capacity
 	CacheCapacity int
+
+	// HTTP client
+	HTTPClient *http.Client
 }
 
 // NewConfig returns a new configuration instance with sane defaults.

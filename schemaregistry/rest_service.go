@@ -126,20 +126,24 @@ func newRestService(conf *Config) (*restService, error) {
 		return nil, err
 	}
 
-	transport, err := configureTransport(conf)
-	if err != nil {
-		return nil, err
-	}
+	if conf.HTTPClient == nil {
+		transport, err := configureTransport(conf)
+		if err != nil {
+			return nil, err
+		}
 
-	timeout := conf.RequestTimeoutMs
+		timeout := conf.RequestTimeoutMs
+
+		conf.HTTPClient = &http.Client{
+			Transport: transport,
+			Timeout:   time.Duration(timeout) * time.Millisecond,
+		}
+	}
 
 	return &restService{
 		url:     u,
 		headers: headers,
-		Client: &http.Client{
-			Transport: transport,
-			Timeout:   time.Duration(timeout) * time.Millisecond,
-		},
+		Client:  conf.HTTPClient,
 	}, nil
 }
 
