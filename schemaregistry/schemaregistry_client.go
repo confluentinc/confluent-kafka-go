@@ -218,6 +218,7 @@ type Client interface {
 func NewClient(conf *Config) (Client, error) {
 
 	urlConf := conf.SchemaRegistryURL
+	// for testing
 	if strings.HasPrefix(urlConf, "mock://") {
 		url, err := url.Parse(urlConf)
 		if err != nil {

@@ -23,8 +23,16 @@ import (
 func TestConfigWithAuthentication(t *testing.T) {
 	maybeFail = initFailFunc(t)
 
-	c := NewConfigWithAuthentication("mock://", "username", "password")
+	c := NewConfigWithBasicAuthentication("mock://", "username", "password")
 
 	maybeFail("BasicAuthCredentialsSource", expect(c.BasicAuthCredentialsSource, "USER_INFO"))
 	maybeFail("BasicAuthUserInfo", expect(c.BasicAuthUserInfo, "username:password"))
+}
+
+func TestConfigWithBearerAuth(t *testing.T) {
+	maybeFail = initFailFunc(t)
+	c := NewConfigWithBearerAuthentication("mock://", "token", "lsrc-123", "poolID")
+	maybeFail("BearerAuthCredentialsSource", expect(c.BearerAuthCredentialsSource, "STATIC_TOKEN"))
+	maybeFail("BearerAuthLogicalCluster", expect(c.BearerAuthLogicalCluster, "lsrc-123"))
+	maybeFail("BearerAuthIdentityPoolID", expect(c.BearerAuthIdentityPoolID, "poolID"))
 }
