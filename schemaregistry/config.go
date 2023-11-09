@@ -38,6 +38,15 @@ type Config struct {
 	// SaslUsername specifies the password for SASL.
 	SaslPassword string
 
+	// BearerAuthToken specifies the token for authentication.
+	BearerAuthToken string
+	// BearerAuthCredentialsSource specifies how to determine the credentials.
+	BearerAuthCredentialsSource string
+	// BearerAuthLogicalCluster specifies the target SR logical cluster id. It is required for Confluent Cloud Schema Registry
+	BearerAuthLogicalCluster string
+	// BearerAuthIdentityPoolID specifies the identity pool ID. It is required for Confluent Cloud Schema Registry
+	BearerAuthIdentityPoolID string
+
 	// SslCertificateLocation specifies the location of SSL certificates.
 	SslCertificateLocation string
 	// SslKeyLocation specifies the location of SSL keys.
@@ -64,9 +73,6 @@ func NewConfig(url string) *Config {
 
 	c.SchemaRegistryURL = url
 
-	c.BasicAuthUserInfo = ""
-	c.BasicAuthCredentialsSource = "URL"
-
 	c.SaslMechanism = "GSSAPI"
 	c.SaslUsername = ""
 	c.SaslPassword = ""
@@ -82,13 +88,28 @@ func NewConfig(url string) *Config {
 	return c
 }
 
-// NewConfigWithAuthentication returns a new configuration instance using basic authentication.
+// NewConfigWithBasicAuthentication returns a new configuration instance using basic authentication.
 // For Confluent Cloud, use the API key for the username and the API secret for the password.
-func NewConfigWithAuthentication(url string, username string, password string) *Config {
+func NewConfigWithBasicAuthentication(url string, username string, password string) *Config {
 	c := NewConfig(url)
 
 	c.BasicAuthUserInfo = fmt.Sprintf("%s:%s", username, password)
 	c.BasicAuthCredentialsSource = "USER_INFO"
+
+	return c
+}
+
+// NewConfigWithBearerAuthentication returns a new configuration instance using bearer authentication.
+// For Confluent Cloud, targetSr(`bearer.auth.logical.cluster` and
+// identityPoolID(`bearer.auth.identity.pool.id`) is required
+func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID string) *Config {
+
+	c := NewConfig(url)
+
+	c.BearerAuthToken = token
+	c.BearerAuthCredentialsSource = "STATIC_TOKEN"
+	c.BearerAuthLogicalCluster = targetSr
+	c.BearerAuthIdentityPoolID = identityPoolID
 
 	return c
 }
