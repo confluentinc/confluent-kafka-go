@@ -34,5 +34,5 @@ func TestConfigWithBearerAuth(t *testing.T) {
 	c := NewConfigWithBearerAuthentication("mock://", "token", "lsrc-123", "poolID")
 	maybeFail("BearerAuthCredentialsSource", expect(c.BearerAuthCredentialsSource, "STATIC_TOKEN"))
 	maybeFail("BearerAuthLogicalCluster", expect(c.BearerAuthLogicalCluster, "lsrc-123"))
-	maybeFail("BearerAuthIdentityPoolId", expect(c.BearerAuthIdentityPoolId, "poolID"))
+	maybeFail("BearerAuthIdentityPoolID", expect(c.BearerAuthIdentityPoolID, "poolID"))
 }
