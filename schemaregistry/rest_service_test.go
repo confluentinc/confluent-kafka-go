@@ -18,6 +18,7 @@ package schemaregistry
 
 import (
 	"crypto/tls"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -81,5 +82,77 @@ func TestConfigureTLS(t *testing.T) {
 	config.SslCaLocation = "test/secrets/rootCA.crt"
 	if err := configureTLS(config, tlsConfig); err != nil {
 		t.Errorf("Should work with valid CA, certificate and key, got %s", err)
+	}
+}
+
+func TestNewAuthHeader(t *testing.T) {
+	url, err := url.Parse("mock://")
+	if err != nil {
+		t.Errorf("Should work with empty config, got %s", err)
+	}
+
+	config := &Config{}
+
+	config.BearerAuthCredentialsSource = "STATIC_TOKEN"
+	config.BasicAuthCredentialsSource = "URL"
+
+	_, err = newAuthHeader(url, config)
+	if err == nil {
+		t.Errorf("Should not work with both basic auth source and bearer auth source")
+	}
+
+	// testing bearer auth
+	config.BasicAuthCredentialsSource = ""
+	_, err = newAuthHeader(url, config)
+	if err == nil {
+		t.Errorf("Should not work if bearer auth token is empty")
+	}
+
+	config.BearerAuthToken = "token"
+	headers, err := newAuthHeader(url, config)
+	if err != nil {
+		t.Errorf("Should work with bearer auth token, got %s", err)
+	} else if val, exists := headers["Authorization"]; !exists || len(val) == 0 ||
+		!strings.EqualFold(val[0], "Bearer token") {
+		t.Errorf("Should have header with key Authorization")
+	}
+
+	config.BearerAuthCredentialsSource = "other"
+	_, err = newAuthHeader(url, config)
+	if err == nil {
+		t.Errorf("Should not work if bearer auth source is invalid")
+	}
+
+	// testing basic auth
+	config.BearerAuthCredentialsSource = ""
+	config.BasicAuthCredentialsSource = "USER_INFO"
+	config.BasicAuthUserInfo = "username:password"
+	_, err = newAuthHeader(url, config)
+	if err != nil {
+		t.Errorf("Should work with basic auth token, got %s", err)
+	}
+
+	config.BasicAuthCredentialsSource = "URL"
+	_, err = newAuthHeader(url, config)
+	if err != nil {
+		t.Errorf("Should work with basic auth token, got %s", err)
+	} else if val, exists := headers["Authorization"]; !exists || len(val) == 0 {
+		t.Errorf("Should have header with key Authorization")
+	}
+
+	config.BasicAuthCredentialsSource = "SASL_INHERIT"
+	config.SaslUsername = "username"
+	config.SaslPassword = "password"
+	_, err = newAuthHeader(url, config)
+	if err != nil {
+		t.Errorf("Should work with basic auth token, got %s", err)
+	} else if val, exists := headers["Authorization"]; !exists || len(val) == 0 {
+		t.Errorf("Should have header with key Authorization")
+	}
+
+	config.BasicAuthCredentialsSource = "other"
+	_, err = newAuthHeader(url, config)
+	if err == nil {
+		t.Errorf("Should not work if basic auth source is invalid")
 	}
 }
