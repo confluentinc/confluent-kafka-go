@@ -44,8 +44,8 @@ type Config struct {
 	BearerAuthCredentialsSource string
 	// BearerAuthLogicalCluster specifies the target SR logical cluster id. It is required for Confluent Cloud Schema Registry
 	BearerAuthLogicalCluster string
-	// BearerAuthIdentityPoolId specifies the identity pool ID. It is required for Confluent Cloud Schema Registry
-	BearerAuthIdentityPoolId string
+	// BearerAuthIdentityPoolID specifies the identity pool ID. It is required for Confluent Cloud Schema Registry
+	BearerAuthIdentityPoolID string
 
 	// SslCertificateLocation specifies the location of SSL certificates.
 	SslCertificateLocation string
@@ -101,15 +101,15 @@ func NewConfigWithBasicAuthentication(url string, username string, password stri
 
 // NewConfigWithBearerAuthentication returns a new configuration instance using bearer authentication.
 // For Confluent Cloud, targetSr(`bearer.auth.logical.cluster` and
-// identityPoolId(`bearer.auth.identity.pool.id`) is required
-func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolId string) *Config {
+// identityPoolID(`bearer.auth.identity.pool.id`) is required
+func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID string) *Config {
 
 	c := NewConfig(url)
 
 	c.BearerAuthToken = token
 	c.BearerAuthCredentialsSource = "STATIC_TOKEN"
 	c.BearerAuthLogicalCluster = targetSr
-	c.BearerAuthIdentityPoolId = identityPoolId
+	c.BearerAuthIdentityPoolID = identityPoolID
 
 	return c
 }

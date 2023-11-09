@@ -266,9 +266,9 @@ func configureStaticTokenAuth(conf *Config, header http.Header) error {
 }
 
 func setBearerAuthExtraHeaders(conf *Config, header http.Header) {
-	targetIdentityPoolId := conf.BearerAuthIdentityPoolId
-	if len(targetIdentityPoolId) > 0 {
-		header.Add(targetIdentityPoolIDKey, targetIdentityPoolId)
+	targetIdentityPoolID := conf.BearerAuthIdentityPoolID
+	if len(targetIdentityPoolID) > 0 {
+		header.Add(targetIdentityPoolIDKey, targetIdentityPoolID)
 	}
 
 	targetSr := conf.BearerAuthLogicalCluster
