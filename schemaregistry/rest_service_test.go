@@ -109,12 +109,24 @@ func TestNewAuthHeader(t *testing.T) {
 	}
 
 	config.BearerAuthToken = "token"
+	config.BearerAuthLogicalCluster = "lsrc-123"
+	config.BearerAuthIdentityPoolID = "poolID"
 	headers, err := newAuthHeader(url, config)
 	if err != nil {
 		t.Errorf("Should work with bearer auth token, got %s", err)
-	} else if val, exists := headers["Authorization"]; !exists || len(val) == 0 ||
-		!strings.EqualFold(val[0], "Bearer token") {
-		t.Errorf("Should have header with key Authorization")
+	} else {
+		if val, exists := headers["Authorization"]; !exists || len(val) == 0 ||
+			!strings.EqualFold(val[0], "Bearer token") {
+			t.Errorf("Should have header with key Authorization")
+		}
+		if val, exists := headers[targetIdentityPoolIDKey]; !exists || len(val) == 0 ||
+			!strings.EqualFold(val[0], "poolID") {
+			t.Errorf("Should have header with key Confluent-Identity-Pool-Id")
+		}
+		if val, exists := headers[targetSRClusterKey]; !exists || len(val) == 0 ||
+			!strings.EqualFold(val[0], "lsrc-123") {
+			t.Errorf("Should have header with key Target-Sr-Cluster")
+		}
 	}
 
 	config.BearerAuthCredentialsSource = "other"

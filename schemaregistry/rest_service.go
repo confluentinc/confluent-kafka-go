@@ -55,7 +55,7 @@ const (
 	mode              = "/mode"
 	modeConfig        = mode + "/%s"
 
-	targetSRClusterKey      = "target-sr-cluster"
+	targetSRClusterKey      = "Target-Sr-Cluster"
 	targetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
 )
 
