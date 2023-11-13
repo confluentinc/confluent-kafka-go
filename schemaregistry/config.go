@@ -88,6 +88,18 @@ func NewConfig(url string) *Config {
 	return c
 }
 
+// NewConfigWithAuthentication returns a new configuration instance using basic authentication.
+// For Confluent Cloud, use the API key for the username and the API secret for the password.
+// This method is deprecated.
+func NewConfigWithAuthentication(url string, username string, password string) *Config {
+	c := NewConfig(url)
+
+	c.BasicAuthUserInfo = fmt.Sprintf("%s:%s", username, password)
+	c.BasicAuthCredentialsSource = "USER_INFO"
+
+	return c
+}
+
 // NewConfigWithBasicAuthentication returns a new configuration instance using basic authentication.
 // For Confluent Cloud, use the API key for the username and the API secret for the password.
 func NewConfigWithBasicAuthentication(url string, username string, password string) *Config {
