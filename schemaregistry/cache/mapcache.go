@@ -57,6 +57,13 @@ func (c *MapCache) Delete(key interface{}) {
 	delete(c.entries, key)
 }
 
+// Clear clears the cache
+func (c *MapCache) Clear() {
+	for key := range c.entries {
+		delete(c.entries, key)
+	}
+}
+
 // ToMap returns the current cache entries copied into a map
 func (c *MapCache) ToMap() map[interface{}]interface{} {
 	ret := make(map[interface{}]interface{})

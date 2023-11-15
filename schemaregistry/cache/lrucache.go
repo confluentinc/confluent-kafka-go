@@ -131,6 +131,19 @@ func (c *LRUCache) Delete(key interface{}) {
 	}
 }
 
+// Clear clears the cache
+func (c *LRUCache) Clear() {
+	c.cacheLock.Lock()
+	for key, value := range c.lruElements {
+		delete(c.lruElements, key)
+		c.lruKeys.Remove(value)
+	}
+	for key := range c.entries {
+		delete(c.entries, key)
+	}
+	c.cacheLock.Unlock()
+}
+
 // ToMap returns the current cache entries copied into a map
 func (c *LRUCache) ToMap() map[interface{}]interface{} {
 	ret := make(map[interface{}]interface{})
