@@ -62,6 +62,8 @@ type Config struct {
 	RequestTimeoutMs int
 	// CacheCapacity positive integer or zero for unbounded capacity
 	CacheCapacity int
+	// CacheLatestTtlSecs ttl in secs for caching the latest schema
+	CacheLatestTtlSecs int
 
 	// HTTP client
 	HTTPClient *http.Client
