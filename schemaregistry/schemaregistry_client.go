@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 )
@@ -189,6 +190,8 @@ type client struct {
 	schemaToVersionCacheLock sync.RWMutex
 	versionToSchemaCache     cache.Cache
 	versionToSchemaCacheLock sync.RWMutex
+	latestToSchemaCache      cache.Cache
+	latestToSchemaCacheLock  sync.RWMutex
 }
 
 var _ Client = new(client)
@@ -243,6 +246,7 @@ func NewClient(conf *Config) (Client, error) {
 	var idToSchemaCache cache.Cache
 	var schemaToVersionCache cache.Cache
 	var versionToSchemaCache cache.Cache
+	var latestToSchemaCache cache.Cache
 	if conf.CacheCapacity != 0 {
 		schemaToIDCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
@@ -260,11 +264,26 @@ func NewClient(conf *Config) (Client, error) {
 		if err != nil {
 			return nil, err
 		}
+		latestToSchemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		schemaToIDCache = cache.NewMapCache()
 		idToSchemaCache = cache.NewMapCache()
 		schemaToVersionCache = cache.NewMapCache()
 		versionToSchemaCache = cache.NewMapCache()
+		latestToSchemaCache = cache.NewMapCache()
+	}
+	if conf.CacheLatestTTLSecs > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(conf.CacheLatestTTLSecs) * time.Second)
+			defer ticker.Stop()
+			for {
+				<-ticker.C
+				latestToSchemaCache.Clear()
+			}
+		}()
 	}
 	handle := &client{
 		restService:          restService,
@@ -272,6 +291,7 @@ func NewClient(conf *Config) (Client, error) {
 		idToSchemaCache:      idToSchemaCache,
 		schemaToVersionCache: schemaToVersionCache,
 		versionToSchemaCache: versionToSchemaCache,
+		latestToSchemaCache:  latestToSchemaCache,
 	}
 	return handle, nil
 }
@@ -393,7 +413,26 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
 // Returns SchemaMetadata object
 func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata, err error) {
-	return c.GetSchemaMetadata(subject, -1)
+	c.latestToSchemaCacheLock.RLock()
+	metadataValue, ok := c.latestToSchemaCache.Get(subject)
+	c.latestToSchemaCacheLock.RUnlock()
+	if ok {
+		return *metadataValue.(*SchemaMetadata), nil
+	}
+
+	c.latestToSchemaCacheLock.Lock()
+	// another goroutine could have already put it in cache
+	metadataValue, ok = c.latestToSchemaCache.Get(subject)
+	if !ok {
+		err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), "latest"), &result)
+		if err == nil {
+			c.latestToSchemaCache.Put(subject, &result)
+		}
+	} else {
+		result = *metadataValue.(*SchemaMetadata)
+	}
+	c.latestToSchemaCacheLock.Unlock()
+	return result, err
 }
 
 // GetSchemaMetadata fetches the requested subject schema identified by version
