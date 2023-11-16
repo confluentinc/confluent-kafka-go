@@ -275,9 +275,9 @@ func NewClient(conf *Config) (Client, error) {
 		versionToSchemaCache = cache.NewMapCache()
 		latestToSchemaCache = cache.NewMapCache()
 	}
-	if conf.CacheLatestTtlSecs > 0 {
+	if conf.CacheLatestTTLSecs > 0 {
 		go func() {
-			ticker := time.NewTicker(time.Duration(conf.CacheLatestTtlSecs) * time.Second)
+			ticker := time.NewTicker(time.Duration(conf.CacheLatestTTLSecs) * time.Second)
 			defer ticker.Stop()
 			for {
 				<-ticker.C
