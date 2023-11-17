@@ -158,7 +158,7 @@ func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) e
 	if cErr != 0 {
 		C.rd_kafka_AdminOptions_destroy(cOptions)
 		return newCErrorFromString(cErr,
-			fmt.Sprintf("%s", C.GoString(cErrstr)))
+			C.GoString(cErrstr))
 
 	}
 
@@ -264,7 +264,7 @@ func (ao AdminOptionValidateOnly) apply(cOptions *C.rd_kafka_AdminOptions_t) err
 	if cErr != 0 {
 		C.rd_kafka_AdminOptions_destroy(cOptions)
 		return newCErrorFromString(cErr,
-			fmt.Sprintf("%s", C.GoString(cErrstr)))
+			C.GoString(cErrstr))
 
 	}
 
