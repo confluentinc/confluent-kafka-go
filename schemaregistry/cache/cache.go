@@ -37,6 +37,8 @@ type Cache interface {
 	// Parameters:
 	//  * `key` - the key to delete
 	Delete(key interface{})
+	// Clear clears the cache
+	Clear()
 	// ToMap returns the current cache entries copied into a map
 	ToMap() map[interface{}]interface{}
 }
