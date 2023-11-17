@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -192,6 +193,7 @@ type client struct {
 	versionToSchemaCacheLock sync.RWMutex
 	latestToSchemaCache      cache.Cache
 	latestToSchemaCacheLock  sync.RWMutex
+	evictor                  *evictor
 }
 
 var _ Client = new(client)
@@ -275,16 +277,6 @@ func NewClient(conf *Config) (Client, error) {
 		versionToSchemaCache = cache.NewMapCache()
 		latestToSchemaCache = cache.NewMapCache()
 	}
-	if conf.CacheLatestTTLSecs > 0 {
-		go func() {
-			ticker := time.NewTicker(time.Duration(conf.CacheLatestTTLSecs) * time.Second)
-			defer ticker.Stop()
-			for {
-				<-ticker.C
-				latestToSchemaCache.Clear()
-			}
-		}()
-	}
 	handle := &client{
 		restService:          restService,
 		schemaToIDCache:      schemaToIDCache,
@@ -292,6 +284,10 @@ func NewClient(conf *Config) (Client, error) {
 		schemaToVersionCache: schemaToVersionCache,
 		versionToSchemaCache: versionToSchemaCache,
 		latestToSchemaCache:  latestToSchemaCache,
+	}
+	if conf.CacheLatestTTLSecs > 0 {
+		runEvictor(handle, time.Duration(conf.CacheLatestTTLSecs)*time.Second)
+		runtime.SetFinalizer(handle, stopEvictor)
 	}
 	return handle, nil
 }
@@ -725,4 +721,35 @@ func (c *client) UpdateDefaultCompatibility(update Compatibility) (compatibility
 	err = c.restService.handleRequest(newRequest("PUT", config, &result), &result)
 
 	return result.CompatibilityUpdate, err
+}
+
+type evictor struct {
+	Interval time.Duration
+	stop     chan bool
+}
+
+func (e *evictor) Run(c cache.Cache) {
+	ticker := time.NewTicker(e.Interval)
+	for {
+		select {
+		case <-ticker.C:
+			c.Clear()
+		case <-e.stop:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
+func stopEvictor(c *client) {
+	c.evictor.stop <- true
+}
+
+func runEvictor(c *client, ci time.Duration) {
+	e := &evictor{
+		Interval: ci,
+		stop:     make(chan bool),
+	}
+	c.evictor = e
+	go e.Run(c.latestToSchemaCache)
 }
