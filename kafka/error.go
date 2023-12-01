@@ -31,7 +31,8 @@ import (
 	"unsafe"
 )
 
-// Error provides a Kafka-specific error container
+// Error provides a Kafka-specific error container. Check that Code() != ErrorNoError
+// when embedded in result structs.
 type Error struct {
 	code             ErrorCode
 	str              string
@@ -85,8 +86,8 @@ func newErrorFromCErrorDestroy(cError *C.rd_kafka_error_t) Error {
 	return newErrorFromCError(cError)
 }
 
-// Error returns a human readable representation of an Error
-// Same as Error.String()
+// Error returns a human readable representation of an Error.
+// Same as Error.String().
 func (e Error) Error() string {
 	return e.String()
 }
@@ -107,7 +108,7 @@ func (e Error) String() string {
 	return errstr
 }
 
-// Code returns the ErrorCode of an Error
+// Code returns the ErrorCode of this Error.
 func (e Error) Code() ErrorCode {
 	return e.code
 }

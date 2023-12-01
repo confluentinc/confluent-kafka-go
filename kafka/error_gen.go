@@ -73,7 +73,8 @@ func WriteErrorCodes(f *os.File) {
 */
 import "C"
 
-// ErrorCode is the integer representation of local and broker error codes
+// ErrorCode is the integer representation of local and broker error codes.
+// ErrNoError (0) represents success.
 type ErrorCode int
 
 // String returns a human readable representation of an error code
