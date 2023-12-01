@@ -995,26 +995,30 @@ type AlterUserScramCredentialsResult struct {
 	Errors map[string]Error
 }
 
-// OffsetSpec specifies desired offsets while using ListOffsets.
+// OffsetSpec specifies the desired offsets for ListOffsets. Use one of the
+// defined constants or NewOffsetSpecForTimestamp.
 type OffsetSpec int64
 
 const (
-	// MaxTimestampOffsetSpec is used to describe the offset with the Max Timestamp which may be different then LatestOffsetSpec as Timestamp can be set client side.
-	MaxTimestampOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP)
-	// EarliestOffsetSpec is used to describe the earliest offset for the TopicPartition.
-	EarliestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_EARLIEST)
-	// LatestOffsetSpec is used to describe the latest offset for the TopicPartition.
-	LatestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_LATEST)
+	// MaxTimestampOffsetSpec retrieves the offset with the largest Timestamp.
+	// This may be different then LatestOffsetSpec as Timestamps can be set client side.
+	MaxTimestampOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP
+	// EarliestOffsetSpec retrieves the earliest offset for the TopicPartition.
+	EarliestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_EARLIEST
+	// LatestOffsetSpec retrieves the latest offset for the TopicPartition.
+	LatestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_LATEST
 )
 
-// NewOffsetSpecForTimestamp creates an OffsetSpec corresponding to the timestamp.
-func NewOffsetSpecForTimestamp(timestamp int64) OffsetSpec {
-	return OffsetSpec(timestamp)
+// NewOffsetSpecForTimestamp creates an OffsetSpec to retrieve the earliest offset whose
+// timestamp is greater than or equal to the timestamp in Unix milliseconds.
+func NewOffsetSpecForTimestamp(timestamp_ms int64) OffsetSpec {
+	return OffsetSpec(timestamp_ms)
 }
 
-// ListOffsetsResultInfo describes the result of ListOffsets request for a Topic Partition.
+// ListOffsetsResultInfo describes the result of a ListOffsets request for one Topic Partition.
 type ListOffsetsResultInfo struct {
-	Offset      Offset
+	Offset Offset
+	// Timestamp is in Unix milliseconds.
 	Timestamp   int64
 	LeaderEpoch *int32
 	Error       Error
@@ -3218,15 +3222,16 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	return result, nil
 }
 
-// ListOffsets describe offsets for the
-// specified TopicPartiton based on an OffsetSpec.
+// ListOffsets returns offsets for a set of
+// TopicPartitions based on an OffsetSpec.
 //
 // Parameters:
 //
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it
-//     holds either the OffsetSpec enum value or timestamp. Must not be nil.
+//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec. An
+//     OffsetSpec is either a defined enum value or a timestamp created by
+//     NewOffsetSpecForTimestamp. Must not be nil.
 //   - `options` - ListOffsetsAdminOption options.
 //
 // Returns a ListOffsetsResult.

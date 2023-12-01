@@ -726,7 +726,7 @@ func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 //
 // The timestamps to query are represented as `.Offset` in the `times`
 // argument and the looked up offsets are represented as `.Offset` in the returned
-// `offsets` list.
+// `offsets` list. Timestamps are in Unix milliseconds.
 //
 // The function will block for at most timeoutMs milliseconds.
 //
