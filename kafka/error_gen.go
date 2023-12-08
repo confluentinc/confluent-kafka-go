@@ -103,7 +103,7 @@ const (
 		errname = strings.Replace(errname, "Id", "ID", -1)
 
 		f.WriteString(fmt.Sprintf("\t// %s %s\n", errname, desc))
-		f.WriteString(fmt.Sprintf("\t%s ErrorCode = ErrorCode(C.RD_KAFKA_RESP_ERR_%s)\n",
+		f.WriteString(fmt.Sprintf("\t%s ErrorCode = C.RD_KAFKA_RESP_ERR_%s\n",
 			errname, orig))
 	}
 

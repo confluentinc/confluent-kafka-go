@@ -211,17 +211,17 @@ type ConsumerGroupState int
 
 const (
 	// ConsumerGroupStateUnknown - Unknown ConsumerGroupState
-	ConsumerGroupStateUnknown = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN)
+	ConsumerGroupStateUnknown ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN
 	// ConsumerGroupStatePreparingRebalance - preparing rebalance
-	ConsumerGroupStatePreparingRebalance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE)
+	ConsumerGroupStatePreparingRebalance ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE
 	// ConsumerGroupStateCompletingRebalance - completing rebalance
-	ConsumerGroupStateCompletingRebalance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE)
+	ConsumerGroupStateCompletingRebalance ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
 	// ConsumerGroupStateStable - stable
-	ConsumerGroupStateStable = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_STABLE)
+	ConsumerGroupStateStable ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_STABLE
 	// ConsumerGroupStateDead - dead group
-	ConsumerGroupStateDead = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_DEAD)
+	ConsumerGroupStateDead ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_DEAD
 	// ConsumerGroupStateEmpty - empty group
-	ConsumerGroupStateEmpty = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY)
+	ConsumerGroupStateEmpty ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY
 )
 
 // String returns the human-readable representation of a consumer_group_state
@@ -431,15 +431,15 @@ type ResourceType int
 
 const (
 	// ResourceUnknown - Unknown
-	ResourceUnknown = ResourceType(C.RD_KAFKA_RESOURCE_UNKNOWN)
+	ResourceUnknown ResourceType = C.RD_KAFKA_RESOURCE_UNKNOWN
 	// ResourceAny - match any resource type (DescribeConfigs)
-	ResourceAny = ResourceType(C.RD_KAFKA_RESOURCE_ANY)
+	ResourceAny ResourceType = C.RD_KAFKA_RESOURCE_ANY
 	// ResourceTopic - Topic
-	ResourceTopic = ResourceType(C.RD_KAFKA_RESOURCE_TOPIC)
+	ResourceTopic ResourceType = C.RD_KAFKA_RESOURCE_TOPIC
 	// ResourceGroup - Group
-	ResourceGroup = ResourceType(C.RD_KAFKA_RESOURCE_GROUP)
+	ResourceGroup ResourceType = C.RD_KAFKA_RESOURCE_GROUP
 	// ResourceBroker - Broker
-	ResourceBroker = ResourceType(C.RD_KAFKA_RESOURCE_BROKER)
+	ResourceBroker ResourceType = C.RD_KAFKA_RESOURCE_BROKER
 )
 
 // String returns the human-readable representation of a ResourceType
@@ -469,17 +469,17 @@ type ConfigSource int
 
 const (
 	// ConfigSourceUnknown is the default value
-	ConfigSourceUnknown = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG)
+	ConfigSourceUnknown ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG
 	// ConfigSourceDynamicTopic is dynamic topic config that is configured for a specific topic
-	ConfigSourceDynamicTopic = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG)
+	ConfigSourceDynamicTopic ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG
 	// ConfigSourceDynamicBroker is dynamic broker config that is configured for a specific broker
-	ConfigSourceDynamicBroker = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG)
+	ConfigSourceDynamicBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG
 	// ConfigSourceDynamicDefaultBroker is dynamic broker config that is configured as default for all brokers in the cluster
-	ConfigSourceDynamicDefaultBroker = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG)
+	ConfigSourceDynamicDefaultBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG
 	// ConfigSourceStaticBroker is static broker config provided as broker properties at startup (e.g. from server.properties file)
-	ConfigSourceStaticBroker = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG)
+	ConfigSourceStaticBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG
 	// ConfigSourceDefault is built-in default configuration for configs that have a default value
-	ConfigSourceDefault = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG)
+	ConfigSourceDefault ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG
 )
 
 // String returns the human-readable representation of a ConfigSource type
@@ -531,16 +531,16 @@ type AlterConfigOpType int
 const (
 	// AlterConfigOpTypeSet sets/overwrites the configuration
 	// setting.
-	AlterConfigOpTypeSet = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET)
+	AlterConfigOpTypeSet AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET
 	// AlterConfigOpTypeDelete sets the configuration setting
 	// to default or NULL.
-	AlterConfigOpTypeDelete = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE)
+	AlterConfigOpTypeDelete AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE
 	// AlterConfigOpTypeAppend appends the value to existing
 	// configuration settings.
-	AlterConfigOpTypeAppend = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND)
+	AlterConfigOpTypeAppend AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND
 	// AlterConfigOpTypeSubtract subtracts the value from
 	// existing configuration settings.
-	AlterConfigOpTypeSubtract = AlterConfigOpType(C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT)
+	AlterConfigOpTypeSubtract AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT
 )
 
 // String returns the human-readable representation of an AlterOperation
@@ -682,15 +682,15 @@ type ResourcePatternType int
 
 const (
 	// ResourcePatternTypeUnknown is a resource pattern type not known or not set.
-	ResourcePatternTypeUnknown = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_UNKNOWN)
+	ResourcePatternTypeUnknown ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_UNKNOWN
 	// ResourcePatternTypeAny matches any resource, used for lookups.
-	ResourcePatternTypeAny = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_ANY)
+	ResourcePatternTypeAny ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_ANY
 	// ResourcePatternTypeMatch will perform pattern matching
-	ResourcePatternTypeMatch = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_MATCH)
+	ResourcePatternTypeMatch ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_MATCH
 	// ResourcePatternTypeLiteral matches a literal resource name
-	ResourcePatternTypeLiteral = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_LITERAL)
+	ResourcePatternTypeLiteral ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_LITERAL
 	// ResourcePatternTypePrefixed matches a prefixed resource name
-	ResourcePatternTypePrefixed = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_PREFIXED)
+	ResourcePatternTypePrefixed ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_PREFIXED
 )
 
 // String returns the human-readable representation of a ResourcePatternType
@@ -720,31 +720,31 @@ type ACLOperation int
 
 const (
 	// ACLOperationUnknown represents an unknown or unset operation
-	ACLOperationUnknown = ACLOperation(C.RD_KAFKA_ACL_OPERATION_UNKNOWN)
+	ACLOperationUnknown ACLOperation = C.RD_KAFKA_ACL_OPERATION_UNKNOWN
 	// ACLOperationAny in a filter, matches any ACLOperation
-	ACLOperationAny = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ANY)
+	ACLOperationAny ACLOperation = C.RD_KAFKA_ACL_OPERATION_ANY
 	// ACLOperationAll represents all the operations
-	ACLOperationAll = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ALL)
+	ACLOperationAll ACLOperation = C.RD_KAFKA_ACL_OPERATION_ALL
 	// ACLOperationRead a read operation
-	ACLOperationRead = ACLOperation(C.RD_KAFKA_ACL_OPERATION_READ)
+	ACLOperationRead ACLOperation = C.RD_KAFKA_ACL_OPERATION_READ
 	// ACLOperationWrite represents a write operation
-	ACLOperationWrite = ACLOperation(C.RD_KAFKA_ACL_OPERATION_WRITE)
+	ACLOperationWrite ACLOperation = C.RD_KAFKA_ACL_OPERATION_WRITE
 	// ACLOperationCreate represents a create operation
-	ACLOperationCreate = ACLOperation(C.RD_KAFKA_ACL_OPERATION_CREATE)
+	ACLOperationCreate ACLOperation = C.RD_KAFKA_ACL_OPERATION_CREATE
 	// ACLOperationDelete represents a delete operation
-	ACLOperationDelete = ACLOperation(C.RD_KAFKA_ACL_OPERATION_DELETE)
+	ACLOperationDelete ACLOperation = C.RD_KAFKA_ACL_OPERATION_DELETE
 	// ACLOperationAlter represents an alter operation
-	ACLOperationAlter = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ALTER)
+	ACLOperationAlter ACLOperation = C.RD_KAFKA_ACL_OPERATION_ALTER
 	// ACLOperationDescribe represents a describe operation
-	ACLOperationDescribe = ACLOperation(C.RD_KAFKA_ACL_OPERATION_DESCRIBE)
+	ACLOperationDescribe ACLOperation = C.RD_KAFKA_ACL_OPERATION_DESCRIBE
 	// ACLOperationClusterAction represents a cluster action operation
-	ACLOperationClusterAction = ACLOperation(C.RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION)
+	ACLOperationClusterAction ACLOperation = C.RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION
 	// ACLOperationDescribeConfigs represents a describe configs operation
-	ACLOperationDescribeConfigs = ACLOperation(C.RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS)
+	ACLOperationDescribeConfigs ACLOperation = C.RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS
 	// ACLOperationAlterConfigs represents an alter configs operation
-	ACLOperationAlterConfigs = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS)
+	ACLOperationAlterConfigs ACLOperation = C.RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS
 	// ACLOperationIdempotentWrite represents an idempotent write operation
-	ACLOperationIdempotentWrite = ACLOperation(C.RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE)
+	ACLOperationIdempotentWrite ACLOperation = C.RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE
 )
 
 // String returns the human-readable representation of an ACLOperation
@@ -790,13 +790,13 @@ type ACLPermissionType int
 
 const (
 	// ACLPermissionTypeUnknown represents an unknown ACLPermissionType
-	ACLPermissionTypeUnknown = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN)
+	ACLPermissionTypeUnknown ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN
 	// ACLPermissionTypeAny in a filter, matches any ACLPermissionType
-	ACLPermissionTypeAny = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ANY)
+	ACLPermissionTypeAny ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_ANY
 	// ACLPermissionTypeDeny disallows access
-	ACLPermissionTypeDeny = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_DENY)
+	ACLPermissionTypeDeny ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_DENY
 	// ACLPermissionTypeAllow grants access
-	ACLPermissionTypeAllow = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW)
+	ACLPermissionTypeAllow ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW
 )
 
 // String returns the human-readable representation of an ACLPermissionType
@@ -903,11 +903,11 @@ type ScramMechanism int
 
 const (
 	// ScramMechanismUnknown - Unknown SASL/SCRAM mechanism
-	ScramMechanismUnknown = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN)
+	ScramMechanismUnknown ScramMechanism = C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN
 	// ScramMechanismSHA256 - SCRAM-SHA-256 mechanism
-	ScramMechanismSHA256 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_256)
+	ScramMechanismSHA256 ScramMechanism = C.RD_KAFKA_SCRAM_MECHANISM_SHA_256
 	// ScramMechanismSHA512 - SCRAM-SHA-512 mechanism
-	ScramMechanismSHA512 = ScramMechanism(C.RD_KAFKA_SCRAM_MECHANISM_SHA_512)
+	ScramMechanismSHA512 ScramMechanism = C.RD_KAFKA_SCRAM_MECHANISM_SHA_512
 )
 
 // String returns the human-readable representation of an ScramMechanism
@@ -1000,11 +1000,11 @@ type OffsetSpec int64
 
 const (
 	// MaxTimestampOffsetSpec is used to describe the offset with the Max Timestamp which may be different then LatestOffsetSpec as Timestamp can be set client side.
-	MaxTimestampOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP)
+	MaxTimestampOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP
 	// EarliestOffsetSpec is used to describe the earliest offset for the TopicPartition.
-	EarliestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_EARLIEST)
+	EarliestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_EARLIEST
 	// LatestOffsetSpec is used to describe the latest offset for the TopicPartition.
-	LatestOffsetSpec = OffsetSpec(C.RD_KAFKA_OFFSET_SPEC_LATEST)
+	LatestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_LATEST
 )
 
 // NewOffsetSpecForTimestamp creates an OffsetSpec corresponding to the timestamp.

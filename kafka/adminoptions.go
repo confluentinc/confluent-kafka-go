@@ -182,9 +182,9 @@ type IsolationLevel int
 
 const (
 	// IsolationLevelReadUncommitted - read uncommitted isolation level
-	IsolationLevelReadUncommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED)
+	IsolationLevelReadUncommitted IsolationLevel = C.RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED
 	// IsolationLevelReadCommitted - read committed isolation level
-	IsolationLevelReadCommitted = IsolationLevel(C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED)
+	IsolationLevelReadCommitted IsolationLevel = C.RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED
 )
 
 // AdminOptionIsolationLevel sets the overall request IsolationLevel.
