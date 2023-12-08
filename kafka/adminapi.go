@@ -1004,7 +1004,7 @@ const (
 	// EarliestOffsetSpec is used to describe the earliest offset for the TopicPartition.
 	EarliestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_EARLIEST
 	// LatestOffsetSpec is used to describe the latest offset for the TopicPartition.
-	LatestOffsetSpec = C.RD_KAFKA_OFFSET_SPEC_LATEST
+	LatestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_LATEST
 )
 
 // NewOffsetSpecForTimestamp creates an OffsetSpec corresponding to the timestamp.
