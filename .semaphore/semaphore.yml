@@ -7,7 +7,7 @@ agent:
 global_job_config:
   prologue:
     commands:
-      - sem-version go 1.18
+      - sem-version go 1.21.5
       - export "GOPATH=$(go env GOPATH)"
       - export "SEMAPHORE_GIT_DIR=${GOPATH}/src/github.com/confluentinc/${SEMAPHORE_PROJECT_NAME}"
       - export "PATH=${GOPATH}/bin:${PATH}"
@@ -33,7 +33,7 @@ blocks:
           type: s1-prod-macos-13-5-amd64
       prologue:
         commands:
-          - sem-version go 1.19
+          - sem-version go 1.21.5
           - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
@@ -60,7 +60,7 @@ blocks:
           type: s1-prod-ubuntu20-04-amd64-2
       prologue:
         commands:
-          - sem-version go 1.19
+          - sem-version go 1.21.5
           - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
@@ -91,7 +91,7 @@ blocks:
           type: s1-prod-ubuntu20-04-arm64-1
       prologue:
         commands:
-          - sem-version go 1.19
+          - sem-version go 1.21.5
           - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
