@@ -17,6 +17,9 @@
 package jsonschema
 
 import (
+	"encoding/json"
+	"github.com/invopop/jsonschema"
+	"strings"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
@@ -83,6 +86,63 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	var newobj JSONNestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+}
+
+func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.EnableValidation = true
+	// We don't want to risk registering one instead of using the already registered one
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	jschema := jsonschema.Reflect(obj)
+	raw, err := json.Marshal(jschema)
+	serde.MaybeFail("Schema marshalling", err)
+	info := schemaregistry.SchemaInfo{
+		Schema:     string(raw),
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	_, err = ser.Serialize("topic1", &obj)
+	if err != nil {
+		t.Errorf("Expected no validation error, found %s", err)
+	}
+
+	diffObj := DifferentJSONDemoSchema{}
+	_, err = ser.Serialize("topic1", &diffObj)
+	if err == nil || !strings.Contains(err.Error(), "jsonschema") {
+		t.Errorf("Expected validation error, found %s", err)
+	}
+}
+
+type DifferentJSONDemoSchema struct {
+	IntField int32 `json:"IntField"`
+
+	ExtraStringField string `json:"ExtraStringField"`
+
+	DoubleField float64 `json:"DoubleField"`
+
+	StringField string `json:"StringField"`
+
+	BoolFieldThatsActuallyString string `json:"BoolField"`
+
+	BytesField test.Bytes `json:"BytesField"`
 }
 
 type JSONDemoSchema struct {

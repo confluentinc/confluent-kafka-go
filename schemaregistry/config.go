@@ -16,7 +16,10 @@
 
 package schemaregistry
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+)
 
 // Config is used to pass multiple configuration options to the Schema Registry client.
 type Config struct {
@@ -35,6 +38,15 @@ type Config struct {
 	// SaslUsername specifies the password for SASL.
 	SaslPassword string
 
+	// BearerAuthToken specifies the token for authentication.
+	BearerAuthToken string
+	// BearerAuthCredentialsSource specifies how to determine the credentials.
+	BearerAuthCredentialsSource string
+	// BearerAuthLogicalCluster specifies the target SR logical cluster id. It is required for Confluent Cloud Schema Registry
+	BearerAuthLogicalCluster string
+	// BearerAuthIdentityPoolID specifies the identity pool ID. It is required for Confluent Cloud Schema Registry
+	BearerAuthIdentityPoolID string
+
 	// SslCertificateLocation specifies the location of SSL certificates.
 	SslCertificateLocation string
 	// SslKeyLocation specifies the location of SSL keys.
@@ -50,6 +62,11 @@ type Config struct {
 	RequestTimeoutMs int
 	// CacheCapacity positive integer or zero for unbounded capacity
 	CacheCapacity int
+	// CacheLatestTTLSecs ttl in secs for caching the latest schema
+	CacheLatestTTLSecs int
+
+	// HTTP client
+	HTTPClient *http.Client
 }
 
 // NewConfig returns a new configuration instance with sane defaults.
@@ -57,9 +74,6 @@ func NewConfig(url string) *Config {
 	c := &Config{}
 
 	c.SchemaRegistryURL = url
-
-	c.BasicAuthUserInfo = ""
-	c.BasicAuthCredentialsSource = "URL"
 
 	c.SaslMechanism = "GSSAPI"
 	c.SaslUsername = ""
@@ -78,11 +92,38 @@ func NewConfig(url string) *Config {
 
 // NewConfigWithAuthentication returns a new configuration instance using basic authentication.
 // For Confluent Cloud, use the API key for the username and the API secret for the password.
+// This method is deprecated.
 func NewConfigWithAuthentication(url string, username string, password string) *Config {
 	c := NewConfig(url)
 
 	c.BasicAuthUserInfo = fmt.Sprintf("%s:%s", username, password)
 	c.BasicAuthCredentialsSource = "USER_INFO"
+
+	return c
+}
+
+// NewConfigWithBasicAuthentication returns a new configuration instance using basic authentication.
+// For Confluent Cloud, use the API key for the username and the API secret for the password.
+func NewConfigWithBasicAuthentication(url string, username string, password string) *Config {
+	c := NewConfig(url)
+
+	c.BasicAuthUserInfo = fmt.Sprintf("%s:%s", username, password)
+	c.BasicAuthCredentialsSource = "USER_INFO"
+
+	return c
+}
+
+// NewConfigWithBearerAuthentication returns a new configuration instance using bearer authentication.
+// For Confluent Cloud, targetSr(`bearer.auth.logical.cluster` and
+// identityPoolID(`bearer.auth.identity.pool.id`) is required
+func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID string) *Config {
+
+	c := NewConfig(url)
+
+	c.BearerAuthToken = token
+	c.BearerAuthCredentialsSource = "STATIC_TOKEN"
+	c.BearerAuthLogicalCluster = targetSr
+	c.BearerAuthIdentityPoolID = identityPoolID
 
 	return c
 }
