@@ -6,7 +6,7 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.2.0
+      value: v2.3.0
   prologue:
     commands:
       - checkout
@@ -16,7 +16,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos
+          type: s1-prod-macos-13-5-amd64
       prologue:
         commands:
           - sem-version go 1.19

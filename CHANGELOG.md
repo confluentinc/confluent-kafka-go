@@ -1,14 +1,48 @@
 # Confluent's Golang client for Apache Kafka
 
+
 # v2.3.0
 
 This is a feature release.
 
+ * Adds support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
+   (#964, @jainruchir).
+ * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses.
+   (#964, @jainruchir).
+ * Adds `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#964, @jainruchir).
+ * [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with
+   the addition of ListOffsets (#1029).
+ * Adds cache for Schema Registry client's `GetSchemaMetadata` (#1042).
  * MockCluster can now be shutdown and started again to test broker
    availability problems (#998, @kkoehler).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+ * Honor `HTTPS_PROXY` environment variable, if set, for the Schema Registry
+   client (#1065, @finncolman).
+ * [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers):
+   Partial support of topic identifiers. Topic identifiers in metadata response
+   are available through the new `DescribeTopics` function (#1068).
+
+## Fixes
+
  * Fixes a bug in the mock schema registry client where the wrong ID was being
    returned for pre-registered schema (#971, @srlk).
- * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+ * The minimum version of Go supported has been changed from 1.16 to 1.17
+   (#1074).
+ * Fixes an issue where `testing` was being imported by a non-test file,
+   testhelpers.go. (#1049, @dmlambea).
+ * Fixes the optional `Coordinator` field in `ConsumerGroupDescription` in case
+   it's not known. It now contains a `Node` with ID -1 in that case.
+   Avoids a C segmentation fault.
+ * Fixes an issue with `Producer.Flush`. It was waiting for
+   `queue.buffering.max.ms` while flushing (#1013).
+ * Fixes an issue where consumer methods would not be allowed to run while the
+   consumer was closing, and during the final partition revoke (#1073).
+
+confluent-kafka-go is based on librdkafka v2.3.0, see the
+[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 # v2.2.0

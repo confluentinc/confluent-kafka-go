@@ -54,6 +54,9 @@ const (
 	subjectConfig     = config + "/%s"
 	mode              = "/mode"
 	modeConfig        = mode + "/%s"
+
+	targetSRClusterKey      = "Target-Sr-Cluster"
+	targetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
 )
 
 // REST API request
@@ -126,20 +129,24 @@ func newRestService(conf *Config) (*restService, error) {
 		return nil, err
 	}
 
-	transport, err := configureTransport(conf)
-	if err != nil {
-		return nil, err
-	}
+	if conf.HTTPClient == nil {
+		transport, err := configureTransport(conf)
+		if err != nil {
+			return nil, err
+		}
 
-	timeout := conf.RequestTimeoutMs
+		timeout := conf.RequestTimeoutMs
+
+		conf.HTTPClient = &http.Client{
+			Transport: transport,
+			Timeout:   time.Duration(timeout) * time.Millisecond,
+		}
+	}
 
 	return &restService{
 		url:     u,
 		headers: headers,
-		Client: &http.Client{
-			Transport: transport,
-			Timeout:   time.Duration(timeout) * time.Millisecond,
-		},
+		Client:  conf.HTTPClient,
 	}, nil
 }
 
@@ -204,6 +211,7 @@ func configureTransport(conf *Config) (*http.Transport, error) {
 	timeout := conf.ConnectionTimeoutMs
 
 	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout: time.Duration(timeout) * time.Millisecond,
 		}).Dial,
@@ -246,6 +254,29 @@ func configureUSERINFOAuth(conf *Config, header http.Header) error {
 
 }
 
+func configureStaticTokenAuth(conf *Config, header http.Header) error {
+	bearerToken := conf.BearerAuthToken
+	if len(bearerToken) == 0 {
+		return fmt.Errorf("config bearer.auth.token must be specified when bearer.auth.credentials.source is" +
+			" specified with STATIC_TOKEN")
+	}
+	header.Add("Authorization", fmt.Sprintf("Bearer %s", bearerToken))
+	setBearerAuthExtraHeaders(conf, header)
+	return nil
+}
+
+func setBearerAuthExtraHeaders(conf *Config, header http.Header) {
+	targetIdentityPoolID := conf.BearerAuthIdentityPoolID
+	if len(targetIdentityPoolID) > 0 {
+		header.Add(targetIdentityPoolIDKey, targetIdentityPoolID)
+	}
+
+	targetSr := conf.BearerAuthLogicalCluster
+	if len(targetSr) > 0 {
+		header.Add(targetSRClusterKey, targetSr)
+	}
+}
+
 // newAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
 func newAuthHeader(service *url.URL, conf *Config) (http.Header, error) {
 	// Remove userinfo from url regardless of source to avoid confusion/conflicts
@@ -253,21 +284,41 @@ func newAuthHeader(service *url.URL, conf *Config) (http.Header, error) {
 		service.User = nil
 	}()
 
-	source := conf.BasicAuthCredentialsSource
-
 	header := http.Header{}
 
+	basicSource := conf.BasicAuthCredentialsSource
+	bearerSource := conf.BearerAuthCredentialsSource
+
 	var err error
-	switch strings.ToUpper(source) {
-	case "URL":
-		err = configureURLAuth(service, header)
-	case "SASL_INHERIT":
-		err = configureSASLAuth(conf, header)
-	case "USER_INFO":
-		err = configureUSERINFOAuth(conf, header)
-	default:
-		err = fmt.Errorf("unrecognized value for basic.auth.credentials.source %s", source)
+	if len(basicSource) != 0 && len(bearerSource) != 0 {
+		return header, fmt.Errorf("only one of basic.auth.credentials.source or bearer.auth.credentials.source" +
+			" may be specified")
+	} else if len(basicSource) != 0 {
+		switch strings.ToUpper(basicSource) {
+		case "URL":
+			err = configureURLAuth(service, header)
+		case "SASL_INHERIT":
+			err = configureSASLAuth(conf, header)
+		case "USER_INFO":
+			err = configureUSERINFOAuth(conf, header)
+		default:
+			err = fmt.Errorf("unrecognized value for basic.auth.credentials.source %s", basicSource)
+		}
+	} else if len(bearerSource) != 0 {
+		switch strings.ToUpper(bearerSource) {
+		case "STATIC_TOKEN":
+			err = configureStaticTokenAuth(conf, header)
+		//case "OAUTHBEARER":
+		//	err = configureOauthBearerAuth(conf, header)
+		//case "SASL_OAUTHBEARER_INHERIT":
+		//	err = configureSASLOauth()
+		//case "CUSTOM":
+		//	err = configureCustomOauth(conf, header)
+		default:
+			err = fmt.Errorf("unrecognized value for bearer.auth.credentials.source %s", bearerSource)
+		}
 	}
+
 	return header, err
 }
 

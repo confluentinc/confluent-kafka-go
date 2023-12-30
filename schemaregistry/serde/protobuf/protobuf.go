@@ -177,7 +177,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		SchemaType: metadata.SchemaType,
 		References: metadata.References,
 	}
-	id, err := s.GetID(topic, protoMsg, info)
+	id, err := s.GetID(topic, protoMsg, &info)
 	if err != nil {
 		return nil, err
 	}

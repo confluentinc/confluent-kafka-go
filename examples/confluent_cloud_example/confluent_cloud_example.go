@@ -89,7 +89,7 @@ func main() {
 		panic(fmt.Sprintf("Failed to create producer: %s", err))
 	}
 
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithBasicAuthentication(
 		schemaRegistryAPIEndpoint,
 		schemaRegistryAPIKey,
 		schemaRegistryAPISecret))

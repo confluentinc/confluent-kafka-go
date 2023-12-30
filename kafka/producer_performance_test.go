@@ -79,7 +79,7 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 		panic(err)
 	}
 
-	topic := testconf.Topic
+	topic := testconf.TopicName
 	partition := int32(-1)
 	size := testconf.PerfMsgSize
 	pattern := "Hello"

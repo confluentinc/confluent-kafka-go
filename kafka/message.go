@@ -48,11 +48,11 @@ type TimestampType int
 
 const (
 	// TimestampNotAvailable indicates no timestamp was set, or not available due to lacking broker support
-	TimestampNotAvailable = TimestampType(C.RD_KAFKA_TIMESTAMP_NOT_AVAILABLE)
+	TimestampNotAvailable TimestampType = C.RD_KAFKA_TIMESTAMP_NOT_AVAILABLE
 	// TimestampCreateTime indicates timestamp set by producer (source time)
-	TimestampCreateTime = TimestampType(C.RD_KAFKA_TIMESTAMP_CREATE_TIME)
+	TimestampCreateTime TimestampType = C.RD_KAFKA_TIMESTAMP_CREATE_TIME
 	// TimestampLogAppendTime indicates timestamp set set by broker (store time)
-	TimestampLogAppendTime = TimestampType(C.RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME)
+	TimestampLogAppendTime TimestampType = C.RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME
 )
 
 func (t TimestampType) String() string {
