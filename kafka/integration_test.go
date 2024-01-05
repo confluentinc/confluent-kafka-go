@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go/modules/compose"
 	"math/rand"
 	"path"
 	"reflect"
@@ -27,9 +29,6 @@ import (
 	"sort"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/suite"
-	testcontainers "github.com/testcontainers/testcontainers-go"
 )
 
 // producer test control
@@ -595,7 +594,7 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 
 type IntegrationTestSuite struct {
 	suite.Suite
-	compose *testcontainers.LocalDockerCompose
+	compose *compose.LocalDockerCompose
 }
 
 func (its *IntegrationTestSuite) TearDownSuite() {
@@ -3243,7 +3242,7 @@ func TestIntegration(t *testing.T) {
 		return
 	}
 	if testconf.Docker && !testconf.Semaphore {
-		its.compose = testcontainers.NewLocalDockerCompose([]string{"./testresources/docker-compose.yaml"}, "test-docker")
+		its.compose = compose.NewLocalDockerCompose([]string{"./testresources/docker-compose.yaml"}, "test-docker")
 		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
 		if err := execErr.Error; err != nil {
 			t.Fatalf("up -d command failed with the error message %s\n", err)
