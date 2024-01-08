@@ -1,6 +1,6 @@
 module github.com/confluentinc/confluent-kafka-go/examples/v2
 
-go 1.17
+go 1.21
 
 replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
