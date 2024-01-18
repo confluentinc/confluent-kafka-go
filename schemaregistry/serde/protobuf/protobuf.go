@@ -22,8 +22,10 @@ import (
 	"io"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -69,7 +71,9 @@ type Serializer struct {
 // Deserializer represents a Protobuf deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
-	ProtoRegistry *protoregistry.Types
+	ProtoRegistry         *protoregistry.Types
+	schemaToDescCache     cache.Cache
+	schemaToDescCacheLock sync.RWMutex
 }
 
 var _ serde.Serializer = new(Serializer)
@@ -337,8 +341,14 @@ func ignoreFile(name string) bool {
 
 // NewDeserializer creates a Protobuf deserializer for Protobuf-generated objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
-	s := &Deserializer{}
-	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	cache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	s := &Deserializer{
+		schemaToDescCache: cache,
+	}
+	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -405,6 +415,12 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 }
 
 func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+	s.schemaToDescCacheLock.RLock()
+	value, ok := s.schemaToDescCache.Get(info.Schema)
+	s.schemaToDescCacheLock.RUnlock()
+	if ok {
+		return value.(*desc.FileDescriptor), nil
+	}
 	deps := make(map[string]string)
 	err := serde.ResolveReferences(s.Client, info, deps)
 	if err != nil {
@@ -433,7 +449,11 @@ func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDes
 	if len(fileDescriptors) != 1 {
 		return nil, fmt.Errorf("could not resolve schema")
 	}
-	return fileDescriptors[0], nil
+	fd := fileDescriptors[0]
+	s.schemaToDescCacheLock.Lock()
+	s.schemaToDescCache.Put(info.Schema, fd)
+	s.schemaToDescCacheLock.Unlock()
+	return fd, nil
 }
 
 func readMessageIndexes(payload []byte) (int, []int, error) {
