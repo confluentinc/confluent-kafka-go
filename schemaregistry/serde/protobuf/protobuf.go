@@ -19,13 +19,13 @@ package protobuf
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"io"
 	"log"
 	"strings"
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
