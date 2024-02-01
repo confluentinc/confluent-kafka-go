@@ -1,6 +1,6 @@
 module github.com/confluentinc/confluent-kafka-go/v2
 
-go 1.17
+go 1.21.5
 
 require (
 	github.com/actgardner/gogen-avro/v10 v10.2.1
