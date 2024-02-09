@@ -22,12 +22,12 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/heetch/avro v0.4.4 // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
-	github.com/invopop/jsonschema v0.7.0 // indirect
-	github.com/jhump/protoreflect v1.14.1 // indirect
+	github.com/invopop/jsonschema v0.12.0 // indirect
+	github.com/jhump/protoreflect v1.15.6 // indirect
 	github.com/lucasb-eyer/go-colorful v1.0.3 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto v0.0.0-20240325203815-454cdb8f5daa // indirect

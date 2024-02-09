@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package schemaregistry
+package internal
 
 import (
 	"bytes"
@@ -38,42 +38,48 @@ import (
 // Relative Confluent Schema Registry REST API endpoints as described in the Confluent documentation
 // https://docs.confluent.io/current/schema-registry/docs/api.html
 const (
-	base                   = ".."
-	schemas                = "/schemas/ids/%d"
-	schemasBySubject       = "/schemas/ids/%d?subject=%s"
-	subject                = "/subjects"
-	subjects               = subject + "/%s"
-	subjectsNormalize      = subject + "/%s?normalize=%t"
-	subjectsDelete         = subjects + "?permanent=%t"
-	latestWithMetadata     = subjects + "/metadata?deleted=%t%s"
-	version                = subjects + "/versions"
-	versionNormalize       = subjects + "/versions?normalize=%t"
-	versions               = version + "/%v"
-	versionsIncludeDeleted = versions + "?deleted=%t"
-	versionsDelete         = versions + "?permanent=%t"
-	subjectCompatibility   = "/compatibility" + version
-	compatibility          = "/compatibility" + versions
-	config                 = "/config"
-	subjectConfig          = config + "/%s"
-	subjectConfigDefault   = subjectConfig + "?defaultToGlobal=%t"
-	mode                   = "/mode"
-	modeConfig             = mode + "/%s"
+	Base                   = ".."
+	Schemas                = "/schemas/ids/%d"
+	SchemasBySubject       = "/schemas/ids/%d?subject=%s"
+	Subject                = "/subjects"
+	Subjects               = Subject + "/%s"
+	SubjectsNormalize      = Subject + "/%s?normalize=%t"
+	SubjectsDelete         = Subjects + "?permanent=%t"
+	LatestWithMetadata     = Subjects + "/metadata?deleted=%t%s"
+	Version                = Subjects + "/versions"
+	VersionNormalize       = Subjects + "/versions?normalize=%t"
+	Versions               = Version + "/%v"
+	VersionsIncludeDeleted = Versions + "?deleted=%t"
+	VersionsDelete         = Versions + "?permanent=%t"
+	SubjectCompatibility   = "/compatibility" + Version
+	Compatibility          = "/compatibility" + Versions
+	Config                 = "/config"
+	SubjectConfig          = Config + "/%s"
+	SubjectConfigDefault   = SubjectConfig + "?defaultToGlobal=%t"
+	Mode                   = "/mode"
+	SubjectMode            = Mode + "/%s"
 
-	targetSRClusterKey      = "Target-Sr-Cluster"
-	targetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
+	Keks          = "/dek-registry/v1/keks"
+	KekByName     = Keks + "/%s"
+	Deks          = Keks + "/%s/deks"
+	DeksBySubject = Deks + "/%s"
+	DeksByVersion = DeksBySubject + "/versions/%v"
+
+	TargetSRClusterKey      = "Target-Sr-Cluster"
+	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
 )
 
-// REST API request
-type api struct {
+// API represents a REST API request
+type API struct {
 	method    string
 	endpoint  string
 	arguments []interface{}
 	body      interface{}
 }
 
-// newRequest returns new Confluent Schema Registry API request */
-func newRequest(method string, endpoint string, body interface{}, arguments ...interface{}) *api {
-	return &api{
+// NewRequest returns new Confluent Schema Registry API request */
+func NewRequest(method string, endpoint string, body interface{}, arguments ...interface{}) *API {
+	return &API{
 		method:    method,
 		endpoint:  endpoint,
 		arguments: arguments,
@@ -108,14 +114,15 @@ func (err *RestError) Error() string {
 	return fmt.Sprintf("schema registry request failed error code: %d: %s", err.Code, err.Message)
 }
 
-type restService struct {
+// RestService represents a REST client
+type RestService struct {
 	url     *url.URL
 	headers http.Header
 	*http.Client
 }
 
-// newRestService returns a new REST client for the Confluent Schema Registry
-func newRestService(conf *Config) (*restService, error) {
+// NewRestService returns a new REST client for the Confluent Schema Registry
+func NewRestService(conf *ClientConfig) (*RestService, error) {
 	urlConf := conf.SchemaRegistryURL
 	u, err := url.Parse(urlConf)
 
@@ -123,7 +130,7 @@ func newRestService(conf *Config) (*restService, error) {
 		return nil, err
 	}
 
-	headers, err := newAuthHeader(u, conf)
+	headers, err := NewAuthHeader(u, conf)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +154,7 @@ func newRestService(conf *Config) (*restService, error) {
 		}
 	}
 
-	return &restService{
+	return &RestService{
 		url:     u,
 		headers: headers,
 		Client:  conf.HTTPClient,
@@ -159,8 +166,8 @@ func encodeBasicAuth(userinfo string) string {
 	return base64.StdEncoding.EncodeToString([]byte(userinfo))
 }
 
-// configureTLS populates tlsConf
-func configureTLS(conf *Config, tlsConf *tls.Config) error {
+// ConfigureTLS populates tlsConf
+func ConfigureTLS(conf *ClientConfig, tlsConf *tls.Config) error {
 	certFile := conf.SslCertificateLocation
 	keyFile := conf.SslKeyLocation
 	caFile := conf.SslCaLocation
@@ -203,12 +210,12 @@ func configureTLS(conf *Config, tlsConf *tls.Config) error {
 }
 
 // configureTransport returns a new Transport for use by the Confluent Schema Registry REST client
-func configureTransport(conf *Config) (*http.Transport, error) {
+func configureTransport(conf *ClientConfig) (*http.Transport, error) {
 
 	// Exposed for testing purposes only. In production properly formed certificates should be used
 	// https://tools.ietf.org/html/rfc2818#section-3
 	tlsConfig := &tls.Config{}
-	if err := configureTLS(conf, tlsConfig); err != nil {
+	if err := ConfigureTLS(conf, tlsConfig); err != nil {
 		return nil, err
 	}
 
@@ -230,7 +237,7 @@ func configureURLAuth(service *url.URL, header http.Header) error {
 }
 
 // configureSASLAuth copies the sasl username and password into a HTTP basic authorization header
-func configureSASLAuth(conf *Config, header http.Header) error {
+func configureSASLAuth(conf *ClientConfig, header http.Header) error {
 	mech := conf.SaslMechanism
 	if strings.ToUpper(mech) == "GSSAPI" {
 		return fmt.Errorf("SASL_INHERIT support PLAIN and SCRAM SASL mechanisms only")
@@ -247,7 +254,7 @@ func configureSASLAuth(conf *Config, header http.Header) error {
 }
 
 // configureUSERINFOAuth copies basic.auth.user.info
-func configureUSERINFOAuth(conf *Config, header http.Header) error {
+func configureUSERINFOAuth(conf *ClientConfig, header http.Header) error {
 	auth := conf.BasicAuthUserInfo
 	if auth == "" {
 		return fmt.Errorf("USER_INFO source configured without basic.auth.user.info ")
@@ -258,7 +265,7 @@ func configureUSERINFOAuth(conf *Config, header http.Header) error {
 
 }
 
-func configureStaticTokenAuth(conf *Config, header http.Header) error {
+func configureStaticTokenAuth(conf *ClientConfig, header http.Header) error {
 	bearerToken := conf.BearerAuthToken
 	if len(bearerToken) == 0 {
 		return fmt.Errorf("config bearer.auth.token must be specified when bearer.auth.credentials.source is" +
@@ -269,20 +276,20 @@ func configureStaticTokenAuth(conf *Config, header http.Header) error {
 	return nil
 }
 
-func setBearerAuthExtraHeaders(conf *Config, header http.Header) {
+func setBearerAuthExtraHeaders(conf *ClientConfig, header http.Header) {
 	targetIdentityPoolID := conf.BearerAuthIdentityPoolID
 	if len(targetIdentityPoolID) > 0 {
-		header.Add(targetIdentityPoolIDKey, targetIdentityPoolID)
+		header.Add(TargetIdentityPoolIDKey, targetIdentityPoolID)
 	}
 
 	targetSr := conf.BearerAuthLogicalCluster
 	if len(targetSr) > 0 {
-		header.Add(targetSRClusterKey, targetSr)
+		header.Add(TargetSRClusterKey, targetSr)
 	}
 }
 
-// newAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
-func newAuthHeader(service *url.URL, conf *Config) (http.Header, error) {
+// NewAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
+func NewAuthHeader(service *url.URL, conf *ClientConfig) (http.Header, error) {
 	// Remove userinfo from url regardless of source to avoid confusion/conflicts
 	defer func() {
 		service.User = nil
@@ -326,8 +333,8 @@ func newAuthHeader(service *url.URL, conf *Config) (http.Header, error) {
 	return header, err
 }
 
-// handleRequest sends a HTTP(S) request to the Schema Registry, placing results into the response object
-func (rs *restService) handleRequest(request *api, response interface{}) error {
+// HandleRequest sends a HTTP(S) request to the Schema Registry, placing results into the response object
+func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	urlPath := path.Join(rs.url.Path, fmt.Sprintf(request.endpoint, request.arguments...))
 	endpoint, err := rs.url.Parse(urlPath)
 	if err != nil {

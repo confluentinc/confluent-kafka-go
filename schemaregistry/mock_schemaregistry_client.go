@@ -19,6 +19,7 @@ package schemaregistry
 import (
 	"errors"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 	"net/url"
 	"reflect"
 	"sort"
@@ -59,6 +60,7 @@ type metadataCacheEntry struct {
 /* HTTP(S) Schema Registry Client and schema caches */
 type mockclient struct {
 	sync.Mutex
+	config                   *Config
 	url                      *url.URL
 	infoToSchemaCache        map[subjectJSON]metadataCacheEntry
 	infoToSchemaCacheLock    sync.RWMutex
@@ -72,6 +74,11 @@ type mockclient struct {
 }
 
 var _ Client = new(mockclient)
+
+// Config returns the client config
+func (c *mockclient) Config() *Config {
+	return c.config
+}
 
 // Register registers Schema aliased with subject
 func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
@@ -184,7 +191,7 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 	}
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(schemasBySubject, id, url.QueryEscape(subject)),
+		URL: c.url.String() + fmt.Sprintf(internal.SchemasBySubject, id, url.QueryEscape(subject)),
 		Err: errors.New("Subject Not Found"),
 	}
 	return SchemaInfo{}, &posErr
@@ -212,7 +219,7 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(subjects, url.PathEscape(subject)),
+		URL: c.url.String() + fmt.Sprintf(internal.Subjects, url.PathEscape(subject)),
 		Err: errors.New("Subject Not found"),
 	}
 	return -1, &posErr
@@ -225,7 +232,7 @@ func (c *mockclient) GetLatestSchemaMetadata(subject string) (result SchemaMetad
 	if version < 0 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(versions, url.PathEscape(subject), "latest"),
+			URL: c.url.String() + fmt.Sprintf(internal.Versions, url.PathEscape(subject), "latest"),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -254,7 +261,7 @@ func (c *mockclient) GetSchemaMetadataIncludeDeleted(subject string, version int
 	if json == "" {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(versions, url.PathEscape(subject), version),
+			URL: c.url.String() + fmt.Sprintf(internal.Versions, url.PathEscape(subject), version),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -277,7 +284,7 @@ func (c *mockclient) GetSchemaMetadataIncludeDeleted(subject string, version int
 	if id == -1 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(versions, url.PathEscape(subject), version),
+			URL: c.url.String() + fmt.Sprintf(internal.Versions, url.PathEscape(subject), version),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -330,7 +337,7 @@ func (c *mockclient) GetLatestWithMetadata(subject string, metadata map[string]s
 	if result.Version <= 0 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(latestWithMetadata, url.PathEscape(subject), deleted, metadataStr),
+			URL: c.url.String() + fmt.Sprintf(internal.LatestWithMetadata, url.PathEscape(subject), deleted, metadataStr),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -348,7 +355,7 @@ func (c *mockclient) GetLatestWithMetadata(subject string, metadata map[string]s
 	if result.ID < 0 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(latestWithMetadata, url.PathEscape(subject), deleted, metadataStr),
+			URL: c.url.String() + fmt.Sprintf(internal.LatestWithMetadata, url.PathEscape(subject), deleted, metadataStr),
 			Err: errors.New("Subject Not found"),
 		}
 		return SchemaMetadata{}, &posErr
@@ -372,7 +379,7 @@ func (c *mockclient) GetAllVersions(subject string) (results []int, err error) {
 	if len(results) == 0 {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(version, url.PathEscape(subject)),
+			URL: c.url.String() + fmt.Sprintf(internal.Version, url.PathEscape(subject)),
 			Err: errors.New("Subject Not Found"),
 		}
 		return nil, &posErr
@@ -447,7 +454,7 @@ func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize boo
 	}
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(subjects, url.PathEscape(subject)),
+		URL: c.url.String() + fmt.Sprintf(internal.Subjects, url.PathEscape(subject)),
 		Err: errors.New("Subject Not Found"),
 	}
 	return -1, &posErr
@@ -511,7 +518,7 @@ func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent
 			schemaJSON := key.json
 			cacheKeySchema := subjectJSON{
 				subject: subject,
-				json:    string(schemaJSON),
+				json:    schemaJSON,
 			}
 			c.infoToSchemaCacheLock.Lock()
 			infoSchemaEntryVal, ok := c.infoToSchemaCache[cacheKeySchema]
@@ -558,7 +565,7 @@ func (c *mockclient) GetCompatibility(subject string) (compatibility Compatibili
 	if !ok {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(subjectConfig, url.PathEscape(subject)),
+			URL: c.url.String() + fmt.Sprintf(internal.SubjectConfig, url.PathEscape(subject)),
 			Err: errors.New("Subject Not Found"),
 		}
 		return compatibility, &posErr
@@ -586,7 +593,7 @@ func (c *mockclient) GetDefaultCompatibility() (compatibility Compatibility, err
 	if !ok {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprint(config),
+			URL: c.url.String() + fmt.Sprint(internal.Config),
 			Err: errors.New("Subject Not Found"),
 		}
 		return compatibility, &posErr
@@ -615,7 +622,7 @@ func (c *mockclient) GetConfig(subject string, defaultToGlobal bool) (result Ser
 		if !defaultToGlobal {
 			posErr := url.Error{
 				Op:  "GET",
-				URL: c.url.String() + fmt.Sprintf(subjectConfigDefault, url.PathEscape(subject), defaultToGlobal),
+				URL: c.url.String() + fmt.Sprintf(internal.SubjectConfigDefault, url.PathEscape(subject), defaultToGlobal),
 				Err: errors.New("Subject Not Found"),
 			}
 			return result, &posErr
@@ -643,7 +650,7 @@ func (c *mockclient) GetDefaultConfig() (result ServerConfig, err error) {
 	if !ok {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprint(config),
+			URL: c.url.String() + fmt.Sprint(internal.Config),
 			Err: errors.New("Subject Not Found"),
 		}
 		return result, &posErr
@@ -658,6 +665,11 @@ func (c *mockclient) UpdateDefaultConfig(update ServerConfig) (result ServerConf
 	c.configCache[noSubject] = update
 	c.configCacheLock.Unlock()
 	return update, nil
+}
+
+// Close closes the client
+func (c *mockclient) Close() error {
+	return nil
 }
 
 func schemasEqual(info1 SchemaInfo, info2 SchemaInfo) bool {

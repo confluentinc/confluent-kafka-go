@@ -29,13 +29,7 @@ func resolveAvroReferences(c schemaregistry.Client, schema schemaregistry.Schema
 		if err != nil {
 			return nil, err
 		}
-		info := schemaregistry.SchemaInfo{
-			Schema:     metadata.Schema,
-			SchemaType: metadata.SchemaType,
-			References: metadata.References,
-			Metadata:   metadata.Metadata,
-			Ruleset:    metadata.Ruleset,
-		}
+		info := metadata.SchemaInfo
 		_, err = resolveAvroReferences(c, info, ns)
 		if err != nil {
 			return nil, err
