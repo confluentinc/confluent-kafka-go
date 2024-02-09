@@ -1,0 +1,16 @@
+{
+	"name": "TestRecord",
+	"type": "record",
+	"fields": [{
+		"name": "A",
+		"type": {
+		    "type": "int"
+		},
+		"default": 42
+	}, {
+		"name": "B",
+		"type": {
+		    "type": "int"
+		}
+	}]
+}

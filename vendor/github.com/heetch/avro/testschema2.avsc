@@ -1,0 +1,27 @@
+{
+	"name": "TestNewRecord",
+	"type": "record",
+	"fields": [{
+		"name": "A",
+		"type": {
+		    "type": "int"
+		},
+		"default": 42
+	}, {
+		"name": "B",
+		"type": {
+		    "type": "int"
+		}
+	}, {
+		"name": "C",
+		"type": [
+                    "null",
+                    {
+                       "name": "EnumC",
+                       "type": "enum",
+                       "symbols": ["x", "y", "z"]
+                    }
+                ],
+		"default": null
+	}]
+}

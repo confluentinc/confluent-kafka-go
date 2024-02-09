@@ -1,0 +1,49 @@
+site_name: Testcontainers-Go
+plugins:
+    - search
+    - codeinclude
+    - markdownextradata
+theme:
+    name: 'material'
+    palette:
+        scheme: testcontainers
+    font:
+        text: Roboto
+        code: Roboto Mono
+    logo: 'logo.svg'
+    favicon: 'favicon.ico'
+extra_css:
+    - 'css/extra.css'
+repo_name: 'testcontainers-go'
+repo_url: 'https://github.com/testcontainers/testcontainers-go'
+markdown_extensions:
+    - admonition
+    - codehilite:
+          linenums: False
+    - pymdownx.superfences
+    - pymdownx.tabbed:
+        alternate_style: true
+    - pymdownx.snippets
+nav:
+    - Home: index.md
+    - Quickstart:
+          - quickstart/gotest.md
+    - Features:
+          - features/creating_container.md
+          - features/garbage_collector.md
+          - features/build_from_dockerfile.md
+          - features/docker_compose.md
+          - features/follow_logs.md
+          - features/override_container_command.md
+          - features/copy_file.md
+          - features/using_podman.md
+    - Examples:
+          - examples/cockroachdb.md
+          - examples/nginx.md
+          - examples/redis.md
+    - Contributing:
+          - contributing.md
+          - contributing_docs.md
+    - Getting help: getting_help.md
+extra:
+    latest_version: 0.13.0
