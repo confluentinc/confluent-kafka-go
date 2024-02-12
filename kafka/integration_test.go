@@ -20,8 +20,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go/modules/compose"
 	"math/rand"
 	"path"
 	"reflect"
@@ -29,6 +27,9 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go/modules/compose"
 )
 
 // producer test control
@@ -521,7 +522,6 @@ func consumerTestWithCommits(t *testing.T, testname string, assignmentStrategy s
 		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitOffsetsAPI}, consumeFunc, rebalanceCb)
 
 	consumerTest(t, testname+" using Commit() API", assignmentStrategy,
-
 		msgcnt, consumerCtrl{useChannel: useChannel, commitMode: ViaCommitAPI}, consumeFunc, rebalanceCb)
 
 }
@@ -3207,7 +3207,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 
 	for _, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
-		assert.Equal(info.Offset, int64(0), "Offset should be ErrNoError.")
+		assert.Equal(info.Offset, Offset(0), "Offset should be 0.")
 	}
 
 	topicPartitionOffsets[tp1] = LatestOffsetSpec
@@ -3216,7 +3216,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 
 	for _, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
-		assert.Equal(info.Offset, int64(3), "Offset should be 3.")
+		assert.Equal(info.Offset, Offset(3), "Offset should be 3.")
 	}
 
 	topicPartitionOffsets[tp1] = OffsetSpec(MaxTimestampOffsetSpec)
@@ -3225,7 +3225,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 
 	for _, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
-		assert.Equal(info.Offset, int64(1), "Offset should be 1.")
+		assert.Equal(info.Offset, Offset(1), "Offset should be 1.")
 	}
 
 	delTopics := []string{Topic}
