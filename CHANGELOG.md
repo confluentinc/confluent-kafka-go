@@ -7,7 +7,7 @@ This is a maintenance release.
 ## Fixes
 
  * The minimum version of Go supported has been changed from 1.17 to 1.21
-   (#1125, @rzeijde).
+   (#1136, @rzeijde).
 
 
 # v2.3.0
