@@ -258,6 +258,12 @@ type ListConsumerGroupsResult struct {
 	Errors []error
 }
 
+// DeleteRecordsResult represents the result of Delete Records call
+type DeleteRecordsResult struct {
+	// Slice of TopicPartition.
+	TopicPartitions []TopicPartition
+}
+
 // MemberAssignment represents the assignment of a consumer group member.
 type MemberAssignment struct {
 	// Partitions assigned to current member.
@@ -3393,6 +3399,82 @@ func (a *AdminClient) AlterUserScramCredentials(
 		err := newErrorFromCError(C.rd_kafka_AlterUserScramCredentials_result_response_error(cResponse))
 		result.Errors[user] = err
 	}
+
+	return result, nil
+}
+
+// DeleteRecords delete all the records before the specified offset in
+// the given topic partition.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `topicpartitionoffsets` - Slice of TopicPartition where the deletion has to be performed. This should not be nil.
+//   - `options` - DeleteRecordsAdminOptions options.
+//
+// Returns DeleteRecordsResult, which contains a slice of
+// TopicPartitions containing the minimum offsets available in that
+// topic partition after the deletion operation has been performed or
+// any error if occured.
+func (a *AdminClient) DeleteRecords(ctx context.Context, topicpartitionoffsets []TopicPartition, options ...DeleteRecordsAdminOption) (result DeleteRecordsResult, err error) {
+	
+	if topicpartitionoffsets == nil {
+		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets parameter.")
+	}
+	result = DeleteRecordsResult{}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	var delRecordCnt C.size_t = 1
+    
+	// convert topicpartitionoffsets to rd_kafka_DeleteRecords_t** required by implementation
+	cTopicPartitionList := newCPartsFromTopicPartitions(topicpartitionoffsets)
+	defer C.rd_kafka_topic_partition_list_destroy(cTopicPartitionList)
+
+	cDelRecords := make([]*C.rd_kafka_DeleteRecords_t, delRecordCnt)
+	defer C.rd_kafka_DeleteRecords_destroy_array(&cDelRecords[0], C.size_t(delRecordCnt))
+
+	cDelRecords[0] = C.rd_kafka_DeleteRecords_new(cTopicPartitionList)
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DELETERECORDS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DeleteRecords (asynchronous).
+	C.rd_kafka_DeleteRecords(
+		a.handle.rk,
+		&cDelRecords[0],
+		C.size_t(delRecordCnt),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DELETERECORDS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DeleteRecords_result(rkev)
+	cDeleteRecordsResultList := C.rd_kafka_DeleteRecords_result_offsets(cRes)
+
+	// Convert result from C to Go.
+	result.TopicPartitions = newTopicPartitionsFromCparts(cDeleteRecordsResultList)
 
 	return result, nil
 }
