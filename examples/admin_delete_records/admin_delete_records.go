@@ -76,7 +76,7 @@ func main() {
 			Offset:    kafka.Offset(offset),
 		})
 		i += 3
-		index += 1
+		index++
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)

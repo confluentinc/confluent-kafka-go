@@ -3427,14 +3427,14 @@ func (a *AdminClient) DeleteRecords(ctx context.Context, topicpartitionoffsets [
 		return result, err
 	}
 
-	var del_record_cnt C.size_t = 1
+	var delRecordCnt C.size_t = 1
     
 	// convert topicpartitionoffsets to rd_kafka_DeleteRecords_t** required by implementation
 	cTopicPartitionList := newCPartsFromTopicPartitions(topicpartitionoffsets)
 	defer C.rd_kafka_topic_partition_list_destroy(cTopicPartitionList)
 
-	cDelRecords := make([]*C.rd_kafka_DeleteRecords_t, del_record_cnt)
-	defer C.rd_kafka_DeleteRecords_destroy_array(&cDelRecords[0], C.size_t(del_record_cnt))
+	cDelRecords := make([]*C.rd_kafka_DeleteRecords_t, delRecordCnt)
+	defer C.rd_kafka_DeleteRecords_destroy_array(&cDelRecords[0], C.size_t(delRecordCnt))
 
 	cDelRecords[0] = C.rd_kafka_DeleteRecords_new(cTopicPartitionList)
 
@@ -3458,7 +3458,7 @@ func (a *AdminClient) DeleteRecords(ctx context.Context, topicpartitionoffsets [
 	C.rd_kafka_DeleteRecords(
 		a.handle.rk,
 		&cDelRecords[0],
-		C.size_t(del_record_cnt),
+		C.size_t(delRecordCnt),
 		cOptions,
 		cQueue)
 
