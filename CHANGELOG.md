@@ -1,6 +1,13 @@
 # Confluent's Golang client for Apache Kafka
 
 
+# v2.4.0
+
+This is a feature release.
+
+ * Adds an AdminAPI `DeleteRecords()`
+   (#1141, @PratRanj07).
+
 # v2.3.0
 
 This is a feature release.
