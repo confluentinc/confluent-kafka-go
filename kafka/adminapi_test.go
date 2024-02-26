@@ -888,7 +888,7 @@ func testAdminAPIsDeleteRecords(what string, a *AdminClient, expDuration time.Du
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 	topicPartitionOffset := []TopicPartition{{Topic: &topic, Partition: partition, Offset: offset}}
-	_, err := a.DeleteRecords(ctx, topicPartitionOffset , SetAdminRequestTimeout(time.Second))
+	_, err := a.DeleteRecords(ctx, topicPartitionOffset, SetAdminRequestTimeout(time.Second))
 	if err == nil || ctx.Err() != context.DeadlineExceeded {
 		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
 			err, ctx.Err())
@@ -899,7 +899,7 @@ func testAdminAPIsDeleteRecords(what string, a *AdminClient, expDuration time.Du
 	if err == nil || err.(Error).Code() != ErrInvalidArg {
 		t.Fatalf("Expected ErrInvalidArg, not %v", err)
 	}
-	
+
 	for _, options := range [][]DeleteRecordsAdminOption{
 		{},
 		{SetAdminRequestTimeout(time.Second)},
