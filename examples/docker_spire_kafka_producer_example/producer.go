@@ -20,12 +20,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
@@ -102,10 +103,13 @@ func main() {
 	// You'll probably need to modify this configuration to
 	// match your environment.
 	config := kafka.ConfigMap{
-		"bootstrap.servers":       bootstrapServers,
-		"security.protocol":       "SASL_SSL",
-		"sasl.mechanisms":         "OAUTHBEARER",
-		"sasl.oauthbearer.config": principal,
+		"bootstrap.servers": bootstrapServers,
+		"security.protocol": "SASL_SSL",
+		// "sasl.login.callback.handler.class":           "io.confluent.kafka.clients.plugins.auth.oauth.SpireJwtLoginCallbackHandler",
+		"sasl.mechanisms": "OAUTHBEARER",
+		"sasl.oauthbearer.token.spire.agent.endpoint": socketPath,
+		"sasl.jaas.config":                            "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required logicalCluster=" + lkc,
+		"sasl.oauthbearer.config":                     principal,
 	}
 
 	p, err := kafka.NewProducer(&config)

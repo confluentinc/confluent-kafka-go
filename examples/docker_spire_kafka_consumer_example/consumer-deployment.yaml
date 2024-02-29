@@ -3,12 +3,11 @@ kind: Deployment
 metadata:
   annotations:
     kompose.cmd: kompose convert
-    kompose.version: 1.26.0 (40646f47)
-  creationTimestamp: null
+    kompose.version: 1.32.0 (HEAD)
   labels:
     io.kompose.service: consumer
-  name: consumer-chang
-  namespace: pkc-devcc97qpm5
+  name: consumer-shubhankar
+  namespace: pkc-devc19rzw5
 spec:
   replicas: 1
   selector:
@@ -19,26 +18,26 @@ spec:
     metadata:
       annotations:
         kompose.cmd: kompose convert
-        kompose.version: 1.26.0 (40646f47)
-      creationTimestamp: null
+        kompose.version: 1.32.0 (HEAD)
       labels:
+        io.kompose.network/docker-spire-kafka-consumer-example-default: "true"
         io.kompose.service: consumer
     spec:
       containers:
         - env:
             - name: BOOTSTRAP_SERVERS
-              value: pkc-devcc97qpm5.us-west-2.aws.devel.cpdev.cloud:9092
+              value: pkc-devc19rzw5.us-west-2.aws.devel.cpdev.cloud:9092
             - name: LKC
-              value: lkc-devcczwjmmd
+              value: lkc-devc3mk0gw
             - name: PRINCIPAL
               value: sub
             - name: SOCKET_PATH
               value: unix:/opt/spire/sockets/workload_api.sock
             - name: TOPIC
-              value: kafka-spire-native
-          image: 755363985185.dkr.ecr.us-west-2.amazonaws.com/docker/dev/cc-base:kafka-consumer-spire-chang
+              value: kafka-spire-test
+          image: 519856050701.dkr.ecr.us-west-2.amazonaws.com/docker/dev/confluentinc/cc-base:kafka-consumer-spire-shubhankar
           imagePullPolicy: Always
-          name: consumer-chang
+          name: consumer-shubhankar
           resources: {}
           volumeMounts:
             - mountPath: /opt/spire/sockets
