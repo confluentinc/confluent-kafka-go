@@ -357,7 +357,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize implements deserialization of Protobuf data
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	if payload == nil {
+	if len(payload) == 0 {
 		return nil, nil
 	}
 	info, err := s.GetSchema(topic, payload)
