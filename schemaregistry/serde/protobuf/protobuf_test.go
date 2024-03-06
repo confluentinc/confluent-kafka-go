@@ -184,3 +184,18 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
+
+func TestProtobufSerdeEmptyMessage(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+
+	_, err = deser.Deserialize("topic1", nil)
+	serde.MaybeFail("deserialization", err)
+	_, err = deser.Deserialize("topic1", []byte{})
+	serde.MaybeFail("deserialization", err)
+}
