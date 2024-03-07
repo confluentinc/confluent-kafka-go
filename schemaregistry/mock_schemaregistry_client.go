@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -45,8 +46,13 @@ type versionCacheEntry struct {
 	softDeleted bool
 }
 
-type idCacheEntry struct {
-	id          int
+type infoCacheEntry struct {
+	info        *SchemaInfo
+	softDeleted bool
+}
+
+type metadataCacheEntry struct {
+	metadata    *SchemaMetadata
 	softDeleted bool
 }
 
@@ -54,14 +60,14 @@ type idCacheEntry struct {
 type mockclient struct {
 	sync.Mutex
 	url                      *url.URL
-	schemaToIDCache          map[subjectJSON]idCacheEntry
-	schemaToIDCacheLock      sync.RWMutex
-	idToSchemaCache          map[subjectID]*SchemaInfo
+	infoToSchemaCache        map[subjectJSON]metadataCacheEntry
+	infoToSchemaCacheLock    sync.RWMutex
+	idToSchemaCache          map[subjectID]infoCacheEntry
 	idToSchemaCacheLock      sync.RWMutex
 	schemaToVersionCache     map[subjectJSON]versionCacheEntry
 	schemaToVersionCacheLock sync.RWMutex
-	compatibilityCache       map[string]Compatibility
-	compatibilityCacheLock   sync.RWMutex
+	configCache              map[string]SchemaRegistryConfig
+	configCacheLock          sync.RWMutex
 	counter                  counter
 }
 
@@ -69,39 +75,56 @@ var _ Client = new(mockclient)
 
 // Register registers Schema aliased with subject
 func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
-	schemaJSON, err := schema.MarshalJSON()
+	metadata, err := c.RegisterFullResponse(subject, schema, normalize)
 	if err != nil {
 		return -1, err
+	}
+	return metadata.ID, err
+}
+
+// RegisterFullResponse registers Schema aliased with subject
+func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error) {
+	schemaJSON, err := schema.MarshalJSON()
+	if err != nil {
+		return SchemaMetadata{
+			ID: -1,
+		}, err
 	}
 	cacheKey := subjectJSON{
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaToIDCacheLock.RLock()
-	idCacheEntryVal, ok := c.schemaToIDCache[cacheKey]
-	if idCacheEntryVal.softDeleted {
+	c.infoToSchemaCacheLock.RLock()
+	cacheEntryVal, ok := c.infoToSchemaCache[cacheKey]
+	if cacheEntryVal.softDeleted {
 		ok = false
 	}
-	c.schemaToIDCacheLock.RUnlock()
+	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
-		return idCacheEntryVal.id, nil
+		return *cacheEntryVal.metadata, nil
 	}
 
-	id, err = c.getIDFromRegistry(subject, schema)
+	id, err := c.getIDFromRegistry(subject, schema)
 	if err != nil {
-		return -1, err
+		return SchemaMetadata{
+			ID: -1,
+		}, err
 	}
-	c.schemaToIDCacheLock.Lock()
-	c.schemaToIDCache[cacheKey] = idCacheEntry{id, false}
-	c.schemaToIDCacheLock.Unlock()
-	return id, nil
+	result = SchemaMetadata{
+		SchemaInfo: schema,
+		ID:         id,
+	}
+	c.infoToSchemaCacheLock.Lock()
+	c.infoToSchemaCache[cacheKey] = metadataCacheEntry{&result, false}
+	c.infoToSchemaCacheLock.Unlock()
+	return result, nil
 }
 
 func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, error) {
 	var id = -1
 	c.idToSchemaCacheLock.RLock()
 	for key, value := range c.idToSchemaCache {
-		if key.subject == subject && schemasEqual(*value, schema) {
+		if key.subject == subject && schemasEqual(*value.info, schema) {
 			id = key.id
 			break
 		}
@@ -118,7 +141,7 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, 
 			id:      id,
 		}
 		c.idToSchemaCacheLock.Lock()
-		c.idToSchemaCache[idCacheKey] = &schema
+		c.idToSchemaCache[idCacheKey] = infoCacheEntry{&schema, false}
 		c.idToSchemaCacheLock.Unlock()
 	}
 	return id, nil
@@ -154,10 +177,10 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 		id:      id,
 	}
 	c.idToSchemaCacheLock.RLock()
-	info, ok := c.idToSchemaCache[cacheKey]
+	cacheEntryValue, ok := c.idToSchemaCache[cacheKey]
 	c.idToSchemaCacheLock.RUnlock()
 	if ok {
-		return *info, nil
+		return *cacheEntryValue.info, nil
 	}
 	posErr := url.Error{
 		Op:  "GET",
@@ -177,14 +200,14 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaToIDCacheLock.RLock()
-	idCacheEntryVal, ok := c.schemaToIDCache[cacheKey]
-	if idCacheEntryVal.softDeleted {
+	c.infoToSchemaCacheLock.RLock()
+	cacheEntryVal, ok := c.infoToSchemaCache[cacheKey]
+	if cacheEntryVal.softDeleted {
 		ok = false
 	}
-	c.schemaToIDCacheLock.RUnlock()
+	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
-		return idCacheEntryVal.id, nil
+		return cacheEntryVal.metadata.ID, nil
 	}
 
 	posErr := url.Error{
@@ -213,10 +236,16 @@ func (c *mockclient) GetLatestSchemaMetadata(subject string) (result SchemaMetad
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *mockclient) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
+	return c.GetSchemaMetadataIncludeDeleted(subject, version, false)
+}
+
+// GetSchemaMetadataIncludeDeleted fetches the requested subject schema identified by version and deleted flag
+// Returns SchemaMetadata object
+func (c *mockclient) GetSchemaMetadataIncludeDeleted(subject string, version int, deleted bool) (result SchemaMetadata, err error) {
 	var json string
 	c.schemaToVersionCacheLock.RLock()
 	for key, value := range c.schemaToVersionCache {
-		if key.subject == subject && value.version == version && !value.softDeleted {
+		if key.subject == subject && value.version == version && (!value.softDeleted || deleted) {
 			json = key.json
 			break
 		}
@@ -239,7 +268,7 @@ func (c *mockclient) GetSchemaMetadata(subject string, version int) (result Sche
 	var id = -1
 	c.idToSchemaCacheLock.RLock()
 	for key, value := range c.idToSchemaCache {
-		if key.subject == subject && schemasEqual(*value, info) {
+		if key.subject == subject && schemasEqual(*value.info, info) && (!value.softDeleted || deleted) {
 			id = key.id
 			break
 		}
@@ -260,6 +289,80 @@ func (c *mockclient) GetSchemaMetadata(subject string, version int) (result Sche
 		Subject: subject,
 		Version: version,
 	}, nil
+}
+
+// GetLatestWithMetadata fetches the latest subject schema with the given metadata
+// Returns SchemaMetadata object
+func (c *mockclient) GetLatestWithMetadata(subject string, metadata map[string]string, deleted bool) (result SchemaMetadata, err error) {
+	sb := strings.Builder{}
+	for key, value := range metadata {
+		_, _ = sb.WriteString("&key=")
+		_, _ = sb.WriteString(key)
+		_, _ = sb.WriteString("&value=")
+		_, _ = sb.WriteString(value)
+	}
+	metadataStr := sb.String()
+	var results []SchemaMetadata
+	c.schemaToVersionCacheLock.RLock()
+	for key, value := range c.schemaToVersionCache {
+		if key.subject == subject && (!value.softDeleted || deleted) {
+			var info SchemaInfo
+			err = info.UnmarshalJSON([]byte(key.json))
+			if err != nil {
+				return SchemaMetadata{}, err
+			}
+			if info.Metadata != nil && isSubset(metadata, info.Metadata.Properties) {
+				results = append(results, SchemaMetadata{
+					SchemaInfo: info,
+					Subject:    subject,
+					Version:    value.version,
+				})
+			}
+		}
+	}
+	result.Version = 0
+	for _, schema := range results {
+		if schema.Version > result.Version {
+			result = schema
+		}
+	}
+	c.schemaToVersionCacheLock.RUnlock()
+	if result.Version <= 0 {
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(latestWithMetadata, url.PathEscape(subject), deleted, metadataStr),
+			Err: errors.New("Subject Not found"),
+		}
+		return SchemaMetadata{}, &posErr
+	}
+
+	result.ID = -1
+	c.idToSchemaCacheLock.RLock()
+	for key, value := range c.idToSchemaCache {
+		if key.subject == subject && schemasEqual(*value.info, result.SchemaInfo) && (!value.softDeleted || deleted) {
+			result.ID = key.id
+			break
+		}
+	}
+	c.idToSchemaCacheLock.RUnlock()
+	if result.ID < 0 {
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(latestWithMetadata, url.PathEscape(subject), deleted, metadataStr),
+			Err: errors.New("Subject Not found"),
+		}
+		return SchemaMetadata{}, &posErr
+	}
+	return result, nil
+}
+
+func isSubset(containee map[string]string, container map[string]string) bool {
+	for key, value := range containee {
+		if container[key] != value {
+			return false
+		}
+	}
+	return true
 }
 
 // GetAllVersions fetches a list of all version numbers associated with the provided subject registration
@@ -306,11 +409,19 @@ func (c *mockclient) deleteVersion(key subjectJSON, version int, permanent bool)
 	}
 }
 
-func (c *mockclient) deleteID(key subjectJSON, id int, permanent bool) {
+func (c *mockclient) deleteInfo(key subjectID, info *SchemaInfo, permanent bool) {
 	if permanent {
-		delete(c.schemaToIDCache, key)
+		delete(c.idToSchemaCache, key)
 	} else {
-		c.schemaToIDCache[key] = idCacheEntry{id, true}
+		c.idToSchemaCache[key] = infoCacheEntry{info, true}
+	}
+}
+
+func (c *mockclient) deleteMetadata(key subjectJSON, metadata *SchemaMetadata, permanent bool) {
+	if permanent {
+		delete(c.infoToSchemaCache, key)
+	} else {
+		c.infoToSchemaCache[key] = metadataCacheEntry{metadata, true}
 	}
 }
 
@@ -326,13 +437,13 @@ func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize boo
 		json:    string(schemaJSON),
 	}
 	c.schemaToVersionCacheLock.RLock()
-	versionCacheEntryVal, ok := c.schemaToVersionCache[cacheKey]
-	if versionCacheEntryVal.softDeleted {
+	cacheEntryVal, ok := c.schemaToVersionCache[cacheKey]
+	if cacheEntryVal.softDeleted {
 		ok = false
 	}
 	c.schemaToVersionCacheLock.RUnlock()
 	if ok {
-		return versionCacheEntryVal.version, nil
+		return cacheEntryVal.version, nil
 	}
 	posErr := url.Error{
 		Op:  "GET",
@@ -360,13 +471,13 @@ func (c *mockclient) GetAllSubjects() ([]string, error) {
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
 func (c *mockclient) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
-	c.schemaToIDCacheLock.Lock()
-	for key, value := range c.schemaToIDCache {
+	c.infoToSchemaCacheLock.Lock()
+	for key, value := range c.infoToSchemaCache {
 		if key.subject == subject && (!value.softDeleted || permanent) {
-			c.deleteID(key, value.id, permanent)
+			c.deleteMetadata(key, value.metadata, permanent)
 		}
 	}
-	c.schemaToIDCacheLock.Unlock()
+	c.infoToSchemaCacheLock.Unlock()
 	c.schemaToVersionCacheLock.Lock()
 	for key, value := range c.schemaToVersionCache {
 		if key.subject == subject && (!value.softDeleted || permanent) {
@@ -375,14 +486,14 @@ func (c *mockclient) DeleteSubject(subject string, permanent bool) (deleted []in
 		}
 	}
 	c.schemaToVersionCacheLock.Unlock()
-	c.compatibilityCacheLock.Lock()
-	delete(c.compatibilityCache, subject)
-	c.compatibilityCacheLock.Unlock()
+	c.configCacheLock.Lock()
+	delete(c.configCache, subject)
+	c.configCacheLock.Unlock()
 	if permanent {
 		c.idToSchemaCacheLock.Lock()
-		for key := range c.idToSchemaCache {
-			if key.subject == subject {
-				delete(c.idToSchemaCache, key)
+		for key, value := range c.idToSchemaCache {
+			if key.subject == subject && (!value.softDeleted || permanent) {
+				c.deleteInfo(key, value.info, permanent)
 			}
 		}
 		c.idToSchemaCacheLock.Unlock()
@@ -402,19 +513,22 @@ func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent
 				subject: subject,
 				json:    string(schemaJSON),
 			}
-			c.schemaToIDCacheLock.Lock()
-			idSchemaEntryVal, ok := c.schemaToIDCache[cacheKeySchema]
+			c.infoToSchemaCacheLock.Lock()
+			infoSchemaEntryVal, ok := c.infoToSchemaCache[cacheKeySchema]
 			if ok {
-				c.deleteID(key, idSchemaEntryVal.id, permanent)
+				c.deleteMetadata(key, infoSchemaEntryVal.metadata, permanent)
 			}
-			c.schemaToIDCacheLock.Unlock()
+			c.infoToSchemaCacheLock.Unlock()
 			if permanent && ok {
-				c.idToSchemaCacheLock.Lock()
 				cacheKeyID := subjectID{
 					subject: subject,
-					id:      idSchemaEntryVal.id,
+					id:      infoSchemaEntryVal.metadata.ID,
 				}
-				delete(c.idToSchemaCache, cacheKeyID)
+				c.idToSchemaCacheLock.Lock()
+				idSchemaEntryVal, ok := c.idToSchemaCache[cacheKeyID]
+				if ok {
+					c.deleteInfo(cacheKeyID, idSchemaEntryVal.info, permanent)
+				}
 				c.idToSchemaCacheLock.Unlock()
 			}
 		}
@@ -423,30 +537,10 @@ func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent
 	return version, nil
 }
 
-// Fetch compatibility level currently configured for provided subject
-// Returns compatibility level string upon success
-func (c *mockclient) GetCompatibility(subject string) (compatibility Compatibility, err error) {
-	c.compatibilityCacheLock.RLock()
-	compatibility, ok := c.compatibilityCache[subject]
-	c.compatibilityCacheLock.RUnlock()
-	if !ok {
-		posErr := url.Error{
-			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(subjectConfig, url.PathEscape(subject)),
-			Err: errors.New("Subject Not Found"),
-		}
-		return compatibility, &posErr
-	}
-	return compatibility, nil
-}
-
-// UpdateCompatibility updates subject's compatibility level
-// Returns new compatibility level string upon success
-func (c *mockclient) UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error) {
-	c.compatibilityCacheLock.Lock()
-	c.compatibilityCache[subject] = update
-	c.compatibilityCacheLock.Unlock()
-	return update, nil
+// TestSubjectCompatibility verifies schema against all schemas in the subject
+// Returns true if the schema is compatible, false otherwise
+func (c *mockclient) TestSubjectCompatibility(subject string, schema SchemaInfo) (ok bool, err error) {
+	return false, errors.New("unsupported operaiton")
 }
 
 // TestCompatibility verifies schema against the subject's compatibility policy
@@ -455,29 +549,114 @@ func (c *mockclient) TestCompatibility(subject string, version int, schema Schem
 	return false, errors.New("unsupported operaiton")
 }
 
-// GetDefaultCompatibility fetches the global(default) compatibility level
-// Returns global(default) compatibility level
-func (c *mockclient) GetDefaultCompatibility() (compatibility Compatibility, err error) {
-	c.compatibilityCacheLock.RLock()
-	compatibility, ok := c.compatibilityCache[noSubject]
-	c.compatibilityCacheLock.RUnlock()
+// Fetch compatibility level currently configured for provided subject
+// Returns compatibility level string upon success
+func (c *mockclient) GetCompatibility(subject string) (compatibility Compatibility, err error) {
+	c.configCacheLock.RLock()
+	result, ok := c.configCache[subject]
+	c.configCacheLock.RUnlock()
 	if !ok {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(config),
+			URL: c.url.String() + fmt.Sprintf(subjectConfig, url.PathEscape(subject)),
 			Err: errors.New("Subject Not Found"),
 		}
 		return compatibility, &posErr
 	}
-	return compatibility, nil
+	return result.CompatibilityLevel, nil
 }
 
-// UpdateDefaultCompatibility updates the global(default) compatibility level level
+// UpdateCompatibility updates subject's compatibility level
+// Returns new compatibility level string upon success
+func (c *mockclient) UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error) {
+	c.configCacheLock.Lock()
+	c.configCache[subject] = SchemaRegistryConfig{
+		CompatibilityLevel: update,
+	}
+	c.configCacheLock.Unlock()
+	return update, nil
+}
+
+// GetDefaultCompatibility fetches the global(default) compatibility level
+// Returns global(default) compatibility level
+func (c *mockclient) GetDefaultCompatibility() (compatibility Compatibility, err error) {
+	c.configCacheLock.RLock()
+	result, ok := c.configCache[noSubject]
+	c.configCacheLock.RUnlock()
+	if !ok {
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprint(config),
+			Err: errors.New("Subject Not Found"),
+		}
+		return compatibility, &posErr
+	}
+	return result.CompatibilityLevel, nil
+}
+
+// UpdateDefaultCompatibility updates the global(default) compatibility level
 // Returns new string compatibility level
 func (c *mockclient) UpdateDefaultCompatibility(update Compatibility) (compatibility Compatibility, err error) {
-	c.compatibilityCacheLock.Lock()
-	c.compatibilityCache[noSubject] = update
-	c.compatibilityCacheLock.Unlock()
+	c.configCacheLock.Lock()
+	c.configCache[noSubject] = SchemaRegistryConfig{
+		CompatibilityLevel: update,
+	}
+	c.configCacheLock.Unlock()
+	return update, nil
+}
+
+// Fetch config currently configured for provided subject
+// Returns config string upon success
+func (c *mockclient) GetConfig(subject string, defaultToGlobal bool) (result SchemaRegistryConfig, err error) {
+	c.configCacheLock.RLock()
+	result, ok := c.configCache[subject]
+	c.configCacheLock.RUnlock()
+	if !ok {
+		if !defaultToGlobal {
+			posErr := url.Error{
+				Op:  "GET",
+				URL: c.url.String() + fmt.Sprintf(subjectConfigDefault, url.PathEscape(subject), defaultToGlobal),
+				Err: errors.New("Subject Not Found"),
+			}
+			return result, &posErr
+		}
+		return c.GetDefaultConfig()
+	}
+	return result, nil
+}
+
+// UpdateCompatibility updates subject's config
+// Returns new config string upon success
+func (c *mockclient) UpdateConfig(subject string, update SchemaRegistryConfig) (result SchemaRegistryConfig, err error) {
+	c.configCacheLock.Lock()
+	c.configCache[subject] = update
+	c.configCacheLock.Unlock()
+	return update, nil
+}
+
+// GetDefaultCompatibility fetches the global(default) config
+// Returns global(default) config
+func (c *mockclient) GetDefaultConfig() (result SchemaRegistryConfig, err error) {
+	c.configCacheLock.RLock()
+	result, ok := c.configCache[noSubject]
+	c.configCacheLock.RUnlock()
+	if !ok {
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprint(config),
+			Err: errors.New("Subject Not Found"),
+		}
+		return result, &posErr
+	}
+	return result, nil
+}
+
+// UpdateDefaultCompatibility updates the global(default) config
+// Returns new string config
+func (c *mockclient) UpdateDefaultConfig(update SchemaRegistryConfig) (result SchemaRegistryConfig, err error) {
+	c.configCacheLock.Lock()
+	c.configCache[noSubject] = update
+	c.configCacheLock.Unlock()
 	return update, nil
 }
 
@@ -492,5 +671,7 @@ func schemasEqual(info1 SchemaInfo, info2 SchemaInfo) bool {
 	}
 	return info1.Schema == info2.Schema &&
 		info1.SchemaType == info2.SchemaType &&
-		reflect.DeepEqual(refs1, refs2)
+		reflect.DeepEqual(refs1, refs2) &&
+		reflect.DeepEqual(info1.Metadata, info2.Metadata) &&
+		reflect.DeepEqual(info1.Ruleset, info2.Ruleset)
 }
