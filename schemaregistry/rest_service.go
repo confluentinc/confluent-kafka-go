@@ -52,6 +52,7 @@ const (
 	compatibility     = "/compatibility" + versions
 	config            = "/config"
 	subjectConfig     = config + "/%s"
+	subjectConfigDefaultToGlobal = subjectConfig + "?defaultToGlobal=%t"
 	mode              = "/mode"
 	modeConfig        = mode + "/%s"
 

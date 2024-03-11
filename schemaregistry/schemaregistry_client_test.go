@@ -102,8 +102,8 @@ func testGetAllVersions(subject string, expected []int) {
 	maybeFail(subject, err, expect(actual, expected))
 }
 
-func testGetCompatibility(subject string, expected Compatibility) {
-	actual, err := srClient.GetCompatibility(subject)
+func testGetCompatibility(subject string, defaultToGlobal bool, expected Compatibility) {
+	actual, err := srClient.GetCompatibility(subject, defaultToGlobal)
 	maybeFail(subject, err, expect(actual, expected))
 }
 
@@ -216,7 +216,7 @@ func TestClient(t *testing.T) {
 			testGetLatestSchemaMetadata(subject)
 
 			testUpdateCompatibility(subject, Forward, Forward)
-			testGetCompatibility(subject, Forward)
+			testGetCompatibility(subject, false, Forward)
 
 			testUpdateDefaultCompatibility(None, None)
 			testGetDefaultCompatibility(None)

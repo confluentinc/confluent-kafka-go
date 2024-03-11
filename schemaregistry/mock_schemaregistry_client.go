@@ -425,14 +425,15 @@ func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent
 
 // Fetch compatibility level currently configured for provided subject
 // Returns compatibility level string upon success
-func (c *mockclient) GetCompatibility(subject string) (compatibility Compatibility, err error) {
+func (c *mockclient) GetCompatibility(subject string, defaultToGlobal bool) (compatibility Compatibility, err error) {
 	c.compatibilityCacheLock.RLock()
 	compatibility, ok := c.compatibilityCache[subject]
 	c.compatibilityCacheLock.RUnlock()
+	fmt.Printf(subjectConfigDefaultToGlobal, url.PathEscape(subject), defaultToGlobal)
 	if !ok {
 		posErr := url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(subjectConfig, url.PathEscape(subject)),
+			URL: c.url.String() + fmt.Sprintf(subjectConfigDefaultToGlobal, url.PathEscape(subject), defaultToGlobal),
 			Err: errors.New("Subject Not Found"),
 		}
 		return compatibility, &posErr

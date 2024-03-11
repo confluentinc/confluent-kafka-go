@@ -212,7 +212,7 @@ type Client interface {
 	GetAllSubjects() ([]string, error)
 	DeleteSubject(subject string, permanent bool) ([]int, error)
 	DeleteSubjectVersion(subject string, version int, permanent bool) (deletes int, err error)
-	GetCompatibility(subject string) (compatibility Compatibility, err error)
+	GetCompatibility(subject string, defaultToGlobal bool) (compatibility Compatibility, err error)
 	UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error)
 	TestCompatibility(subject string, version int, schema SchemaInfo) (compatible bool, err error)
 	GetDefaultCompatibility() (compatibility Compatibility, err error)
@@ -672,9 +672,10 @@ func (c *Compatibility) ParseString(val string) error {
 
 // Fetch compatibility level currently configured for provided subject
 // Returns compatibility level string upon success
-func (c *client) GetCompatibility(subject string) (compatibility Compatibility, err error) {
+func (c *client) GetCompatibility(subject string, defaultToGlobal bool) (compatibility Compatibility, err error) {
 	var result compatibilityLevel
-	err = c.restService.handleRequest(newRequest("GET", subjectConfig, nil, url.PathEscape(subject)), &result)
+	err = c.restService.handleRequest(newRequest("GET", subjectConfigDefaultToGlobal, nil,
+		url.PathEscape(subject), defaultToGlobal), &result)
 
 	return result.Compatibility, err
 }
