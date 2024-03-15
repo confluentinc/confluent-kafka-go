@@ -72,7 +72,7 @@ func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	default:
 		return nil, fmt.Errorf("serialization target must be an avro message. Got '%v'", t)
 	}
-	var id = 0
+	var id int
 	info := schemaregistry.SchemaInfo{
 		Schema: avroMsg.Schema(),
 	}
