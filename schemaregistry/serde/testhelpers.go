@@ -46,6 +46,7 @@ func InitFailFunc(t *testing.T) FailFunc {
 	}
 }
 
+// InitFailFuncBenchmark returns an initial fail function
 func InitFailFuncBenchmark(b *testing.B) FailFunc {
 	tester := b
 	return func(msg string, errors ...error) {
