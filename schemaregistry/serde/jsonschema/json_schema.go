@@ -68,7 +68,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		Schema:     string(raw),
 		SchemaType: "JSON",
 	}
-	id, err := s.GetID(topic, msg, info)
+	id, err := s.GetID(topic, msg, &info)
 	if err != nil {
 		return nil, err
 	}

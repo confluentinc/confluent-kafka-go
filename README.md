@@ -133,7 +133,7 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.16+ and librdkafka 2.2.0+.
+Supports Go 1.17+ and librdkafka 2.2.0+.
 
 Using Go Modules
 ----------------

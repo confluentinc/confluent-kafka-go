@@ -21,12 +21,21 @@ import "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
 	serde.SerializerConfig
+	// CacheSchemas will cache serialization results based on the name of the protobuf file
+	// corresponding to the message being serialized. This will drastically improve serialization
+	// performance if you are only ever using a _single_ version of a specific protobuf schema
+	// during any given run of your application. This should be the case for most applications,
+	// but might not apply if you're not creating proto messages based on generated files (e.g.
+	// you are proxying or reading raw protobuf messages from a data source), or if for some reason
+	// you are including multiple versions of the same schema/protobuf in your application.
+	CacheSchemas bool
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
 func NewSerializerConfig() *SerializerConfig {
 	c := &SerializerConfig{
 		SerializerConfig: *serde.NewSerializerConfig(),
+		CacheSchemas:     false,
 	}
 
 	return c

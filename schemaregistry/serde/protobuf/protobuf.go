@@ -22,8 +22,10 @@ import (
 	"io"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -64,12 +66,17 @@ import (
 // Serializer represents a Protobuf serializer
 type Serializer struct {
 	serde.BaseSerializer
+	Conf                  *SerializerConfig
+	descToSchemaCache     cache.Cache
+	descToSchemaCacheLock sync.RWMutex
 }
 
 // Deserializer represents a Protobuf deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
-	ProtoRegistry *protoregistry.Types
+	ProtoRegistry         *protoregistry.Types
+	schemaToDescCache     cache.Cache
+	schemaToDescCacheLock sync.RWMutex
 }
 
 var _ serde.Serializer = new(Serializer)
@@ -128,8 +135,16 @@ func init() {
 
 // NewSerializer creates a Protobuf serializer for Protobuf-generated objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
-	s := &Serializer{}
-	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	cache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	s := &Serializer{
+		descToSchemaCache: cache,
+	}
+	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	s.Conf = conf
+
 	if err != nil {
 		return nil, err
 	}
@@ -162,20 +177,9 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	autoRegister := s.Conf.AutoRegisterSchemas
-	normalize := s.Conf.NormalizeSchemas
-	fileDesc, deps, err := s.toProtobufSchema(protoMsg)
+	info, err := s.getSchemaInfo(protoMsg)
 	if err != nil {
 		return nil, err
-	}
-	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
-	if err != nil {
-		return nil, err
-	}
-	info := schemaregistry.SchemaInfo{
-		Schema:     metadata.Schema,
-		SchemaType: metadata.SchemaType,
-		References: metadata.References,
 	}
 	id, err := s.GetID(topic, protoMsg, info)
 	if err != nil {
@@ -193,18 +197,50 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	return payload, nil
 }
 
-func (s *Serializer) toProtobufSchema(msg proto.Message) (*desc.FileDescriptor, map[string]string, error) {
-	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(msg))
+func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.SchemaInfo, error) {
+	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(protoMsg))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	fileDesc := messageDesc.GetFile()
-	deps := make(map[string]string)
-	err = s.toDependencies(fileDesc, deps)
-	if err != nil {
-		return nil, nil, err
+	if s.Conf.CacheSchemas {
+		s.descToSchemaCacheLock.RLock()
+		value, ok := s.descToSchemaCache.Get(fileDesc.GetName())
+		s.descToSchemaCacheLock.RUnlock()
+		if ok {
+			return value.(*schemaregistry.SchemaInfo), nil
+		}
 	}
-	return fileDesc, deps, nil
+	deps, err := s.toProtobufSchema(fileDesc)
+	if err != nil {
+		return nil, err
+	}
+	autoRegister := s.Conf.AutoRegisterSchemas
+	normalize := s.Conf.NormalizeSchemas
+	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
+	if err != nil {
+		return nil, err
+	}
+	info := &schemaregistry.SchemaInfo{
+		Schema:     metadata.Schema,
+		SchemaType: metadata.SchemaType,
+		References: metadata.References,
+	}
+	if s.Conf.CacheSchemas {
+		s.descToSchemaCacheLock.Lock()
+		s.descToSchemaCache.Put(fileDesc.GetName(), info)
+		s.descToSchemaCacheLock.Unlock()
+	}
+	return info, nil
+}
+
+func (s *Serializer) toProtobufSchema(fileDesc *desc.FileDescriptor) (map[string]string, error) {
+	deps := make(map[string]string)
+	err := s.toDependencies(fileDesc, deps)
+	if err != nil {
+		return nil, err
+	}
+	return deps, nil
 }
 
 func (s *Serializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[string]string) error {
@@ -337,8 +373,14 @@ func ignoreFile(name string) bool {
 
 // NewDeserializer creates a Protobuf deserializer for Protobuf-generated objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
-	s := &Deserializer{}
-	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	cache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	s := &Deserializer{
+		schemaToDescCache: cache,
+	}
+	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +389,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize implements deserialization of Protobuf data
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	if payload == nil {
+	if len(payload) == 0 {
 		return nil, nil
 	}
 	info, err := s.GetSchema(topic, payload)
@@ -405,6 +447,12 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 }
 
 func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+	s.schemaToDescCacheLock.RLock()
+	value, ok := s.schemaToDescCache.Get(info.Schema)
+	s.schemaToDescCacheLock.RUnlock()
+	if ok {
+		return value.(*desc.FileDescriptor), nil
+	}
 	deps := make(map[string]string)
 	err := serde.ResolveReferences(s.Client, info, deps)
 	if err != nil {
@@ -433,13 +481,20 @@ func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDes
 	if len(fileDescriptors) != 1 {
 		return nil, fmt.Errorf("could not resolve schema")
 	}
-	return fileDescriptors[0], nil
+	fd := fileDescriptors[0]
+	s.schemaToDescCacheLock.Lock()
+	s.schemaToDescCache.Put(info.Schema, fd)
+	s.schemaToDescCacheLock.Unlock()
+	return fd, nil
 }
 
 func readMessageIndexes(payload []byte) (int, []int, error) {
 	arrayLen, bytesRead := binary.Varint(payload)
 	if bytesRead <= 0 {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
+	}
+	if arrayLen < 0 {
+		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
 	}
 	if arrayLen == 0 {
 		// Handle the optimization for the first message in the schema
