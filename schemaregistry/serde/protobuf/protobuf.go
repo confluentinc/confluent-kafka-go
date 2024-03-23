@@ -156,10 +156,9 @@ func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serde
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
-	s.Client = client
-	s.Conf = conf
-	s.SerdeType = serdeType
-	s.SubjectNameStrategy = serde.TopicNameStrategy
+	if err := s.BaseDeserializer.ConfigureDeserializer(client, serdeType, conf); err != nil {
+		return err
+	}
 	s.MessageFactory = s.protoMessageFactory
 	s.ProtoRegistry = new(protoregistry.Types)
 	return nil
