@@ -21,25 +21,36 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 func main() {
-	if len(os.Args) < 3 {
+	if len(os.Args) < 4 {
 		fmt.Fprintf(
 			os.Stderr,
-			"Usage: %s <bootstrap-servers> <group1> [<group2> ...]\n",
+			"Usage: %s <bootstrap-servers> <includeAuthorizedOperations>"+
+				" <group1> [<group2> ...]\n",
 			os.Args[0])
 		os.Exit(1)
 	}
 
 	bootstrapServers := os.Args[1]
-	groups := os.Args[2:]
+	includeAuthorizedOperations, errOperations := strconv.ParseBool(os.Args[2])
+	if errOperations != nil {
+		fmt.Printf(
+			"Failed to parse value of includeAuthorizedOperations %s: %s\n", os.Args[2], errOperations)
+		os.Exit(1)
+	}
+
+	groups := os.Args[3:]
 
 	// Create a new AdminClient.
-	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
+	a, err := kafka.NewAdminClient(&kafka.ConfigMap{
+		"bootstrap.servers": bootstrapServers,
+	})
 	if err != nil {
 		fmt.Printf("Failed to create Admin client: %s\n", err)
 		os.Exit(1)
@@ -49,7 +60,8 @@ func main() {
 	// Call DescribeConsumerGroups.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups)
+	describeGroupsResult, err := a.DescribeConsumerGroups(ctx, groups,
+		kafka.SetAdminOptionIncludeAuthorizedOperations(includeAuthorizedOperations))
 	if err != nil {
 		fmt.Printf("Failed to describe groups: %s\n", err)
 		os.Exit(1)
@@ -65,8 +77,12 @@ func main() {
 			"PartitionAssignor: %s\n"+
 			"State: %s\n"+
 			"Coordinator: %+v\n"+
-			"Members: %+v\n\n",
+			"Members: %+v\n",
 			g.GroupID, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
 			g.State, g.Coordinator, g.Members)
+		if includeAuthorizedOperations {
+			fmt.Printf("Allowed operations: %s\n", g.AuthorizedOperations)
+		}
+		fmt.Printf("\n")
 	}
 }

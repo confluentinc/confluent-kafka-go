@@ -48,11 +48,11 @@ type TimestampType int
 
 const (
 	// TimestampNotAvailable indicates no timestamp was set, or not available due to lacking broker support
-	TimestampNotAvailable = TimestampType(C.RD_KAFKA_TIMESTAMP_NOT_AVAILABLE)
+	TimestampNotAvailable TimestampType = C.RD_KAFKA_TIMESTAMP_NOT_AVAILABLE
 	// TimestampCreateTime indicates timestamp set by producer (source time)
-	TimestampCreateTime = TimestampType(C.RD_KAFKA_TIMESTAMP_CREATE_TIME)
+	TimestampCreateTime TimestampType = C.RD_KAFKA_TIMESTAMP_CREATE_TIME
 	// TimestampLogAppendTime indicates timestamp set set by broker (store time)
-	TimestampLogAppendTime = TimestampType(C.RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME)
+	TimestampLogAppendTime TimestampType = C.RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME
 )
 
 func (t TimestampType) String() string {
@@ -77,6 +77,7 @@ type Message struct {
 	TimestampType  TimestampType
 	Opaque         interface{}
 	Headers        []Header
+	LeaderEpoch    *int32 // Deprecated: LeaderEpoch or nil if not available. Use m.TopicPartition.LeaderEpoch instead.
 }
 
 // String returns a human readable representation of a Message.
@@ -159,6 +160,12 @@ func (h *handle) setupMessageFromC(msg *Message, cmsg *C.rd_kafka_message_t) {
 	msg.TopicPartition.Offset = Offset(cmsg.offset)
 	if cmsg.err != 0 {
 		msg.TopicPartition.Error = newError(cmsg.err)
+	}
+
+	leaderEpoch := int32(C.rd_kafka_message_leader_epoch(cmsg))
+	if leaderEpoch >= 0 {
+		msg.LeaderEpoch = &leaderEpoch
+		msg.TopicPartition.LeaderEpoch = &leaderEpoch
 	}
 }
 

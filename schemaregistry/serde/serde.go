@@ -16,7 +16,6 @@
 
 package serde
 
-import "C"
 import (
 	"bytes"
 	"encoding/binary"
@@ -129,28 +128,28 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 }
 
 // GetID returns a schema ID for the given schema
-func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistry.SchemaInfo) (int, error) {
+func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregistry.SchemaInfo) (int, error) {
 	autoRegister := s.Conf.AutoRegisterSchemas
 	useSchemaID := s.Conf.UseSchemaID
 	useLatest := s.Conf.UseLatestVersion
 	normalizeSchema := s.Conf.NormalizeSchemas
 
 	var id = -1
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, *info)
 	if err != nil {
 		return -1, err
 	}
 	if autoRegister {
-		id, err = s.Client.Register(subject, info, normalizeSchema)
+		id, err = s.Client.Register(subject, *info, normalizeSchema)
 		if err != nil {
 			return -1, err
 		}
 	} else if useSchemaID >= 0 {
-		info, err = s.Client.GetBySubjectAndID(subject, useSchemaID)
+		*info, err = s.Client.GetBySubjectAndID(subject, useSchemaID)
 		if err != nil {
 			return -1, err
 		}
-		id, err = s.Client.GetID(subject, info, false)
+		id, err = s.Client.GetID(subject, *info, false)
 		if err != nil {
 			return -1, err
 		}
@@ -162,17 +161,17 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info schemaregistr
 		if err != nil {
 			return -1, err
 		}
-		info = schemaregistry.SchemaInfo{
+		*info = schemaregistry.SchemaInfo{
 			Schema:     metadata.Schema,
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,
 		}
-		id, err = s.Client.GetID(subject, info, false)
+		id, err = s.Client.GetID(subject, *info, false)
 		if err != nil {
 			return -1, err
 		}
 	} else {
-		id, err = s.Client.GetID(subject, info, normalizeSchema)
+		id, err = s.Client.GetID(subject, *info, normalizeSchema)
 		if err != nil {
 			return -1, err
 		}

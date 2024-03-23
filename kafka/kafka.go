@@ -276,11 +276,12 @@ const PartitionAny = int32(C.RD_KAFKA_PARTITION_UA)
 
 // TopicPartition is a generic placeholder for a Topic+Partition and optionally Offset.
 type TopicPartition struct {
-	Topic     *string
-	Partition int32
-	Offset    Offset
-	Metadata  *string
-	Error     error
+	Topic       *string
+	Partition   int32
+	Offset      Offset
+	Metadata    *string
+	Error       error
+	LeaderEpoch *int32 // LeaderEpoch or nil if not available
 }
 
 func (p TopicPartition) String() string {
@@ -325,10 +326,37 @@ type Node struct {
 	Host string
 	// Node port.
 	Port int
+	// Node rack (may be nil)
+	Rack *string
 }
 
 func (n Node) String() string {
 	return fmt.Sprintf("[%s:%d]/%d", n.Host, n.Port, n.ID)
+}
+
+// UUID Kafka UUID representation
+type UUID struct {
+	// Most Significant Bits.
+	mostSignificantBits int64
+	// Least Significant Bits.
+	leastSignificantBits int64
+	// Base64 representation
+	base64str string
+}
+
+// Base64 string representation of the UUID
+func (uuid UUID) String() string {
+	return uuid.base64str
+}
+
+// GetMostSignificantBits returns Most Significant 64 bits of the 128 bits UUID
+func (uuid UUID) GetMostSignificantBits() int64 {
+	return uuid.mostSignificantBits
+}
+
+// GetLeastSignificantBits returns Least Significant 64 bits of the 128 bits UUID
+func (uuid UUID) GetLeastSignificantBits() int64 {
+	return uuid.leastSignificantBits
 }
 
 // ConsumerGroupTopicPartitions represents a consumer group's TopicPartitions.
@@ -364,6 +392,11 @@ func newCPartsFromTopicPartitions(partitions []TopicPartition) (cparts *C.rd_kaf
 			rktpar.metadata = unsafe.Pointer(cmetadata)
 			rktpar.metadata_size = C.size_t(len(*part.Metadata))
 		}
+
+		if part.LeaderEpoch != nil {
+			cLeaderEpoch := C.int32_t(*part.LeaderEpoch)
+			C.rd_kafka_topic_partition_set_leader_epoch(rktpar, cLeaderEpoch)
+		}
 	}
 
 	return cparts
@@ -383,6 +416,11 @@ func setupTopicPartitionFromCrktpar(partition *TopicPartition, crktpar *C.rd_kaf
 	}
 	if crktpar.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		partition.Error = newError(crktpar.err)
+	}
+
+	cLeaderEpoch := int32(C.rd_kafka_topic_partition_get_leader_epoch(crktpar))
+	if cLeaderEpoch >= 0 {
+		partition.LeaderEpoch = &cLeaderEpoch
 	}
 }
 

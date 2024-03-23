@@ -22,8 +22,10 @@ import (
 	"io"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -40,19 +42,21 @@ import (
 	"google.golang.org/genproto/googleapis/type/fraction"
 	"google.golang.org/genproto/googleapis/type/latlng"
 	"google.golang.org/genproto/googleapis/type/money"
+	"google.golang.org/genproto/googleapis/type/month"
 	"google.golang.org/genproto/googleapis/type/postaladdress"
 	"google.golang.org/genproto/googleapis/type/quaternion"
 	"google.golang.org/genproto/googleapis/type/timeofday"
-	"google.golang.org/genproto/protobuf/field_mask"
-	"google.golang.org/genproto/protobuf/source_context"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/apipb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/sourcecontextpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/typepb"
@@ -62,12 +66,17 @@ import (
 // Serializer represents a Protobuf serializer
 type Serializer struct {
 	serde.BaseSerializer
+	Conf                  *SerializerConfig
+	descToSchemaCache     cache.Cache
+	descToSchemaCacheLock sync.RWMutex
 }
 
 // Deserializer represents a Protobuf deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
-	ProtoRegistry *protoregistry.Types
+	ProtoRegistry         *protoregistry.Types
+	schemaToDescCache     cache.Cache
+	schemaToDescCacheLock sync.RWMutex
 }
 
 var _ serde.Serializer = new(Serializer)
@@ -88,17 +97,17 @@ func init() {
 		"google/type/fraction.proto":           fraction.File_google_type_fraction_proto,
 		"google/type/latlng.proto":             latlng.File_google_type_latlng_proto,
 		"google/type/money.proto":              money.File_google_type_money_proto,
-		"google/type/month.proto":              money.File_google_type_money_proto,
+		"google/type/month.proto":              month.File_google_type_month_proto,
 		"google/type/postal_address.proto":     postaladdress.File_google_type_postal_address_proto,
 		"google/type/quaternion.proto":         quaternion.File_google_type_quaternion_proto,
 		"google/type/timeofday.proto":          timeofday.File_google_type_timeofday_proto,
 		"google/protobuf/any.proto":            anypb.File_google_protobuf_any_proto,
-		"google/protobuf/api.proto":            anypb.File_google_protobuf_any_proto,
+		"google/protobuf/api.proto":            apipb.File_google_protobuf_api_proto,
 		"google/protobuf/descriptor.proto":     descriptorpb.File_google_protobuf_descriptor_proto,
 		"google/protobuf/duration.proto":       durationpb.File_google_protobuf_duration_proto,
 		"google/protobuf/empty.proto":          emptypb.File_google_protobuf_empty_proto,
-		"google/protobuf/field_mask.proto":     field_mask.File_google_protobuf_field_mask_proto,
-		"google/protobuf/source_context.proto": source_context.File_google_protobuf_source_context_proto,
+		"google/protobuf/field_mask.proto":     fieldmaskpb.File_google_protobuf_field_mask_proto,
+		"google/protobuf/source_context.proto": sourcecontextpb.File_google_protobuf_source_context_proto,
 		"google/protobuf/struct.proto":         structpb.File_google_protobuf_struct_proto,
 		"google/protobuf/timestamp.proto":      timestamppb.File_google_protobuf_timestamp_proto,
 		"google/protobuf/type.proto":           typepb.File_google_protobuf_type_proto,
@@ -126,8 +135,16 @@ func init() {
 
 // NewSerializer creates a Protobuf serializer for Protobuf-generated objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
-	s := &Serializer{}
-	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	cache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	s := &Serializer{
+		descToSchemaCache: cache,
+	}
+	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	s.Conf = conf
+
 	if err != nil {
 		return nil, err
 	}
@@ -159,20 +176,9 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	autoRegister := s.Conf.AutoRegisterSchemas
-	normalize := s.Conf.NormalizeSchemas
-	fileDesc, deps, err := s.toProtobufSchema(protoMsg)
+	info, err := s.getSchemaInfo(protoMsg)
 	if err != nil {
 		return nil, err
-	}
-	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
-	if err != nil {
-		return nil, err
-	}
-	info := schemaregistry.SchemaInfo{
-		Schema:     metadata.Schema,
-		SchemaType: metadata.SchemaType,
-		References: metadata.References,
 	}
 	id, err := s.GetID(topic, protoMsg, info)
 	if err != nil {
@@ -190,18 +196,50 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	return payload, nil
 }
 
-func (s *Serializer) toProtobufSchema(msg proto.Message) (*desc.FileDescriptor, map[string]string, error) {
-	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(msg))
+func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.SchemaInfo, error) {
+	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(protoMsg))
+	if err != nil {
+		return nil, err
+	}
 	fileDesc := messageDesc.GetFile()
-	if err != nil {
-		return nil, nil, err
+	if s.Conf.CacheSchemas {
+		s.descToSchemaCacheLock.RLock()
+		value, ok := s.descToSchemaCache.Get(fileDesc.GetName())
+		s.descToSchemaCacheLock.RUnlock()
+		if ok {
+			return value.(*schemaregistry.SchemaInfo), nil
+		}
 	}
+	deps, err := s.toProtobufSchema(fileDesc)
+	if err != nil {
+		return nil, err
+	}
+	autoRegister := s.Conf.AutoRegisterSchemas
+	normalize := s.Conf.NormalizeSchemas
+	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
+	if err != nil {
+		return nil, err
+	}
+	info := &schemaregistry.SchemaInfo{
+		Schema:     metadata.Schema,
+		SchemaType: metadata.SchemaType,
+		References: metadata.References,
+	}
+	if s.Conf.CacheSchemas {
+		s.descToSchemaCacheLock.Lock()
+		s.descToSchemaCache.Put(fileDesc.GetName(), info)
+		s.descToSchemaCacheLock.Unlock()
+	}
+	return info, nil
+}
+
+func (s *Serializer) toProtobufSchema(fileDesc *desc.FileDescriptor) (map[string]string, error) {
 	deps := make(map[string]string)
-	err = s.toDependencies(fileDesc, deps)
+	err := s.toDependencies(fileDesc, deps)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return fileDesc, deps, nil
+	return deps, nil
 }
 
 func (s *Serializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[string]string) error {
@@ -334,8 +372,14 @@ func ignoreFile(name string) bool {
 
 // NewDeserializer creates a Protobuf deserializer for Protobuf-generated objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
-	s := &Deserializer{}
-	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	cache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	s := &Deserializer{
+		schemaToDescCache: cache,
+	}
+	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +388,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize implements deserialization of Protobuf data
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	if payload == nil {
+	if len(payload) == 0 {
 		return nil, nil
 	}
 	info, err := s.GetSchema(topic, payload)
@@ -402,6 +446,12 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 }
 
 func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+	s.schemaToDescCacheLock.RLock()
+	value, ok := s.schemaToDescCache.Get(info.Schema)
+	s.schemaToDescCacheLock.RUnlock()
+	if ok {
+		return value.(*desc.FileDescriptor), nil
+	}
 	deps := make(map[string]string)
 	err := serde.ResolveReferences(s.Client, info, deps)
 	if err != nil {
@@ -430,13 +480,20 @@ func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDes
 	if len(fileDescriptors) != 1 {
 		return nil, fmt.Errorf("could not resolve schema")
 	}
-	return fileDescriptors[0], nil
+	fd := fileDescriptors[0]
+	s.schemaToDescCacheLock.Lock()
+	s.schemaToDescCache.Put(info.Schema, fd)
+	s.schemaToDescCacheLock.Unlock()
+	return fd, nil
 }
 
 func readMessageIndexes(payload []byte) (int, []int, error) {
 	arrayLen, bytesRead := binary.Varint(payload)
 	if bytesRead <= 0 {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
+	}
+	if arrayLen < 0 {
+		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
 	}
 	if arrayLen == 0 {
 		// Handle the optimization for the first message in the schema

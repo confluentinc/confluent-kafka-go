@@ -49,7 +49,8 @@ type Consumer struct {
 	appReassigned      bool
 	appRebalanceEnable bool // SerializerConfig setting
 
-	isClosed uint32
+	isClosed  uint32
+	isClosing uint32
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -364,6 +365,11 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 	if m.TopicPartition.Offset < 0 {
 		return nil, newErrorFromString(ErrInvalidArg, "Can't store message with offset less than 0")
 	}
+
+	if m.TopicPartition.LeaderEpoch != nil && *m.TopicPartition.LeaderEpoch < 0 {
+		return nil, newErrorFromString(ErrInvalidArg, "Can't store message with leader epoch less than 0")
+	}
+
 	offsets := []TopicPartition{m.TopicPartition}
 	offsets[0].Offset++
 	return c.StoreOffsets(offsets)
@@ -523,8 +529,15 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 // Close Consumer instance.
 // The object is no longer usable after this call.
 func (c *Consumer) Close() (err error) {
-	if !atomic.CompareAndSwapUint32(&c.isClosed, 0, 1) {
-		return getOperationNotAllowedErrorForClosedClient()
+	// Check if the client is already closed.
+	err = c.verifyClient()
+	if err != nil {
+		return err
+	}
+
+	// Client is in the process of closing.
+	if !atomic.CompareAndSwapUint32(&c.isClosing, 0, 1) {
+		return newErrorFromString(ErrState, "Consumer is already closing")
 	}
 
 	// Wait for consumerReader() or pollLogEvents to terminate (by closing readerTermChan)
@@ -539,6 +552,9 @@ func (c *Consumer) Close() (err error) {
 	for C.rd_kafka_consumer_closed(c.handle.rk) != 1 {
 		c.Poll(100)
 	}
+
+	// After this point, no more consumer methods may be called.
+	atomic.StoreUint32(&c.isClosed, 1)
 
 	// Destroy our queue
 	C.rd_kafka_queue_destroy(c.handle.rkq)

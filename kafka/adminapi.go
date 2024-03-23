@@ -92,6 +92,53 @@ ConsumerGroupDescription_by_idx(const rd_kafka_ConsumerGroupDescription_t **resu
 	return result_groups[idx];
 }
 
+static const rd_kafka_TopicDescription_t *
+TopicDescription_by_idx(const rd_kafka_TopicDescription_t **result_topics, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return result_topics[idx];
+}
+
+static const rd_kafka_TopicPartitionInfo_t *
+TopicPartitionInfo_by_idx(const rd_kafka_TopicPartitionInfo_t **partitions, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return partitions[idx];
+}
+
+static const rd_kafka_AclOperation_t AclOperation_by_idx(const rd_kafka_AclOperation_t *acl_operations, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return RD_KAFKA_ACL_OPERATION_UNKNOWN;
+	return acl_operations[idx];
+}
+
+static const rd_kafka_Node_t *Node_by_idx(const rd_kafka_Node_t **nodes, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return nodes[idx];
+}
+
+static const rd_kafka_UserScramCredentialsDescription_t *
+DescribeUserScramCredentials_result_description_by_idx(const rd_kafka_UserScramCredentialsDescription_t **descriptions, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return descriptions[idx];
+}
+
+static const rd_kafka_AlterUserScramCredentials_result_response_t*
+AlterUserScramCredentials_result_response_by_idx(const rd_kafka_AlterUserScramCredentials_result_response_t **responses, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return responses[idx];
+}
+
+static const rd_kafka_ListOffsetsResultInfo_t *
+ListOffsetsResultInfo_by_idx(const rd_kafka_ListOffsetsResultInfo_t **result_infos, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return result_infos[idx];
+}
+
 static const rd_kafka_error_t *
 error_by_idx(const rd_kafka_error_t **errors, size_t cnt, size_t idx) {
 	if (idx >= cnt)
@@ -164,17 +211,17 @@ type ConsumerGroupState int
 
 const (
 	// ConsumerGroupStateUnknown - Unknown ConsumerGroupState
-	ConsumerGroupStateUnknown = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN)
+	ConsumerGroupStateUnknown ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN
 	// ConsumerGroupStatePreparingRebalance - preparing rebalance
-	ConsumerGroupStatePreparingRebalance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE)
+	ConsumerGroupStatePreparingRebalance ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE
 	// ConsumerGroupStateCompletingRebalance - completing rebalance
-	ConsumerGroupStateCompletingRebalance = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE)
+	ConsumerGroupStateCompletingRebalance ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
 	// ConsumerGroupStateStable - stable
-	ConsumerGroupStateStable = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_STABLE)
+	ConsumerGroupStateStable ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_STABLE
 	// ConsumerGroupStateDead - dead group
-	ConsumerGroupStateDead = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_DEAD)
+	ConsumerGroupStateDead ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_DEAD
 	// ConsumerGroupStateEmpty - empty group
-	ConsumerGroupStateEmpty = ConsumerGroupState(C.RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY)
+	ConsumerGroupStateEmpty ConsumerGroupState = C.RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY
 )
 
 // String returns the human-readable representation of a consumer_group_state
@@ -244,10 +291,12 @@ type ConsumerGroupDescription struct {
 	PartitionAssignor string
 	// Consumer group state.
 	State ConsumerGroupState
-	// Consumer group coordinator (broker).
+	// Consumer group coordinator (has ID == -1 if not known).
 	Coordinator Node
 	// Members list.
 	Members []MemberDescription
+	// Operations allowed for the group (nil if not available or not requested)
+	AuthorizedOperations []ACLOperation
 }
 
 // DescribeConsumerGroupsResult represents the result of a
@@ -255,6 +304,69 @@ type ConsumerGroupDescription struct {
 type DescribeConsumerGroupsResult struct {
 	// Slice of ConsumerGroupDescription.
 	ConsumerGroupDescriptions []ConsumerGroupDescription
+}
+
+// TopicCollection represents a collection of topics.
+type TopicCollection struct {
+	// Slice of topic names.
+	topicNames []string
+}
+
+// NewTopicCollectionOfTopicNames creates a new TopicCollection based on a list
+// of topic names.
+func NewTopicCollectionOfTopicNames(names []string) TopicCollection {
+	return TopicCollection{
+		topicNames: names,
+	}
+}
+
+// TopicPartitionInfo represents a specific partition's information inside a
+// TopicDescription.
+type TopicPartitionInfo struct {
+	// Partition id.
+	Partition int
+	// Leader broker.
+	Leader *Node
+	// Replicas of the partition.
+	Replicas []Node
+	// In-Sync-Replicas of the partition.
+	Isr []Node
+}
+
+// TopicDescription represents the result of DescribeTopics for
+// a single topic.
+type TopicDescription struct {
+	// Topic name.
+	Name string
+	// Topic Id
+	TopicID UUID
+	// Error, if any, of the result. Check with `Error.Code() != ErrNoError`.
+	Error Error
+	// Is the topic internal to Kafka?
+	IsInternal bool
+	// Partitions' information list.
+	Partitions []TopicPartitionInfo
+	// Operations allowed for the topic (nil if not available or not requested).
+	AuthorizedOperations []ACLOperation
+}
+
+// DescribeTopicsResult represents the result of a
+// DescribeTopics call.
+type DescribeTopicsResult struct {
+	// Slice of TopicDescription.
+	TopicDescriptions []TopicDescription
+}
+
+// DescribeClusterResult represents the result of DescribeCluster.
+type DescribeClusterResult struct {
+	// Cluster id for the cluster (always available if broker version >= 0.10.1.0, otherwise nil).
+	ClusterID *string
+	// Current controller broker for the cluster (nil if there is none).
+	Controller *Node
+	// List of brokers in the cluster.
+	Nodes []Node
+	// Operations allowed for the cluster (nil if not available or not requested).
+	AuthorizedOperations []ACLOperation
 }
 
 // DeleteConsumerGroupsResult represents the result of a DeleteConsumerGroups
@@ -319,15 +431,15 @@ type ResourceType int
 
 const (
 	// ResourceUnknown - Unknown
-	ResourceUnknown = ResourceType(C.RD_KAFKA_RESOURCE_UNKNOWN)
+	ResourceUnknown ResourceType = C.RD_KAFKA_RESOURCE_UNKNOWN
 	// ResourceAny - match any resource type (DescribeConfigs)
-	ResourceAny = ResourceType(C.RD_KAFKA_RESOURCE_ANY)
+	ResourceAny ResourceType = C.RD_KAFKA_RESOURCE_ANY
 	// ResourceTopic - Topic
-	ResourceTopic = ResourceType(C.RD_KAFKA_RESOURCE_TOPIC)
+	ResourceTopic ResourceType = C.RD_KAFKA_RESOURCE_TOPIC
 	// ResourceGroup - Group
-	ResourceGroup = ResourceType(C.RD_KAFKA_RESOURCE_GROUP)
+	ResourceGroup ResourceType = C.RD_KAFKA_RESOURCE_GROUP
 	// ResourceBroker - Broker
-	ResourceBroker = ResourceType(C.RD_KAFKA_RESOURCE_BROKER)
+	ResourceBroker ResourceType = C.RD_KAFKA_RESOURCE_BROKER
 )
 
 // String returns the human-readable representation of a ResourceType
@@ -357,17 +469,17 @@ type ConfigSource int
 
 const (
 	// ConfigSourceUnknown is the default value
-	ConfigSourceUnknown = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG)
+	ConfigSourceUnknown ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG
 	// ConfigSourceDynamicTopic is dynamic topic config that is configured for a specific topic
-	ConfigSourceDynamicTopic = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG)
+	ConfigSourceDynamicTopic ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG
 	// ConfigSourceDynamicBroker is dynamic broker config that is configured for a specific broker
-	ConfigSourceDynamicBroker = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG)
+	ConfigSourceDynamicBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG
 	// ConfigSourceDynamicDefaultBroker is dynamic broker config that is configured as default for all brokers in the cluster
-	ConfigSourceDynamicDefaultBroker = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG)
+	ConfigSourceDynamicDefaultBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG
 	// ConfigSourceStaticBroker is static broker config provided as broker properties at startup (e.g. from server.properties file)
-	ConfigSourceStaticBroker = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG)
+	ConfigSourceStaticBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG
 	// ConfigSourceDefault is built-in default configuration for configs that have a default value
-	ConfigSourceDefault = ConfigSource(C.RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG)
+	ConfigSourceDefault ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG
 )
 
 // String returns the human-readable representation of a ConfigSource type
@@ -412,14 +524,51 @@ func (o AlterOperation) String() string {
 	}
 }
 
+// AlterConfigOpType specifies the operation to perform
+// on the ConfigEntry for IncrementalAlterConfig
+type AlterConfigOpType int
+
+const (
+	// AlterConfigOpTypeSet sets/overwrites the configuration
+	// setting.
+	AlterConfigOpTypeSet AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET
+	// AlterConfigOpTypeDelete sets the configuration setting
+	// to default or NULL.
+	AlterConfigOpTypeDelete AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE
+	// AlterConfigOpTypeAppend appends the value to existing
+	// configuration settings.
+	AlterConfigOpTypeAppend AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND
+	// AlterConfigOpTypeSubtract subtracts the value from
+	// existing configuration settings.
+	AlterConfigOpTypeSubtract AlterConfigOpType = C.RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT
+)
+
+// String returns the human-readable representation of an AlterOperation
+func (o AlterConfigOpType) String() string {
+	switch o {
+	case AlterConfigOpTypeSet:
+		return "Set"
+	case AlterConfigOpTypeDelete:
+		return "Delete"
+	case AlterConfigOpTypeAppend:
+		return "Append"
+	case AlterConfigOpTypeSubtract:
+		return "Subtract"
+	default:
+		return fmt.Sprintf("Unknown %d", int(o))
+	}
+}
+
 // ConfigEntry holds parameters for altering a resource's configuration.
 type ConfigEntry struct {
 	// Name of configuration entry, e.g., topic configuration property name.
 	Name string
 	// Value of configuration entry.
 	Value string
-	// Operation to perform on the entry.
+	// Deprecated: Operation to perform on the entry.
 	Operation AlterOperation
+	// Operation to perform on the entry incrementally.
+	IncrementalOperation AlterConfigOpType
 }
 
 // StringMapToConfigEntries creates a new map of ConfigEntry objects from the
@@ -429,6 +578,19 @@ func StringMapToConfigEntries(stringMap map[string]string, operation AlterOperat
 
 	for k, v := range stringMap {
 		ceList = append(ceList, ConfigEntry{Name: k, Value: v, Operation: operation})
+	}
+
+	return ceList
+}
+
+// StringMapToIncrementalConfigEntries creates a new map of ConfigEntry objects from the
+// provided string map an operation map. The AlterConfigOpType is set on each created entry.
+func StringMapToIncrementalConfigEntries(stringMap map[string]string,
+	operationMap map[string]AlterConfigOpType) []ConfigEntry {
+	var ceList []ConfigEntry
+
+	for k, v := range stringMap {
+		ceList = append(ceList, ConfigEntry{Name: k, Value: v, IncrementalOperation: operationMap[k]})
 	}
 
 	return ceList
@@ -520,15 +682,15 @@ type ResourcePatternType int
 
 const (
 	// ResourcePatternTypeUnknown is a resource pattern type not known or not set.
-	ResourcePatternTypeUnknown = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_UNKNOWN)
+	ResourcePatternTypeUnknown ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_UNKNOWN
 	// ResourcePatternTypeAny matches any resource, used for lookups.
-	ResourcePatternTypeAny = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_ANY)
+	ResourcePatternTypeAny ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_ANY
 	// ResourcePatternTypeMatch will perform pattern matching
-	ResourcePatternTypeMatch = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_MATCH)
+	ResourcePatternTypeMatch ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_MATCH
 	// ResourcePatternTypeLiteral matches a literal resource name
-	ResourcePatternTypeLiteral = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_LITERAL)
+	ResourcePatternTypeLiteral ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_LITERAL
 	// ResourcePatternTypePrefixed matches a prefixed resource name
-	ResourcePatternTypePrefixed = ResourcePatternType(C.RD_KAFKA_RESOURCE_PATTERN_PREFIXED)
+	ResourcePatternTypePrefixed ResourcePatternType = C.RD_KAFKA_RESOURCE_PATTERN_PREFIXED
 )
 
 // String returns the human-readable representation of a ResourcePatternType
@@ -558,31 +720,31 @@ type ACLOperation int
 
 const (
 	// ACLOperationUnknown represents an unknown or unset operation
-	ACLOperationUnknown = ACLOperation(C.RD_KAFKA_ACL_OPERATION_UNKNOWN)
+	ACLOperationUnknown ACLOperation = C.RD_KAFKA_ACL_OPERATION_UNKNOWN
 	// ACLOperationAny in a filter, matches any ACLOperation
-	ACLOperationAny = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ANY)
+	ACLOperationAny ACLOperation = C.RD_KAFKA_ACL_OPERATION_ANY
 	// ACLOperationAll represents all the operations
-	ACLOperationAll = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ALL)
+	ACLOperationAll ACLOperation = C.RD_KAFKA_ACL_OPERATION_ALL
 	// ACLOperationRead a read operation
-	ACLOperationRead = ACLOperation(C.RD_KAFKA_ACL_OPERATION_READ)
+	ACLOperationRead ACLOperation = C.RD_KAFKA_ACL_OPERATION_READ
 	// ACLOperationWrite represents a write operation
-	ACLOperationWrite = ACLOperation(C.RD_KAFKA_ACL_OPERATION_WRITE)
+	ACLOperationWrite ACLOperation = C.RD_KAFKA_ACL_OPERATION_WRITE
 	// ACLOperationCreate represents a create operation
-	ACLOperationCreate = ACLOperation(C.RD_KAFKA_ACL_OPERATION_CREATE)
+	ACLOperationCreate ACLOperation = C.RD_KAFKA_ACL_OPERATION_CREATE
 	// ACLOperationDelete represents a delete operation
-	ACLOperationDelete = ACLOperation(C.RD_KAFKA_ACL_OPERATION_DELETE)
+	ACLOperationDelete ACLOperation = C.RD_KAFKA_ACL_OPERATION_DELETE
 	// ACLOperationAlter represents an alter operation
-	ACLOperationAlter = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ALTER)
+	ACLOperationAlter ACLOperation = C.RD_KAFKA_ACL_OPERATION_ALTER
 	// ACLOperationDescribe represents a describe operation
-	ACLOperationDescribe = ACLOperation(C.RD_KAFKA_ACL_OPERATION_DESCRIBE)
+	ACLOperationDescribe ACLOperation = C.RD_KAFKA_ACL_OPERATION_DESCRIBE
 	// ACLOperationClusterAction represents a cluster action operation
-	ACLOperationClusterAction = ACLOperation(C.RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION)
+	ACLOperationClusterAction ACLOperation = C.RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION
 	// ACLOperationDescribeConfigs represents a describe configs operation
-	ACLOperationDescribeConfigs = ACLOperation(C.RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS)
+	ACLOperationDescribeConfigs ACLOperation = C.RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS
 	// ACLOperationAlterConfigs represents an alter configs operation
-	ACLOperationAlterConfigs = ACLOperation(C.RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS)
+	ACLOperationAlterConfigs ACLOperation = C.RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS
 	// ACLOperationIdempotentWrite represents an idempotent write operation
-	ACLOperationIdempotentWrite = ACLOperation(C.RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE)
+	ACLOperationIdempotentWrite ACLOperation = C.RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE
 )
 
 // String returns the human-readable representation of an ACLOperation
@@ -628,13 +790,13 @@ type ACLPermissionType int
 
 const (
 	// ACLPermissionTypeUnknown represents an unknown ACLPermissionType
-	ACLPermissionTypeUnknown = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN)
+	ACLPermissionTypeUnknown ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN
 	// ACLPermissionTypeAny in a filter, matches any ACLPermissionType
-	ACLPermissionTypeAny = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ANY)
+	ACLPermissionTypeAny ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_ANY
 	// ACLPermissionTypeDeny disallows access
-	ACLPermissionTypeDeny = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_DENY)
+	ACLPermissionTypeDeny ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_DENY
 	// ACLPermissionTypeAllow grants access
-	ACLPermissionTypeAllow = ACLPermissionType(C.RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW)
+	ACLPermissionTypeAllow ACLPermissionType = C.RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW
 )
 
 // String returns the human-readable representation of an ACLPermissionType
@@ -734,6 +896,135 @@ type DescribeACLsResult struct {
 // DeleteACLsResult provides delete ACLs result or error information.
 type DeleteACLsResult = DescribeACLsResult
 
+// ScramMechanism enumerates SASL/SCRAM mechanisms.
+// Used by `AdminClient.AlterUserScramCredentials`
+// and `AdminClient.DescribeUserScramCredentials`.
+type ScramMechanism int
+
+const (
+	// ScramMechanismUnknown - Unknown SASL/SCRAM mechanism
+	ScramMechanismUnknown ScramMechanism = C.RD_KAFKA_SCRAM_MECHANISM_UNKNOWN
+	// ScramMechanismSHA256 - SCRAM-SHA-256 mechanism
+	ScramMechanismSHA256 ScramMechanism = C.RD_KAFKA_SCRAM_MECHANISM_SHA_256
+	// ScramMechanismSHA512 - SCRAM-SHA-512 mechanism
+	ScramMechanismSHA512 ScramMechanism = C.RD_KAFKA_SCRAM_MECHANISM_SHA_512
+)
+
+// String returns the human-readable representation of an ScramMechanism
+func (o ScramMechanism) String() string {
+	switch o {
+	case ScramMechanismSHA256:
+		return "SCRAM-SHA-256"
+	case ScramMechanismSHA512:
+		return "SCRAM-SHA-512"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// ScramMechanismFromString translates a Scram Mechanism name to
+// a ScramMechanism value.
+func ScramMechanismFromString(mechanism string) (ScramMechanism, error) {
+	switch strings.ToUpper(mechanism) {
+	case "SCRAM-SHA-256":
+		return ScramMechanismSHA256, nil
+	case "SCRAM-SHA-512":
+		return ScramMechanismSHA512, nil
+	default:
+		return ScramMechanismUnknown,
+			NewError(ErrInvalidArg, "Unknown SCRAM mechanism", false)
+	}
+}
+
+// ScramCredentialInfo contains Mechanism and Iterations for a
+// SASL/SCRAM credential associated with a user.
+type ScramCredentialInfo struct {
+	// Iterations - positive number of iterations used when creating the credential
+	Iterations int
+	// Mechanism - SASL/SCRAM mechanism
+	Mechanism ScramMechanism
+}
+
+// UserScramCredentialsDescription represent all SASL/SCRAM credentials
+// associated with a user that can be retrieved, or an error indicating
+// why credentials could not be retrieved.
+type UserScramCredentialsDescription struct {
+	// User - the user name.
+	User string
+	// ScramCredentialInfos - SASL/SCRAM credential representations for the user.
+	ScramCredentialInfos []ScramCredentialInfo
+	// Error - error corresponding to this user description.
+	Error Error
+}
+
+// UserScramCredentialDeletion is a request to delete
+// a SASL/SCRAM credential for a user.
+type UserScramCredentialDeletion struct {
+	// User - user name
+	User string
+	// Mechanism - SASL/SCRAM mechanism.
+	Mechanism ScramMechanism
+}
+
+// UserScramCredentialUpsertion is a request to update/insert
+// a SASL/SCRAM credential for a user.
+type UserScramCredentialUpsertion struct {
+	// User - user name
+	User string
+	// ScramCredentialInfo - the mechanism and iterations.
+	ScramCredentialInfo ScramCredentialInfo
+	// Password - password to HMAC before storage.
+	Password []byte
+	// Salt - salt to use. Will be generated randomly if nil. (optional)
+	Salt []byte
+}
+
+// DescribeUserScramCredentialsResult represents the result of a
+// DescribeUserScramCredentials call.
+type DescribeUserScramCredentialsResult struct {
+	// Descriptions - Map from user name
+	// to UserScramCredentialsDescription
+	Descriptions map[string]UserScramCredentialsDescription
+}
+
+// AlterUserScramCredentialsResult represents the result of a
+// AlterUserScramCredentials call.
+type AlterUserScramCredentialsResult struct {
+	// Errors - Map from user name
+	// to an Error, with ErrNoError code on success.
+	Errors map[string]Error
+}
+
+// OffsetSpec specifies desired offsets while using ListOffsets.
+type OffsetSpec int64
+
+const (
+	// MaxTimestampOffsetSpec is used to describe the offset with the Max Timestamp which may be different then LatestOffsetSpec as Timestamp can be set client side.
+	MaxTimestampOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP
+	// EarliestOffsetSpec is used to describe the earliest offset for the TopicPartition.
+	EarliestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_EARLIEST
+	// LatestOffsetSpec is used to describe the latest offset for the TopicPartition.
+	LatestOffsetSpec OffsetSpec = C.RD_KAFKA_OFFSET_SPEC_LATEST
+)
+
+// NewOffsetSpecForTimestamp creates an OffsetSpec corresponding to the timestamp.
+func NewOffsetSpecForTimestamp(timestamp int64) OffsetSpec {
+	return OffsetSpec(timestamp)
+}
+
+// ListOffsetsResultInfo describes the result of ListOffsets request for a Topic Partition.
+type ListOffsetsResultInfo struct {
+	Offset      Offset
+	Timestamp   int64
+	LeaderEpoch *int32
+	Error       Error
+}
+
+// ListOffsetsResult holds the map of TopicPartition to ListOffsetsResultInfo for a request.
+type ListOffsetsResult struct {
+	ResultInfos map[TopicPartition]ListOffsetsResultInfo
+}
+
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -827,6 +1118,80 @@ func (a *AdminClient) cToTopicResults(cTopicRes **C.rd_kafka_topic_result_t, cCn
 	return result, nil
 }
 
+// cToAuthorizedOperations converts a C AclOperation_t array to a Go
+// ACLOperation list.
+func (a *AdminClient) cToAuthorizedOperations(
+	cAuthorizedOperations *C.rd_kafka_AclOperation_t,
+	cAuthorizedOperationCnt C.size_t) []ACLOperation {
+	if cAuthorizedOperations == nil {
+		return nil
+	}
+
+	authorizedOperations := make([]ACLOperation, int(cAuthorizedOperationCnt))
+	for i := 0; i < int(cAuthorizedOperationCnt); i++ {
+		cAuthorizedOperation := C.AclOperation_by_idx(
+			cAuthorizedOperations, cAuthorizedOperationCnt, C.size_t(i))
+		authorizedOperations[i] = ACLOperation(cAuthorizedOperation)
+	}
+
+	return authorizedOperations
+}
+
+// cToUUID converts a C rd_kafka_Uuid_t to a Go UUID.
+func (a *AdminClient) cToUUID(cUUID *C.rd_kafka_Uuid_t) UUID {
+	uuid := UUID{
+		mostSignificantBits:  int64(C.rd_kafka_Uuid_most_significant_bits(cUUID)),
+		leastSignificantBits: int64(C.rd_kafka_Uuid_least_significant_bits(cUUID)),
+		base64str:            C.GoString(C.rd_kafka_Uuid_base64str(cUUID)),
+	}
+	return uuid
+}
+
+// cToNode converts a C Node_t* to a Go Node.
+// If cNode is nil returns a Node with ID: -1.
+func (a *AdminClient) cToNode(cNode *C.rd_kafka_Node_t) Node {
+	if cNode == nil {
+		return Node{
+			ID: -1,
+		}
+	}
+
+	node := Node{
+		ID:   int(C.rd_kafka_Node_id(cNode)),
+		Host: C.GoString(C.rd_kafka_Node_host(cNode)),
+		Port: int(C.rd_kafka_Node_port(cNode)),
+	}
+
+	cRack := C.rd_kafka_Node_rack(cNode)
+	if cRack != nil {
+		rackID := C.GoString(cRack)
+		node.Rack = &rackID
+	}
+
+	return node
+}
+
+// cToNodePtr converts a C Node_t* to a Go *Node.
+func (a *AdminClient) cToNodePtr(cNode *C.rd_kafka_Node_t) *Node {
+	if cNode == nil {
+		return nil
+	}
+
+	node := a.cToNode(cNode)
+	return &node
+}
+
+// cToNode converts a C Node_t array to a Go Node list.
+func (a *AdminClient) cToNodes(
+	cNodes **C.rd_kafka_Node_t, cNodeCnt C.size_t) []Node {
+	nodes := make([]Node, int(cNodeCnt))
+	for i := 0; i < int(cNodeCnt); i++ {
+		cNode := C.Node_by_idx(cNodes, cNodeCnt, C.size_t(i))
+		nodes[i] = a.cToNode(cNode)
+	}
+	return nodes
+}
+
 // cToConsumerGroupDescriptions converts a C rd_kafka_ConsumerGroupDescription_t
 // array to a Go ConsumerGroupDescription slice.
 func (a *AdminClient) cToConsumerGroupDescriptions(
@@ -849,11 +1214,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			C.rd_kafka_ConsumerGroupDescription_state(cGroup))
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
-		coordinator := Node{
-			ID:   int(C.rd_kafka_Node_id(cNode)),
-			Host: C.GoString(C.rd_kafka_Node_host(cNode)),
-			Port: int(C.rd_kafka_Node_port(cNode)),
-		}
+		coordinator := a.cToNode(cNode)
 
 		membersCount := int(
 			C.rd_kafka_ConsumerGroupDescription_member_count(cGroup))
@@ -883,6 +1244,12 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			}
 		}
 
+		cAuthorizedOperationsCnt := C.size_t(0)
+		cAuthorizedOperations := C.rd_kafka_ConsumerGroupDescription_authorized_operations(
+			cGroup, &cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations,
+			cAuthorizedOperationsCnt)
+
 		result[idx] = ConsumerGroupDescription{
 			GroupID:               groupID,
 			Error:                 err,
@@ -891,7 +1258,185 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			State:                 state,
 			Coordinator:           coordinator,
 			Members:               members,
+			AuthorizedOperations:  authorizedOperations,
 		}
+	}
+	return result
+}
+
+// cToTopicPartitionInfo converts a C TopicPartitionInfo_t into a Go
+// TopicPartitionInfo.
+func (a *AdminClient) cToTopicPartitionInfo(
+	partitionInfo *C.rd_kafka_TopicPartitionInfo_t) TopicPartitionInfo {
+	cPartitionID := C.rd_kafka_TopicPartitionInfo_partition(partitionInfo)
+	info := TopicPartitionInfo{
+		Partition: int(cPartitionID),
+	}
+
+	cLeader := C.rd_kafka_TopicPartitionInfo_leader(partitionInfo)
+	info.Leader = a.cToNodePtr(cLeader)
+
+	cReplicaCnt := C.size_t(0)
+	cReplicas := C.rd_kafka_TopicPartitionInfo_replicas(
+		partitionInfo, &cReplicaCnt)
+	info.Replicas = a.cToNodes(cReplicas, cReplicaCnt)
+
+	cIsrCnt := C.size_t(0)
+	cIsr := C.rd_kafka_TopicPartitionInfo_isr(partitionInfo, &cIsrCnt)
+	info.Isr = a.cToNodes(cIsr, cIsrCnt)
+
+	return info
+}
+
+// cToTopicDescriptions converts a C TopicDescription_t
+// array to a Go TopicDescription list.
+func (a *AdminClient) cToTopicDescriptions(
+	cTopicDescriptions **C.rd_kafka_TopicDescription_t,
+	cTopicDescriptionCount C.size_t) (result []TopicDescription) {
+	result = make([]TopicDescription, cTopicDescriptionCount)
+	for idx := 0; idx < int(cTopicDescriptionCount); idx++ {
+		cTopic := C.TopicDescription_by_idx(
+			cTopicDescriptions, cTopicDescriptionCount, C.size_t(idx))
+
+		topicName := C.GoString(
+			C.rd_kafka_TopicDescription_name(cTopic))
+		TopicID := a.cToUUID(C.rd_kafka_TopicDescription_topic_id(cTopic))
+		err := newErrorFromCError(
+			C.rd_kafka_TopicDescription_error(cTopic))
+
+		if err.Code() != ErrNoError {
+			result[idx] = TopicDescription{
+				Name:  topicName,
+				Error: err,
+			}
+			continue
+		}
+
+		cPartitionInfoCnt := C.size_t(0)
+		cPartitionInfos := C.rd_kafka_TopicDescription_partitions(cTopic, &cPartitionInfoCnt)
+
+		partitions := make([]TopicPartitionInfo, int(cPartitionInfoCnt))
+
+		for pidx := 0; pidx < int(cPartitionInfoCnt); pidx++ {
+			cPartitionInfo := C.TopicPartitionInfo_by_idx(cPartitionInfos, cPartitionInfoCnt, C.size_t(pidx))
+			partitions[pidx] = a.cToTopicPartitionInfo(cPartitionInfo)
+		}
+
+		cAuthorizedOperationsCnt := C.size_t(0)
+		cAuthorizedOperations := C.rd_kafka_TopicDescription_authorized_operations(
+			cTopic, &cAuthorizedOperationsCnt)
+		authorizedOperations := a.cToAuthorizedOperations(cAuthorizedOperations, cAuthorizedOperationsCnt)
+
+		result[idx] = TopicDescription{
+			Name:                 topicName,
+			TopicID:              TopicID,
+			Error:                err,
+			Partitions:           partitions,
+			AuthorizedOperations: authorizedOperations,
+		}
+	}
+	return result
+}
+
+// cToDescribeClusterResult converts a C DescribeTopics_result_t to a Go
+// DescribeClusterResult.
+func (a *AdminClient) cToDescribeClusterResult(
+	cResult *C.rd_kafka_DescribeTopics_result_t) (result DescribeClusterResult) {
+	var clusterIDPtr *string = nil
+	cClusterID := C.rd_kafka_DescribeCluster_result_cluster_id(cResult)
+	if cClusterID != nil {
+		clusterID := C.GoString(cClusterID)
+		clusterIDPtr = &clusterID
+	}
+
+	var controller *Node = nil
+	cController := C.rd_kafka_DescribeCluster_result_controller(cResult)
+	controller = a.cToNodePtr(cController)
+
+	cNodeCnt := C.size_t(0)
+	cNodes := C.rd_kafka_DescribeCluster_result_nodes(cResult, &cNodeCnt)
+	nodes := a.cToNodes(cNodes, cNodeCnt)
+
+	cAuthorizedOperationsCnt := C.size_t(0)
+	cAuthorizedOperations :=
+		C.rd_kafka_DescribeCluster_result_authorized_operations(
+			cResult, &cAuthorizedOperationsCnt)
+	authorizedOperations := a.cToAuthorizedOperations(
+		cAuthorizedOperations, cAuthorizedOperationsCnt)
+
+	return DescribeClusterResult{
+		ClusterID:            clusterIDPtr,
+		Controller:           controller,
+		Nodes:                nodes,
+		AuthorizedOperations: authorizedOperations,
+	}
+}
+
+// cToDescribeUserScramCredentialsResult converts a C
+// rd_kafka_DescribeUserScramCredentials_result_t to a Go map of users to
+// UserScramCredentialsDescription.
+func cToDescribeUserScramCredentialsResult(
+	cRes *C.rd_kafka_DescribeUserScramCredentials_result_t) map[string]UserScramCredentialsDescription {
+	result := make(map[string]UserScramCredentialsDescription)
+	var cDescriptionCount C.size_t
+	cDescriptions :=
+		C.rd_kafka_DescribeUserScramCredentials_result_descriptions(cRes,
+			&cDescriptionCount)
+
+	for i := 0; i < int(cDescriptionCount); i++ {
+		cDescription :=
+			C.DescribeUserScramCredentials_result_description_by_idx(
+				cDescriptions, cDescriptionCount, C.size_t(i))
+		user := C.GoString(C.rd_kafka_UserScramCredentialsDescription_user(cDescription))
+		userDescription := UserScramCredentialsDescription{User: user}
+
+		// Populate the error if required.
+		cError := C.rd_kafka_UserScramCredentialsDescription_error(cDescription)
+		if C.rd_kafka_error_code(cError) != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+			userDescription.Error = newError(C.rd_kafka_error_code(cError))
+			result[user] = userDescription
+			continue
+		}
+
+		cCredentialCount := C.rd_kafka_UserScramCredentialsDescription_scramcredentialinfo_count(cDescription)
+		scramCredentialInfos := make([]ScramCredentialInfo, int(cCredentialCount))
+		for j := 0; j < int(cCredentialCount); j++ {
+			cScramCredentialInfo :=
+				C.rd_kafka_UserScramCredentialsDescription_scramcredentialinfo(
+					cDescription, C.size_t(j))
+			cMechanism := C.rd_kafka_ScramCredentialInfo_mechanism(cScramCredentialInfo)
+			cIterations := C.rd_kafka_ScramCredentialInfo_iterations(cScramCredentialInfo)
+			scramCredentialInfos[j] = ScramCredentialInfo{
+				Mechanism:  ScramMechanism(cMechanism),
+				Iterations: int(cIterations),
+			}
+		}
+		userDescription.ScramCredentialInfos = scramCredentialInfos
+		result[user] = userDescription
+	}
+	return result
+}
+
+// cToListOffsetsResult converts a C
+// rd_kafka_ListOffsets_result_t to a Go ListOffsetsResult
+func cToListOffsetsResult(cRes *C.rd_kafka_ListOffsets_result_t) (result ListOffsetsResult) {
+	result = ListOffsetsResult{ResultInfos: make(map[TopicPartition]ListOffsetsResultInfo)}
+	var cPartitionCount C.size_t
+	cResultInfos := C.rd_kafka_ListOffsets_result_infos(cRes, &cPartitionCount)
+	for itr := 0; itr < int(cPartitionCount); itr++ {
+		cResultInfo := C.ListOffsetsResultInfo_by_idx(cResultInfos, cPartitionCount, C.size_t(itr))
+		resultInfo := ListOffsetsResultInfo{}
+		cPartition := C.rd_kafka_ListOffsetsResultInfo_topic_partition(cResultInfo)
+		Topic := C.GoString(cPartition.topic)
+		Partition := TopicPartition{Topic: &Topic, Partition: int32(cPartition.partition)}
+		resultInfo.Offset = Offset(cPartition.offset)
+		resultInfo.Timestamp = int64(C.rd_kafka_ListOffsetsResultInfo_timestamp(cResultInfo))
+		cLeaderEpoch := int32(C.rd_kafka_topic_partition_get_leader_epoch(cPartition))
+		if cLeaderEpoch >= 0 {
+			resultInfo.LeaderEpoch = &cLeaderEpoch
+		}
+		resultInfo.Error = newError(cPartition.err)
+		result.ResultInfos[Partition] = resultInfo
 	}
 	return result
 }
@@ -1315,6 +1860,7 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []Partiti
 // Multiple resources and resource types may be set, but at most one
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
+// Deprecated: AlterConfigs is deprecated in favour of IncrementalAlterConfigs
 func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
 	err = a.verifyClient()
 	if err != nil {
@@ -1392,6 +1938,102 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 	// Convert results from C to Go
 	var cCnt C.size_t
 	cResults := C.rd_kafka_AlterConfigs_result_resources(cResult, &cCnt)
+
+	return a.cConfigResourceToResult(cResults, cCnt)
+}
+
+// IncrementalAlterConfigs alters/updates cluster resource configuration.
+//
+// Updates are not transactional so they may succeed for some resources
+// while fail for others. The configs for a particular resource are
+// updated atomically, executing the corresponding incremental
+// operations on the provided configurations.
+//
+// Requires broker version >=2.3.0
+//
+// IncrementalAlterConfigs will only change configurations for provided
+// resources with the new configuration given.
+//
+// Multiple resources and resource types may be set, but at most one
+// resource of type ResourceBroker is allowed per call since these
+// resource requests must be sent to the broker specified in the resource.
+func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
+	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
+
+	cErrstrSize := C.size_t(512)
+	cErrstr := (*C.char)(C.malloc(cErrstrSize))
+	defer C.free(unsafe.Pointer(cErrstr))
+
+	// Convert Go ConfigResources to C ConfigResources
+	for i, res := range resources {
+		cName := C.CString(res.Name)
+		defer C.free(unsafe.Pointer(cName))
+		cRes[i] = C.rd_kafka_ConfigResource_new(
+			C.rd_kafka_ResourceType_t(res.Type), cName)
+		if cRes[i] == nil {
+			return nil, newErrorFromString(ErrInvalidArg,
+				fmt.Sprintf("Invalid arguments for resource %v", res))
+		}
+
+		defer C.rd_kafka_ConfigResource_destroy(cRes[i])
+
+		for _, entry := range res.Config {
+			cName := C.CString(entry.Name)
+			defer C.free(unsafe.Pointer(cName))
+			cValue := C.CString(entry.Value)
+			defer C.free(unsafe.Pointer(cValue))
+			cError := C.rd_kafka_ConfigResource_add_incremental_config(
+				cRes[i], cName,
+				C.rd_kafka_AlterConfigOpType_t(entry.IncrementalOperation),
+				cValue)
+
+			if cError != nil {
+				err := newErrorFromCErrorDestroy(cError)
+				return nil, err
+			}
+		}
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(a.handle, C.RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS, genericOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Asynchronous call
+	C.rd_kafka_IncrementalAlterConfigs(
+		a.handle.rk,
+		(**C.rd_kafka_ConfigResource_t)(&cRes[0]),
+		C.size_t(len(cRes)),
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout
+	rkev, err := a.waitResult(ctx, cQueue, C.RD_KAFKA_EVENT_INCREMENTALALTERCONFIGS_RESULT)
+	if err != nil {
+		return nil, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cResult := C.rd_kafka_event_IncrementalAlterConfigs_result(rkev)
+
+	// Convert results from C to Go
+	var cCnt C.size_t
+	cResults := C.rd_kafka_IncrementalAlterConfigs_result_resources(cResult, &cCnt)
 
 	return a.cConfigResourceToResult(cResults, cCnt)
 }
@@ -2080,6 +2722,155 @@ func (a *AdminClient) DescribeConsumerGroups(
 	return describeResult, nil
 }
 
+// DescribeTopics describes topics from cluster as specified by the
+// topics list.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `topics` - Collection of topics to describe. This should not have nil
+//     topic names.
+//   - `options` - DescribeTopicsAdminOption options.
+//
+// Returns DescribeTopicsResult, which contains a slice of
+// TopicDescriptions corresponding to the input topics, plus an error
+// that is not `nil` for client level errors. Individual
+// TopicDescriptions inside the slice should also be checked for
+// errors. Individual TopicDescriptions also have a
+// slice of allowed ACLOperations.
+func (a *AdminClient) DescribeTopics(
+	ctx context.Context, topics TopicCollection,
+	options ...DescribeTopicsAdminOption) (result DescribeTopicsResult, err error) {
+
+	describeResult := DescribeTopicsResult{}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	// Convert topic names into char**.
+	cTopicNameList := make([]*C.char, len(topics.topicNames))
+	cTopicNameCount := C.size_t(len(topics.topicNames))
+
+	if topics.topicNames == nil {
+		return describeResult, newErrorFromString(ErrInvalidArg,
+			"TopicCollection of topic names cannot be nil")
+	}
+
+	for idx, topic := range topics.topicNames {
+		cTopicNameList[idx] = C.CString(topic)
+		defer C.free(unsafe.Pointer(cTopicNameList[idx]))
+	}
+
+	var cTopicNameListPtr **C.char
+	if cTopicNameCount > 0 {
+		cTopicNameListPtr = ((**C.char)(&cTopicNameList[0]))
+	}
+
+	// Convert char** of topic names into rd_kafka_TopicCollection_t*
+	cTopicCollection := C.rd_kafka_TopicCollection_of_topic_names(
+		cTopicNameListPtr, cTopicNameCount)
+	defer C.rd_kafka_TopicCollection_destroy(cTopicCollection)
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBETOPICS, genericOptions)
+	if err != nil {
+		return describeResult, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeTopics (asynchronous).
+	C.rd_kafka_DescribeTopics(
+		a.handle.rk,
+		cTopicCollection,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT)
+	if err != nil {
+		return describeResult, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeTopics_result(rkev)
+
+	// Convert result from C to Go.
+	var cTopicDescriptionCount C.size_t
+	cTopicDescriptions :=
+		C.rd_kafka_DescribeTopics_result_topics(cRes, &cTopicDescriptionCount)
+	describeResult.TopicDescriptions =
+		a.cToTopicDescriptions(cTopicDescriptions, cTopicDescriptionCount)
+
+	return describeResult, nil
+}
+
+// DescribeCluster describes the cluster
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `options` - DescribeClusterAdminOption options.
+//
+// Returns ClusterDescription, which contains current cluster ID and controller
+// along with a slice of Nodes. It also has a slice of allowed ACLOperations.
+func (a *AdminClient) DescribeCluster(
+	ctx context.Context,
+	options ...DescribeClusterAdminOption) (result DescribeClusterResult, err error) {
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+	clusterDesc := DescribeClusterResult{}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER, genericOptions)
+	if err != nil {
+		return clusterDesc, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeCluster (asynchronous).
+	C.rd_kafka_DescribeCluster(
+		a.handle.rk,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT)
+	if err != nil {
+		return clusterDesc, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeCluster_result(rkev)
+
+	// Convert result from C to Go.
+	clusterDesc = a.cToDescribeClusterResult(cRes)
+
+	return clusterDesc, nil
+}
+
 // DeleteConsumerGroups deletes a batch of consumer groups.
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
@@ -2088,9 +2879,8 @@ func (a *AdminClient) DescribeConsumerGroups(
 //   - `options` - DeleteConsumerGroupsAdminOption options.
 //
 // Returns a DeleteConsumerGroupsResult containing a slice of ConsumerGroupResult, with
-//
-//	group-level errors, (if any) contained inside; and an error that is not nil
-//	for client level errors.
+// group-level errors, (if any) contained inside; and an error that is not nil
+// for client level errors.
 func (a *AdminClient) DeleteConsumerGroups(
 	ctx context.Context,
 	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupsResult, err error) {
@@ -2163,7 +2953,8 @@ func (a *AdminClient) DeleteConsumerGroups(
 //   - `ctx` - context with the maximum amount of time to block, or nil for indefinite.
 //   - `groupsPartitions` - a slice of ConsumerGroupTopicPartitions, each element of which
 //     has the id of a consumer group, and a slice of the TopicPartitions we
-//     need to fetch the offsets for.
+//     need to fetch the offsets for. The slice of TopicPartitions can be nil, to fetch
+//     all topic partitions for that group.
 //     Currently, the size of `groupsPartitions` has to be exactly one.
 //   - `options` - ListConsumerGroupOffsetsAdminOption options.
 //
@@ -2197,8 +2988,12 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 	for i, groupPartitions := range groupsPartitions {
 		// We need to destroy this list because rd_kafka_ListConsumerGroupOffsets_new
 		// creates a copy of it.
-		cPartitions := newCPartsFromTopicPartitions(groupPartitions.Partitions)
-		defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+		var cPartitions *C.rd_kafka_topic_partition_list_t = nil
+
+		if groupPartitions.Partitions != nil {
+			cPartitions = newCPartsFromTopicPartitions(groupPartitions.Partitions)
+			defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
+		}
 
 		cGroupID := C.CString(groupPartitions.Group)
 		defer C.free(unsafe.Pointer(cGroupID))
@@ -2344,6 +3139,262 @@ func (a *AdminClient) AlterConsumerGroupOffsets(
 	acgor.ConsumerGroupsTopicPartitions = a.cToConsumerGroupTopicPartitions(cGroups, cGroupCount)
 
 	return acgor, nil
+}
+
+// DescribeUserScramCredentials describe SASL/SCRAM credentials for the
+// specified user names.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `users` - a slice of string, each one correspond to a user name, no
+//     duplicates are allowed
+//   - `options` - DescribeUserScramCredentialsAdminOption options.
+//
+// Returns a map from user name to user SCRAM credentials description.
+// Each description can have an individual error.
+func (a *AdminClient) DescribeUserScramCredentials(
+	ctx context.Context, users []string,
+	options ...DescribeUserScramCredentialsAdminOption) (result DescribeUserScramCredentialsResult, err error) {
+	result = DescribeUserScramCredentialsResult{
+		Descriptions: make(map[string]UserScramCredentialsDescription),
+	}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	// Convert user names into char** required by the implementation.
+	cUserList := make([]*C.char, len(users))
+	cUserCount := C.size_t(len(users))
+
+	for idx, user := range users {
+		cUserList[idx] = C.CString(user)
+		defer C.free(unsafe.Pointer(cUserList[idx]))
+	}
+
+	var cUserListPtr **C.char
+	if cUserCount > 0 {
+		cUserListPtr = ((**C.char)(&cUserList[0]))
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle,
+		C.RD_KAFKA_ADMIN_OP_DESCRIBEUSERSCRAMCREDENTIALS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_DescribeConsumerGroups (asynchronous).
+	C.rd_kafka_DescribeUserScramCredentials(
+		a.handle.rk,
+		cUserListPtr,
+		cUserCount,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_DescribeUserScramCredentials_result(rkev)
+
+	// Convert result from C to Go.
+	result.Descriptions = cToDescribeUserScramCredentialsResult(cRes)
+	return result, nil
+}
+
+// ListOffsets describe offsets for the
+// specified TopicPartiton based on an OffsetSpec.
+//
+// Parameters:
+//
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `topicPartitionOffsets` - a map from TopicPartition to OffsetSpec, it
+//     holds either the OffsetSpec enum value or timestamp. Must not be nil.
+//   - `options` - ListOffsetsAdminOption options.
+//
+// Returns a ListOffsetsResult.
+// Each TopicPartition's ListOffset can have an individual error.
+func (a *AdminClient) ListOffsets(
+	ctx context.Context, topicPartitionOffsets map[TopicPartition]OffsetSpec,
+	options ...ListOffsetsAdminOption) (result ListOffsetsResult, err error) {
+	if topicPartitionOffsets == nil {
+		return result, newErrorFromString(ErrInvalidArg, "expected topicPartitionOffsets parameter.")
+	}
+
+	topicPartitions := C.rd_kafka_topic_partition_list_new(C.int(len(topicPartitionOffsets)))
+	defer C.rd_kafka_topic_partition_list_destroy(topicPartitions)
+
+	for tp, offsetValue := range topicPartitionOffsets {
+		cStr := C.CString(*tp.Topic)
+		defer C.free(unsafe.Pointer(cStr))
+		topicPartition := C.rd_kafka_topic_partition_list_add(topicPartitions, cStr, C.int32_t(tp.Partition))
+		topicPartition.offset = C.int64_t(offsetValue)
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_LISTOFFSETS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_ListOffsets (asynchronous).
+	C.rd_kafka_ListOffsets(
+		a.handle.rk,
+		topicPartitions,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_LISTOFFSETS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_ListOffsets_result(rkev)
+
+	// Convert result from C to Go.
+	result = cToListOffsetsResult(cRes)
+
+	return result, nil
+}
+
+// AlterUserScramCredentials alters SASL/SCRAM credentials.
+// The pair (user, mechanism) must be unique among upsertions and deletions.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `upsertions` - a slice of user credential upsertions
+//   - `deletions` - a slice of user credential deletions
+//   - `options` - AlterUserScramCredentialsAdminOption options.
+//
+// Returns a map from user name to the corresponding Error, with error code
+// ErrNoError when the request succeeded.
+func (a *AdminClient) AlterUserScramCredentials(
+	ctx context.Context, upsertions []UserScramCredentialUpsertion, deletions []UserScramCredentialDeletion,
+	options ...AlterUserScramCredentialsAdminOption) (result AlterUserScramCredentialsResult, err error) {
+	result = AlterUserScramCredentialsResult{
+		Errors: make(map[string]Error),
+	}
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	// Convert user names into char** required by the implementation.
+	cAlterationList := make([]*C.rd_kafka_UserScramCredentialAlteration_t, len(upsertions)+len(deletions))
+	cAlterationCount := C.size_t(len(upsertions) + len(deletions))
+	idx := 0
+
+	for _, upsertion := range upsertions {
+		user := C.CString(upsertion.User)
+		defer C.free(unsafe.Pointer(user))
+
+		var salt *C.uchar = nil
+		var saltSize C.size_t = 0
+		if upsertion.Salt != nil {
+			salt = (*C.uchar)(&upsertion.Salt[0])
+			saltSize = C.size_t(len(upsertion.Salt))
+		}
+
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialUpsertion_new(user,
+			C.rd_kafka_ScramMechanism_t(upsertion.ScramCredentialInfo.Mechanism),
+			C.int(upsertion.ScramCredentialInfo.Iterations),
+			(*C.uchar)(&upsertion.Password[0]), C.size_t(len(upsertion.Password)),
+			salt, saltSize)
+		defer C.rd_kafka_UserScramCredentialAlteration_destroy(cAlterationList[idx])
+		idx = idx + 1
+	}
+
+	for _, deletion := range deletions {
+		user := C.CString(deletion.User)
+		defer C.free(unsafe.Pointer(user))
+		cAlterationList[idx] = C.rd_kafka_UserScramCredentialDeletion_new(
+			user, C.rd_kafka_ScramMechanism_t(deletion.Mechanism))
+		defer C.rd_kafka_UserScramCredentialAlteration_destroy(cAlterationList[idx])
+		idx = idx + 1
+	}
+
+	var cAlterationListPtr **C.rd_kafka_UserScramCredentialAlteration_t
+	if cAlterationCount > 0 {
+		cAlterationListPtr = ((**C.rd_kafka_UserScramCredentialAlteration_t)(&cAlterationList[0]))
+	}
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_AlterUserScramCredentials (asynchronous).
+	C.rd_kafka_AlterUserScramCredentials(
+		a.handle.rk,
+		cAlterationListPtr,
+		cAlterationCount,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cRes := C.rd_kafka_event_AlterUserScramCredentials_result(rkev)
+
+	// Convert result from C to Go.
+	var cResponseSize C.size_t
+	cResponses := C.rd_kafka_AlterUserScramCredentials_result_responses(cRes, &cResponseSize)
+	for i := 0; i < int(cResponseSize); i++ {
+		cResponse := C.AlterUserScramCredentials_result_response_by_idx(
+			cResponses, cResponseSize, C.size_t(i))
+		user := C.GoString(C.rd_kafka_AlterUserScramCredentials_result_response_user(cResponse))
+		err := newErrorFromCError(C.rd_kafka_AlterUserScramCredentials_result_response_error(cResponse))
+		result.Errors[user] = err
+	}
+
+	return result, nil
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance

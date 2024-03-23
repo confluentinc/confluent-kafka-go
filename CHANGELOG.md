@@ -1,9 +1,109 @@
 # Confluent's Golang client for Apache Kafka
 
-## vNext
+
+# v2.3.0
+
+This is a feature release.
+
+ * Adds support for AdminAPI `DescribeCluster()` and `DescribeTopics()`
+   (#964, @jainruchir).
+ * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses.
+   (#964, @jainruchir).
+ * Adds `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#964, @jainruchir).
+ * [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with
+   the addition of ListOffsets (#1029).
+ * Adds cache for Schema Registry client's `GetSchemaMetadata` (#1042).
+ * MockCluster can now be shutdown and started again to test broker
+   availability problems (#998, @kkoehler).
+ * Adds `CreateTopic` method to the MockCluster. (#1047, @mimikwang).
+ * Honor `HTTPS_PROXY` environment variable, if set, for the Schema Registry
+   client (#1065, @finncolman).
+ * [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers):
+   Partial support of topic identifiers. Topic identifiers in metadata response
+   are available through the new `DescribeTopics` function (#1068).
+
+## Fixes
+
+ * Fixes a bug in the mock schema registry client where the wrong ID was being
+   returned for pre-registered schema (#971, @srlk).
+ * The minimum version of Go supported has been changed from 1.16 to 1.17
+   (#1074).
+ * Fixes an issue where `testing` was being imported by a non-test file,
+   testhelpers.go. (#1049, @dmlambea).
+ * Fixes the optional `Coordinator` field in `ConsumerGroupDescription` in case
+   it's not known. It now contains a `Node` with ID -1 in that case.
+   Avoids a C segmentation fault.
+ * Fixes an issue with `Producer.Flush`. It was waiting for
+   `queue.buffering.max.ms` while flushing (#1013).
+ * Fixes an issue where consumer methods would not be allowed to run while the
+   consumer was closing, and during the final partition revoke (#1073).
+
+confluent-kafka-go is based on librdkafka v2.3.0, see the
+[librdkafka v2.3.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+# v2.2.0
+
+This is a feature release.
+
+ * [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#945).
+ * [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1004).
+
+## Fixes
+
+ * Fixes a nil pointer bug in the protobuf `Serializer.Serialize()`, caused due to
+   an unchecked error (#997, @baganokodo2022).
+ * Fixes incorrect protofbuf FileDescriptor references (#989, @Mrmann87).
+ * Allow fetching all partition offsets for a consumer group by passing a
+   `nil` slice in `AdminClient.ListConsumerGroupOffsets`, when earlier it
+   was not processing that correctly (#985, @alexandredantas).
+ * Deprecate m.LeaderEpoch in favor of m.TopicPartition.LeaderEpoch (#1012).
+
+confluent-kafka-go is based on librdkafka v2.2.0, see the
+[librdkafka v2.2.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.1
+
+This is a maintenance release.
+
+It is strongly recommended to update to v2.1.1 if v2.1.0 is being used, as it
+fixes a critical issue in the consumer (#980).
+
+confluent-kafka-go is based on librdkafka v2.1.1, see the
+[librdkafka v2.1.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.0
+
+This is a feature release:
 
  * Added Consumer `SeekPartitions()` method to seek multiple partitions at
-   once and deprecated `Seek()`.
+   once and deprecated `Seek()` (#940).
+ * [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
+   add offset leader epoch to the TopicPartition \
+   and Message structs (#968).
+ * The minimum version of Go supported has been changed from 1.14 to 1.16
+   (#973).
+ * Add validation on the Producer, the Consumer and the AdminClient to prevent
+   panic when they are used after close (#901).
+ * Fix bug causing schema-registry URL with existing path to not be parsed
+   correctly (#950).
+ * Support for Offset types on `Offset.Set()` (#962, @jdockerty).
+ * Added example for using [rebalance callback with manual commit](examples/consumer_rebalance_example).
+
+
+confluent-kafka-go is based on librdkafka v2.1.0, see the
+[librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.0.2
 
@@ -37,7 +137,6 @@ This is a feature release:
   * Added `SetRoundtripDuration` to the mock broker for setting RTT delay for
     a given mock broker (@kkoehler, #892).
   * Built-in support for Linux/ arm64. (#933).
-  * Support for Offset types on `Offset.Set()`
 
 ### Fixes
 

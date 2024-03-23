@@ -57,7 +57,7 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 	expCnt := msgcnt
 	b.Logf("%s, expecting %d messages", testname, expCnt)
 
-	c.Subscribe(testconf.Topic, rebalanceCb)
+	c.Subscribe(testconf.TopicName, rebalanceCb)
 
 	rd := ratedispStart(b, testname, 10)
 
@@ -140,9 +140,9 @@ func testconsumerInit(b *testing.B) int {
 
 	msgcnt := testconf.PerfMsgCount
 
-	currcnt, err := getMessageCountInTopic(testconf.Topic)
+	currcnt, err := getMessageCountInTopic(testconf.TopicName)
 	if err == nil {
-		b.Logf("Topic %s has %d messages, need %d", testconf.Topic, currcnt, msgcnt)
+		b.Logf("Topic %s has %d messages, need %d", testconf.TopicName, currcnt, msgcnt)
 	}
 	if currcnt < msgcnt {
 		producerPerfTest(b, "Priming producer", msgcnt, false, false,
