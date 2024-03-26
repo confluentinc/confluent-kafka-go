@@ -86,8 +86,8 @@ var builtInDeps = make(map[string]string)
 
 func init() {
 	builtins := map[string]protoreflect.FileDescriptor{
-		"confluent/meta.proto":                 confluent.File_schemaregistry_confluent_meta_proto,
-		"confluent/type/decimal.proto":         types.File_schemaregistry_confluent_type_decimal_proto,
+		"confluent/meta.proto":                 confluent.File_confluent_meta_proto,
+		"confluent/type/decimal.proto":         types.File_confluent_types_decimal_proto,
 		"google/type/calendar_period.proto":    calendarperiod.File_google_type_calendar_period_proto,
 		"google/type/color.proto":              color.File_google_type_color_proto,
 		"google/type/date.proto":               date.File_google_type_date_proto,
