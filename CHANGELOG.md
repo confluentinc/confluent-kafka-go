@@ -6,7 +6,9 @@ This is a maintenance release.
 
 ## Fixes
 
- * The minimum version of Go supported has been changed from 1.17 to 1.21
+ * The version of Go in go.mod has been changed from 1.17 to 1.21.
+   This is necessary to update test dependencies with security vulnerabilities.
+   Code using the library will still work with Go 1.17.
    (#1136, @rzeijde).
 
 
