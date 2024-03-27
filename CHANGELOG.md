@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+# v2.3.1
+
+This is a maintenance release.
+
+## Fixes
+
+ * The version of Go in go.mod has been changed from 1.17 to 1.21.
+   This is necessary to update test dependencies with security vulnerabilities.
+   Code using the library will still work with Go 1.17.
+   (#1136, @rzeijde).
+
 
 # v2.3.0
 
