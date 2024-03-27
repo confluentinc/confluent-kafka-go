@@ -12,6 +12,13 @@ This is a maintenance release.
    (#1136, @rzeijde).
 
 
+# v2.4.0
+
+This is a feature release.
+
+ * Adds an AdminAPI `DeleteRecords()`
+   (#1141, @PratRanj07).
+
 # v2.3.0
 
 This is a feature release.
