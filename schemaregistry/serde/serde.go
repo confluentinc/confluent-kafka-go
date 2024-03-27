@@ -165,6 +165,8 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 			Schema:     metadata.Schema,
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,
+			Metadata:   metadata.Metadata,
+			Ruleset:    metadata.Ruleset,
 		}
 		id, err = s.Client.GetID(subject, *info, false)
 		if err != nil {
@@ -224,6 +226,8 @@ func ResolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo
 			Schema:     metadata.Schema,
 			SchemaType: metadata.SchemaType,
 			References: metadata.References,
+			Metadata:   metadata.Metadata,
+			Ruleset:    metadata.Ruleset,
 		}
 		deps[ref.Name] = metadata.Schema
 		err = ResolveReferences(c, info, deps)
