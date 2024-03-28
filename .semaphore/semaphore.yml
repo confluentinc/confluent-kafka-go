@@ -1,18 +1,31 @@
 version: v1.0
-name: 'confluent-kafka-go build pipeline'
+name: 'build-test-release'
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
+
 global_job_config:
-  env_vars:
-    - name: LIBRDKAFKA_VERSION
-      value: v2.3.0
   prologue:
     commands:
+      - sem-version go 1.18
+      - export "GOPATH=$(go env GOPATH)"
+      - export "SEMAPHORE_GIT_DIR=${GOPATH}/src/github.com/confluentinc/${SEMAPHORE_PROJECT_NAME}"
+      - export "PATH=${GOPATH}/bin:${PATH}"
+      - mkdir -vp "${SEMAPHORE_GIT_DIR}" "${GOPATH}/bin"
       - checkout
+      - make show-args
+      - . vault-setup
+      - . vault-sem-get-secret ci-reporting
+      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
+      - make init-ci
+  epilogue:
+    always:
+      commands:
+        - make epilogue-ci
+
 blocks:
   - name: "go 1.21 OSX bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -39,7 +52,7 @@ blocks:
               value: dynamic
           commands_file: semaphore_commands.sh
   - name: "go 1.21 linux bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -70,7 +83,7 @@ blocks:
               value: dynamic
           commands_file: semaphore_integration_commands.sh
   - name: "go 1.21 linux arm64 bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -101,7 +114,7 @@ blocks:
               value: dynamic
           commands_file: semaphore_commands.sh
   - name: "go 1.21 Windows bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -124,3 +137,14 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands_file: semaphore_commands.ps1
+auto_cancel:
+  running:
+    when: "branch != 'master'"
+
+execution_time_limit:
+  hours: 1
+
+queue:
+  - when: "branch != 'master'"
+    processing: parallel
+
