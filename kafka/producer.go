@@ -173,8 +173,10 @@ func (p *Producer) gethandle() *handle {
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
-	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
+	if msg == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")
+	}else if msg.TopicPartition.Topic == nil{
+		return newErrorFromString(ErrUnknownTopic, "topic is null, please check")
 	}
 
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
