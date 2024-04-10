@@ -31,11 +31,11 @@ type counter struct {
 	count int
 }
 
-func (c counter) currentValue() int {
+func (c *counter) currentValue() int {
 	return c.count
 }
 
-func (c counter) increment() int {
+func (c *counter) increment() int {
 	c.count++
 	return c.count
 }
