@@ -47,6 +47,7 @@ type Deserializer struct {
 	*Serde
 }
 
+// Serde represents a JSON Schema serde
 type Serde struct {
 	validate              bool
 	schemaToTypeCache     cache.Cache
@@ -252,6 +253,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	return msg, nil
 }
 
+// FieldTransform transforms the field value using the rule
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	schema, err := s.toJSONSchema(client, *ctx.Target)
 	if err != nil {

@@ -30,6 +30,7 @@ func init() {
 	serde.RegisterRuleExecutor(e)
 }
 
+// Executor is a JSONata rule executor
 type Executor struct {
 	Config    map[string]string
 	cache     map[string]*jsonata.Expr
@@ -42,10 +43,12 @@ func (c *Executor) Configure(clientConfig *schemaregistry.Config, config map[str
 	return nil
 }
 
+// Type returns the type of the executor
 func (c *Executor) Type() string {
 	return "JSONATA"
 }
 
+// Transform transforms the message using the rule
 func (c *Executor) Transform(ctx serde.RuleContext, msg interface{}) (interface{}, error) {
 	c.cacheLock.RLock()
 	expr, ok := c.cache[ctx.Rule.Expr]
@@ -65,6 +68,7 @@ func (c *Executor) Transform(ctx serde.RuleContext, msg interface{}) (interface{
 	return res, nil
 }
 
+// Close closes the executor
 func (c *Executor) Close() error {
 	return nil
 }

@@ -134,6 +134,7 @@ type RuleSet struct {
 	DomainRules    []Rule `json:"domainRules,omitempty"`
 }
 
+// HasRules checks if the ruleset has rules for the given mode
 func (r *RuleSet) HasRules(mode RuleMode) bool {
 	var rules []Rule
 	switch mode {

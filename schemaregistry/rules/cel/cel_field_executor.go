@@ -36,19 +36,23 @@ func init() {
 	serde.RegisterRuleExecutor(f)
 }
 
+// FieldExecutor is a CEL field rule executor
 type FieldExecutor struct {
 	serde.AbstractFieldRuleExecutor
 	executor Executor
 }
 
+// Type returns the type of the executor
 func (f *FieldExecutor) Type() string {
 	return "CEL_FIELD"
 }
 
+// Configure configures the executor
 func (f *FieldExecutor) Configure(clientConfig *schemaregistry.Config, config map[string]string) error {
 	return f.executor.Configure(clientConfig, config)
 }
 
+// NewTransform creates a new transform
 func (f *FieldExecutor) NewTransform(ctx serde.RuleContext) (serde.FieldTransform, error) {
 	transform := FieldExecutorTransform{
 		executor: f.executor,
@@ -56,14 +60,17 @@ func (f *FieldExecutor) NewTransform(ctx serde.RuleContext) (serde.FieldTransfor
 	return &transform, nil
 }
 
+// Close closes the executor
 func (f *FieldExecutor) Close() error {
 	return f.executor.Close()
 }
 
+// FieldExecutorTransform is a CEL field rule executor transform
 type FieldExecutorTransform struct {
 	executor Executor
 }
 
+// Transform transforms the field value using the rule
 func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext, fieldValue interface{}) (interface{}, error) {
 	if fieldValue == nil {
 		return nil, nil

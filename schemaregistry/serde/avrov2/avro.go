@@ -42,6 +42,7 @@ type Deserializer struct {
 	*Serde
 }
 
+// Serde represents an Avro serde
 type Serde struct {
 	resolver              *avro.TypeResolver
 	schemaToTypeCache     cache.Cache
@@ -249,10 +250,12 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	return msg, nil
 }
 
+// RegisterType registers a type with the Avro Serde
 func (s *Serde) RegisterType(name string, msgType interface{}) {
 	s.resolver.Register(name, msgType)
 }
 
+// RegisterTypeFromMessageFactory registers a type with the Avro Serde using a message factory
 func (s *Serde) RegisterTypeFromMessageFactory(name string, messageFactory serde.MessageFactory) error {
 	if messageFactory == nil {
 		return errors.New("MessageFactory is nil")
@@ -266,6 +269,7 @@ func (s *Serde) RegisterTypeFromMessageFactory(name string, messageFactory serde
 	return nil
 }
 
+// FieldTransform transforms a field value using the given field transform
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	schema, _, err := s.toType(client, *ctx.Target)
 	if err != nil {

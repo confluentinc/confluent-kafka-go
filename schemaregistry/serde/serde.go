@@ -108,6 +108,7 @@ type RuleContext struct {
 	fieldContexts []FieldContext
 }
 
+// GetParameter returns a parameter by name
 func (r *RuleContext) GetParameter(name string) *string {
 	params := r.Rule.Params
 	value, ok := params[name]
@@ -124,6 +125,7 @@ func (r *RuleContext) GetParameter(name string) *string {
 	return nil
 }
 
+// CurrentField returns the current field context
 func (r *RuleContext) CurrentField() *FieldContext {
 	size := len(r.fieldContexts)
 	if size == 0 {
@@ -132,6 +134,7 @@ func (r *RuleContext) CurrentField() *FieldContext {
 	return &r.fieldContexts[size-1]
 }
 
+// EnterField enters a field context
 func (r *RuleContext) EnterField(containingMessage interface{}, fullName string,
 	name string, fieldType FieldType, tags []string) (FieldContext, bool) {
 	allTags := make(map[string]bool)
@@ -152,6 +155,7 @@ func (r *RuleContext) EnterField(containingMessage interface{}, fullName string,
 	return fieldContext, true
 }
 
+// GetTags returns tags for a full name
 func (r *RuleContext) GetTags(fullName string) map[string]bool {
 	tags := make(map[string]bool)
 	metadata := r.Target.Metadata
@@ -167,6 +171,7 @@ func (r *RuleContext) GetTags(fullName string) map[string]bool {
 	return tags
 }
 
+// LeaveField leaves a field context
 func (r *RuleContext) LeaveField() {
 	size := len(r.fieldContexts) - 1
 	r.fieldContexts = r.fieldContexts[:size]
@@ -200,15 +205,18 @@ type FieldRuleExecutor interface {
 	NewTransform(ctx RuleContext) (FieldTransform, error)
 }
 
+// AbstractFieldRuleExecutor represents an abstract field rule executor
 type AbstractFieldRuleExecutor struct {
 	FieldRuleExecutor
 	FieldTransformer FieldTransformer
 }
 
+// SetFieldTransformer sets the field transformer
 func (a *AbstractFieldRuleExecutor) SetFieldTransformer(transformer FieldTransformer) {
 	a.FieldTransformer = transformer
 }
 
+// Transform transforms the message using the rule
 func (a *AbstractFieldRuleExecutor) Transform(ctx RuleContext, msg interface{}) (interface{}, error) {
 	// TODO preserve source?
 	switch ctx.RuleMode {
@@ -286,12 +294,14 @@ const (
 	TypeNull = 14
 )
 
+// IsPrimitive returns true if the field is a primitive
 func (f *FieldContext) IsPrimitive() bool {
 	t := f.Type
 	return t == TypeString || t == TypeBytes || t == TypeInt || t == TypeLong ||
 		t == TypeFloat || t == TypeDouble || t == TypeBoolean || t == TypeNull
 }
 
+// TypeName returns the type name
 func (f *FieldContext) TypeName() string {
 	switch f.Type {
 	case TypeRecord:
@@ -340,10 +350,12 @@ type ErrorAction struct {
 type NoneAction struct {
 }
 
+// RuleConditionErr represents a rule condition error
 type RuleConditionErr struct {
 	Rule *schemaregistry.Rule
 }
 
+// Error returns the error message
 func (re RuleConditionErr) Error() string {
 	errMsg := re.Rule.Doc
 	if errMsg == "" {
@@ -450,6 +462,7 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 	return id, nil
 }
 
+// GetMigrations returns the migration rules for the given subject
 func (s *Serde) GetMigrations(subject string, topic string, sourceInfo *schemaregistry.SchemaInfo,
 	target *schemaregistry.SchemaMetadata, msg interface{}) ([]Migration, error) {
 	version, err := s.Client.GetVersion(subject, *sourceInfo, false)
@@ -532,12 +545,14 @@ func (s *Serde) getSchemasBetween(subject string, first *schemaregistry.SchemaMe
 	return result, nil
 }
 
+// Migration represents a migration
 type Migration struct {
 	RuleMode schemaregistry.RuleMode
 	Source   *schemaregistry.SchemaMetadata
 	Target   *schemaregistry.SchemaMetadata
 }
 
+// ExecuteMigrations executes the given migrations
 func (s *Serde) ExecuteMigrations(migrations []Migration, subject string, topic string, msg interface{}) (interface{}, error) {
 	var err error
 	for _, migration := range migrations {
@@ -550,6 +565,7 @@ func (s *Serde) ExecuteMigrations(migrations []Migration, subject string, topic 
 	return msg, nil
 }
 
+// ExecuteRules executes the given rules
 func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregistry.RuleMode,
 	source *schemaregistry.SchemaInfo, target *schemaregistry.SchemaInfo, msg interface{}) (interface{}, error) {
 	if msg == nil || target == nil {

@@ -38,6 +38,7 @@ func init() {
 	serde.RegisterRuleExecutor(e)
 }
 
+// Executor is a CEL rule executor
 type Executor struct {
 	Config    map[string]string
 	env       *cel.Env
@@ -51,10 +52,12 @@ func (c *Executor) Configure(clientConfig *schemaregistry.Config, config map[str
 	return nil
 }
 
+// Type returns the type of the executor
 func (c *Executor) Type() string {
 	return "CEL"
 }
 
+// Transform transforms the message using the rule
 func (c *Executor) Transform(ctx serde.RuleContext, msg interface{}) (interface{}, error) {
 	args := map[string]interface{}{
 		"message": msg,
@@ -225,6 +228,7 @@ func (c *Executor) eval(program cel.Program, args map[string]interface{}) (inter
 	return out.ConvertToNative(wantType)
 }
 
+// Close closes the executor
 func (c *Executor) Close() error {
 	return nil
 }

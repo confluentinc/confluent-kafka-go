@@ -66,6 +66,7 @@ const (
 	MillisInDay = 24 * 60 * 60 * 1000
 )
 
+// FieldEncryptionExecutor is a field encryption executor
 type FieldEncryptionExecutor struct {
 	serde.AbstractFieldRuleExecutor
 	Config map[string]string
@@ -83,10 +84,12 @@ func (f *FieldEncryptionExecutor) Configure(clientConfig *schemaregistry.Config,
 	return nil
 }
 
+// Type returns the type of the executor
 func (f *FieldEncryptionExecutor) Type() string {
 	return "ENCRYPT"
 }
 
+// NewTransform creates a new transform
 func (f *FieldEncryptionExecutor) NewTransform(ctx serde.RuleContext) (serde.FieldTransform, error) {
 	kekName, err := getKekName(ctx)
 	if err != nil {
@@ -110,10 +113,12 @@ func (f *FieldEncryptionExecutor) NewTransform(ctx serde.RuleContext) (serde.Fie
 	return &transform, nil
 }
 
+// Close closes the executor
 func (f *FieldEncryptionExecutor) Close() error {
 	return f.Client.Close()
 }
 
+// FieldEncryptionExecutorTransform is a field encryption executor transform
 type FieldEncryptionExecutorTransform struct {
 	Executor      FieldEncryptionExecutor
 	Cryptor       Cryptor
@@ -122,6 +127,7 @@ type FieldEncryptionExecutorTransform struct {
 	DekExpiryDays int
 }
 
+// Cryptor is a cryptor
 type Cryptor struct {
 	DekFormat   string
 	KeyTemplate *tinkpb.KeyTemplate
@@ -444,6 +450,7 @@ func (f *FieldEncryptionExecutorTransform) isExpired(ctx serde.RuleContext, dek 
 		(time.Now().UnixNano()/1000000-dek.Ts)/MillisInDay >= int64(f.DekExpiryDays)
 }
 
+// Transform transforms the field value using the rule
 func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext, fieldValue interface{}) (interface{}, error) {
 	if fieldValue == nil {
 		return nil, nil
@@ -581,6 +588,7 @@ func registerKMSClient(kmsDriver KMSDriver, config map[string]string, keyURL *st
 	return kmsClient, nil
 }
 
+// KMSDriver is a KMS driver
 type KMSDriver interface {
 	GetKeyURLPrefix() string
 	NewKMSClient(config map[string]string, keyURL *string) (registry.KMSClient, error)

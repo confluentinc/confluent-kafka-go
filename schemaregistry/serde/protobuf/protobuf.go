@@ -82,6 +82,7 @@ type Deserializer struct {
 	ProtoRegistry *protoregistry.Types
 }
 
+// Serde represents a Protobuf serde
 type Serde struct {
 	schemaToDescCache     cache.Cache
 	schemaToDescCacheLock sync.RWMutex
@@ -414,6 +415,7 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
+// FieldTransform transforms the field value using the rule
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	fd, err := s.toFileDesc(client, *ctx.Target)
 	if err != nil {
@@ -474,6 +476,7 @@ func parseFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo)
 	return fd, nil
 }
 
+// FieldTransform transforms the field value using the field transform
 func (s *Serializer) FieldTransform(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	fd, err := s.toFileDesc(s.Client, *ctx.Target)
 	if err != nil {

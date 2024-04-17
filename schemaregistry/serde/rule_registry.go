@@ -77,6 +77,7 @@ func GetRuleActions() []RuleAction {
 	return result
 }
 
+// ClearRules clears all registered rules
 func ClearRules() {
 	ruleActionsMu.Lock()
 	defer ruleActionsMu.Unlock()
