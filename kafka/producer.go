@@ -173,12 +173,12 @@ func (p *Producer) gethandle() *handle {
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
-	if msg == nil || len(*msg.TopicPartition.Topic) == 0 {
-		return newErrorFromString(ErrInvalidArg, "")
-	}else if msg.TopicPartition.Topic == nil{
-		return newErrorFromString(ErrUnknownTopic, "topic is null, please check")
+	if msg == nil {
+		return newErrorFromString(ErrInvalidArg, "msg cannot be nil")
+	}else if msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
+		return newErrorFromString(ErrInvalidArg, "topic cannot be nil or empty")
 	}
-
+	
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
 	// Three problems:
