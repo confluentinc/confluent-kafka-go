@@ -178,7 +178,7 @@ func getType(schema *jsonschema2.Schema) serde.FieldType {
 	if len(types) > 1 || len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
 		return serde.TypeCombined
 	}
-	if len(schema.Enum) > 0 {
+	if len(schema.Constant) > 0 || len(schema.Enum) > 0 {
 		return serde.TypeEnum
 	}
 	typ := types[0]
