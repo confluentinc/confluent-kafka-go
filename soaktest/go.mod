@@ -8,7 +8,7 @@ replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.3.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.4.0-RC2
 	github.com/shirou/gopsutil v3.21.11+incompatible
 )
 
