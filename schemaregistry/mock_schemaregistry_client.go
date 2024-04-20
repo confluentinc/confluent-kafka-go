@@ -67,6 +67,12 @@ type mockclient struct {
 
 var _ Client = new(mockclient)
 
+// Fetch all contexts used
+// Returns a string slice containing contexts
+func (c *mockclient) GetAllContexts() ([]string, error) {
+	return []string{"."}, nil
+}
+
 // Register registers Schema aliased with subject
 func (c *mockclient) Register(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
 	schemaJSON, err := schema.MarshalJSON()
@@ -165,6 +171,44 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 		Err: errors.New("Subject Not Found"),
 	}
 	return SchemaInfo{}, &posErr
+}
+
+func (c *mockclient) GetSubjectsAndVersionsByID(id int) (subjectsAndVersions []SubjectAndVersion, err error) {
+	subjectsAndVersions = make([]SubjectAndVersion, 0)
+	subjectsAndSchemas := make([]subjectJSON, 0)
+
+	c.schemaToIDCacheLock.RLock()
+	for key, value := range c.schemaToIDCache {
+		if !value.softDeleted && value.id == id {
+			subjectsAndSchemas = append(subjectsAndSchemas, key)
+		}
+	}
+	c.schemaToIDCacheLock.RUnlock()
+
+	c.schemaToVersionCacheLock.RLock()
+	for _, sas := range subjectsAndSchemas {
+		versionEntry, ok := c.schemaToVersionCache[sas]
+		if ok && !versionEntry.softDeleted {
+			subjectsAndVersions = append(subjectsAndVersions, SubjectAndVersion{
+				Subject: sas.subject,
+				Version: versionEntry.version,
+			})
+		}
+	}
+	c.schemaToVersionCacheLock.RUnlock()
+
+	if len(subjectsAndVersions) == 0 {
+		err = &url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(subjectsAndVersionsById, id),
+			Err: errors.New("schema ID not found"),
+		}
+	}
+
+	sort.Slice(subjectsAndVersions, func(i, j int) bool {
+		return subjectsAndVersions[i].Subject < subjectsAndVersions[j].Subject
+	})
+	return
 }
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found

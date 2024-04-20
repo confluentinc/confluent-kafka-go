@@ -30,9 +30,15 @@ import (
 
 /* Schema Registry API endpoints
 *
+* ====Contexts====
+* Fetch JSON array str:context of all contexts
+* -GET /contexts returns: JSON array string: contexts; raises: 500[01]
+*
 * ====Schemas====
 * Fetch string: schema(escaped) identified by the input id.
 * -GET /schemas/ids/{int: id} returns: JSON blob: schema; raises: 404[03], 500[01]
+* Fetch string: JSON array (subject, version) of schemas identified by ID.
+* -GET /schemas/ids/{int: id}/versions returns: JSON array; raises: 404[03], 500[01]
 *
 * ====Subjects====
 * Fetch JSON array str:subject of all registered subjects
@@ -80,6 +86,12 @@ type SchemaInfo struct {
 	Schema     string      `json:"schema,omitempty"`
 	SchemaType string      `json:"schemaType,omitempty"`
 	References []Reference `json:"references,omitempty"`
+}
+
+// SubjectAndVersion represents a pair of subject and version
+type SubjectAndVersion struct {
+	Subject string `json:"subject,omitempty"`
+	Version int    `json:"version,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -202,8 +214,10 @@ var _ Client = new(client)
 // The Schema Registry's REST interface is further explained in Confluent's Schema Registry API documentation
 // https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
 type Client interface {
+	GetAllContexts() ([]string, error)
 	Register(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error)
+	GetSubjectsAndVersionsByID(id int) (subjectAndVersion []SubjectAndVersion, err error)
 	GetID(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	GetLatestSchemaMetadata(subject string) (SchemaMetadata, error)
 	GetSchemaMetadata(subject string, version int) (SchemaMetadata, error)
@@ -292,6 +306,14 @@ func NewClient(conf *Config) (Client, error) {
 	return handle, nil
 }
 
+// Returns a string slice containing all available contexts
+func (c *client) GetAllContexts() ([]string, error) {
+	var result []string
+	err := c.restService.handleRequest(newRequest("GET", subject, nil), &result)
+
+	return result, err
+}
+
 // Register registers Schema aliased with subject
 func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
 	schemaJSON, err := schema.MarshalJSON()
@@ -367,6 +389,14 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 	}
 	c.idToSchemaCacheLock.Unlock()
 	return *newInfo, err
+}
+
+// GetSubjectsAndVersionsByID returns the subject-version pairs for a given ID.
+// Returns SubjectAndVersion object on success.
+// This method cannot not use caching to increase performance.
+func (c *client) GetSubjectsAndVersionsByID(id int) (subbjectsAndVersions []SubjectAndVersion, err error) {
+	err = c.restService.handleRequest(newRequest("GET", subjectsAndVersionsById, nil, id), &subbjectsAndVersions)
+	return
 }
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found

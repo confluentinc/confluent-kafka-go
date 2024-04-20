@@ -38,6 +38,13 @@ var schemaTests = [][]string{
 	{"./test/avro/string.avsc"},
 }
 
+func testGetAllContexts(expected []string) {
+	actual, err := srClient.GetAllContexts()
+	sort.Strings(actual)
+	sort.Strings(expected)
+	maybeFail("All Contexts", err, expect(actual, expected))
+}
+
 func testRegister(subject string, schema SchemaInfo) (id int) {
 	id, err := srClient.Register(subject, schema, false)
 	maybeFail(subject, err)
@@ -55,6 +62,29 @@ func testGetBySubjectAndIDNotFound(subject string, id int) {
 	if err == nil {
 		maybeFail("testGetBySubjectAndIDNotFound", fmt.Errorf("Expected error, found nil"))
 	}
+}
+
+func testGetSubjectsAndVersionsByID(id int, ids [][]int, subjects []string, versions [][]int) {
+	expected := make([]SubjectAndVersion, 0)
+	for subjectIdx, subject := range subjects {
+		for idIdx, sId := range ids[subjectIdx] {
+			if sId == id {
+				expected = append(expected, SubjectAndVersion{
+					Subject: subject,
+					Version: versions[subjectIdx][idIdx],
+				})
+			}
+		}
+	}
+
+	actual, err := srClient.GetSubjectsAndVersionsByID(id)
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].Subject < actual[j].Subject
+	})
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].Subject < expected[j].Subject
+	})
+	maybeFail(subject, err, expect(actual, expected))
 }
 
 func testGetID(subject string, schema SchemaInfo, expected int) int {
@@ -230,8 +260,10 @@ func TestClient(t *testing.T) {
 		}
 	}
 
+	testGetAllContexts([]string{"."})
 	lastSubject := len(subjects) - 1
 	secondToLastSubject := len(subjects) - 2
+	testGetSubjectsAndVersionsByID(ids[lastSubject][0], ids, subjects, versions)
 	testDeleteSubject(subjects[lastSubject], false, versions[lastSubject], ids[lastSubject], schemas[lastSubject])
 	testDeleteSubjectVersion(subjects[secondToLastSubject], false, versions[secondToLastSubject][0], versions[secondToLastSubject][0], ids[secondToLastSubject][0], schemas[secondToLastSubject][0])
 	// Second to last subject now has only one version
