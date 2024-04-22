@@ -167,7 +167,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020300ff
+#define RD_KAFKA_VERSION 0x020400ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -407,6 +407,9 @@ typedef enum {
         RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET = -140,
         /** Partition log truncation detected */
         RD_KAFKA_RESP_ERR__LOG_TRUNCATION = -139,
+        /** A different record in the batch was invalid
+         *  and this message failed persisting. */
+        RD_KAFKA_RESP_ERR__INVALID_DIFFERENT_RECORD = -138,
 
         /** End internal error codes */
         RD_KAFKA_RESP_ERR__END = -100,
@@ -631,7 +634,18 @@ typedef enum {
         RD_KAFKA_RESP_ERR_FEATURE_UPDATE_FAILED = 96,
         /** Request principal deserialization failed during forwarding */
         RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE = 97,
-
+        /** Unknown Topic Id */
+        RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID = 100,
+        /** The member epoch is fenced by the group coordinator */
+        RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH = 110,
+        /** The instance ID is still used by another member in the
+         *  consumer group */
+        RD_KAFKA_RESP_ERR_UNRELEASED_INSTANCE_ID = 111,
+        /** The assignor or its version range is not supported by the consumer
+         *  group */
+        RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR = 112,
+        /** The member epoch is stale */
+        RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH = 113,
         RD_KAFKA_RESP_ERR_END_ALL,
 } rd_kafka_resp_err_t;
 
@@ -1485,6 +1499,16 @@ void rd_kafka_message_destroy(rd_kafka_message_t *rkmessage);
  */
 RD_EXPORT
 const char *rd_kafka_message_errstr(const rd_kafka_message_t *rkmessage);
+
+/**
+ * @brief Returns the error string for an errored produced rd_kafka_message_t or
+ * NULL if there was no error.
+ *
+ * @remark This function MUST used with the producer.
+ */
+RD_EXPORT
+const char *
+rd_kafka_message_produce_errstr(const rd_kafka_message_t *rkmessage);
 
 
 /**
@@ -4402,6 +4426,21 @@ RD_EXPORT int rd_kafka_assignment_lost(rd_kafka_t *rk);
  *          or successfully scheduled if asynchronous, or failed.
  *          RD_KAFKA_RESP_ERR__FATAL is returned if the consumer has raised
  *          a fatal error.
+ *
+ *          FIXME: Update below documentation.
+ *
+ *          RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH is returned, when
+ *          using `group.protocol=consumer`, if the commit failed because the
+ *          member has switched to a new member epoch.
+ *          This error code can be retried.
+ *          Partition level error is also set in the \p offsets.
+ *
+ *          RD_KAFKA_RESP_ERR_UNKNOWN_MEMBER_ID is returned, when
+ *          using `group.protocol=consumer`, if the member has been
+ *          removed from the consumer group
+ *          This error code is permanent, uncommitted messages will be
+ *          reprocessed by this or a different member and committed there.
+ *          Partition level error is also set in the \p offsets.
  */
 RD_EXPORT rd_kafka_resp_err_t
 rd_kafka_commit(rd_kafka_t *rk,
@@ -4544,6 +4583,20 @@ rd_kafka_consumer_group_metadata_new_with_genid(const char *group_id,
                                                 int32_t generation_id,
                                                 const char *member_id,
                                                 const char *group_instance_id);
+
+
+/**
+ * @brief Get member id of a group metadata.
+ *
+ * @param group_metadata The group metadata
+ *
+ * @returns The member id contained in the passed \p group_metadata.
+ *
+ * @remark The returned pointer has the same lifetime as \p group_metadata.
+ */
+RD_EXPORT
+const char *rd_kafka_consumer_group_metadata_member_id(
+    const rd_kafka_consumer_group_metadata_t *group_metadata);
 
 
 /**

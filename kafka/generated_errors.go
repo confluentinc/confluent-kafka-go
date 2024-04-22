@@ -1,7 +1,7 @@
 package kafka
 
-// Copyright 2016-2023 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2023-12-01 09:31:01.904354 -0500 EST m=+0.000253418 USING librdkafka 2.3.0
+// Copyright 2016-2024 Confluent Inc.
+// AUTOMATICALLY GENERATED ON 2024-04-18 18:13:18.777581075 +0200 CEST m=+0.000160971 USING librdkafka 2.4.0-RC2
 
 /*
 #include "select_rdkafka.h"
@@ -139,6 +139,8 @@ const (
 	ErrAutoOffsetReset ErrorCode = C.RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET
 	// ErrLogTruncation Local: Partition log truncation detected
 	ErrLogTruncation ErrorCode = C.RD_KAFKA_RESP_ERR__LOG_TRUNCATION
+	// ErrInvalidDifferentRecord Local: an invalid record in the same batch caused the failure of this message too.
+	ErrInvalidDifferentRecord ErrorCode = C.RD_KAFKA_RESP_ERR__INVALID_DIFFERENT_RECORD
 	// ErrUnknown Unknown broker error
 	ErrUnknown ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN
 	// ErrNoError Success
@@ -337,4 +339,14 @@ const (
 	ErrFeatureUpdateFailed ErrorCode = C.RD_KAFKA_RESP_ERR_FEATURE_UPDATE_FAILED
 	// ErrPrincipalDeserializationFailure Broker: Request principal deserialization failed during forwarding
 	ErrPrincipalDeserializationFailure ErrorCode = C.RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE
+	// ErrUnknownTopicID Broker: Unknown topic id
+	ErrUnknownTopicID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID
+	// ErrFencedMemberEpoch Broker: The member epoch is fenced by the group coordinator
+	ErrFencedMemberEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH
+	// ErrUnreleasedInstanceID Broker: The instance ID is still used by another member in the consumer group
+	ErrUnreleasedInstanceID ErrorCode = C.RD_KAFKA_RESP_ERR_UNRELEASED_INSTANCE_ID
+	// ErrUnsupportedAssignor Broker: The assignor or its version range is not supported by the consumer group
+	ErrUnsupportedAssignor ErrorCode = C.RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR
+	// ErrStaleMemberEpoch Broker: The member epoch is stale
+	ErrStaleMemberEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH
 )
