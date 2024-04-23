@@ -10,6 +10,9 @@ This is a feature release.
    This is necessary to update test dependencies with security vulnerabilities.
    Code using the library will still work with Go 1.17.
    (#1136, @rzeijde).
+ * Windows builds are linked to `libssp` in addition to other libraries, since
+   the bundled zstd and zlib are built with `-fstack-protector`, and not linking
+   causes build failures. (#1184).
 
 confluent-kafka-go is based on librdkafka v2.4.0, see the
 [librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
