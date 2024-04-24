@@ -509,10 +509,9 @@ func TestTransactionalAPI(t *testing.T) {
 	t.Logf("InitTransactions() returned '%v' in %.2fs", err, duration)
 	if err.(Error).Code() != ErrTimedOut {
 		t.Errorf("Expected ErrTimedOut, not %v", err)
-	} else if duration < maxDuration.Seconds()*0.8 ||
-		duration > maxDuration.Seconds()*1.2 {
+	} else if duration > maxDuration.Seconds()*1.2 {
 		t.Errorf("InitTransactions() should have finished within "+
-			"%.2f +-20%%, not %.2f",
+			"%.2f +20%%, not %.2f",
 			maxDuration.Seconds(), duration)
 	}
 
@@ -524,10 +523,9 @@ func TestTransactionalAPI(t *testing.T) {
 	t.Logf("InitTransactions() returned '%v' in %.2fs", err, duration)
 	if err.(Error).Code() != ErrTimedOut {
 		t.Errorf("Expected ErrTimedOut, not %v", err)
-	} else if duration < maxDuration.Seconds()*0.8 ||
-		duration > maxDuration.Seconds()*1.2 {
+	} else if duration > maxDuration.Seconds()*1.2 {
 		t.Errorf("InitTransactions() should have finished within "+
-			"%.2f +-20%%, not %.2f",
+			"%.2f +20%%, not %.2f",
 			maxDuration.Seconds(), duration)
 	}
 

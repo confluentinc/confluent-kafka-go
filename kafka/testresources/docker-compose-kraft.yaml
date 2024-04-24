@@ -1,0 +1,13 @@
+version: '3'
+services:
+  kafka:
+    build: ./kraft
+    restart: always
+    ports:
+      - 9092:29092
+      - 9093:29093
+    volumes:
+      - ./kraft/server.properties:/etc/kafka/server.properties
+      - ./kafka_jaas.conf:/etc/kafka/kafka_jaas.conf
+    environment:
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_jaas.conf"
