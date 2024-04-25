@@ -2089,7 +2089,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 		defer cancel()
 
 		resultCreateACLs, err := a.CreateACLs(ctx, newACLs, SetAdminRequestTimeout(requestTimeout))
-		if err != nil {
+		if err == nil {
 			t.Fatalf("CreateACLs() failed: %s", err)
 		}
 		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}}
