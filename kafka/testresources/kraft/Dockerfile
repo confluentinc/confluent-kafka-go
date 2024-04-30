@@ -4,7 +4,10 @@ RUN apt update
 RUN apt install -y git curl
 RUN apt install -y openjdk-17-jdk
 
-RUN git clone https://github.com/apache/kafka.git
+# Trunk at 2024-04-10, replace with 3.8.0 tag when available
+RUN git clone --single-branch --branch trunk \
+    https://github.com/apache/kafka.git && \
+    (cd /kafka  && git checkout f6c9feea76d01a46319b0ca602d70aa855057b07)
 
 RUN cd kafka && ./gradlew jar --info -x test -x checkstyleMain \
     -x checkstyleTest -x spotbugsMain -xspotbugsTest
