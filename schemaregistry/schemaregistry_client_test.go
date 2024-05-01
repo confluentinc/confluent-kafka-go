@@ -38,6 +38,13 @@ var schemaTests = [][]string{
 	{"./test/avro/string.avsc"},
 }
 
+func testGetAllContexts(expected []string) {
+	actual, err := srClient.GetAllContexts()
+	sort.Strings(actual)
+	sort.Strings(expected)
+	maybeFail("All Contexts", err, expect(actual, expected))
+}
+
 func testRegister(subject string, schema SchemaInfo) (id int) {
 	id, err := srClient.Register(subject, schema, false)
 	maybeFail(subject, err)
@@ -55,6 +62,29 @@ func testGetBySubjectAndIDNotFound(subject string, id int) {
 	if err == nil {
 		maybeFail("testGetBySubjectAndIDNotFound", fmt.Errorf("Expected error, found nil"))
 	}
+}
+
+func testGetSubjectsAndVersionsByID(id int, ids [][]int, subjects []string, versions [][]int) {
+	expected := make([]SubjectAndVersion, 0)
+	for subjectIdx, subject := range subjects {
+		for idIdx, sId := range ids[subjectIdx] {
+			if sId == id {
+				expected = append(expected, SubjectAndVersion{
+					Subject: subject,
+					Version: versions[subjectIdx][idIdx],
+				})
+			}
+		}
+	}
+
+	actual, err := srClient.GetSubjectsAndVersionsByID(id)
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].Subject < actual[j].Subject
+	})
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].Subject < expected[j].Subject
+	})
+	maybeFail(subject, err, expect(actual, expected))
 }
 
 func testGetID(subject string, schema SchemaInfo, expected int) int {
@@ -75,11 +105,19 @@ func testGetLatestSchemaMetadata(subject string) {
 	maybeFail(subject, err)
 }
 
-func testGetSchemaMetadata(subject string, versionID int, expected string) {
+func testGetLatestWithMetadata(subject string, filename string, expectedMetadata Metadata) {
+	actual, err := srClient.GetLatestWithMetadata(subject, map[string]string{"fileName": filename}, false)
+	// avoid nil pointer dereference
+	maybeFail(subject, err)
+	maybeFail(subject, expect(expectedMetadata, *actual.Metadata))
+}
+
+func testGetSchemaMetadata(subject string, versionID int, expectedSchema string, expectedMetadata Metadata) {
 	actual, err := srClient.GetSchemaMetadata(subject, versionID)
 	// avoid nil pointer dereference
 	maybeFail(subject, err)
-	maybeFail(subject, expect(expected, actual.Schema))
+	maybeFail(subject, expect(expectedSchema, actual.Schema))
+	maybeFail(subject, expect(expectedMetadata, *actual.Metadata))
 }
 
 func testGetVersion(subject string, schema SchemaInfo) (version int) {
@@ -194,16 +232,22 @@ func TestClient(t *testing.T) {
 	for idx, schemaTestVersions := range schemaTests {
 		var currentVersions = make([]int, 0)
 		subject := fmt.Sprintf("schema%d-key", idx)
-		srClient.DeleteSubject(subject, false)
-		srClient.DeleteSubject(subject, true)
+		_, _ = srClient.DeleteSubject(subject, false)
+		_, _ = srClient.DeleteSubject(subject, true)
 		subjects[idx] = subject
 		for _, schemaTest := range schemaTestVersions {
 			buff, err := ioutil.ReadFile(schemaTest)
 			if err != nil {
 				panic(err)
 			}
+			metadata := Metadata{
+				Properties: map[string]string{
+					"fileName": schemaTest,
+				},
+			}
 			schema := SchemaInfo{
-				Schema: string(buff),
+				Schema:   string(buff),
+				Metadata: &metadata,
 			}
 
 			id := testRegister(subject, schema)
@@ -212,8 +256,9 @@ func TestClient(t *testing.T) {
 			// The schema registry will return a normalized Avro Schema so we can't directly compare the two
 			// To work around this we retrieve a normalized schema from the Schema registry first for comparison
 			normalized := testGetBySubjectAndID(subject, id)
-			testGetSchemaMetadata(subject, version, normalized.Schema)
+			testGetSchemaMetadata(subject, version, normalized.Schema, metadata)
 			testGetLatestSchemaMetadata(subject)
+			testGetLatestWithMetadata(subject, schemaTest, metadata)
 
 			testUpdateCompatibility(subject, Forward, Forward)
 			testGetCompatibility(subject, Forward)
@@ -230,8 +275,10 @@ func TestClient(t *testing.T) {
 		}
 	}
 
+	testGetAllContexts([]string{"."})
 	lastSubject := len(subjects) - 1
 	secondToLastSubject := len(subjects) - 2
+	testGetSubjectsAndVersionsByID(ids[lastSubject][0], ids, subjects, versions)
 	testDeleteSubject(subjects[lastSubject], false, versions[lastSubject], ids[lastSubject], schemas[lastSubject])
 	testDeleteSubjectVersion(subjects[secondToLastSubject], false, versions[secondToLastSubject][0], versions[secondToLastSubject][0], ids[secondToLastSubject][0], schemas[secondToLastSubject][0])
 	// Second to last subject now has only one version
