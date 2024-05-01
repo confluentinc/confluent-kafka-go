@@ -29,8 +29,8 @@ import (
 )
 
 var testconf struct {
-	Docker        bool
-	Semaphore     bool
+	DockerNeeded  bool
+	DockerExists  bool
 	Brokers       string
 	BrokersSasl   string
 	SaslUsername  string
@@ -57,11 +57,11 @@ const defaultSaslUsername = "testuser"
 const defaultSaslPassword = "testpass"
 const defaultSaslMechanism = "PLAIN"
 
-// flag for semaphore job
-var semaphoreJob = flag.Bool("clients.semaphore", false, "Tells if the job is running on Semaphore")
+// Docker cluster already exists, don't bring up automatically
+var dockerExists = flag.Bool("docker.exists", false, "Docker cluster already exists, don't bring up automatically")
 
-// Command line flags accepted by tests
-var usingDocker = flag.Bool("clients.docker", false, "Decides whether a docker container be brought up automatically")
+// Docker is needed for these tests
+var dockerNeeded = flag.Bool("docker.needed", false, "Docker is needed for this test")
 
 // ratepdisp tracks and prints message & byte rates
 type ratedisp struct {
@@ -108,15 +108,43 @@ func (rd *ratedisp) tick(cnt, size int64) {
 	}
 }
 
+// testNewConsumer creates a new consumer with passed conf
+// and global test configuration applied.
+func testNewConsumer(conf *ConfigMap) (*Consumer, error) {
+	groupProtocol, found := testConsumerGroupProtocol()
+	if found {
+		conf.Set("group.protocol=" + groupProtocol)
+	}
+	return NewConsumer(conf)
+}
+
+// testConsumerGroupProtocol returns the value of the
+// TEST_CONSUMER_GROUP_PROTOCOL environment variable.
+func testConsumerGroupProtocol() (string, bool) {
+	return os.LookupEnv("TEST_CONSUMER_GROUP_PROTOCOL")
+}
+
+// testConsumerGroupProtocolClassic returns true
+// if the TEST_CONSUMER_GROUP_PROTOCOL environment variable
+// is unset or equal to "classic"
+func testConsumerGroupProtocolClassic() bool {
+	groupProtocol, found := testConsumerGroupProtocol()
+	if !found {
+		return true
+	}
+
+	return "classic" == groupProtocol
+}
+
 // testconfSetup does checks if will be bringing up containers for testing
 // automatically, or if we will be using the bootstrap servers from the
 // testconf file.
 func testconfInit() {
-	if (usingDocker != nil) && (*usingDocker) {
-		testconf.Docker = true
+	if (dockerNeeded != nil) && (*dockerNeeded) {
+		testconf.DockerNeeded = true
 	}
-	if (semaphoreJob != nil) && (*semaphoreJob) {
-		testconf.Semaphore = true
+	if (dockerExists != nil) && (*dockerExists) {
+		testconf.DockerExists = true
 	}
 }
 
@@ -134,7 +162,7 @@ func testconfRead() bool {
 	testconf.Brokers = ""
 	testconf.BrokersSasl = ""
 
-	if testconf.Docker || testconf.Semaphore {
+	if testconf.DockerNeeded || testconf.DockerExists {
 		testconf.Brokers = defaulttestconfBrokers
 		testconf.BrokersSasl = defaulttestconfBrokersSasl
 		testconf.SaslUsername = defaultSaslUsername
