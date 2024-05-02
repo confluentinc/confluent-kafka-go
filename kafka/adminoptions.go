@@ -569,7 +569,7 @@ type ListOffsetsAdminOption interface {
 
 // DeleteRecordsAdminOption - see setter.
 //
-// See SetAdminRequestTimeout.
+// See SetAdminRequestTimeout, SetAdminOperationTimeout.
 type DeleteRecordsAdminOption interface {
 	supportsDeleteRecords()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
