@@ -28,6 +28,8 @@ Examples
 
   [admin_describe_topics](admin_describe_topics) - Describe topics
 
+  [admin_elect_leaders](admin_elect_leaders) - Perform Preferred/ Unclean elections for the specified Topic Partitions
+
   [admin_list_consumer_group_offsets](admin_list_consumer_group_offsets) - List consumer group offsets
 
   [admin_list_offsets](admin_list_offsets) - List partition offsets
