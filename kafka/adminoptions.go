@@ -51,6 +51,8 @@ func (ao AdminOptionOperationTimeout) supportsDeleteTopics() {
 }
 func (ao AdminOptionOperationTimeout) supportsCreatePartitions() {
 }
+func (ao AdminOptionOperationTimeout) supportsDeleteRecords(){
+}
 
 func (ao AdminOptionOperationTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
@@ -142,6 +144,8 @@ func (ao AdminOptionRequestTimeout) supportsListOffsets() {
 func (ao AdminOptionRequestTimeout) supportsDescribeUserScramCredentials() {
 }
 func (ao AdminOptionRequestTimeout) supportsAlterUserScramCredentials() {
+}
+func (ao AdminOptionRequestTimeout) supportsDeleteRecords() {
 }
 func (ao AdminOptionRequestTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
 	if !ao.isSet {
@@ -560,6 +564,14 @@ type AlterUserScramCredentialsAdminOption interface {
 // See SetAdminRequestTimeout, SetAdminIsolationLevel.
 type ListOffsetsAdminOption interface {
 	supportsListOffsets()
+	apply(cOptions *C.rd_kafka_AdminOptions_t) error
+}
+
+// DeleteRecordsAdminOption - see setter.
+//
+// See SetAdminRequestTimeout, SetAdminOperationTimeout.
+type DeleteRecordsAdminOption interface {
+	supportsDeleteRecords()
 	apply(cOptions *C.rd_kafka_AdminOptions_t) error
 }
 

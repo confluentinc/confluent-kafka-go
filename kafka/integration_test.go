@@ -3234,6 +3234,78 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 
 }
 
+// Test DeleteRecords API which deletes all the records before the specified offset
+// in the particular partition of the specified topic.
+func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
+	t := its.T()
+	bootstrapServers := testconf.Brokers
+	assert := its.Assert()
+
+	// Create a new AdminClient.
+	a := createAdminClient(t)
+	defer a.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a new topic to test the api and produce some messages to that topic
+	topic := "test-delete"
+
+	topics := []TopicSpecification{TopicSpecification{Topic: topic, NumPartitions: 1, ReplicationFactor: 1}}
+	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
+	assert.Nil(createTopicError, "Create Topics should not fail.")
+	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError, "Create Topics Error Code should be ErrNoError.")
+
+	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
+	assert.Nil(err, "Unable to create Producer.")
+	defer p.Close()
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
+		Value:          []byte("Message-1"),
+	}, nil)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
+		Value:          []byte("Message-2"),
+	}, nil)
+
+	p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
+		Value:          []byte("Message-3"),
+	}, nil)
+
+	p.Flush(5 * 1000)
+
+	// Delete the records till offset 2 in partion 0 of the topic
+	// The result will contain the minimum offset available after deletion in that Topic Partiton
+	delRecordsTopicPartitionOffsets := []TopicPartition{{Topic: &topic, Partition: int32(0), Offset: Offset(2)}}
+	deleteRes, err := a.DeleteRecords(ctx, delRecordsTopicPartitionOffsets)
+	assert.Nil(err, "Delete Records should not fail")
+	assert.Equal(len(deleteRes.TopicPartitions), 1, "Length of deleteRes.TopicPartitions should be 1")
+	assert.Nil(deleteRes.TopicPartitions[0].Error, "Error should not be set in deleteRes.TopicPartitions[0]")
+	offsetAfterDeletion := deleteRes.TopicPartitions[0].Offset
+
+	// Find the minimum uncommitted offset in that partition of the topic.
+	// It should be equal to the offset we get after the deletion operation
+	topicPartitionOffsets := make(map[TopicPartition]OffsetSpec)
+	tp1 := TopicPartition{Topic: &topic, Partition: 0}
+	topicPartitionOffsets[tp1] = EarliestOffsetSpec
+	var results ListOffsetsResult
+	results, err = a.ListOffsets(ctx, topicPartitionOffsets)
+	assert.Nil(err, "ListOffsets should not fail.")
+	assert.Equal(len(results.ResultInfos), 1, "Length of results.ResultInfos should be 1")
+	for _, info := range results.ResultInfos {
+		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
+		assert.Equal(info.Offset, offsetAfterDeletion, "Offset should be equal to the offset obtained after deletion.")
+	}
+
+	delTopics := []string{topic}
+	_, err = a.DeleteTopics(ctx, delTopics)
+	assert.Nil(err, "DeleteTopics should not fail.")
+
+}
+
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()
