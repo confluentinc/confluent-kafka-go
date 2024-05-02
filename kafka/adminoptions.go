@@ -51,7 +51,7 @@ func (ao AdminOptionOperationTimeout) supportsDeleteTopics() {
 }
 func (ao AdminOptionOperationTimeout) supportsCreatePartitions() {
 }
-func (ao AdminOptionOperationTimeout) supportsDeleteRecords(){
+func (ao AdminOptionOperationTimeout) supportsDeleteRecords() {
 }
 
 func (ao AdminOptionOperationTimeout) apply(cOptions *C.rd_kafka_AdminOptions_t) error {
