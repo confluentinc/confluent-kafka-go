@@ -224,6 +224,8 @@ func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.Sche
 		Schema:     metadata.Schema,
 		SchemaType: metadata.SchemaType,
 		References: metadata.References,
+		Metadata:   metadata.Metadata,
+		Ruleset:    metadata.Ruleset,
 	}
 	if s.Conf.CacheSchemas {
 		s.descToSchemaCacheLock.Lock()
@@ -281,7 +283,11 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
-		refs = append(refs, schemaregistry.Reference{d.GetName(), ref.Subject, ref.Version})
+		refs = append(refs, schemaregistry.Reference{
+			Name:    d.GetName(),
+			Subject: ref.Subject,
+			Version: ref.Version,
+		})
 	}
 	for _, d := range fileDesc.GetPublicDependencies() {
 		if ignoreFile(d.GetName()) {
@@ -291,7 +297,11 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
-		refs = append(refs, schemaregistry.Reference{d.GetName(), ref.Subject, ref.Version})
+		refs = append(refs, schemaregistry.Reference{
+			Name:    d.GetName(),
+			Subject: ref.Subject,
+			Version: ref.Version,
+		})
 	}
 	info := schemaregistry.SchemaInfo{
 		Schema:     deps[fileDesc.GetName()],
