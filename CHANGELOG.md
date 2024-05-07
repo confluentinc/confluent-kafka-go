@@ -4,8 +4,8 @@
 
 This is a feature release.
 
- * [KIP-848 EA](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol):
-   Integration tests running with the new consumer group protocol. The feature is an Early Access: not production ready, still not supported (#1185).
+ * [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): 
+   Integration tests running with the new consumer group protocol. The feature is an **Early Access**: not production ready (#1185).
 
 ## Fixes
 
