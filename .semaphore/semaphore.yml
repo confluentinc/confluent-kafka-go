@@ -6,7 +6,7 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.4.0-RC2
+      value: v2.4.0
   prologue:
     commands:
       - checkout
@@ -59,15 +59,29 @@ blocks:
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
       jobs:
-        - name: "Static Build"
+        - name: "Static Build + Integration tests (CGRP classic)"
           env_vars:
             - name: EXPECT_LINK_INFO
               value: static
           commands_file: semaphore_integration_commands.sh
-        - name: "Dynamic Build"
+        - name: "Dynamic Build + Integration tests (CGRP classic)"
           env_vars:
             - name: EXPECT_LINK_INFO
               value: dynamic
+          commands_file: semaphore_integration_commands.sh
+        - name: "Static Build + Integration tests (CGRP consumer)"
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: static
+            - name: TEST_CONSUMER_GROUP_PROTOCOL
+              value: consumer
+          commands_file: semaphore_integration_commands.sh
+        - name: "Dynamic Build + Integration tests (CGRP consumer)"
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: dynamic
+            - name: TEST_CONSUMER_GROUP_PROTOCOL
+              value: consumer
           commands_file: semaphore_integration_commands.sh
   - name: "go 1.21 linux arm64 bundled librdkafka"
     dependencies: [ ]
