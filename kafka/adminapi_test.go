@@ -918,6 +918,80 @@ func testAdminAPIsDeleteRecords(what string, a *AdminClient, expDuration time.Du
 	}
 }
 
+func testAdminAPIsElectLeaders(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	topic := "test"
+	partition := int32(0)
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	topicPartition := []TopicPartition{{Topic: &topic, Partition: partition}}
+	emptyTopicPartition := []TopicPartition{}
+	electLeaderRequestPreferred := ElectLeaderRequest{
+		electionType: ElectionTypePreferred,
+		partitions: topicPartition,
+	}
+	electLeadersRequestUnclean := ElectLeaderRequest{
+		electionType: ElectionTypeUnclean,
+		partitions:   topicPartition,
+	}
+
+	_, err := a.ElectLeaders(ctx, electLeaderRequestPreferred, SetAdminRequestTimeout(time.Second))
+	if err == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			err, ctx.Err())
+	}
+
+	_, err = a.ElectLeaders(ctx, electLeadersRequestUnclean, SetAdminRequestTimeout(time.Second))
+	if err == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			err, ctx.Err())
+	}
+
+	// Invalid option value
+	_, err = a.ElectLeaders(ctx, electLeaderRequestPreferred, SetAdminRequestTimeout(-1))
+	if err == nil || err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err)
+	}
+
+	_, err = a.ElectLeaders(ctx, electLeadersRequestUnclean, SetAdminRequestTimeout(-1))
+	if err == nil || err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err)
+	}
+
+	for _, options := range [][]ElectLeadersAdminOption{
+		{},
+		{SetAdminRequestTimeout(time.Second)},
+	} {
+		// empty list should fail
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		emptyElectLeaderRequestPreferred := ElectLeaderRequest{
+			electionType: ElectionTypePreferred,
+			partitions:   emptyTopicPartition,
+		}
+		emptyElectLeaderRequestUnclean := ElectLeaderRequest{
+			electionType: ElectionTypeUnclean,
+			partitions:   emptyTopicPartition,
+		}
+		result, err := a.ElectLeaders(ctx, emptyElectLeaderRequestPreferred, options...)
+		if result.topicPartitions != nil || err == nil {
+			t.Fatalf("Expected ElectLeaders to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg, not %v", err)
+		}
+
+		result, err = a.ElectLeaders(ctx, emptyElectLeaderRequestUnclean, options...)
+		if result.topicPartitions != nil || err == nil {
+			t.Fatalf("Expected ElectLeaders to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg, not %v", err)
+		}
+	}
+}
+
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 
@@ -1172,6 +1246,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
 	testAdminAPIsDeleteRecords(what, a, expDuration, t)
+	testAdminAPIsElectLeaders(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
