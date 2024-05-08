@@ -6,7 +6,7 @@ This is a feature release.
 
  * [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): 
    Integration tests running with the new consumer group protocol. The feature is an **Early Access**: not production ready (#1185).
- * Allow custom http.Client to be passed to SR client (#1099)
+ * Allow custom http.Client to be passed to schema registry client (#1099)
  * Cache schemas when setting `UseLatestVersion=true` (#1100)
  * Add `CacheLatestTtlSecs` to allow expiration of latest schemas (#1106)
  * Cache parsed file descriptors in Protobuf deserializer (#1128)
@@ -20,7 +20,7 @@ This is a feature release.
    Code using the library will still work with Go 1.17.
    (#1136, @rzeijde).
  * Fix JSON validation during serialization (#1101)
- * Fix counter in mock SR client (#1170)
+ * Fix counter in mock schema registry client (#1170)
 
 confluent-kafka-go is based on librdkafka v2.4.0, see the
 [librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
