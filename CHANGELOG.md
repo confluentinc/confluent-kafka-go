@@ -27,6 +27,13 @@ confluent-kafka-go is based on librdkafka v2.4.0, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
+# v2.4.0
+
+This is a feature release.
+
+ * Adds an AdminAPI `DeleteRecords()`
+   (#1141, @PratRanj07).
+
 # v2.3.0
 
 This is a feature release.
