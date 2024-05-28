@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
 
 /* Schema Registry API endpoints
@@ -68,6 +69,111 @@ import (
 * GET /config/(string: subject) returns: JSON string:compatibility; raises: 404, 500[01]
  */
 
+// Rule represents a data contract rule
+type Rule struct {
+	// Rule name
+	Name string `json:"name,omitempty"`
+	// Rule doc
+	Doc string `json:"doc,omitempty"`
+	// Rule kind
+	Kind string `json:"kind,omitempty"`
+	// Rule mode
+	Mode string `json:"mode,omitempty"`
+	// Rule type
+	Type string `json:"type,omitempty"`
+	// The tags to which this rule applies
+	Tags []string `json:"tags,omitempty"`
+	// Optional params for the rule
+	Params map[string]string `json:"params,omitempty"`
+	// Rule expression
+	Expr string `json:"expr,omitempty"`
+	// Rule action on success
+	OnSuccess string `json:"onSuccess,omitempty"`
+	// Rule action on failure
+	OnFailure string `json:"onFailure,omitempty"`
+	// Whether the rule is disabled
+	Disabled bool `json:"disabled,omitempty"`
+}
+
+// RuleMode represents the rule mode
+type RuleMode = int
+
+const (
+	// Upgrade denotes upgrade mode
+	Upgrade = 1
+	// Downgrade denotes downgrade mode
+	Downgrade = 2
+	// UpDown denotes upgrade/downgrade mode
+	UpDown = 3
+	// Write denotes write mode
+	Write = 4
+	// Read denotes read mode
+	Read = 5
+	// WriteRead denotes write/read mode
+	WriteRead = 6
+)
+
+var modes = map[string]RuleMode{
+	"UPGRADE":   Upgrade,
+	"DOWNGRADE": Downgrade,
+	"UPDOWN":    UpDown,
+	"WRITE":     Write,
+	"READ":      Read,
+	"WRITEREAD": WriteRead,
+}
+
+// ParseMode parses the given rule mode
+func ParseMode(mode string) (RuleMode, bool) {
+	c, ok := modes[strings.ToUpper(mode)]
+	return c, ok
+}
+
+// RuleSet represents a data contract rule set
+type RuleSet struct {
+	MigrationRules []Rule `json:"migrationRules,omitempty"`
+	DomainRules    []Rule `json:"domainRules,omitempty"`
+}
+
+// HasRules checks if the ruleset has rules for the given mode
+func (r *RuleSet) HasRules(mode RuleMode) bool {
+	switch mode {
+	case Upgrade, Downgrade:
+		return r.hasRules(r.MigrationRules, func(ruleMode RuleMode) bool {
+			return ruleMode == mode || ruleMode == UpDown
+		})
+	case UpDown:
+		return r.hasRules(r.MigrationRules, func(ruleMode RuleMode) bool {
+			return ruleMode == mode
+		})
+	case Write, Read:
+		return r.hasRules(r.DomainRules, func(ruleMode RuleMode) bool {
+			return ruleMode == mode || ruleMode == WriteRead
+		})
+	case WriteRead:
+		return r.hasRules(r.DomainRules, func(ruleMode RuleMode) bool {
+			return ruleMode == mode
+		})
+	}
+	return false
+}
+
+func (r *RuleSet) hasRules(rules []Rule, filter func(RuleMode) bool) bool {
+	for _, rule := range rules {
+		ruleMode, ok := ParseMode(rule.Mode)
+		if ok && filter(ruleMode) {
+			return true
+		}
+	}
+	return false
+}
+
+// Metadata represents user-defined metadata
+type Metadata struct {
+	Tags       map[string][]string `json:"tags,omitempty"`
+	Properties map[string]string   `json:"properties,omitempty"`
+	Sensitive  []string            `json:"sensitive,omitempty"`
+}
+
 // Reference represents a schema reference
 type Reference struct {
 	Name    string `json:"name"`
@@ -80,6 +186,8 @@ type SchemaInfo struct {
 	Schema     string      `json:"schema,omitempty"`
 	SchemaType string      `json:"schemaType,omitempty"`
 	References []Reference `json:"references,omitempty"`
+	Metadata   *Metadata   `json:"metadata,omitempty"`
+	Ruleset    *RuleSet    `json:"ruleset,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -88,10 +196,14 @@ func (sd *SchemaInfo) MarshalJSON() ([]byte, error) {
 		Schema     string      `json:"schema,omitempty"`
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
+		Metadata   *Metadata   `json:"metadata,omitempty"`
+		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
 	}{
 		sd.Schema,
 		sd.SchemaType,
 		sd.References,
+		sd.Metadata,
+		sd.Ruleset,
 	})
 }
 
@@ -102,6 +214,8 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 		Schema     string      `json:"schema,omitempty"`
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
+		Metadata   *Metadata   `json:"metadata,omitempty"`
+		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
 	}
 
 	err = json.Unmarshal(b, &tmp)
@@ -109,6 +223,8 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 	sd.Schema = tmp.Schema
 	sd.SchemaType = tmp.SchemaType
 	sd.References = tmp.References
+	sd.Metadata = tmp.Metadata
+	sd.Ruleset = tmp.Ruleset
 
 	return err
 }
@@ -127,6 +243,8 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		Schema     string      `json:"schema,omitempty"`
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
+		Metadata   *Metadata   `json:"metadata,omitempty"`
+		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
 		ID         int         `json:"id,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
@@ -134,6 +252,8 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		sd.Schema,
 		sd.SchemaType,
 		sd.References,
+		sd.Metadata,
+		sd.Ruleset,
 		sd.ID,
 		sd.Subject,
 		sd.Version,
@@ -147,6 +267,8 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 		Schema     string      `json:"schema,omitempty"`
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
+		Metadata   *Metadata   `json:"metadata,omitempty"`
+		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
 		ID         int         `json:"id,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
@@ -157,11 +279,27 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 	sd.Schema = tmp.Schema
 	sd.SchemaType = tmp.SchemaType
 	sd.References = tmp.References
+	sd.Metadata = tmp.Metadata
+	sd.Ruleset = tmp.Ruleset
 	sd.ID = tmp.ID
 	sd.Subject = tmp.Subject
 	sd.Version = tmp.Version
 
 	return err
+}
+
+// ServerConfig represents config params for Schema Registry
+/* NOTE: GET uses compatibilityLevel, POST uses compatibility */
+type ServerConfig struct {
+	Alias               string        `json:"alias,omitempty"`
+	Normalize           bool          `json:"normalize,omitempty"`
+	CompatibilityUpdate Compatibility `json:"compatibility,omitempty"`
+	CompatibilityLevel  Compatibility `json:"compatibilityLevel,omitempty"`
+	CompatibilityGroup  string        `json:"compatibilityGroup,omitempty"`
+	DefaultMetadata     *Metadata     `json:"defaultMetadata,omitempty"`
+	OverrideMetadata    *Metadata     `json:"overrideMetadata,omitempty"`
+	DefaultRuleSet      *RuleSet      `json:"defaultRuleSet,omitempty"`
+	OverrideRuleSet     *RuleSet      `json:"overrideRuleSet,omitempty"`
 }
 
 type subjectJSON struct {
@@ -177,23 +315,33 @@ type subjectID struct {
 type subjectVersion struct {
 	subject string
 	version int
+	deleted bool
+}
+
+type subjectMetadata struct {
+	subject  string
+	metadata string
+	deleted  bool
 }
 
 /* HTTP(S) Schema Registry Client and schema caches */
 type client struct {
 	sync.Mutex
-	restService              *restService
-	schemaToIDCache          cache.Cache
-	schemaToIDCacheLock      sync.RWMutex
-	idToSchemaCache          cache.Cache
-	idToSchemaCacheLock      sync.RWMutex
-	schemaToVersionCache     cache.Cache
-	schemaToVersionCacheLock sync.RWMutex
-	versionToSchemaCache     cache.Cache
-	versionToSchemaCacheLock sync.RWMutex
-	latestToSchemaCache      cache.Cache
-	latestToSchemaCacheLock  sync.RWMutex
-	evictor                  *evictor
+	config                    *Config
+	restService               *internal.RestService
+	infoToSchemaCache         cache.Cache
+	infoToSchemaCacheLock     sync.RWMutex
+	idToSchemaInfoCache       cache.Cache
+	idToSchemaInfoCacheLock   sync.RWMutex
+	schemaToVersionCache      cache.Cache
+	schemaToVersionCacheLock  sync.RWMutex
+	versionToSchemaCache      cache.Cache
+	versionToSchemaCacheLock  sync.RWMutex
+	latestToSchemaCache       cache.Cache
+	latestToSchemaCacheLock   sync.RWMutex
+	metadataToSchemaCache     cache.Cache
+	metadataToSchemaCacheLock sync.RWMutex
+	evictor                   *evictor
 }
 
 var _ Client = new(client)
@@ -202,21 +350,31 @@ var _ Client = new(client)
 // The Schema Registry's REST interface is further explained in Confluent's Schema Registry API documentation
 // https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
 type Client interface {
+	Config() *Config
 	Register(subject string, schema SchemaInfo, normalize bool) (id int, err error)
+	RegisterFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error)
 	GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error)
 	GetID(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	GetLatestSchemaMetadata(subject string) (SchemaMetadata, error)
 	GetSchemaMetadata(subject string, version int) (SchemaMetadata, error)
+	GetSchemaMetadataIncludeDeleted(subject string, version int, deleted bool) (SchemaMetadata, error)
+	GetLatestWithMetadata(subject string, metadata map[string]string, deleted bool) (SchemaMetadata, error)
 	GetAllVersions(subject string) ([]int, error)
 	GetVersion(subject string, schema SchemaInfo, normalize bool) (version int, err error)
 	GetAllSubjects() ([]string, error)
 	DeleteSubject(subject string, permanent bool) ([]int, error)
 	DeleteSubjectVersion(subject string, version int, permanent bool) (deletes int, err error)
+	TestSubjectCompatibility(subject string, schema SchemaInfo) (compatible bool, err error)
+	TestCompatibility(subject string, version int, schema SchemaInfo) (compatible bool, err error)
 	GetCompatibility(subject string) (compatibility Compatibility, err error)
 	UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error)
-	TestCompatibility(subject string, version int, schema SchemaInfo) (compatible bool, err error)
 	GetDefaultCompatibility() (compatibility Compatibility, err error)
 	UpdateDefaultCompatibility(update Compatibility) (compatibility Compatibility, err error)
+	GetConfig(subject string, defaultToGlobal bool) (result ServerConfig, err error)
+	UpdateConfig(subject string, update ServerConfig) (result ServerConfig, err error)
+	GetDefaultConfig() (result ServerConfig, err error)
+	UpdateDefaultConfig(update ServerConfig) (result ServerConfig, err error)
+	Close() error
 }
 
 // NewClient returns a Client implementation
@@ -230,16 +388,17 @@ func NewClient(conf *Config) (Client, error) {
 			return nil, err
 		}
 		mock := &mockclient{
+			config:               conf,
 			url:                  url,
-			schemaToIDCache:      make(map[subjectJSON]idCacheEntry),
-			idToSchemaCache:      make(map[subjectID]*SchemaInfo),
+			infoToSchemaCache:    make(map[subjectJSON]metadataCacheEntry),
+			idToSchemaCache:      make(map[subjectID]infoCacheEntry),
 			schemaToVersionCache: make(map[subjectJSON]versionCacheEntry),
-			compatibilityCache:   make(map[string]Compatibility),
+			configCache:          make(map[string]ServerConfig),
 		}
 		return mock, nil
 	}
 
-	restService, err := newRestService(conf)
+	restService, err := internal.NewRestService(&conf.ClientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +408,7 @@ func NewClient(conf *Config) (Client, error) {
 	var schemaToVersionCache cache.Cache
 	var versionToSchemaCache cache.Cache
 	var latestToSchemaCache cache.Cache
+	var metadataToSchemaCache cache.Cache
 	if conf.CacheCapacity != 0 {
 		schemaToIDCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
@@ -270,20 +430,27 @@ func NewClient(conf *Config) (Client, error) {
 		if err != nil {
 			return nil, err
 		}
+		metadataToSchemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		schemaToIDCache = cache.NewMapCache()
 		idToSchemaCache = cache.NewMapCache()
 		schemaToVersionCache = cache.NewMapCache()
 		versionToSchemaCache = cache.NewMapCache()
 		latestToSchemaCache = cache.NewMapCache()
+		metadataToSchemaCache = cache.NewMapCache()
 	}
 	handle := &client{
-		restService:          restService,
-		schemaToIDCache:      schemaToIDCache,
-		idToSchemaCache:      idToSchemaCache,
-		schemaToVersionCache: schemaToVersionCache,
-		versionToSchemaCache: versionToSchemaCache,
-		latestToSchemaCache:  latestToSchemaCache,
+		config:                conf,
+		restService:           restService,
+		infoToSchemaCache:     schemaToIDCache,
+		idToSchemaInfoCache:   idToSchemaCache,
+		schemaToVersionCache:  schemaToVersionCache,
+		versionToSchemaCache:  versionToSchemaCache,
+		latestToSchemaCache:   latestToSchemaCache,
+		metadataToSchemaCache: metadataToSchemaCache,
 	}
 	if conf.CacheLatestTTLSecs > 0 {
 		runEvictor(handle, time.Duration(conf.CacheLatestTTLSecs)*time.Second)
@@ -292,41 +459,59 @@ func NewClient(conf *Config) (Client, error) {
 	return handle, nil
 }
 
+// Config returns the client config
+func (c *client) Config() *Config {
+	return c.config
+}
+
 // Register registers Schema aliased with subject
 func (c *client) Register(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
-	schemaJSON, err := schema.MarshalJSON()
+	metadata, err := c.RegisterFullResponse(subject, schema, normalize)
 	if err != nil {
 		return -1, err
+	}
+	return metadata.ID, err
+}
+
+// RegisterFullResponse registers Schema aliased with subject
+func (c *client) RegisterFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error) {
+	schemaJSON, err := schema.MarshalJSON()
+	if err != nil {
+		return SchemaMetadata{
+			ID: -1,
+		}, err
 	}
 	cacheKey := subjectJSON{
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaToIDCacheLock.RLock()
-	idValue, ok := c.schemaToIDCache.Get(cacheKey)
-	c.schemaToIDCacheLock.RUnlock()
+	c.infoToSchemaCacheLock.RLock()
+	metadataValue, ok := c.infoToSchemaCache.Get(cacheKey)
+	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
-		return idValue.(int), nil
+		return *metadataValue.(*SchemaMetadata), nil
 	}
 
-	metadata := SchemaMetadata{
+	input := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	c.schemaToIDCacheLock.Lock()
+	c.infoToSchemaCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	idValue, ok = c.schemaToIDCache.Get(cacheKey)
+	metadataValue, ok = c.infoToSchemaCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("POST", versionNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.VersionNormalize, &input, url.PathEscape(subject), normalize), &result)
 		if err == nil {
-			c.schemaToIDCache.Put(cacheKey, metadata.ID)
+			c.infoToSchemaCache.Put(cacheKey, &result)
 		} else {
-			metadata.ID = -1
+			result = SchemaMetadata{
+				ID: -1,
+			}
 		}
 	} else {
-		metadata.ID = idValue.(int)
+		result = *metadataValue.(*SchemaMetadata)
 	}
-	c.schemaToIDCacheLock.Unlock()
-	return metadata.ID, err
+	c.infoToSchemaCacheLock.Unlock()
+	return result, err
 }
 
 // GetBySubjectAndID returns the schema identified by id
@@ -336,36 +521,32 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 		subject: subject,
 		id:      id,
 	}
-	c.idToSchemaCacheLock.RLock()
-	infoValue, ok := c.idToSchemaCache.Get(cacheKey)
-	c.idToSchemaCacheLock.RUnlock()
+	c.idToSchemaInfoCacheLock.RLock()
+	infoValue, ok := c.idToSchemaInfoCache.Get(cacheKey)
+	c.idToSchemaInfoCacheLock.RUnlock()
 	if ok {
 		return *infoValue.(*SchemaInfo), nil
 	}
 
 	metadata := SchemaMetadata{}
 	newInfo := &SchemaInfo{}
-	c.idToSchemaCacheLock.Lock()
+	c.idToSchemaInfoCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	infoValue, ok = c.idToSchemaCache.Get(cacheKey)
+	infoValue, ok = c.idToSchemaInfoCache.Get(cacheKey)
 	if !ok {
 		if len(subject) > 0 {
-			err = c.restService.handleRequest(newRequest("GET", schemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
+			err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SchemasBySubject, nil, id, url.QueryEscape(subject)), &metadata)
 		} else {
-			err = c.restService.handleRequest(newRequest("GET", schemas, nil, id), &metadata)
+			err = c.restService.HandleRequest(internal.NewRequest("GET", internal.Schemas, nil, id), &metadata)
 		}
 		if err == nil {
-			newInfo = &SchemaInfo{
-				Schema:     metadata.Schema,
-				SchemaType: metadata.SchemaType,
-				References: metadata.References,
-			}
-			c.idToSchemaCache.Put(cacheKey, newInfo)
+			newInfo = &metadata.SchemaInfo
+			c.idToSchemaInfoCache.Put(cacheKey, newInfo)
 		}
 	} else {
 		newInfo = infoValue.(*SchemaInfo)
 	}
-	c.idToSchemaCacheLock.Unlock()
+	c.idToSchemaInfoCacheLock.Unlock()
 	return *newInfo, err
 }
 
@@ -379,30 +560,32 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 		subject: subject,
 		json:    string(schemaJSON),
 	}
-	c.schemaToIDCacheLock.RLock()
-	idValue, ok := c.schemaToIDCache.Get(cacheKey)
-	c.schemaToIDCacheLock.RUnlock()
+	c.infoToSchemaCacheLock.RLock()
+	metadataValue, ok := c.infoToSchemaCache.Get(cacheKey)
+	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
-		return idValue.(int), nil
+		md := *metadataValue.(*SchemaMetadata)
+		return md.ID, nil
 	}
 
 	metadata := SchemaMetadata{
 		SchemaInfo: schema,
 	}
-	c.schemaToIDCacheLock.Lock()
+	c.infoToSchemaCacheLock.Lock()
 	// another goroutine could have already put it in cache
-	idValue, ok = c.schemaToIDCache.Get(cacheKey)
+	metadataValue, ok = c.infoToSchemaCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 		if err == nil {
-			c.schemaToIDCache.Put(cacheKey, metadata.ID)
+			c.infoToSchemaCache.Put(cacheKey, metadata.ID)
 		} else {
 			metadata.ID = -1
 		}
 	} else {
-		metadata.ID = idValue.(int)
+		md := *metadataValue.(*SchemaMetadata)
+		metadata.ID = md.ID
 	}
-	c.schemaToIDCacheLock.Unlock()
+	c.infoToSchemaCacheLock.Unlock()
 	return metadata.ID, err
 }
 
@@ -420,7 +603,7 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 	// another goroutine could have already put it in cache
 	metadataValue, ok = c.latestToSchemaCache.Get(subject)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), "latest"), &result)
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.Versions, nil, url.PathEscape(subject), "latest"), &result)
 		if err == nil {
 			c.latestToSchemaCache.Put(subject, &result)
 		}
@@ -434,9 +617,16 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
+	return c.GetSchemaMetadataIncludeDeleted(subject, version, false)
+}
+
+// GetSchemaMetadataIncludeDeleted fetches the requested subject schema identified by version and deleted flag
+// Returns SchemaMetadata object
+func (c *client) GetSchemaMetadataIncludeDeleted(subject string, version int, deleted bool) (result SchemaMetadata, err error) {
 	cacheKey := subjectVersion{
 		subject: subject,
 		version: version,
+		deleted: deleted,
 	}
 	c.versionToSchemaCacheLock.RLock()
 	metadataValue, ok := c.versionToSchemaCache.Get(cacheKey)
@@ -449,7 +639,7 @@ func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMe
 	// another goroutine could have already put it in cache
 	metadataValue, ok = c.versionToSchemaCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("GET", versions, nil, url.PathEscape(subject), version), &result)
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.VersionsIncludeDeleted, nil, url.PathEscape(subject), version, deleted), &result)
 		if err == nil {
 			c.versionToSchemaCache.Put(cacheKey, &result)
 		}
@@ -460,11 +650,50 @@ func (c *client) GetSchemaMetadata(subject string, version int) (result SchemaMe
 	return result, err
 }
 
+// GetLatestWithMetadata fetches the latest subject schema with the given metadata
+// Returns SchemaMetadata object
+func (c *client) GetLatestWithMetadata(subject string, metadata map[string]string, deleted bool) (result SchemaMetadata, err error) {
+	b, _ := json.Marshal(metadata)
+	metadataStr := string(b)
+	cacheKey := subjectMetadata{
+		subject:  subject,
+		metadata: metadataStr,
+		deleted:  deleted,
+	}
+	c.metadataToSchemaCacheLock.RLock()
+	metadataValue, ok := c.metadataToSchemaCache.Get(cacheKey)
+	c.metadataToSchemaCacheLock.RUnlock()
+	if ok {
+		return *metadataValue.(*SchemaMetadata), nil
+	}
+
+	c.metadataToSchemaCacheLock.Lock()
+	// another goroutine could have already put it in cache
+	metadataValue, ok = c.metadataToSchemaCache.Get(cacheKey)
+	sb := strings.Builder{}
+	for key, value := range metadata {
+		_, _ = sb.WriteString("&key=")
+		_, _ = sb.WriteString(key)
+		_, _ = sb.WriteString("&value=")
+		_, _ = sb.WriteString(value)
+	}
+	if !ok {
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.LatestWithMetadata, nil, url.PathEscape(subject), deleted, sb.String()), &result)
+		if err == nil {
+			c.metadataToSchemaCache.Put(cacheKey, &result)
+		}
+	} else {
+		result = *metadataValue.(*SchemaMetadata)
+	}
+	c.metadataToSchemaCacheLock.Unlock()
+	return result, err
+}
+
 // GetAllVersions fetches a list of all version numbers associated with the provided subject registration
 // Returns integer slice on success
 func (c *client) GetAllVersions(subject string) (results []int, err error) {
 	var result []int
-	err = c.restService.handleRequest(newRequest("GET", version, nil, url.PathEscape(subject)), &result)
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.Version, nil, url.PathEscape(subject)), &result)
 
 	return result, err
 }
@@ -494,7 +723,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 	// another goroutine could have already put it in cache
 	versionValue, ok = c.schemaToVersionCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.handleRequest(newRequest("POST", subjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 		if err == nil {
 			c.schemaToVersionCache.Put(cacheKey, metadata.Version)
 		} else {
@@ -511,7 +740,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 // Returns a string slice containing all registered subjects
 func (c *client) GetAllSubjects() ([]string, error) {
 	var result []string
-	err := c.restService.handleRequest(newRequest("GET", subject, nil), &result)
+	err := c.restService.HandleRequest(internal.NewRequest("GET", internal.Subject, nil), &result)
 
 	return result, err
 }
@@ -519,14 +748,14 @@ func (c *client) GetAllSubjects() ([]string, error) {
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
 func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
-	c.schemaToIDCacheLock.Lock()
-	for keyValue := range c.schemaToIDCache.ToMap() {
+	c.infoToSchemaCacheLock.Lock()
+	for keyValue := range c.infoToSchemaCache.ToMap() {
 		key := keyValue.(subjectJSON)
 		if key.subject == subject {
-			c.schemaToIDCache.Delete(key)
+			c.infoToSchemaCache.Delete(key)
 		}
 	}
-	c.schemaToIDCacheLock.Unlock()
+	c.infoToSchemaCacheLock.Unlock()
 	c.schemaToVersionCacheLock.Lock()
 	for keyValue := range c.schemaToVersionCache.ToMap() {
 		key := keyValue.(subjectJSON)
@@ -543,16 +772,16 @@ func (c *client) DeleteSubject(subject string, permanent bool) (deleted []int, e
 		}
 	}
 	c.versionToSchemaCacheLock.Unlock()
-	c.idToSchemaCacheLock.Lock()
-	for keyValue := range c.idToSchemaCache.ToMap() {
+	c.idToSchemaInfoCacheLock.Lock()
+	for keyValue := range c.idToSchemaInfoCache.ToMap() {
 		key := keyValue.(subjectID)
 		if key.subject == subject {
-			c.idToSchemaCache.Delete(key)
+			c.idToSchemaInfoCache.Delete(key)
 		}
 	}
-	c.idToSchemaCacheLock.Unlock()
+	c.idToSchemaInfoCacheLock.Unlock()
 	var result []int
-	err = c.restService.handleRequest(newRequest("DELETE", subjectsDelete, nil, url.PathEscape(subject), permanent), &result)
+	err = c.restService.HandleRequest(internal.NewRequest("DELETE", internal.SubjectsDelete, nil, url.PathEscape(subject), permanent), &result)
 	return result, err
 }
 
@@ -567,23 +796,23 @@ func (c *client) DeleteSubjectVersion(subject string, version int, permanent boo
 			schemaJSON := key.json
 			cacheKeySchema := subjectJSON{
 				subject: subject,
-				json:    string(schemaJSON),
+				json:    schemaJSON,
 			}
-			c.schemaToIDCacheLock.Lock()
-			idValue, ok := c.schemaToIDCache.Get(cacheKeySchema)
+			c.infoToSchemaCacheLock.Lock()
+			metadataValue, ok := c.infoToSchemaCache.Get(cacheKeySchema)
 			if ok {
-				c.schemaToIDCache.Delete(cacheKeySchema)
+				c.infoToSchemaCache.Delete(cacheKeySchema)
 			}
-			c.schemaToIDCacheLock.Unlock()
+			c.infoToSchemaCacheLock.Unlock()
 			if ok {
-				id := idValue.(int)
-				c.idToSchemaCacheLock.Lock()
+				md := *metadataValue.(*SchemaMetadata)
+				c.idToSchemaInfoCacheLock.Lock()
 				cacheKeyID := subjectID{
 					subject: subject,
-					id:      id,
+					id:      md.ID,
 				}
-				c.idToSchemaCache.Delete(cacheKeyID)
-				c.idToSchemaCacheLock.Unlock()
+				c.idToSchemaInfoCache.Delete(cacheKeyID)
+				c.idToSchemaInfoCacheLock.Unlock()
 			}
 		}
 	}
@@ -596,7 +825,7 @@ func (c *client) DeleteSubjectVersion(subject string, version int, permanent boo
 	c.versionToSchemaCache.Delete(cacheKey)
 	c.versionToSchemaCacheLock.Unlock()
 	var result int
-	err = c.restService.handleRequest(newRequest("DELETE", versionsDelete, nil, url.PathEscape(subject), version, permanent), &result)
+	err = c.restService.HandleRequest(internal.NewRequest("DELETE", internal.VersionsDelete, nil, url.PathEscape(subject), version, permanent), &result)
 	return result, err
 
 }
@@ -640,7 +869,7 @@ type compatibilityLevel struct {
 }
 
 // MarshalJSON implements json.Marshaler
-func (c Compatibility) MarshalJSON() ([]byte, error) {
+func (c *Compatibility) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.String())
 }
 
@@ -654,8 +883,8 @@ type compatibilityValue struct {
 	Compatible bool `json:"is_compatible,omitempty"`
 }
 
-func (c Compatibility) String() string {
-	return compatibilityEnum[c]
+func (c *Compatibility) String() string {
+	return compatibilityEnum[*c]
 }
 
 // ParseString returns a Compatibility for the given string
@@ -670,24 +899,17 @@ func (c *Compatibility) ParseString(val string) error {
 	return fmt.Errorf("failed to unmarshal Compatibility")
 }
 
-// Fetch compatibility level currently configured for provided subject
-// Returns compatibility level string upon success
-func (c *client) GetCompatibility(subject string) (compatibility Compatibility, err error) {
-	var result compatibilityLevel
-	err = c.restService.handleRequest(newRequest("GET", subjectConfig, nil, url.PathEscape(subject)), &result)
-
-	return result.Compatibility, err
-}
-
-// UpdateCompatibility updates subject's compatibility level
-// Returns new compatibility level string upon success
-func (c *client) UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error) {
-	result := compatibilityLevel{
-		CompatibilityUpdate: update,
+// TestSubjectCompatibility verifies schema against all schemas in the subject
+// Returns true if the schema is compatible, false otherwise
+func (c *client) TestSubjectCompatibility(subject string, schema SchemaInfo) (ok bool, err error) {
+	var result compatibilityValue
+	candidate := SchemaMetadata{
+		SchemaInfo: schema,
 	}
-	err = c.restService.handleRequest(newRequest("PUT", subjectConfig, &result, url.PathEscape(subject)), &result)
 
-	return result.CompatibilityUpdate, err
+	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectCompatibility, &candidate, url.PathEscape(subject)), &result)
+
+	return result.Compatible, err
 }
 
 // TestCompatibility verifies schema against the subject's compatibility policy
@@ -698,29 +920,86 @@ func (c *client) TestCompatibility(subject string, version int, schema SchemaInf
 		SchemaInfo: schema,
 	}
 
-	err = c.restService.handleRequest(newRequest("POST", compatibility, &candidate, url.PathEscape(subject), version), &result)
+	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Compatibility, &candidate, url.PathEscape(subject), version), &result)
 
 	return result.Compatible, err
+}
+
+// Fetch compatibility level currently configured for provided subject
+// Returns compatibility level string upon success
+func (c *client) GetCompatibility(subject string) (compatibility Compatibility, err error) {
+	var result compatibilityLevel
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SubjectConfig, nil, url.PathEscape(subject)), &result)
+
+	return result.Compatibility, err
+}
+
+// UpdateCompatibility updates subject's compatibility level
+// Returns new compatibility level string upon success
+func (c *client) UpdateCompatibility(subject string, update Compatibility) (compatibility Compatibility, err error) {
+	result := compatibilityLevel{
+		CompatibilityUpdate: update,
+	}
+	err = c.restService.HandleRequest(internal.NewRequest("PUT", internal.SubjectConfig, &result, url.PathEscape(subject)), &result)
+
+	return result.CompatibilityUpdate, err
 }
 
 // GetDefaultCompatibility fetches the global(default) compatibility level
 // Returns global(default) compatibility level
 func (c *client) GetDefaultCompatibility() (compatibility Compatibility, err error) {
 	var result compatibilityLevel
-	err = c.restService.handleRequest(newRequest("GET", config, nil), &result)
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.Config, nil), &result)
 
 	return result.Compatibility, err
 }
 
-// UpdateDefaultCompatibility updates the global(default) compatibility level level
+// UpdateDefaultCompatibility updates the global(default) compatibility level
 // Returns new string compatibility level
 func (c *client) UpdateDefaultCompatibility(update Compatibility) (compatibility Compatibility, err error) {
 	result := compatibilityLevel{
 		CompatibilityUpdate: update,
 	}
-	err = c.restService.handleRequest(newRequest("PUT", config, &result), &result)
+	err = c.restService.HandleRequest(internal.NewRequest("PUT", internal.Config, &result), &result)
 
 	return result.CompatibilityUpdate, err
+}
+
+// Fetch config currently configured for provided subject
+// Returns config upon success
+func (c *client) GetConfig(subject string, defaultToGlobal bool) (result ServerConfig, err error) {
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SubjectConfigDefault, nil, url.PathEscape(subject), defaultToGlobal), &result)
+
+	return result, err
+}
+
+// UpdateCompatibility updates subject's config
+// Returns new config string upon success
+func (c *client) UpdateConfig(subject string, update ServerConfig) (result ServerConfig, err error) {
+	err = c.restService.HandleRequest(internal.NewRequest("PUT", internal.SubjectConfig, &update, url.PathEscape(subject)), &result)
+
+	return result, err
+}
+
+// GetDefaultCompatibility fetches the global(default) config
+// Returns global(default) config
+func (c *client) GetDefaultConfig() (result ServerConfig, err error) {
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.Config, nil), &result)
+
+	return result, err
+}
+
+// UpdateDefaultCompatibility updates the global(default) config
+// Returns new string config
+func (c *client) UpdateDefaultConfig(update ServerConfig) (result ServerConfig, err error) {
+	err = c.restService.HandleRequest(internal.NewRequest("PUT", internal.Config, &update), &result)
+
+	return result, err
+}
+
+// Close closes the client
+func (c *client) Close() error {
+	return nil
 }
 
 type evictor struct {
