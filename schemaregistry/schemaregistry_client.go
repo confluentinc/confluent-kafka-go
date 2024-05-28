@@ -404,7 +404,7 @@ func NewClient(conf *Config) (Client, error) {
 // Returns a string slice containing all available contexts
 func (c *client) GetAllContexts() ([]string, error) {
 	var result []string
-	err := c.restService.handleRequest(newRequest("GET", subject, nil), &result)
+	err := c.restService.handleRequest(newRequest("GET", context, nil), &result)
 
 	return result, err
 }
