@@ -1,0 +1,21 @@
+{
+    "name": "rule_encrypt",
+    "type": "record",
+    "namespace": "python.test.advanced",
+    "fields": [
+        {
+            "name": "number",
+            "doc": "age",
+            "type": [
+                "long",
+                "null"
+            ]
+        },
+        {
+            "name": "name",
+            "doc": "a name",
+            "type": "string",
+            "confluent:tags": [ "PII" ]
+        }
+    ]
+}
