@@ -50,7 +50,8 @@ func transform(ctx serde.RuleContext, descriptor protoreflect.Descriptor, msg in
 		clone := proto.Clone(m)
 		fields := clone.ProtoReflect().Descriptor().Fields()
 		for i := 0; i < fields.Len(); i++ {
-			err := transformField(ctx, fields, i, desc, msg, clone, fieldTransform)
+			fd := fields.Get(i)
+			err := transformField(ctx, fd, desc, msg, clone, fieldTransform)
 			if err != nil {
 				return nil, err
 			}
@@ -72,9 +73,8 @@ func transform(ctx serde.RuleContext, descriptor protoreflect.Descriptor, msg in
 	return msg, nil
 }
 
-func transformField(ctx serde.RuleContext, fields protoreflect.FieldDescriptors, i int, desc protoreflect.MessageDescriptor,
+func transformField(ctx serde.RuleContext, fd protoreflect.FieldDescriptor, desc protoreflect.MessageDescriptor,
 	msg interface{}, clone proto.Message, fieldTransform serde.FieldTransform) error {
-	fd := fields.Get(i)
 	schemaFd := desc.Fields().ByName(fd.Name())
 	defer ctx.LeaveField()
 	ctx.EnterField(msg, string(fd.FullName()), string(fd.Name()), getType(fd), getInlineTags(schemaFd))
