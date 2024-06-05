@@ -60,10 +60,10 @@ const (
 	SubjectMode            = Mode + "/%s"
 
 	Keks          = "/dek-registry/v1/keks"
-	KekByName     = Keks + "/%s"
+	KekByName     = Keks + "/%s?deleted=%t"
 	Deks          = Keks + "/%s/deks"
-	DeksBySubject = Deks + "/%s"
-	DeksByVersion = DeksBySubject + "/versions/%v"
+	DeksBySubject = Deks + "/%s?deleted=%t"
+	DeksByVersion = DeksBySubject + "/versions/%v?deleted=%t"
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"

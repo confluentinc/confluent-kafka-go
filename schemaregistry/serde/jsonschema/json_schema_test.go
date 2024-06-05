@@ -306,7 +306,7 @@ func TestJSONSchemaSerdeWithCELCondition(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -364,7 +364,7 @@ func TestJSONSchemaSerdeWithCELConditionFail(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -415,7 +415,7 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -480,7 +480,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplex(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     complexSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -543,7 +543,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     complexSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -604,7 +604,7 @@ func TestJSONSchemaSerdeWithCELFieldCondition(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -662,7 +662,7 @@ func TestJSONSchemaSerdeWithCELFieldConditionFail(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -722,7 +722,7 @@ func TestJSONSchemaSerdeEncryption(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -796,7 +796,7 @@ func TestJSONSchemaSerdeEncryptionWithUnion(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchemaWithUnion,
 		SchemaType: "JSON",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -888,7 +888,7 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 				Version: 1,
 			},
 		},
-		Ruleset: &ruleSet,
+		RuleSet: &ruleSet,
 	}
 
 	id, err = client.Register("topic1-value", info, false)
@@ -955,7 +955,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v1"},
 			Sensitive:  nil,
 		},
-		Ruleset: nil,
+		RuleSet: nil,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -979,7 +979,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v2"},
 			Sensitive:  nil,
 		},
-		Ruleset: &schemaregistry.RuleSet{
+		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
 					Name:      "myRule1",
@@ -1033,7 +1033,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v3"},
 			Sensitive:  nil,
 		},
-		Ruleset: &schemaregistry.RuleSet{
+		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
 					Name:      "myRule1",
