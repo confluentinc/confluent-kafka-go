@@ -342,7 +342,7 @@ func TestAvroSerdeWithCELCondition(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -400,7 +400,7 @@ func TestAvroSerdeWithCELConditionFail(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -451,7 +451,7 @@ func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -516,7 +516,7 @@ func TestAvroSerdeWithCELFieldTransformComplex(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     complexSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -579,7 +579,7 @@ func TestAvroSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     complexSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -640,7 +640,7 @@ func TestAvroSerdeWithCELFieldCondition(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -698,7 +698,7 @@ func TestAvroSerdeWithCELFieldConditionFail(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -758,7 +758,7 @@ func TestAvroSerdeEncryption(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -850,7 +850,7 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 				Version: 1,
 			},
 		},
-		Ruleset: &ruleSet,
+		RuleSet: &ruleSet,
 	}
 
 	id, err = client.Register("topic1-value", info, false)
@@ -956,7 +956,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 				Version: 1,
 			},
 		},
-		Ruleset: &ruleSet,
+		RuleSet: &ruleSet,
 	}
 
 	id, err = client.Register("topic1-value", info, false)
@@ -1024,7 +1024,7 @@ func TestAvroSerdeEncryptionWithUnion(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchemaWithUnion,
 		SchemaType: "AVRO",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -1093,7 +1093,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v1"},
 			Sensitive:  nil,
 		},
-		Ruleset: nil,
+		RuleSet: nil,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -1119,7 +1119,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v2"},
 			Sensitive:  nil,
 		},
-		Ruleset: &schemaregistry.RuleSet{
+		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
 					Name:      "myRule1",
@@ -1175,7 +1175,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v3"},
 			Sensitive:  nil,
 		},
-		Ruleset: &schemaregistry.RuleSet{
+		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
 					Name:      "myRule1",

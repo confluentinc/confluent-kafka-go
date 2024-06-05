@@ -187,7 +187,7 @@ type SchemaInfo struct {
 	SchemaType string      `json:"schemaType,omitempty"`
 	References []Reference `json:"references,omitempty"`
 	Metadata   *Metadata   `json:"metadata,omitempty"`
-	Ruleset    *RuleSet    `json:"ruleset,omitempty"`
+	RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -197,13 +197,13 @@ func (sd *SchemaInfo) MarshalJSON() ([]byte, error) {
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
 		Metadata   *Metadata   `json:"metadata,omitempty"`
-		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
+		RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 	}{
 		sd.Schema,
 		sd.SchemaType,
 		sd.References,
 		sd.Metadata,
-		sd.Ruleset,
+		sd.RuleSet,
 	})
 }
 
@@ -215,7 +215,7 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
 		Metadata   *Metadata   `json:"metadata,omitempty"`
-		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
+		RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 	}
 
 	err = json.Unmarshal(b, &tmp)
@@ -224,7 +224,7 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 	sd.SchemaType = tmp.SchemaType
 	sd.References = tmp.References
 	sd.Metadata = tmp.Metadata
-	sd.Ruleset = tmp.Ruleset
+	sd.RuleSet = tmp.RuleSet
 
 	return err
 }
@@ -244,7 +244,7 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
 		Metadata   *Metadata   `json:"metadata,omitempty"`
-		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
+		RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 		ID         int         `json:"id,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
@@ -253,7 +253,7 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		sd.SchemaType,
 		sd.References,
 		sd.Metadata,
-		sd.Ruleset,
+		sd.RuleSet,
 		sd.ID,
 		sd.Subject,
 		sd.Version,
@@ -268,7 +268,7 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 		SchemaType string      `json:"schemaType,omitempty"`
 		References []Reference `json:"references,omitempty"`
 		Metadata   *Metadata   `json:"metadata,omitempty"`
-		Ruleset    *RuleSet    `json:"ruleset,omitempty"`
+		RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 		ID         int         `json:"id,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
@@ -280,7 +280,7 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 	sd.SchemaType = tmp.SchemaType
 	sd.References = tmp.References
 	sd.Metadata = tmp.Metadata
-	sd.Ruleset = tmp.Ruleset
+	sd.RuleSet = tmp.RuleSet
 	sd.ID = tmp.ID
 	sd.Subject = tmp.Subject
 	sd.Version = tmp.Version

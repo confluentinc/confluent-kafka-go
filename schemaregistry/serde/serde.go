@@ -497,7 +497,7 @@ func (s *Serde) GetMigrations(subject string, topic string, sourceInfo *schemare
 			previous = version
 			continue
 		}
-		if version.Ruleset != nil && version.Ruleset.HasRules(migrationMode) {
+		if version.RuleSet != nil && version.RuleSet.HasRules(migrationMode) {
 			var m Migration
 			if migrationMode == schemaregistry.Upgrade {
 				m = Migration{
@@ -573,17 +573,17 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 	var rules []schemaregistry.Rule
 	switch ruleMode {
 	case schemaregistry.Upgrade:
-		if target.Ruleset != nil {
-			rules = target.Ruleset.MigrationRules
+		if target.RuleSet != nil {
+			rules = target.RuleSet.MigrationRules
 		}
 	case schemaregistry.Downgrade:
-		if source.Ruleset != nil {
+		if source.RuleSet != nil {
 			// Execute downgrade rules in reverse order for symmetry
-			rules = reverseRules(source.Ruleset.MigrationRules)
+			rules = reverseRules(source.RuleSet.MigrationRules)
 		}
 	default:
-		if target.Ruleset != nil {
-			rules = target.Ruleset.DomainRules
+		if target.RuleSet != nil {
+			rules = target.RuleSet.DomainRules
 			if ruleMode == schemaregistry.Read {
 				// Execute read rules in reverse order for symmetry
 				rules = reverseRules(rules)

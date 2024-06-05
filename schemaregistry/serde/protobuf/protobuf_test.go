@@ -305,7 +305,7 @@ func TestProtobufSerdeWithCELCondition(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     authorSchema,
 		SchemaType: "PROTOBUF",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -365,7 +365,7 @@ func TestProtobufSerdeWithCELConditionFail(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     authorSchema,
 		SchemaType: "PROTOBUF",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -416,7 +416,7 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     authorSchema,
 		SchemaType: "PROTOBUF",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -483,7 +483,7 @@ func TestProtobufSerdeWithCELFieldCondition(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     authorSchema,
 		SchemaType: "PROTOBUF",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -543,7 +543,7 @@ func TestProtobufSerdeWithCELFieldConditionFail(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     authorSchema,
 		SchemaType: "PROTOBUF",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -603,7 +603,7 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	info := schemaregistry.SchemaInfo{
 		Schema:     authorSchema,
 		SchemaType: "PROTOBUF",
-		Ruleset:    &ruleSet,
+		RuleSet:    &ruleSet,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -666,7 +666,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v1"},
 			Sensitive:  nil,
 		},
-		Ruleset: nil,
+		RuleSet: nil,
 	}
 
 	id, err := client.Register("topic1-value", info, false)
@@ -690,7 +690,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v2"},
 			Sensitive:  nil,
 		},
-		Ruleset: &schemaregistry.RuleSet{
+		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
 					Name:      "myRule1",
@@ -744,7 +744,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 			Properties: map[string]string{"application.version": "v3"},
 			Sensitive:  nil,
 		},
-		Ruleset: &schemaregistry.RuleSet{
+		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
 					Name:      "myRule1",
