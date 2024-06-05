@@ -51,7 +51,7 @@ func main() {
 	url := os.Args[2]
 	topic := os.Args[3]
 	kmsType := os.Args[4]
-	kmsKeyId := os.Args[5]
+	kmsKeyID := os.Args[5]
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
 
@@ -95,7 +95,7 @@ func main() {
 					Params: map[string]string{
 						"encrypt.kek.name":   "kek1",
 						"encrypt.kms.type":   kmsType,
-						"encrypt.kms.key.id": kmsKeyId,
+						"encrypt.kms.key.id": kmsKeyID,
 					},
 					OnFailure: "ERROR,NONE",
 				},

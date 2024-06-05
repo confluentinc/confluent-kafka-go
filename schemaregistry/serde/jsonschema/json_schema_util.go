@@ -78,8 +78,13 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 	switch typ {
 	case serde.TypeRecord:
 		val := deref(msg)
+		fieldByNames := fieldByNames(val)
 		for propName, propSchema := range schema.Properties {
-			err := transformField(ctx, path, propName, val, propSchema, fieldTransform)
+			structField, ok := fieldByNames[propName]
+			if !ok {
+				return nil, fmt.Errorf("json: missing field %s", propName)
+			}
+			err := transformField(ctx, path, propName, structField, val, propSchema, fieldTransform)
 			if err != nil {
 				return nil, err
 			}
@@ -104,16 +109,26 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 	}
 }
 
-func transformField(ctx serde.RuleContext, path string, propName string, val *reflect.Value,
+func fieldByNames(value *reflect.Value) map[string]*reflect.Value {
+	fieldByNames := make(map[string]*reflect.Value, value.NumField())
+	for i := 0; i < value.NumField(); i++ {
+		field := value.Field(i)
+		structField := value.Type().Field(i)
+		fieldName := structField.Name
+		if tag, ok := structField.Tag.Lookup("json"); ok {
+			fieldName = tag
+		}
+		fieldByNames[fieldName] = &field
+	}
+	return fieldByNames
+}
+
+func transformField(ctx serde.RuleContext, path string, propName string, structField *reflect.Value, val *reflect.Value,
 	propSchema *jsonschema2.Schema, fieldTransform serde.FieldTransform) error {
 	fullName := path + "." + propName
 	defer ctx.LeaveField()
 	ctx.EnterField(val.Interface(), fullName, propName, getType(propSchema), getInlineTags(propSchema))
-	field, err := getField(val, propName)
-	if err != nil {
-		return err
-	}
-	newVal, err := transform(ctx, propSchema, fullName, field, fieldTransform)
+	newVal, err := transform(ctx, propSchema, fullName, structField, fieldTransform)
 	if err != nil {
 		return err
 	}
@@ -125,7 +140,7 @@ func transformField(ctx serde.RuleContext, path string, propName string, val *re
 			}
 		}
 	} else {
-		err = setField(field, newVal)
+		err = setField(structField, newVal)
 		if err != nil {
 			return err
 		}
