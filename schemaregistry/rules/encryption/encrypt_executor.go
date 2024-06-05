@@ -255,14 +255,19 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateKek(ctx serde.RuleContext)
 			return nil, fmt.Errorf("no kek found for %s during consume", f.KekName)
 		}
 		if kmsType == nil || len(*kmsType) == 0 {
-			return nil, fmt.Errorf("no kms type found for %s during consume", f.KekName)
+			return nil, fmt.Errorf("no kms type found for %s during produce", f.KekName)
 		}
 		if kmsKeyID == nil || len(*kmsKeyID) == 0 {
-			return nil, fmt.Errorf("no kms type found for %s during consume", f.KekName)
+			return nil, fmt.Errorf("no kms key id found for %s during produce", f.KekName)
 		}
 		kek, err = f.storeKekToRegistry(kekID, *kmsType, *kmsKeyID, false)
 		if err != nil {
-			return nil, err
+			var restErr *internal.RestError
+			if errors.As(err, &restErr) {
+				if !strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
+					return nil, err
+				}
+			}
 		}
 		if kek == nil {
 			// Handle conflicts (409)
@@ -366,7 +371,12 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 		// encryptedDek may be passed as null if kek is shared
 		dek, err = f.storeDekToRegistry(newDekID, encryptedDek)
 		if err != nil {
-			return nil, err
+			var restErr *internal.RestError
+			if errors.As(err, &restErr) {
+				if !strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
+					return nil, err
+				}
+			}
 		}
 		if dek == nil {
 			// Handle conflicts (409)

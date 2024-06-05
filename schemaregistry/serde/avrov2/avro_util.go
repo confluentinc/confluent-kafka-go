@@ -76,9 +76,14 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		return msg, nil
 	case *avro.RecordSchema:
 		val := deref(msg)
+		fieldByNames := fieldByNames(val)
 		recordSchema := schema.(*avro.RecordSchema)
-		for _, f := range recordSchema.Fields() {
-			err := transformField(ctx, resolver, recordSchema, f, val, fieldTransform)
+		for _, avroField := range recordSchema.Fields() {
+			structField, ok := fieldByNames[avroField.Name()]
+			if !ok {
+				return nil, fmt.Errorf("avro: missing field %s", avroField.Name())
+			}
+			err := transformField(ctx, resolver, recordSchema, avroField, structField, val, fieldTransform)
 			if err != nil {
 				return nil, err
 			}
@@ -101,16 +106,26 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 	}
 }
 
-func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSchema *avro.RecordSchema, f *avro.Field,
-	val *reflect.Value, fieldTransform serde.FieldTransform) error {
-	fullName := recordSchema.FullName() + "." + f.Name()
-	defer ctx.LeaveField()
-	ctx.EnterField(val.Interface(), fullName, f.Name(), getType(f.Type()), getInlineTags(f))
-	field, err := getField(val, f.Name())
-	if err != nil {
-		return err
+func fieldByNames(value *reflect.Value) map[string]*reflect.Value {
+	fieldByNames := make(map[string]*reflect.Value, value.NumField())
+	for i := 0; i < value.NumField(); i++ {
+		field := value.Field(i)
+		structField := value.Type().Field(i)
+		fieldName := structField.Name
+		if tag, ok := structField.Tag.Lookup("avro"); ok {
+			fieldName = tag
+		}
+		fieldByNames[fieldName] = &field
 	}
-	newVal, err := transform(ctx, resolver, f.Type(), field, fieldTransform)
+	return fieldByNames
+}
+
+func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSchema *avro.RecordSchema, avroField *avro.Field,
+	structField *reflect.Value, val *reflect.Value, fieldTransform serde.FieldTransform) error {
+	fullName := recordSchema.FullName() + "." + avroField.Name()
+	defer ctx.LeaveField()
+	ctx.EnterField(val.Interface(), fullName, avroField.Name(), getType(avroField.Type()), getInlineTags(avroField))
+	newVal, err := transform(ctx, resolver, avroField.Type(), structField, fieldTransform)
 	if err != nil {
 		return err
 	}
@@ -122,7 +137,7 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 			}
 		}
 	} else {
-		err = setField(field, newVal)
+		err = setField(structField, newVal)
 		if err != nil {
 			return err
 		}

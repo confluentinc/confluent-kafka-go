@@ -685,5 +685,5 @@ func schemasEqual(info1 SchemaInfo, info2 SchemaInfo) bool {
 		info1.SchemaType == info2.SchemaType &&
 		reflect.DeepEqual(refs1, refs2) &&
 		reflect.DeepEqual(info1.Metadata, info2.Metadata) &&
-		reflect.DeepEqual(info1.Ruleset, info2.Ruleset)
+		reflect.DeepEqual(info1.RuleSet, info2.RuleSet)
 }
