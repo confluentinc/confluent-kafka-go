@@ -124,6 +124,18 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+
+	// serialize second object
+	obj = test.Author{
+		Name:  "Kierkegaard",
+		Id:    123,
+		Works: []string{"Fear And Trembling"},
+	}
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	newobj, err = deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
 func TestProtobufSerdeWithSecondMessage(t *testing.T) {

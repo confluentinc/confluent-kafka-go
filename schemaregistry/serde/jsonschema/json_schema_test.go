@@ -200,6 +200,19 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	var newobj JSONDemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+
+	// serialize second object
+	obj = JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "bye"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
 func TestJSONSchemaSerdeWithNested(t *testing.T) {

@@ -577,7 +577,7 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 	if !ok {
 		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
 		if err == nil {
-			c.infoToSchemaCache.Put(cacheKey, metadata.ID)
+			c.infoToSchemaCache.Put(cacheKey, &metadata)
 		} else {
 			metadata.ID = -1
 		}
