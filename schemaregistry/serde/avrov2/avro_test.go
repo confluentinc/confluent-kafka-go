@@ -204,6 +204,19 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 
 	msg, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	// serialize second object
+	obj = DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "bye"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	msg, err = deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 func TestAvroSerdeWithNested(t *testing.T) {

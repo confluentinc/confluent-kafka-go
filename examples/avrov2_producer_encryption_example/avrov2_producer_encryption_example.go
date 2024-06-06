@@ -146,6 +146,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	value = User{
+		Name:           "Second user",
+		FavoriteNumber: 42,
+		FavoriteColor:  "blue",
+	}
+	payload, err = ser.Serialize(topic, &value)
+	if err != nil {
+		fmt.Printf("Failed to serialize payload: %s\n", err)
+		os.Exit(1)
+	}
+
+	err = p.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          payload,
+		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+	}, deliveryChan)
+	if err != nil {
+		fmt.Printf("Produce failed: %v\n", err)
+		os.Exit(1)
+	}
+
 	e := <-deliveryChan
 	m := e.(*kafka.Message)
 
