@@ -6,6 +6,7 @@ option go_package="../test";
 message Author {
   string name = 1;
   int32 id = 2;
+  bytes picture = 3;
   repeated string works = 4;
 }
 

@@ -18,8 +18,12 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"io"
+	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -27,16 +31,27 @@ import (
 	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
 )
 
+const (
+	defaultBaseURL = "mem://input/"
+)
+
 // Serializer represents a JSON Schema serializer
 type Serializer struct {
 	serde.BaseSerializer
-	validate bool
+	*Serde
 }
 
 // Deserializer represents a JSON Schema deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
-	validate bool
+	*Serde
+}
+
+// Serde represents a JSON Schema serde
+type Serde struct {
+	validate              bool
+	schemaToTypeCache     cache.Cache
+	schemaToTypeCacheLock sync.RWMutex
 }
 
 var _ serde.Serializer = new(Serializer)
@@ -44,12 +59,27 @@ var _ serde.Deserializer = new(Deserializer)
 
 // NewSerializer creates a JSON serializer for generic objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
-	s := &Serializer{
-		validate: conf.EnableValidation,
+	schemaToTypeCache, err := cache.NewLRUCache(1000)
+	sr := &Serde{
+		validate:          conf.EnableValidation,
+		schemaToTypeCache: schemaToTypeCache,
 	}
-	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	s := &Serializer{
+		Serde: sr,
+	}
+	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
 	if err != nil {
 		return nil, err
+	}
+	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
+		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
+	}
+	s.FieldTransformer = fieldTransformer
+	for _, rule := range serde.GetRuleExecutors() {
+		err = rule.Configure(client.Config(), conf.RuleConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -72,6 +102,14 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	if err != nil {
+		return nil, err
+	}
+	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, msg)
+	if err != nil {
+		return nil, err
+	}
 	raw, err = json.Marshal(msg)
 	if err != nil {
 		return nil, err
@@ -83,7 +121,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		jschema, err := toJSONSchema(s.Client, info)
+		jschema, err := s.toJSONSchema(s.Client, info)
 		if err != nil {
 			return nil, err
 		}
@@ -101,19 +139,44 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 
 // NewDeserializer creates a JSON deserializer for generic objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
-	s := &Deserializer{
-		validate: conf.EnableValidation,
+	schemaToTypeCache, err := cache.NewLRUCache(1000)
+	sr := &Serde{
+		validate:          conf.EnableValidation,
+		schemaToTypeCache: schemaToTypeCache,
 	}
-	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	s := &Deserializer{
+		Serde: sr,
+	}
+	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
+	}
+	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
+		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
+	}
+	s.FieldTransformer = fieldTransformer
+	for _, rule := range serde.GetRuleExecutors() {
+		err = rule.Configure(client.Config(), conf.RuleConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
 
 // Deserialize implements deserialization of generic data from JSON
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	if payload == nil {
+	return s.deserialize(topic, payload, nil)
+}
+
+// DeserializeInto implements deserialization of generic data from JSON to the given object
+func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+	_, err := s.deserialize(topic, payload, msg)
+	return err
+}
+
+func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
+	if len(payload) == 0 {
 		return nil, nil
 	}
 	info, err := s.GetSchema(topic, payload)
@@ -127,7 +190,7 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 		if err != nil {
 			return nil, err
 		}
-		jschema, err := toJSONSchema(s.Client, info)
+		jschema, err := s.toJSONSchema(s.Client, info)
 		if err != nil {
 			return nil, err
 		}
@@ -140,62 +203,131 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 	if err != nil {
 		return nil, err
 	}
-	msg, err := s.MessageFactory(subject, "")
+	readerMeta, err := s.GetReaderSchema(subject)
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(payload[5:], msg)
+	var migrations []serde.Migration
+	if readerMeta != nil {
+		migrations, err = s.GetMigrations(subject, topic, &info, readerMeta, payload)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var msg interface{}
+	bytes := payload[5:]
+	if len(migrations) > 0 {
+		err = json.Unmarshal(bytes, &msg)
+		if err != nil {
+			return nil, err
+		}
+		msg, err = s.ExecuteMigrations(migrations, subject, topic, msg)
+		if err != nil {
+			return nil, err
+		}
+		bytes, err = json.Marshal(msg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if result == nil {
+		msg, err = s.MessageFactory(subject, "")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		msg = result
+	}
+	err = json.Unmarshal(bytes, msg)
+	if err != nil {
+		return nil, err
+	}
+	var target *schemaregistry.SchemaInfo
+	if readerMeta != nil {
+		target = &readerMeta.SchemaInfo
+	} else {
+		target = &info
+	}
+	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Read, nil, target, msg)
 	if err != nil {
 		return nil, err
 	}
 	return msg, nil
 }
 
-// DeserializeInto implements deserialization of generic data from JSON to the given object
-func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	if payload == nil {
-		return nil
-	}
-	info, err := s.GetSchema(topic, payload)
+// FieldTransform transforms the field value using the rule
+func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
+	schema, err := s.toJSONSchema(client, *ctx.Target)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if s.validate {
-		// Need to unmarshal to pure interface
-		var obj interface{}
-		err = json.Unmarshal(payload[5:], &obj)
-		if err != nil {
-			return err
-		}
-		jschema, err := toJSONSchema(s.Client, info)
-		if err != nil {
-			return err
-		}
-		err = jschema.Validate(obj)
-		if err != nil {
-			return err
-		}
-	}
-	err = json.Unmarshal(payload[5:], msg)
+	val := reflect.ValueOf(msg)
+	newVal, err := transform(ctx, schema, "$", &val, fieldTransform)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return newVal.Interface(), nil
 }
 
-func toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*jsonschema2.Schema, error) {
+func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*jsonschema2.Schema, error) {
+	s.schemaToTypeCacheLock.RLock()
+	value, ok := s.schemaToTypeCache.Get(schema.Schema)
+	s.schemaToTypeCacheLock.RUnlock()
+	if ok {
+		jsonType := value.(*jsonschema2.Schema)
+		return jsonType, nil
+	}
 	deps := make(map[string]string)
 	err := serde.ResolveReferences(c, schema, deps)
 	if err != nil {
 		return nil, err
 	}
 	compiler := jsonschema2.NewCompiler()
+	compiler.RegisterExtension("confluent:tags", tagsMeta, tagsCompiler{})
 	compiler.LoadURL = func(url string) (io.ReadCloser, error) {
+		url = strings.TrimPrefix(url, defaultBaseURL)
 		return io.NopCloser(strings.NewReader(deps[url])), nil
 	}
-	url := "schema.json"
-	if err := compiler.AddResource(url, strings.NewReader(schema.Schema)); err != nil {
+	if err := compiler.AddResource(defaultBaseURL, strings.NewReader(schema.Schema)); err != nil {
 		return nil, err
 	}
-	return compiler.Compile(url)
+	jsonType, err := compiler.Compile(defaultBaseURL)
+	if err != nil {
+		return nil, err
+	}
+	s.schemaToTypeCacheLock.Lock()
+	s.schemaToTypeCache.Put(schema.Schema, jsonType)
+	s.schemaToTypeCacheLock.Unlock()
+	return jsonType, nil
+}
+
+var tagsMeta = jsonschema2.MustCompileString("tags.json", `{
+	"properties" : {
+		"confluent:tags": {
+			"type": "array",
+            "items": { "type": "string" }
+		}
+	}
+}`)
+
+type tagsCompiler struct{}
+
+func (tagsCompiler) Compile(ctx jsonschema2.CompilerContext, m map[string]interface{}) (jsonschema2.ExtSchema, error) {
+	if prop, ok := m["confluent:tags"]; ok {
+		val, ok2 := prop.([]interface{})
+		if ok2 {
+			tags := make([]string, len(val))
+			for i, v := range val {
+				tags[i] = fmt.Sprint(v)
+			}
+			return tagsSchema(tags), nil
+		}
+	}
+	return nil, nil
+}
+
+type tagsSchema []string
+
+func (s tagsSchema) Validate(ctx jsonschema2.ValidationContext, v interface{}) error {
+	return nil
 }
