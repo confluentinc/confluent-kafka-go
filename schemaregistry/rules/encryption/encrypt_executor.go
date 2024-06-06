@@ -284,7 +284,7 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateKek(ctx serde.RuleContext)
 		return nil, fmt.Errorf("found %s with kms type %s which differs from rule kms type %s", f.KekName, kek.KmsType, *kmsType)
 	}
 	if kmsKeyID != nil && len(*kmsKeyID) != 0 && *kmsKeyID != kek.KmsKeyID {
-		return nil, fmt.Errorf("found %s with kms type %s which differs from rule kms type %s", f.KekName, kek.KmsKeyID, *kmsKeyID)
+		return nil, fmt.Errorf("found %s with kms key id %s which differs from rule kms key id %s", f.KekName, kek.KmsKeyID, *kmsKeyID)
 	}
 	return kek, nil
 }
@@ -442,9 +442,9 @@ func (f *FieldEncryptionExecutorTransform) storeDekToRegistry(key deks.DekID, en
 	var dek deks.Dek
 	var err error
 	if key.Version != 0 {
-		dek, err = f.Executor.Client.RegisterDek(key.KekName, key.Subject, key.Algorithm, encryptedDekStr)
-	} else {
 		dek, err = f.Executor.Client.RegisterDekVersion(key.KekName, key.Subject, key.Version, key.Algorithm, encryptedDekStr)
+	} else {
+		dek, err = f.Executor.Client.RegisterDek(key.KekName, key.Subject, key.Algorithm, encryptedDekStr)
 	}
 	if err != nil {
 		var restErr *internal.RestError
