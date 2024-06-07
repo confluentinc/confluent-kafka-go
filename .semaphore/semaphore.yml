@@ -1,18 +1,48 @@
+# This file is managed by ServiceBot plugin - Semaphore. The content in this file is created using a common
+# template and configurations in service.yml.
+# Any modifications made to version, name, agent, and global_job_config will be overwritten by the generated
+# content in nightly runs. Code changes made to the remaining sections will not be affected.
+# For more information, please refer to the page:
+# https://confluentinc.atlassian.net/wiki/spaces/Foundations/pages/2871296194/Add+SemaphoreCI
 version: v1.0
-name: 'confluent-kafka-go build pipeline'
+name: build-test-release
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
+
+auto_cancel:
+  running:
+    when: "branch != 'master'"
+
+execution_time_limit:
+  hours: 1
+
+queue:
+  - when: "branch != 'master'"
+    processing: parallel
+
 global_job_config:
-  env_vars:
-    - name: LIBRDKAFKA_VERSION
-      value: v2.4.0
   prologue:
     commands:
+      - sem-version go 1.18
+      - export "GOPATH=$(go env GOPATH)"
+      - export "SEMAPHORE_GIT_DIR=${GOPATH}/src/github.com/confluentinc/${SEMAPHORE_PROJECT_NAME}"
+      - export "PATH=${GOPATH}/bin:${PATH}"
+      - mkdir -vp "${SEMAPHORE_GIT_DIR}" "${GOPATH}/bin"
       - checkout
+      - make show-args
+      - . vault-setup
+      - . vault-sem-get-secret ci-reporting
+      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
+      - make init-ci
+  epilogue:
+    always:
+      commands:
+        - make epilogue-ci
+
 blocks:
   - name: "go 1.21 OSX bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -39,7 +69,7 @@ blocks:
               value: dynamic
           commands_file: semaphore_commands.sh
   - name: "go 1.21 linux bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -84,7 +114,7 @@ blocks:
               value: consumer
           commands_file: semaphore_integration_commands.sh
   - name: "go 1.21 linux arm64 bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
@@ -115,7 +145,7 @@ blocks:
               value: dynamic
           commands_file: semaphore_commands.sh
   - name: "go 1.21 Windows bundled librdkafka"
-    dependencies: [ ]
+    dependencies: []
     task:
       agent:
         machine:
