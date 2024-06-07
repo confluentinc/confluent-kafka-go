@@ -1,6 +1,3 @@
-// Example function-based Apache Kafka producer
-package main
-
 /**
  * Copyright 2024 Confluent Inc.
  *
@@ -17,6 +14,9 @@ package main
  * limitations under the License.
  */
 
+// Example function-based Apache Kafka producer
+package main
+
 import (
 	"fmt"
 	"os"
@@ -29,7 +29,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/gcpkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/jsonschema"
 )
 
 func main() {
@@ -71,20 +71,22 @@ func main() {
 	}
 
 	schemaStr := `
-    {
-		"namespace": "confluent.io.examples.serialization.avro",
-		"name": "User",
-		"type": "record",
-		"fields": [
-            {"name": "name", "type": "string", "confluent:tags": [ "PII" ]},
-	        {"name": "favorite_number", "type": "long"},
-	        {"name": "favorite_color", "type": "string"}
-	    ]
-	}`
+{
+  "type": "object",
+  "properties": {
+    "name": { 
+       "type": "string",
+       "confluent:tags": [ "PII" ]
+    },
+    "favorite_number": { "type": "number" },
+    "favorite_color": { "type": "string" }
+  }
+}
+`
 
 	schema := schemaregistry.SchemaInfo{
 		Schema:     schemaStr,
-		SchemaType: "AVRO",
+		SchemaType: "JSON",
 		RuleSet: &schemaregistry.RuleSet{
 			DomainRules: []schemaregistry.Rule{
 				schemaregistry.Rule{
@@ -110,11 +112,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	serConfig := avrov2.NewSerializerConfig()
+	serConfig := jsonschema.NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 
-	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, serConfig)
+	ser, err := jsonschema.NewSerializer(client, serde.ValueSerde, serConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
@@ -146,27 +148,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	value = User{
-		Name:           "Second user",
-		FavoriteNumber: 42,
-		FavoriteColor:  "blue",
-	}
-	payload, err = ser.Serialize(topic, &value)
-	if err != nil {
-		fmt.Printf("Failed to serialize payload: %s\n", err)
-		os.Exit(1)
-	}
-
-	err = p.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          payload,
-		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
-	}, deliveryChan)
-	if err != nil {
-		fmt.Printf("Produce failed: %v\n", err)
-		os.Exit(1)
-	}
-
 	e := <-deliveryChan
 	m := e.(*kafka.Message)
 
@@ -178,4 +159,11 @@ func main() {
 	}
 
 	close(deliveryChan)
+}
+
+// User is a simple record example
+type User struct {
+	Name           string `json:"name"`
+	FavoriteNumber int64  `json:"favorite_number"`
+	FavoriteColor  string `json:"favorite_color"`
 }
