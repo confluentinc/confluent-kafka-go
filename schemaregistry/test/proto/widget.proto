@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+message Widget {
+    string name = 1;
+    int32 size = 2;
+    int32 version = 3;
+}

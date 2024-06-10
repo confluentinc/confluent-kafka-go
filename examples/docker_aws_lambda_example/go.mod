@@ -5,4 +5,6 @@ require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.4.0
 )
 
-go 1.14
+go 1.21
+
+toolchain go1.21.0

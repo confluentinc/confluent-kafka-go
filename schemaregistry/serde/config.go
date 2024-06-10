@@ -24,8 +24,12 @@ type SerializerConfig struct {
 	UseSchemaID int
 	// UseLatestVersion specifies whether to use the latest schema version during serialization
 	UseLatestVersion bool
+	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during serialization
+	UseLatestWithMetadata map[string]string
 	// NormalizeSchemas determines whether to normalize schemas during serialization
 	NormalizeSchemas bool
+	// RuleConfig specifies configuration options to the rules
+	RuleConfig map[string]string
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
@@ -42,6 +46,12 @@ func NewSerializerConfig() *SerializerConfig {
 
 // DeserializerConfig is used to pass multiple configuration options to the deserializers.
 type DeserializerConfig struct {
+	// UseLatestVersion specifies whether to use the latest schema version during deserialization
+	UseLatestVersion bool
+	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during serialization
+	UseLatestWithMetadata map[string]string
+	// RuleConfig specifies configuration options to the rules
+	RuleConfig map[string]string
 }
 
 // NewDeserializerConfig returns a new configuration instance with sane defaults.
