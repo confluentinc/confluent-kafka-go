@@ -19,6 +19,7 @@ package avrov2
 import (
 	"errors"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/gcpkms"
@@ -27,6 +28,7 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -71,6 +73,35 @@ const (
       "name": "BytesField",
       "type": "bytes",
       "confluent:tags": [ "PII" ]
+    }
+  ]
+} 
+`
+	demoSchemaSingleTag = `
+{
+  "name": "DemoSchemaSingleTag",
+  "type": "record",
+  "fields": [
+    {
+      "name": "IntField",
+      "type": "int"
+    },
+    {
+      "name": "DoubleField",
+      "type": "double"
+    },
+    {
+      "name": "StringField",
+      "type": "string",
+      "confluent:tags": [ "PII" ]
+    },
+    {
+      "name": "BoolField",
+      "type": "boolean"
+    },
+    {
+      "name": "BytesField",
+      "type": "bytes"
     }
   ]
 } 
@@ -154,6 +185,8 @@ func testMessageFactory(subject string, name string) (interface{}, error) {
 	switch name {
 	case "DemoSchema":
 		return &DemoSchema{}, nil
+	case "DemoSchemaSingleTag":
+		return &DemoSchemaSingleTag{}, nil
 	case "DemoSchemaWithUnion":
 		return &DemoSchemaWithUnion{}, nil
 	case "ComplexSchema":
@@ -733,6 +766,14 @@ func TestAvroSerdeWithCELFieldConditionFail(t *testing.T) {
 	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
 }
 
+type fakeClock struct {
+	now int64
+}
+
+func (c *fakeClock) NowUnixMilli() int64 {
+	return c.now
+}
+
 func TestAvroSerdeEncryption(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -805,6 +846,133 @@ func TestAvroSerdeEncryption(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+}
+
+func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
+	f := fakeClock{now: time.Now().UnixMilli()}
+	executor := encryption.RegisterWithClock(&f)
+
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.RuleConfig = map[string]string{
+		"secret": "foo",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT",
+		Tags: []string{"PII"},
+		Params: map[string]string{
+			"encrypt.kek.name":        "kek1",
+			"encrypt.kms.type":        "local-kms",
+			"encrypt.kms.key.id":      "mykey",
+			"encrypt.dek.expiry.days": "1",
+		},
+		OnFailure: "ERROR,NONE",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchemaSingleTag,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchemaSingleTag{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// Reset encrypted field
+	obj.StringField = "hi"
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "foo",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+
+	dek, err := executor.Client.GetDekVersion(
+		"kek1", "topic1-value", -1, "AES256_GCM", false)
+	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 1))
+
+	// Advance 2 days
+	f.now = time.Now().AddDate(0, 0, 2).UnixMilli()
+
+	obj = DemoSchemaSingleTag{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// Reset encrypted field
+	obj.StringField = "hi"
+
+	newobj, err = deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+
+	dek, err = executor.Client.GetDekVersion(
+		"kek1", "topic1-value", -1, "AES256_GCM", false)
+	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 2))
+
+	// Advance 2 days
+	f.now = time.Now().AddDate(0, 0, 2).UnixMilli()
+
+	obj = DemoSchemaSingleTag{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// Reset encrypted field
+	obj.StringField = "hi"
+
+	newobj, err = deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+
+	dek, err = executor.Client.GetDekVersion(
+		"kek1", "topic1-value", -1, "AES256_GCM", false)
+	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 3))
 }
 
 func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
@@ -1316,6 +1484,18 @@ func deserializeWithAllVersions(err error, client schemaregistry.Client, ser *Se
 }
 
 type DemoSchema struct {
+	IntField int32 `json:"IntField"`
+
+	DoubleField float64 `json:"DoubleField"`
+
+	StringField string `json:"StringField"`
+
+	BoolField bool `json:"BoolField"`
+
+	BytesField []byte `json:"BytesField"`
+}
+
+type DemoSchemaSingleTag struct {
 	IntField int32 `json:"IntField"`
 
 	DoubleField float64 `json:"DoubleField"`

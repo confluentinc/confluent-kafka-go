@@ -42,10 +42,17 @@ func init() {
 
 // Register registers the encryption rule executor
 func Register() {
+	c := clock{}
+	RegisterWithClock(&c)
+}
+
+// Register registers the encryption rule executor with a given clock
+func RegisterWithClock(c Clock) *FieldEncryptionExecutor {
 	a := &serde.AbstractFieldRuleExecutor{}
-	f := &FieldEncryptionExecutor{*a, nil, nil}
+	f := &FieldEncryptionExecutor{*a, nil, nil, c}
 	f.FieldRuleExecutor = f
 	serde.RegisterRuleExecutor(f)
+	return f
 }
 
 const (
@@ -71,11 +78,22 @@ const (
 	MillisInDay = 24 * 60 * 60 * 1000
 )
 
+type Clock interface {
+	NowUnixMilli() int64
+}
+
+type clock struct{}
+
+func (*clock) NowUnixMilli() int64 {
+	return time.Now().UnixMilli()
+}
+
 // FieldEncryptionExecutor is a field encryption executor
 type FieldEncryptionExecutor struct {
 	serde.AbstractFieldRuleExecutor
 	Config map[string]string
 	Client deks.Client
+	Clock  Clock
 }
 
 // Configure configures the executor
@@ -459,10 +477,11 @@ func (f *FieldEncryptionExecutorTransform) storeDekToRegistry(key deks.DekID, en
 }
 
 func (f *FieldEncryptionExecutorTransform) isExpired(ctx serde.RuleContext, dek *deks.Dek) bool {
+	now := f.Executor.Clock.NowUnixMilli()
 	return ctx.RuleMode != schemaregistry.Read &&
 		f.DekExpiryDays > 0 &&
 		dek != nil &&
-		(time.Now().UnixNano()/1000000-dek.Ts)/MillisInDay >= int64(f.DekExpiryDays)
+		(now-dek.Ts)/MillisInDay >= int64(f.DekExpiryDays)
 }
 
 // Transform transforms the field value using the rule
@@ -494,7 +513,7 @@ func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fiel
 			return nil, err
 		}
 		if f.isDekRotated() {
-			ciphertext, err = prefixVersion(*version, ciphertext)
+			ciphertext, err = prefixVersion(dek.Version, ciphertext)
 			if err != nil {
 				return nil, err
 			}
