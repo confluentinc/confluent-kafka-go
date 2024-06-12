@@ -18,7 +18,9 @@ package protobuf
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"io"
 	"log"
 	"strings"
@@ -51,6 +53,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/apipb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -66,6 +69,7 @@ import (
 // Serializer represents a Protobuf serializer
 type Serializer struct {
 	serde.BaseSerializer
+	*Serde
 	Conf                  *SerializerConfig
 	descToSchemaCache     cache.Cache
 	descToSchemaCacheLock sync.RWMutex
@@ -74,7 +78,12 @@ type Serializer struct {
 // Deserializer represents a Protobuf deserializer
 type Deserializer struct {
 	serde.BaseDeserializer
-	ProtoRegistry         *protoregistry.Types
+	*Serde
+	ProtoRegistry *protoregistry.Types
+}
+
+// Serde represents a Protobuf serde
+type Serde struct {
 	schemaToDescCache     cache.Cache
 	schemaToDescCacheLock sync.RWMutex
 }
@@ -135,24 +144,43 @@ func init() {
 
 // NewSerializer creates a Protobuf serializer for Protobuf-generated objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
-	cache, err := cache.NewLRUCache(1000)
+	descToSchemaCache, err := cache.NewLRUCache(1000)
 	if err != nil {
 		return nil, err
 	}
+	schemaToDescCache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	ps := &Serde{
+		schemaToDescCache: schemaToDescCache,
+	}
 	s := &Serializer{
-		descToSchemaCache: cache,
+		Serde:             ps,
+		descToSchemaCache: descToSchemaCache,
 	}
 	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
 	s.Conf = conf
+	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
+		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
+	}
+	s.FieldTransformer = fieldTransformer
 
 	if err != nil {
 		return nil, err
+	}
+	for _, rule := range serde.GetRuleExecutors() {
+		err = rule.Configure(client.Config(), conf.RuleConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
 
 // ConfigureDeserializer configures the Protobuf deserializer
-func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *serde.DeserializerConfig) error {
+func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType serde.Type,
+	conf *serde.DeserializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
@@ -183,6 +211,20 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	id, err := s.GetID(topic, protoMsg, info)
 	if err != nil {
 		return nil, err
+	}
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, *info)
+	if err != nil {
+		return nil, err
+	}
+	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, info, protoMsg)
+	if err != nil {
+		return nil, err
+	}
+	switch t := msg.(type) {
+	case proto.Message:
+		protoMsg = t
+	default:
+		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
 	msgIndexBytes := toMessageIndexBytes(protoMsg.ProtoReflect().Descriptor())
 	msgBytes, err := proto.Marshal(protoMsg)
@@ -220,11 +262,7 @@ func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.Sche
 	if err != nil {
 		return nil, err
 	}
-	info := &schemaregistry.SchemaInfo{
-		Schema:     metadata.Schema,
-		SchemaType: metadata.SchemaType,
-		References: metadata.References,
-	}
+	info := &metadata.SchemaInfo
 	if s.Conf.CacheSchemas {
 		s.descToSchemaCacheLock.Lock()
 		s.descToSchemaCache.Put(fileDesc.GetName(), info)
@@ -281,7 +319,11 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
-		refs = append(refs, schemaregistry.Reference{d.GetName(), ref.Subject, ref.Version})
+		refs = append(refs, schemaregistry.Reference{
+			Name:    d.GetName(),
+			Subject: ref.Subject,
+			Version: ref.Version,
+		})
 	}
 	for _, d := range fileDesc.GetPublicDependencies() {
 		if ignoreFile(d.GetName()) {
@@ -291,7 +333,11 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
-		refs = append(refs, schemaregistry.Reference{d.GetName(), ref.Subject, ref.Version})
+		refs = append(refs, schemaregistry.Reference{
+			Name:    d.GetName(),
+			Subject: ref.Subject,
+			Version: ref.Version,
+		})
 	}
 	info := schemaregistry.SchemaInfo{
 		Schema:     deps[fileDesc.GetName()],
@@ -370,90 +416,37 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
-// NewDeserializer creates a Protobuf deserializer for Protobuf-generated objects
-func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
-	cache, err := cache.NewLRUCache(1000)
+// FieldTransform transforms the field value using the rule
+func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
+	fd, err := s.toFileDesc(client, *ctx.Target)
 	if err != nil {
 		return nil, err
 	}
-	s := &Deserializer{
-		schemaToDescCache: cache,
-	}
-	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
+	m := msg.(proto.Message)
+	md := fd.FindMessage(string(m.ProtoReflect().Descriptor().FullName()))
+	return transform(ctx, md.Unwrap(), msg, fieldTransform)
 }
 
-// Deserialize implements deserialization of Protobuf data
-func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	if len(payload) == 0 {
-		return nil, nil
-	}
-	info, err := s.GetSchema(topic, payload)
-	if err != nil {
-		return nil, err
-	}
-	fd, err := s.toFileDesc(info)
-	if err != nil {
-		return nil, err
-	}
-	bytesRead, msgIndexes, err := readMessageIndexes(payload[5:])
-	if err != nil {
-		return nil, err
-	}
-	messageDesc, err := toMessageDesc(fd, msgIndexes)
-	if err != nil {
-		return nil, err
-	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
-	if err != nil {
-		return nil, err
-	}
-	msg, err := s.MessageFactory(subject, messageDesc.GetFullyQualifiedName())
-	if err != nil {
-		return nil, err
-	}
-	var protoMsg proto.Message
-	switch t := msg.(type) {
-	case proto.Message:
-		protoMsg = t
-	default:
-		return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
-	}
-	err = proto.Unmarshal(payload[5+bytesRead:], protoMsg)
-	return protoMsg, err
-}
-
-// DeserializeInto implements deserialization of Protobuf data to the given object
-func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	if payload == nil {
-		return nil
-	}
-	var protoMsg proto.Message
-	switch t := msg.(type) {
-	case proto.Message:
-		protoMsg = t
-	default:
-		return fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
-	}
-	bytesRead, _, err := readMessageIndexes(payload[5:])
-	if err != nil {
-		return err
-	}
-	return proto.Unmarshal(payload[5+bytesRead:], protoMsg)
-}
-
-func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
 	s.schemaToDescCacheLock.RLock()
 	value, ok := s.schemaToDescCache.Get(info.Schema)
 	s.schemaToDescCacheLock.RUnlock()
 	if ok {
 		return value.(*desc.FileDescriptor), nil
 	}
+	fd, err := parseFileDesc(client, info)
+	if err != nil {
+		return nil, err
+	}
+	s.schemaToDescCacheLock.Lock()
+	s.schemaToDescCache.Put(info.Schema, fd)
+	s.schemaToDescCacheLock.Unlock()
+	return fd, nil
+}
+
+func parseFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
 	deps := make(map[string]string)
-	err := serde.ResolveReferences(s.Client, info, deps)
+	err := serde.ResolveReferences(client, info, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -481,10 +474,173 @@ func (s *Deserializer) toFileDesc(info schemaregistry.SchemaInfo) (*desc.FileDes
 		return nil, fmt.Errorf("could not resolve schema")
 	}
 	fd := fileDescriptors[0]
-	s.schemaToDescCacheLock.Lock()
-	s.schemaToDescCache.Put(info.Schema, fd)
-	s.schemaToDescCacheLock.Unlock()
 	return fd, nil
+}
+
+// NewDeserializer creates a Protobuf deserializer for Protobuf-generated objects
+func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
+	schemaToDescCache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
+	ps := &Serde{
+		schemaToDescCache: schemaToDescCache,
+	}
+	s := &Deserializer{
+		Serde: ps,
+	}
+	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	if err != nil {
+		return nil, err
+	}
+	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
+		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
+	}
+	s.FieldTransformer = fieldTransformer
+	for _, rule := range serde.GetRuleExecutors() {
+		err = rule.Configure(client.Config(), conf.RuleConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// Deserialize implements deserialization of Protobuf data
+func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+	return s.deserialize(topic, payload, nil)
+}
+
+// DeserializeInto implements deserialization of Protobuf data to the given object
+func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+	_, err := s.deserialize(topic, payload, msg)
+	return err
+}
+
+func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
+	if len(payload) == 0 {
+		return nil, nil
+	}
+	info, err := s.GetSchema(topic, payload)
+	if err != nil {
+		return nil, err
+	}
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return nil, err
+	}
+	bytesRead, msgIndexes, err := readMessageIndexes(payload[5:])
+	if err != nil {
+		return nil, err
+	}
+	messageDesc, err := toMessageDesc(fd, msgIndexes)
+	if err != nil {
+		return nil, err
+	}
+	name := messageDesc.GetFullyQualifiedName()
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	if err != nil {
+		return nil, err
+	}
+	readerMeta, err := s.GetReaderSchema(subject)
+	if err != nil {
+		return nil, err
+	}
+	var migrations []serde.Migration
+	if readerMeta != nil {
+		migrations, err = s.GetMigrations(subject, topic, &info, readerMeta, payload)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var msg interface{}
+	var protoMsg proto.Message
+	if len(migrations) > 0 {
+		dynamicMsg := dynamicpb.NewMessage(messageDesc.UnwrapMessage())
+		err = proto.Unmarshal(payload[5+bytesRead:], dynamicMsg)
+		if err != nil {
+			return nil, err
+		}
+		jsonBytes, err := protojson.Marshal(dynamicMsg)
+		if err != nil {
+			return nil, err
+		}
+		var jsonMsg interface{}
+		err = json.Unmarshal(jsonBytes, &jsonMsg)
+		if err != nil {
+			return nil, err
+		}
+		jsonMsg, err = s.ExecuteMigrations(migrations, subject, topic, jsonMsg)
+		if err != nil {
+			return nil, err
+		}
+		readerFd, err := s.toFileDesc(s.Client, readerMeta.SchemaInfo)
+		if err != nil {
+			return nil, err
+		}
+		name, err = toMessageName(readerFd, name)
+		if err != nil {
+			return nil, err
+		}
+		jsonBytes, err = json.Marshal(jsonMsg)
+		if err != nil {
+			return nil, err
+		}
+		if result == nil {
+			msg, err = s.MessageFactory(subject, name)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			msg = result
+		}
+		switch t := msg.(type) {
+		case proto.Message:
+			protoMsg = t
+		default:
+			return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
+		}
+		err = protojson.Unmarshal(jsonBytes, protoMsg)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if result == nil {
+			msg, err = s.MessageFactory(subject, name)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			msg = result
+		}
+		switch t := msg.(type) {
+		case proto.Message:
+			protoMsg = t
+		default:
+			return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
+		}
+		err = proto.Unmarshal(payload[5+bytesRead:], protoMsg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var target *schemaregistry.SchemaInfo
+	if readerMeta != nil {
+		target = &readerMeta.SchemaInfo
+	} else {
+		target = &info
+	}
+	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Read, nil, target, protoMsg)
+	if err != nil {
+		return nil, err
+	}
+	switch t := msg.(type) {
+	case proto.Message:
+		protoMsg = t
+	default:
+		return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
+	}
+	return protoMsg, err
 }
 
 func readMessageIndexes(payload []byte) (int, []int, error) {
@@ -528,6 +684,20 @@ func toMessageDesc(descriptor desc.Descriptor, msgIndexes []int) (*desc.MessageD
 	default:
 		return nil, fmt.Errorf("unexpected type")
 	}
+}
+
+// toMessageName returns the given message name if it exists, otherwise the first message name
+func toMessageName(fd *desc.FileDescriptor, name string) (string, error) {
+	var first string
+	for i, md := range fd.GetMessageTypes() {
+		if md.GetFullyQualifiedName() == name {
+			return name, nil
+		}
+		if i == 0 {
+			first = md.GetFullyQualifiedName()
+		}
+	}
+	return first, nil
 }
 
 func (s *Deserializer) protoMessageFactory(subject string, name string) (interface{}, error) {
