@@ -46,7 +46,7 @@ func Register() {
 	RegisterWithClock(&c)
 }
 
-// Register registers the encryption rule executor with a given clock
+// RegisterWithClock registers the encryption rule executor with a given clock
 func RegisterWithClock(c Clock) *FieldEncryptionExecutor {
 	a := &serde.AbstractFieldRuleExecutor{}
 	f := &FieldEncryptionExecutor{*a, nil, nil, c}
@@ -78,6 +78,7 @@ const (
 	MillisInDay = 24 * 60 * 60 * 1000
 )
 
+// Clock is a clock
 type Clock interface {
 	NowUnixMilli() int64
 }
