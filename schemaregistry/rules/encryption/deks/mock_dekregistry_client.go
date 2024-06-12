@@ -21,6 +21,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 	"net/url"
 	"sync"
+	"time"
 )
 
 var (
@@ -126,6 +127,7 @@ func (c *mockclient) RegisterDekVersion(kekName string, subject string, version 
 		Version:              version,
 		Algorithm:            algorithm,
 		EncryptedKeyMaterial: encryptedKeyMaterial,
+		Ts:                   time.Now().UnixMilli(),
 	}
 	dekCacheLock.Lock()
 	dekCache[cacheKey] = dek
@@ -136,6 +138,26 @@ func (c *mockclient) RegisterDekVersion(kekName string, subject string, version 
 // GetDekVersion returns the versioned dek
 // Returns dek object on success
 func (c *mockclient) GetDekVersion(kekName string, subject string, version int, algorithm string, deleted bool) (dek Dek, err error) {
+
+	if version == -1 {
+		// Find the latest version
+		latestVersion := 0
+		for k := range dekCache {
+			if k.KekName == kekName && k.Subject == subject && k.Algorithm == algorithm && !k.Deleted {
+				if k.Version > latestVersion {
+					latestVersion = k.Version
+				}
+			}
+		}
+		if latestVersion == 0 {
+			posErr := internal.RestError{
+				Code:    404,
+				Message: "Key Not Found",
+			}
+			return Dek{}, &posErr
+		}
+		version = latestVersion
+	}
 	cacheKey := DekID{
 		KekName:   kekName,
 		Subject:   subject,
