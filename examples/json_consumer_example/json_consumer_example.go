@@ -75,6 +75,10 @@ func main() {
 	}
 
 	err = c.SubscribeTopics(topics, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %v\n", err)
+		os.Exit(1)
+	}
 
 	run := true
 
