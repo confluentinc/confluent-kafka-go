@@ -27,6 +27,7 @@ spec:
       - master
       - main
       - /^v\d+\.\d+\.x$/
+      - /^gh-readonly-queue.*/
   custom_permissions: true
   debug_permissions:
   - empty
