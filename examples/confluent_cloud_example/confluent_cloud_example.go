@@ -159,6 +159,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create consumer: %s", err))
 	}
+	defer consumer.Close()
 
 	topics := []string{topic}
 	consumer.SubscribeTopics(topics, nil)
@@ -178,8 +179,6 @@ func main() {
 			}
 		}
 	}
-
-	consumer.Close()
 
 }
 
