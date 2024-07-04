@@ -54,12 +54,14 @@ func main() {
 		"group.id":          "myGroup",
 		"auto.offset.reset": "earliest",
 	})
-
 	if err != nil {
 		panic(err)
 	}
 
-	c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
+	err = c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
+	if err != nil {
+		panic(err)
+	}
 
 	// A signal handler or similar could be used to set this to false to break the loop.
 	run := true
