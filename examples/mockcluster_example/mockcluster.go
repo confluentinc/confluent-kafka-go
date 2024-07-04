@@ -81,7 +81,7 @@ func main() {
 
 	err = c.SubscribeTopics([]string{topic}, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to subscribe to consumer: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
 		os.Exit(1)
 	}
 
