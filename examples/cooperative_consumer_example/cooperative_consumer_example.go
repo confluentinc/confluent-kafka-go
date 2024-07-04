@@ -71,6 +71,11 @@ func main() {
 	// The rebalanceCallback is triggered from c.Poll() and c.Close() below.
 	err = c.SubscribeTopics(topics, rebalanceCallback)
 
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
+		os.Exit(1)
+	}
+
 	run := true
 
 	for run == true {
