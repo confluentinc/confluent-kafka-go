@@ -73,8 +73,12 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create consumer: %s", err))
 	}
+
 	topics := []string{topic}
-	consumer.SubscribeTopics(topics, nil)
+	err = consumer.SubscribeTopics(topics, nil)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to subscribe to topics: %s", err))
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
