@@ -67,7 +67,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 	stdinChan := make(chan string)
 
 	go func() {
-		for true {
+		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				break
@@ -85,7 +85,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 
 	run := true
 
-	for run == true {
+	for run {
 		select {
 		case sig := <-sigs:
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
@@ -157,7 +157,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 		run = false
 	}()
 
-	for run == true {
+	for run {
 		ev := c.Poll(1000)
 		switch e := ev.(type) {
 		case *kafka.Message:
