@@ -20,7 +20,7 @@ and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dot
 [Confluent](https://confluent.io/).
 
 - **Future proof** - Confluent, founded by the
-creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
+original creator/co-creator of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
 with Apache Kafka at its core. It's high priority for us that client features keep
 pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 

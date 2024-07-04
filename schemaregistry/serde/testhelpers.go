@@ -66,7 +66,7 @@ func InitFailFuncBenchmark(b *testing.B) FailFunc {
 // Expect compares the actual and expected values
 func Expect(actual, expected interface{}) error {
 	if !reflect.DeepEqual(actual, expected) {
-		return fmt.Errorf("expected: %v, Actual: %v", expected, actual)
+		return fmt.Errorf("expected: %v, actual: %v", expected, actual)
 	}
 
 	return nil
