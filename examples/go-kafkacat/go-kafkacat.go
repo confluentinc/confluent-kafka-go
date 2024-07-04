@@ -132,7 +132,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 
 	fmt.Fprintf(os.Stderr, "%% Created Consumer %v\n", c)
 
-	c.SubscribeTopics(topics, func(c *kafka.Consumer, ev kafka.Event) error {
+	err = c.SubscribeTopics(topics, func(c *kafka.Consumer, ev kafka.Event) error {
 		var err error = nil
 		switch e := ev.(type) {
 		case kafka.AssignedPartitions:
@@ -148,6 +148,11 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 		}
 		return err
 	})
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
+		os.Exit(1)
+	}
 
 	run := true
 
