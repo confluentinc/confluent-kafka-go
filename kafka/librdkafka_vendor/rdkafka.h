@@ -5153,6 +5153,18 @@ typedef enum {
 } rd_kafka_consumer_group_state_t;
 
 /**
+ * @enum rd_kafka_consumer_group_type_t
+ *
+ * @brief Consumer group type.
+ */
+typedef enum {
+        RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN              = 0,
+        RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER             = 1,
+        RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC              = 2,
+        RD_KAFKA_CONSUMER_GROUP_TYPE__CNT
+} rd_kafka_consumer_group_type_t;
+
+/**
  * @brief Group information
  */
 struct rd_kafka_group_info {
@@ -5235,6 +5247,28 @@ rd_kafka_consumer_group_state_name(rd_kafka_consumer_group_state_t state);
 RD_EXPORT
 rd_kafka_consumer_group_state_t
 rd_kafka_consumer_group_state_code(const char *name);
+
+/**
+ * @brief Returns a name for a type code.
+ *
+ * @param state The type value.
+ *
+ * @return The group type name corresponding to the provided group type value.
+ */
+RD_EXPORT
+const char *
+rd_kafka_consumer_group_type_name(rd_kafka_consumer_group_type_t type);
+
+/**
+ * @brief Returns a code for a type name.
+ *
+ * @param name The type name.
+ *
+ * @return The group type value corresponding to the provided group type name.
+ */
+RD_EXPORT
+rd_kafka_consumer_group_type_t
+rd_kafka_consumer_group_type_code(const char *name);
 
 /**
  * @brief Release list memory
@@ -7201,6 +7235,25 @@ rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_states(
     rd_kafka_AdminOptions_t *options,
     const rd_kafka_consumer_group_state_t *consumer_group_states,
     size_t consumer_group_states_cnt);
+
+/**
+ * @brief Set consumer groups types to query for.
+ *
+ * @param options Admin options.
+ * @param consumer_group_types Array of consumer group types.
+ * @param consumer_group_types_cnt Size of the \p consumer_group_types array.
+ *
+ * @return NULL on success, a new error instance that must be
+ *         released with rd_kafka_error_destroy() in case of error.
+ *
+ * @remark This option is valid for ListConsumerGroups.
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_types(
+    rd_kafka_AdminOptions_t *options,
+    const rd_kafka_consumer_group_type_t *consumer_group_types,
+    size_t consumer_group_types_cnt);
+
 
 /**
  * @brief Set Isolation Level to an allowed `rd_kafka_IsolationLevel_t` value.
