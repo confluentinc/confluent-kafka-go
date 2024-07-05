@@ -258,11 +258,11 @@ type ListConsumerGroupsResult struct {
 	Errors []error
 }
 
-// DeleteRecordsResult represents the result of a DeleteRecords call
+// DeleteRecordsResult represents the result of a DeleteRecords call.
 type DeleteRecordsResult struct {
-	// A slice of TopicPartitions, with the offset field set to the post-deletion 
-        // low-watermark offset (smallest available offset of all live replicas).
-        // The error is set if any occurred for that topic partition.
+	// A slice of TopicPartitions, with the offset field set to the post-deletion
+	// low-watermark offset (smallest available offset of all live replicas).
+	// The error is set if any occurred for that topic partition.
 	TopicPartitions []TopicPartition
 }
 
@@ -3410,21 +3410,21 @@ func (a *AdminClient) AlterUserScramCredentials(
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `recordsToDelete` - A slice of TopicPartitions with the offset field set. 
+//   - `recordsToDelete` - A slice of TopicPartitions with the offset field set.
 //     For each partition, delete all messages up to but not including the specified offset.
 //     The offset could be set to kafka.OffsetEnd to delete all the messages in the partition.
 //   - `options` - DeleteRecordsAdminOptions options.
 //
 // Returns a DeleteRecordsResult, which contains a slice of
-// TopicPartitions, with the offset field set to the post-deletion 
+// TopicPartitions, with the offset field set to the post-deletion
 // low-watermark offset (smallest available offset of all live replicas).
 // Individual TopicPartitions inside the result should be checked for errors.
-func (a *AdminClient) DeleteRecords(ctx context.Context, recordsToDelete []TopicPartition, options ...DeleteRecordsAdminOption) (result DeleteRecordsResult, err error) {
-
+func (a *AdminClient) DeleteRecords(
+	ctx context.Context, recordsToDelete []TopicPartition, options ...DeleteRecordsAdminOption) (result DeleteRecordsResult, err error) {
 	if len(recordsToDelete) == 0 {
 		return result, newErrorFromString(ErrInvalidArg, "No records to delete")
 	}
-	result = DeleteRecordsResult{}
+
 	err = a.verifyClient()
 	if err != nil {
 		return result, err

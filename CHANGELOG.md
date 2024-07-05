@@ -1,10 +1,17 @@
 # Confluent's Golang client for Apache Kafka
 
+# v2.5.0
+
+This is a feature release.
+
+ * Adds an AdminAPI `DeleteRecords()` (#1141, @PratRanj07).
+
+
 # v2.4.0
 
 This is a feature release.
 
- * [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): 
+ * [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol):
    Integration tests running with the new consumer group protocol. The feature is an **Early Access**: not production ready (#1185).
  * Allow custom http.Client to be passed to schema registry client (#1099)
  * Cache schemas when setting `UseLatestVersion=true` (#1100)
@@ -25,14 +32,6 @@ This is a feature release.
 confluent-kafka-go is based on librdkafka v2.4.0, see the
 [librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-
-
-# v2.4.0
-
-This is a feature release.
-
- * Adds an AdminAPI `DeleteRecords()`
-   (#1141, @PratRanj07).
 
 # v2.3.0
 
