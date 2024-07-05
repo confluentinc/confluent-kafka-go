@@ -260,9 +260,9 @@ type ListConsumerGroupsResult struct {
 
 // DeleteRecordsResult represents the result of a DeleteRecords call
 type DeleteRecordsResult struct {
-	// slice of TopicPartitions containing the minimum offsets available in that
-	// topic partition after the deletion operation has been performed. The error is
-	// set if any occurred for that topic partition.
+	// A slice of TopicPartitions, with the offset field set to the post-deletion 
+        // low-watermark offset (smallest available offset of all live replicas).
+        // The error is set if any occurred for that topic partition.
 	TopicPartitions []TopicPartition
 }
 
