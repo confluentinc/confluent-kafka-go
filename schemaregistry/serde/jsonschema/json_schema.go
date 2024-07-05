@@ -19,11 +19,12 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"io"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -60,6 +61,9 @@ var _ serde.Deserializer = new(Deserializer)
 // NewSerializer creates a JSON serializer for generic objects
 func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*Serializer, error) {
 	schemaToTypeCache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
 	sr := &Serde{
 		validate:          conf.EnableValidation,
 		schemaToTypeCache: schemaToTypeCache,
@@ -140,6 +144,9 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 // NewDeserializer creates a JSON deserializer for generic objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
 	schemaToTypeCache, err := cache.NewLRUCache(1000)
+	if err != nil {
+		return nil, err
+	}
 	sr := &Serde{
 		validate:          conf.EnableValidation,
 		schemaToTypeCache: schemaToTypeCache,
