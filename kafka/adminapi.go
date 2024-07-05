@@ -3410,10 +3410,9 @@ func (a *AdminClient) AlterUserScramCredentials(
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
-//   - `recordsToDelete` - A slice of TopicPartitions with the offset field set. Those records
-//     will be deleted whose offset is smaller than given offset of
-//     corresponding partition. Additionally offset could be set to kafka.OffsetEnd
-//     to delete all the data in the partition.
+//   - `recordsToDelete` - A slice of TopicPartitions with the offset field set. 
+//     For each partition, delete all messages up to but not including the specified offset.
+//     The offset could be set to kafka.OffsetEnd to delete all the messages in the partition.
 //   - `options` - DeleteRecordsAdminOptions options.
 //
 // Returns a DeleteRecordsResult, which contains a slice of
