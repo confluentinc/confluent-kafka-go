@@ -3416,11 +3416,10 @@ func (a *AdminClient) AlterUserScramCredentials(
 //     to delete all the data in the partition.
 //   - `options` - DeleteRecordsAdminOptions options.
 //
-// Returns DeleteRecordsResult, which contains a slice of
-// TopicPartitions containing the minimum offsets available in that
-// topic partition after the deletion operation has been performed or
-// any error occured hile deleting the records in the particular TopicPartition.
-// User has to check all the elements of the result to check any error occured per partition.
+// Returns a DeleteRecordsResult, which contains a slice of
+// TopicPartitions, with the offset field set to the post-deletion 
+// low-watermark offset (smallest available offset of all live replicas).
+// Individual TopicPartitions inside the result should be checked for errors.
 func (a *AdminClient) DeleteRecords(ctx context.Context, recordsToDelete []TopicPartition, options ...DeleteRecordsAdminOption) (result DeleteRecordsResult, err error) {
 
 	if len(recordsToDelete) == 0 {
