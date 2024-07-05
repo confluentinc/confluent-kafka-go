@@ -881,6 +881,43 @@ func testAdminAPIsUserScramCredentials(what string, a *AdminClient, expDuration 
 	}
 }
 
+func testAdminAPIsDeleteRecords(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	topic := "test"
+	partition := int32(0)
+	offset := Offset(2)
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	topicPartitionOffset := []TopicPartition{{Topic: &topic, Partition: partition, Offset: offset}}
+	_, err := a.DeleteRecords(ctx, topicPartitionOffset, SetAdminRequestTimeout(time.Second))
+	if err == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			err, ctx.Err())
+	}
+
+	// Invalid option value
+	_, err = a.DeleteRecords(ctx, topicPartitionOffset, SetAdminRequestTimeout(-1))
+	if err == nil || err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err)
+	}
+
+	for _, options := range [][]DeleteRecordsAdminOption{
+		{},
+		{SetAdminRequestTimeout(time.Second)},
+	} {
+		// nil argument should fail, not being treated as empty
+		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+		defer cancel()
+		result, err := a.DeleteRecords(ctx, nil, options...)
+		if result.TopicPartitions != nil || err == nil {
+			t.Fatalf("Expected DeleteRecords to fail, but got result: %v, err: %v",
+				result, err)
+		}
+		if err.(Error).Code() != ErrInvalidArg {
+			t.Fatalf("Expected ErrInvalidArg, not %v", err)
+		}
+	}
+}
+
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 
@@ -1134,6 +1171,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	testAdminAPIsListOffsets(what, a, expDuration, t)
 
 	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
+	testAdminAPIsDeleteRecords(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
