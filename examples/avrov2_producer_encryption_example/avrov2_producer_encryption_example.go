@@ -87,7 +87,7 @@ func main() {
 		SchemaType: "AVRO",
 		RuleSet: &schemaregistry.RuleSet{
 			DomainRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name: "encryptPII",
 					Kind: "TRANSFORM",
 					Mode: "WRITEREAD",
