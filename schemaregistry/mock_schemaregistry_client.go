@@ -19,12 +19,13 @@ package schemaregistry
 import (
 	"errors"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 	"net/url"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
 
 const noSubject = ""
@@ -547,13 +548,13 @@ func (c *mockclient) DeleteSubjectVersion(subject string, version int, permanent
 // TestSubjectCompatibility verifies schema against all schemas in the subject
 // Returns true if the schema is compatible, false otherwise
 func (c *mockclient) TestSubjectCompatibility(subject string, schema SchemaInfo) (ok bool, err error) {
-	return false, errors.New("unsupported operaiton")
+	return false, errors.New("unsupported operation")
 }
 
 // TestCompatibility verifies schema against the subject's compatibility policy
 // Returns true if the schema is compatible, false otherwise
 func (c *mockclient) TestCompatibility(subject string, version int, schema SchemaInfo) (ok bool, err error) {
-	return false, errors.New("unsupported operaiton")
+	return false, errors.New("unsupported operation")
 }
 
 // Fetch compatibility level currently configured for provided subject

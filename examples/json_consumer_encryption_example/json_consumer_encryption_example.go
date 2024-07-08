@@ -22,14 +22,15 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/gcpkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
@@ -87,6 +88,11 @@ func main() {
 	}
 
 	err = c.SubscribeTopics(topics, nil)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
+		os.Exit(1)
+	}
 
 	run := true
 
