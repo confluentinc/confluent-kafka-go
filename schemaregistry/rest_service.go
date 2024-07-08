@@ -125,9 +125,6 @@ func newRestService(conf *Config) (*restService, error) {
 	}
 
 	headers.Add("Content-Type", "application/vnd.schemaregistry.v1+json")
-	if err != nil {
-		return nil, err
-	}
 
 	if conf.HTTPClient == nil {
 		transport, err := configureTransport(conf)
@@ -336,7 +333,7 @@ func (rs *restService) handleRequest(request *api, response interface{}) error {
 		if err != nil {
 			return err
 		}
-		readCloser = ioutil.NopCloser(bytes.NewBuffer(outbuf))
+		readCloser = io.NopCloser(bytes.NewBuffer(outbuf))
 	}
 
 	req := &http.Request{
