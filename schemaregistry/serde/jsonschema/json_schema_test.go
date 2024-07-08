@@ -19,6 +19,7 @@ package jsonschema
 import (
 	"encoding/base64"
 	"errors"
+
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
@@ -28,9 +29,10 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
 
 	"encoding/json"
-	"github.com/invopop/jsonschema"
 	"strings"
 	"testing"
+
+	"github.com/invopop/jsonschema"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -895,7 +897,7 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 		Schema:     rootSchema,
 		SchemaType: "JSON",
 		References: []schemaregistry.Reference{
-			schemaregistry.Reference{
+			{
 				Name:    "DemoSchema",
 				Subject: "demo-value",
 				Version: 1,
@@ -994,7 +996,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 		},
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name:      "myRule1",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1007,7 +1009,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 					OnFailure: "",
 					Disabled:  false,
 				},
-				schemaregistry.Rule{
+				{
 					Name:      "myRule2",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1048,7 +1050,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 		},
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name:      "myRule1",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1061,7 +1063,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 					OnFailure: "",
 					Disabled:  false,
 				},
-				schemaregistry.Rule{
+				{
 					Name:      "myRule2",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1098,7 +1100,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err := ser1.Serialize("topic1", &widget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser1, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser1, bytes, widget, newWidget, newerWidget)
 
 	serConfig2 := NewSerializerConfig()
 	serConfig2.AutoRegisterSchemas = false
@@ -1113,7 +1115,7 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser2.Serialize("topic1", &newWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser2, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser2, bytes, widget, newWidget, newerWidget)
 
 	serConfig3 := NewSerializerConfig()
 	serConfig3.AutoRegisterSchemas = false
@@ -1128,10 +1130,10 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser3.Serialize("topic1", &newerWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser3, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser3, bytes, widget, newWidget, newerWidget)
 }
 
-func deserializeWithAllVersions(err error, client schemaregistry.Client, ser *Serializer,
+func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	bytes []byte, widget OldWidget, newWidget NewWidget, newerWidget NewerWidget) {
 	deserConfig1 := NewDeserializerConfig()
 	deserConfig1.UseLatestWithMetadata = map[string]string{

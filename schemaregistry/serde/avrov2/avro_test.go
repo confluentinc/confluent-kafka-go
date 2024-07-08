@@ -18,6 +18,10 @@ package avrov2
 
 import (
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
@@ -26,9 +30,6 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
-	"reflect"
-	"testing"
-	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -319,7 +320,7 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 		Schema:     string(rootSchema),
 		SchemaType: "AVRO",
 		References: []schemaregistry.Reference{
-			schemaregistry.Reference{
+			{
 				Name:    "DemoSchema",
 				Subject: "demo-value",
 				Version: 1,
@@ -1025,7 +1026,7 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 		Schema:     string(rootSchema),
 		SchemaType: "AVRO",
 		References: []schemaregistry.Reference{
-			schemaregistry.Reference{
+			{
 				Name:    "DemoSchema",
 				Subject: "demo-value",
 				Version: 1,
@@ -1131,7 +1132,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 		Schema:     string(rootPointerSchema),
 		SchemaType: "AVRO",
 		References: []schemaregistry.Reference{
-			schemaregistry.Reference{
+			{
 				Name:    "DemoSchema",
 				Subject: "demo-value",
 				Version: 1,
@@ -1302,7 +1303,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 		},
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name:      "myRule1",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1315,7 +1316,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 					OnFailure: "",
 					Disabled:  false,
 				},
-				schemaregistry.Rule{
+				{
 					Name:      "myRule2",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1358,7 +1359,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 		},
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name:      "myRule1",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1371,7 +1372,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 					OnFailure: "",
 					Disabled:  false,
 				},
-				schemaregistry.Rule{
+				{
 					Name:      "myRule2",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -1408,7 +1409,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err := ser1.Serialize("topic1", &widget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser1, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser1, bytes, widget, newWidget, newerWidget)
 
 	serConfig2 := NewSerializerConfig()
 	serConfig2.AutoRegisterSchemas = false
@@ -1423,7 +1424,7 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser2.Serialize("topic1", &newWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser2, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser2, bytes, widget, newWidget, newerWidget)
 
 	serConfig3 := NewSerializerConfig()
 	serConfig3.AutoRegisterSchemas = false
@@ -1438,10 +1439,10 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser3.Serialize("topic1", &newerWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser3, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser3, bytes, widget, newWidget, newerWidget)
 }
 
-func deserializeWithAllVersions(err error, client schemaregistry.Client, ser *Serializer,
+func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	bytes []byte, widget OldWidget, newWidget NewWidget, newerWidget NewerWidget) {
 	deserConfig1 := NewDeserializerConfig()
 	deserConfig1.UseLatestWithMetadata = map[string]string{
