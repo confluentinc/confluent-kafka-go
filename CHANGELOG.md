@@ -6,9 +6,11 @@ This is a feature release.
 
 ## Fixes
 
- * Windows builds are linked to `libssp` in addition to other libraries, since
+ * Issues: #965
+   Windows builds are linked to `libssp` in addition to other libraries, since
    the bundled zstd and zlib are built with `-fstack-protector`, and not linking
-   causes build failures. (#1184).
+   causes build failures.
+   Happening since 2.0.0 (#1184).
 
 confluent-kafka-go is based on librdkafka v2.5.0, see the
 [librdkafka v2.5.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
