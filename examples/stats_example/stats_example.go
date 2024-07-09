@@ -64,9 +64,14 @@ func main() {
 
 	err = c.SubscribeTopics(topics, nil)
 
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
+		os.Exit(1)
+	}
+
 	run := true
 
-	for run == true {
+	for run {
 		select {
 		case sig := <-sigchan:
 			fmt.Printf("Caught signal %v: terminating\n", sig)

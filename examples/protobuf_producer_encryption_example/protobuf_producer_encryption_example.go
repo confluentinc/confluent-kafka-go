@@ -55,11 +55,11 @@ func main() {
 	kmsKeyID := os.Args[6]
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
-
 	if err != nil {
 		fmt.Printf("Failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
+	defer p.Close()
 
 	fmt.Printf("Created Producer %v\n", p)
 
@@ -90,7 +90,7 @@ message User {
 		SchemaType: "PROTOBUF",
 		RuleSet: &schemaregistry.RuleSet{
 			DomainRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name: "encryptPII",
 					Kind: "TRANSFORM",
 					Mode: "WRITEREAD",
@@ -127,6 +127,7 @@ message User {
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
 	deliveryChan := make(chan kafka.Event)
+	defer close(deliveryChan)
 
 	value := User{
 		Name:           "First user",
@@ -158,6 +159,4 @@ message User {
 		fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
 			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 	}
-
-	close(deliveryChan)
 }

@@ -717,7 +717,7 @@ func (s *Serde) getRuleActionName(rule schemaregistry.Rule, ruleMode schemaregis
 	return &actionName
 }
 
-func (s *Serde) getRuleAction(ctx RuleContext, actionName string) RuleAction {
+func (s *Serde) getRuleAction(_ RuleContext, actionName string) RuleAction {
 	if actionName == "ERROR" {
 		return ErrorAction{}
 	} else if actionName == "NONE" {

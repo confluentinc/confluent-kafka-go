@@ -18,6 +18,8 @@ package protobuf
 
 import (
 	"errors"
+	"testing"
+
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
@@ -25,7 +27,6 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
-	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -35,65 +36,65 @@ import (
 
 const (
 	authorSchema = `
-syntax = "proto3";
-
-package test;
-option go_package="../test";
-
-import "confluent/meta.proto";
-
-message Author {
-  string name = 1 [
-   (confluent.field_meta).tags = "PII"
-  ];
-  int32 id = 2;
-  bytes picture = 3 [
-   (confluent.field_meta).tags = "PII"
-  ];
-  repeated string works = 4;
-}
-
-message Pizza {
-  string size = 1;
-  repeated string toppings = 2;
-}
-`
+ syntax = "proto3";
+ 
+ package test;
+ option go_package="../test";
+ 
+ import "confluent/meta.proto";
+ 
+ message Author {
+	 string name = 1 [
+		(confluent.field_meta).tags = "PII"
+	 ];
+	 int32 id = 2;
+	 bytes picture = 3 [
+		(confluent.field_meta).tags = "PII"
+	 ];
+	 repeated string works = 4;
+ }
+ 
+ message Pizza {
+	 string size = 1;
+	 repeated string toppings = 2;
+ }
+ `
 	widgetSchema = `
-syntax = "proto3";
-
-package test;
-option go_package="../test";
-
-message Widget {
-    string name = 1;
-    int32 size = 2;
-    int32 version = 3;
-}
-`
+ syntax = "proto3";
+ 
+ package test;
+ option go_package="../test";
+ 
+ message Widget {
+		 string name = 1;
+		 int32 size = 2;
+		 int32 version = 3;
+ }
+ `
 	newWidgetSchema = `
-syntax = "proto3";
-
-package test;
-option go_package="../test";
-
-message NewWidget {
-    string name = 1;
-    int32 height = 2;
-    int32 version = 3;
-}
-`
+ syntax = "proto3";
+ 
+ package test;
+ option go_package="../test";
+ 
+ message NewWidget {
+		 string name = 1;
+		 int32 height = 2;
+		 int32 version = 3;
+ }
+ `
 	newerWidgetSchema = `
-syntax = "proto3";
-
-package test;
-option go_package="../test";
-
-message NewerWidget {
-    string name = 1;
-    int32 length = 2;
-    int32 version = 3;
-}
-`
+ syntax = "proto3";
+ 
+ package test;
+ option go_package="../test";
+ 
+ message NewerWidget {
+		 string name = 1;
+		 int32 length = 2;
+		 int32 version = 3;
+ }
+ `
 )
 
 func TestProtobufSerdeWithSimple(t *testing.T) {
@@ -704,7 +705,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 		},
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name:      "myRule1",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -717,7 +718,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 					OnFailure: "",
 					Disabled:  false,
 				},
-				schemaregistry.Rule{
+				{
 					Name:      "myRule2",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -758,7 +759,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 		},
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name:      "myRule1",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -771,7 +772,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 					OnFailure: "",
 					Disabled:  false,
 				},
-				schemaregistry.Rule{
+				{
 					Name:      "myRule2",
 					Doc:       "",
 					Kind:      "TRANSFORM",
@@ -808,7 +809,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err := ser1.Serialize("topic1", &widget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser1, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser1, bytes, widget, newWidget, newerWidget)
 
 	serConfig2 := NewSerializerConfig()
 	serConfig2.AutoRegisterSchemas = false
@@ -823,7 +824,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser2.Serialize("topic1", &newWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser2, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser2, bytes, widget, newWidget, newerWidget)
 
 	serConfig3 := NewSerializerConfig()
 	serConfig3.AutoRegisterSchemas = false
@@ -838,10 +839,10 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser3.Serialize("topic1", &newerWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(err, client, ser3, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser3, bytes, widget, newWidget, newerWidget)
 }
 
-func deserializeWithAllVersions(err error, client schemaregistry.Client, ser *Serializer,
+func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	bytes []byte, widget test.Widget, newWidget test.NewWidget, newerWidget test.NewerWidget) {
 	deserConfig1 := NewDeserializerConfig()
 	deserConfig1.UseLatestWithMetadata = map[string]string{
