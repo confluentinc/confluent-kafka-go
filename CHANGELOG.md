@@ -11,8 +11,7 @@ Avro libraries which are no longer maintained and should not be used in new code
  * Move rest service for schema registry client into internal package for use by both the SR client 
 and the DEK Registry client.
  * Add support for CSFLE (client-side field-level encryption) for AWS, Azure, GCP, and HashiCorp 
-Vault.  See the encryption examples in 
-the examples directory.
+Vault.  See the encryption examples in the examples directory.
  * Add support for CEL, CEL_FIELD, and JSONata rules.
 
 ## Fixes
