@@ -258,12 +258,27 @@ type ListConsumerGroupsResult struct {
 	Errors []error
 }
 
-// DeleteRecordsResult represents the result of a DeleteRecords call.
+// DeletedRecords contains information about deleted
+// records of a single partition
+type DeletedRecords struct {
+	// Low-watermark offset after deletion
+	LowWatermark Offset
+}
+
+// DeleteRecordsResult represents the result of a DeleteRecords call
+// for a single partition.
 type DeleteRecordsResult struct {
-	// A slice of TopicPartitions, with the offset field set to the post-deletion
-	// low-watermark offset (smallest available offset of all live replicas).
-	// The error is set if any occurred for that topic partition.
-	TopicPartitions []TopicPartition
+	// One of requested partitions.
+	// The Error field is set if any occurred for that partition.
+	TopicPartition TopicPartition
+	// Deleted records information, or nil if an error occurred.
+	DeletedRecords *DeletedRecords
+}
+
+// DeleteRecordsResults represents the results of a DeleteRecords call.
+type DeleteRecordsResults struct {
+	// A slice of DeleteRecordsResult, one for each requested topic partition.
+	DeleteRecordsResults []DeleteRecordsResult
 }
 
 // MemberAssignment represents the assignment of a consumer group member.
