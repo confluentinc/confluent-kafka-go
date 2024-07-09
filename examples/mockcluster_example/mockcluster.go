@@ -43,6 +43,7 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 	deliveryChan := make(chan kafka.Event)
+	defer close(deliveryChan)
 
 	topic := "Test"
 	value := "Hello Go!"
@@ -51,6 +52,10 @@ func main() {
 		Value:          []byte(value),
 		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 	}, deliveryChan)
+	if err != nil {
+		fmt.Printf("Produce failed: %s\n", err)
+		os.Exit(1)
+	}
 
 	e := <-deliveryChan
 	m := e.(*kafka.Message)
@@ -61,8 +66,6 @@ func main() {
 		fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
 			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 	}
-
-	close(deliveryChan)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":     broker,
@@ -81,7 +84,7 @@ func main() {
 
 	err = c.SubscribeTopics([]string{topic}, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to subscribe to consumer: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
 		os.Exit(1)
 	}
 

@@ -56,7 +56,7 @@ func main() {
 
 	fmt.Printf("Created Producer %v\n", p)
 
-	m, err := sendTestMsg(p)
+	m, _ := sendTestMsg(p)
 
 	if m.TopicPartition.Error != nil {
 		fmt.Printf("EXPECTED: Delivery failed: %v\n", m.TopicPartition.Error)
@@ -80,7 +80,7 @@ func main() {
 		return
 	}
 
-	m, err = sendTestMsg(p)
+	m, _ = sendTestMsg(p)
 
 	if m.TopicPartition.Error != nil {
 		fmt.Printf("EXPECTED: Delivery failed: %v\n", m.TopicPartition.Error)
@@ -97,7 +97,7 @@ func main() {
 		return
 	}
 
-	m, err = sendTestMsg(p)
+	_, err = sendTestMsg(p)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "There shouldn't be an error but got: %v", err)
 		return

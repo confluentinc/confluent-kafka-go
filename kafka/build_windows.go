@@ -6,8 +6,8 @@
 package kafka
 
 // #cgo CFLAGS: -DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB
-// #cgo LDFLAGS: ${SRCDIR}/librdkafka_vendor/librdkafka_windows.a  -lws2_32 -lsecur32 -lcrypt32
+// #cgo LDFLAGS: ${SRCDIR}/librdkafka_vendor/librdkafka_windows.a  -lws2_32 -lsecur32 -lcrypt32 -lssp
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
-const LibrdkafkaLinkInfo = "static windows from librdkafka-static-bundle-v2.4.0-RC2.tgz"
+const LibrdkafkaLinkInfo = "static windows from librdkafka-static-bundle-v2.4.0.tgz"

@@ -76,6 +76,9 @@ func HandleRequest() error {
 	}
 
 	a, err := kafka.NewAdminClientFromProducer(p)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create admin client from producer: %s", err))
+	}
 	defer a.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())

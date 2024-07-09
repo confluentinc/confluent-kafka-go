@@ -1,8 +1,35 @@
 # Confluent's Golang client for Apache Kafka
 
-# v2.4.0
+# v2.5.0
 
 This is a feature release.
+
+## Fixes
+
+ * Issues: #965
+   Windows builds are linked to `libssp` in addition to other libraries, since
+   the bundled zstd and zlib are built with `-fstack-protector`, and not linking
+   causes build failures.
+   Happening since 2.0.0 (#1184).
+
+confluent-kafka-go is based on librdkafka v2.5.0, see the
+[librdkafka v2.5.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+# v2.4.0
+
+
+This is a feature release.
+
+ * [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol):
+   Integration tests running with the new consumer group protocol. The feature is an **Early Access**: not production ready (#1185).
+ * Allow custom http.Client to be passed to schema registry client (#1099)
+ * Cache schemas when setting `UseLatestVersion=true` (#1100)
+ * Add `CacheLatestTtlSecs` to allow expiration of latest schemas (#1106)
+ * Cache parsed file descriptors in Protobuf deserializer (#1128)
+ * Add `CacheSchemas` option to Protobuf serializer (#1151)
+ * Add `tags` field to Confluent metadata (#1131)
 
 ## Fixes
 
@@ -10,6 +37,8 @@ This is a feature release.
    This is necessary to update test dependencies with security vulnerabilities.
    Code using the library will still work with Go 1.17.
    (#1136, @rzeijde).
+ * Fix JSON validation during serialization (#1101)
+ * Fix counter in mock schema registry client (#1170)
 
 confluent-kafka-go is based on librdkafka v2.4.0, see the
 [librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
