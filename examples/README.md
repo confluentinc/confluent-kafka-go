@@ -14,6 +14,8 @@ Examples
 
   [admin_delete_consumer_groups](admin_delete_consumer_groups) - Delete consumer groups
 
+  [admin_delete_records](admin_delete_records) - Delete records before a specified offset
+
   [admin_delete_topics](admin_delete_topics) - Delete topics
 
   [admin_describe_acls](admin_describe_acls) - Find Access Control Lists using a filter
