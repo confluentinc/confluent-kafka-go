@@ -3296,14 +3296,22 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
 	}
 	deleteRes, err := a.DeleteRecords(ctx, delRecordsTopicPartitionOffsets)
 	assert.Nil(err, "Delete Records should not fail")
-	assert.Len(deleteRes.TopicPartitions, 3, "Length of deleteRes.TopicPartitions should be 3")
+	assert.Len(deleteRes.DeleteRecordsResults, 3, "Length of deleteRes.TopicPartitions should be 3")
 
-	assert.Nil(deleteRes.TopicPartitions[0].Error, "Error should not be set in deleteRes.TopicPartitions[0]")
-	assert.Nil(deleteRes.TopicPartitions[1].Error, "Error should not be set in deleteRes.TopicPartitions[1]")
-	assert.Error(deleteRes.TopicPartitions[2].Error, "Error should be set in deleteRes.TopicPartitions[2]")
+	assert.Nil(deleteRes.DeleteRecordsResults[0].TopicPartition.Error,
+		"Error should not be set in deleteRes.DeleteRecordsResults[0]")
+	assert.Nil(deleteRes.DeleteRecordsResults[1].TopicPartition.Error,
+		"Error should not be set in deleteRes.DeleteRecordsResults[1]")
+	assert.Error(deleteRes.DeleteRecordsResults[2].TopicPartition.Error,
+		"Error should be set in deleteRes.DeleteRecordsResults[2]")
+	assert.Nil(deleteRes.DeleteRecordsResults[2].DeletedRecords,
+		"DeletedRecords should be nil within deleteRes.DeleteRecordsResults[2]")
 
 	// Offsets after deletion reported by DeleteRecords, in order of topic partitions.
-	offsetAfterDeletion := []Offset{deleteRes.TopicPartitions[0].Offset, deleteRes.TopicPartitions[1].Offset}
+	offsetAfterDeletion := []Offset{
+		deleteRes.DeleteRecordsResults[0].DeletedRecords.LowWatermark,
+		deleteRes.DeleteRecordsResults[1].DeletedRecords.LowWatermark,
+	}
 
 	// Find the minimum offsets in the partitions of the topic via ListOffsets.
 	// It should be equal to the offset we get after the deletion operation.

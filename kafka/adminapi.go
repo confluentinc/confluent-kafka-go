@@ -1528,6 +1528,22 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 	return result, nil
 }
 
+// cToDeletedRecordResult converts a C topic partitions list to a Go DeleteRecordsResult slice.
+func cToDeletedRecordResult(cparts *C.rd_kafka_topic_partition_list_t) (results []DeleteRecordsResult) {
+	partcnt := int(cparts.cnt)
+	results = make([]DeleteRecordsResult, partcnt)
+	partitions := newTopicPartitionsFromCparts(cparts)
+
+	for i := 0; i < partcnt; i++ {
+		results[i].TopicPartition = partitions[i]
+		if results[i].TopicPartition.Error == nil {
+			results[i].DeletedRecords = &DeletedRecords{LowWatermark: results[i].TopicPartition.Offset}
+		}
+	}
+
+	return results
+}
+
 // ClusterID returns the cluster ID as reported in broker metadata.
 //
 // Note on cancellation: Although the underlying C function respects the
@@ -3430,12 +3446,14 @@ func (a *AdminClient) AlterUserScramCredentials(
 //     The offset could be set to kafka.OffsetEnd to delete all the messages in the partition.
 //   - `options` - DeleteRecordsAdminOptions options.
 //
-// Returns a DeleteRecordsResult, which contains a slice of
-// TopicPartitions, with the offset field set to the post-deletion
-// low-watermark offset (smallest available offset of all live replicas).
-// Individual TopicPartitions inside the result should be checked for errors.
-func (a *AdminClient) DeleteRecords(
-	ctx context.Context, recordsToDelete []TopicPartition, options ...DeleteRecordsAdminOption) (result DeleteRecordsResult, err error) {
+// Returns a DeleteRecordsResults, which contains a slice of
+// DeleteRecordsResult, each representing the result for one topic partition.
+// Individual TopicPartitions inside the DeleteRecordsResult should be checked for errors.
+// If successful, the DeletedRecords within the DeleteRecordsResult will be non-nil,
+// and contain the low-watermark offset (smallest available offset of all live replicas).
+func (a *AdminClient) DeleteRecords(ctx context.Context,
+	recordsToDelete []TopicPartition,
+	options ...DeleteRecordsAdminOption) (result DeleteRecordsResults, err error) {
 	if len(recordsToDelete) == 0 {
 		return result, newErrorFromString(ErrInvalidArg, "No records to delete")
 	}
@@ -3490,7 +3508,7 @@ func (a *AdminClient) DeleteRecords(
 	cDeleteRecordsResultList := C.rd_kafka_DeleteRecords_result_offsets(cRes)
 
 	// Convert result from C to Go.
-	result.TopicPartitions = newTopicPartitionsFromCparts(cDeleteRecordsResultList)
+	result.DeleteRecordsResults = cToDeletedRecordResult(cDeleteRecordsResultList)
 
 	return result, nil
 }

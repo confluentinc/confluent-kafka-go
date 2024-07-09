@@ -908,7 +908,7 @@ func testAdminAPIsDeleteRecords(what string, a *AdminClient, expDuration time.Du
 		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 		defer cancel()
 		result, err := a.DeleteRecords(ctx, nil, options...)
-		if result.TopicPartitions != nil || err == nil {
+		if result.DeleteRecordsResults != nil || err == nil {
 			t.Fatalf("Expected DeleteRecords to fail, but got result: %v, err: %v",
 				result, err)
 		}
