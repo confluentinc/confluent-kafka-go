@@ -20,11 +20,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"google.golang.org/protobuf/encoding/protojson"
 	"io"
 	"log"
 	"strings"
 	"sync"
+
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"

@@ -127,6 +127,9 @@ func (s *GenericDeserializer) DeserializeInto(topic string, payload []byte, msg 
 		return err
 	}
 	writer, _, err := s.toType(info)
+	if err != nil {
+		return err
+	}
 	_, err = avro.Unmarshal(payload[5:], msg, writer)
 	return err
 }
