@@ -74,11 +74,12 @@ func main() {
 			panic(err)
 		}
 
-		topicPartitionOffsets = append(topicPartitionOffsets, kafka.TopicPartition{
-			Topic:     &topicName,
-			Partition: int32(partition),
-			Offset:    kafka.Offset(offset),
-		})
+		topicPartitionOffsets = append(topicPartitionOffsets,
+			kafka.TopicPartition{
+				Topic:     &topicName,
+				Partition: int32(partition),
+				Offset:    kafka.Offset(offset),
+			})
 		i += 3
 		index++
 	}
