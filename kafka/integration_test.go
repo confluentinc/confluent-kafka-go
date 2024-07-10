@@ -3267,7 +3267,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
 	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
 	assert.Nil(createTopicError, "Create topics should not fail.")
 	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError,
-		"Create topics Error Code should be ErrNoError.")
+		"Create topics error code should be ErrNoError.")
 
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
 	assert.Nil(err, "Unable to create Producer.")
@@ -3318,7 +3318,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
 		deleteRes.DeleteRecordsResults[1].DeletedRecords.LowWatermark,
 	}
 
-	// Expected minimum offsets at each partition (manually computed). in order
+	// Expected minimum offsets at each partition (manually computed), in order
 	// of topic partitions.
 	offsetExpected := []Offset{Offset(2), Offset(3), Offset(0)}
 
