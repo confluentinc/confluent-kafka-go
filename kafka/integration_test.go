@@ -3326,7 +3326,8 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
 
 	for toppar, info := range results.ResultInfos {
 		assert.Equal(info.Error.Code(), ErrNoError, "Error code should be ErrNoError.")
-		assert.Equal(info.Offset, offsetAfterDeletion[toppar.Partition], "Offset should be equal to the offset obtained after deletion.")
+		assert.Equal(info.Offset, offsetAfterDeletion[toppar.Partition],
+			"Offset should be equal to the offset obtained after deletion.")
 	}
 
 	delTopics := []string{topic}
