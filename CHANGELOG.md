@@ -4,10 +4,6 @@
 
 This is a feature release.
 
- * [KIP-951](https://cwiki.apache.org/confluence/display/KAFKA/KIP-951%3A+Leader+discovery+optimisations+for+the+client):
-   Leader discovery optimisations for the client.
- * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability):
-   Client metrics and observability.
  * Adds an AdminAPI `DeleteRecords()` (#1141, @PratRanj07).
  * Add support for metadata and ruleSet in the schema registry client, which together support data
 contracts.
