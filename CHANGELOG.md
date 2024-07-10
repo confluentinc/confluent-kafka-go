@@ -4,6 +4,8 @@
 
 This is a feature release.
 
+ * Adds an AdminAPI `DeleteRecords()` (#1141, @PratRanj07).
+
 ## Fixes
 
  * Issues: #965
@@ -18,7 +20,6 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 # v2.4.0
-
 
 This is a feature release.
 
@@ -43,7 +44,6 @@ This is a feature release.
 confluent-kafka-go is based on librdkafka v2.4.0, see the
 [librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-
 
 # v2.3.0
 
