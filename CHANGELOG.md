@@ -4,6 +4,7 @@
 
 This is a feature release.
 
+ * Adds an AdminAPI `DeleteRecords()` (#1141, @PratRanj07).
  * Add support for metadata and ruleSet in the schema registry client, which together support data 
 contracts.
  * Add a new Avro package "avrov2" which uses the Avro hamba library.  The old package "avro" uses
@@ -13,6 +14,7 @@ and the DEK Registry client.
  * Add support for CSFLE (client-side field-level encryption) for AWS, Azure, GCP, and HashiCorp 
 Vault.  See the encryption examples in the examples directory.
  * Add support for CEL, CEL_FIELD, and JSONata rules.
+
 
 ## Fixes
 
@@ -28,7 +30,6 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 # v2.4.0
-
 
 This is a feature release.
 
@@ -53,7 +54,6 @@ This is a feature release.
 confluent-kafka-go is based on librdkafka v2.4.0, see the
 [librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-
 
 # v2.3.0
 
