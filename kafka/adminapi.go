@@ -1530,11 +1530,11 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 
 // cToDeletedRecordResult converts a C topic partitions list to a Go DeleteRecordsResult slice.
 func cToDeletedRecordResult(cparts *C.rd_kafka_topic_partition_list_t) (results []DeleteRecordsResult) {
-	partcnt := int(cparts.cnt)
-	results = make([]DeleteRecordsResult, partcnt)
 	partitions := newTopicPartitionsFromCparts(cparts)
+	partitionsLen := len(partitions)
+	results = make([]DeleteRecordsResult, partitionsLen)
 
-	for i := 0; i < partcnt; i++ {
+	for i := 0; i < partitionsLen; i++ {
 		results[i].TopicPartition = partitions[i]
 		if results[i].TopicPartition.Error == nil {
 			results[i].DeletedRecords = &DeletedRecords{LowWatermark: results[i].TopicPartition.Offset}
