@@ -1529,7 +1529,8 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 }
 
 // cToDeletedRecordResult converts a C topic partitions list to a Go DeleteRecordsResult slice.
-func cToDeletedRecordResult(cparts *C.rd_kafka_topic_partition_list_t) (results []DeleteRecordsResult) {
+func cToDeletedRecordResult(
+	cparts *C.rd_kafka_topic_partition_list_t) (results []DeleteRecordsResult) {
 	partitions := newTopicPartitionsFromCparts(cparts)
 	partitionsLen := len(partitions)
 	results = make([]DeleteRecordsResult, partitionsLen)
@@ -1537,7 +1538,8 @@ func cToDeletedRecordResult(cparts *C.rd_kafka_topic_partition_list_t) (results 
 	for i := 0; i < partitionsLen; i++ {
 		results[i].TopicPartition = partitions[i]
 		if results[i].TopicPartition.Error == nil {
-			results[i].DeletedRecords = &DeletedRecords{LowWatermark: results[i].TopicPartition.Offset}
+			results[i].DeletedRecords = &DeletedRecords{
+				LowWatermark: results[i].TopicPartition.Offset}
 		}
 	}
 
@@ -3454,13 +3456,13 @@ func (a *AdminClient) AlterUserScramCredentials(
 func (a *AdminClient) DeleteRecords(ctx context.Context,
 	recordsToDelete []TopicPartition,
 	options ...DeleteRecordsAdminOption) (result DeleteRecordsResults, err error) {
-	if len(recordsToDelete) == 0 {
-		return result, newErrorFromString(ErrInvalidArg, "No records to delete")
-	}
-
 	err = a.verifyClient()
 	if err != nil {
 		return result, err
+	}
+
+	if len(recordsToDelete) == 0 {
+		return result, newErrorFromString(ErrInvalidArg, "No records to delete")
 	}
 
 	// convert recordsToDelete to rd_kafka_DeleteRecords_t** required by implementation
@@ -3508,7 +3510,8 @@ func (a *AdminClient) DeleteRecords(ctx context.Context,
 	cDeleteRecordsResultList := C.rd_kafka_DeleteRecords_result_offsets(cRes)
 
 	// Convert result from C to Go.
-	result.DeleteRecordsResults = cToDeletedRecordResult(cDeleteRecordsResultList)
+	result.DeleteRecordsResults =
+		cToDeletedRecordResult(cDeleteRecordsResultList)
 
 	return result, nil
 }
