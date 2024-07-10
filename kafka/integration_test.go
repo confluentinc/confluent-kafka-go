@@ -3245,6 +3245,121 @@ func (its *IntegrationTestSuite) TestAdminClient_ListOffsets() {
 
 }
 
+// Test DeleteRecords API which deletes all the records before the specified offset
+// in the particular partition of the specified topic.
+func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
+	t := its.T()
+	bootstrapServers := testconf.Brokers
+	assert := its.Assert()
+
+	// Create a new AdminClient.
+	a := createAdminClient(t)
+	defer a.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a new topic to test the api and produce some messages to that topic
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
+
+	topics := []TopicSpecification{
+		{Topic: topic, NumPartitions: 3, ReplicationFactor: 1}}
+	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
+	assert.Nil(createTopicError, "Create topics should not fail.")
+	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError,
+		"Create topics Error Code should be ErrNoError.")
+
+	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
+	assert.Nil(err, "Unable to create Producer.")
+	defer p.Close()
+
+	numMessages := 3
+	numPartitions := 3
+	for i := 0; i < numMessages; i++ {
+		for j := 0; j < numPartitions; j++ {
+			p.Produce(&Message{
+				TopicPartition: TopicPartition{Topic: &topic, Partition: int32(j)},
+				Value:          []byte(fmt.Sprintf("Message-%d", i)),
+			}, nil)
+		}
+	}
+
+	p.Flush(5 * 1000)
+
+	// Delete the records:
+	// Partition 0: upto offset 2
+	// Partition 1: upto the last offset
+	// Partition 2: upto offset 4 (non-existent)
+	// The result will contain the minimum offset available after deletion in
+	// that Topic Partiton.
+	delRecordsTopicPartitionOffsets := []TopicPartition{
+		{Topic: &topic, Partition: int32(0), Offset: Offset(2)},
+		{Topic: &topic, Partition: int32(1), Offset: OffsetEnd},
+		{Topic: &topic, Partition: int32(2), Offset: Offset(4)},
+	}
+	deleteRes, err := a.DeleteRecords(ctx, delRecordsTopicPartitionOffsets)
+	assert.Nil(err, "Delete Records should not fail")
+	assert.Len(deleteRes.DeleteRecordsResults, 3,
+		"Length of deleteRes.DeleteRecordsResults should be 3")
+
+	assert.Nil(deleteRes.DeleteRecordsResults[0].TopicPartition.Error,
+		"Error should not be set in deleteRes.DeleteRecordsResults[0]")
+	assert.Nil(deleteRes.DeleteRecordsResults[1].TopicPartition.Error,
+		"Error should not be set in deleteRes.DeleteRecordsResults[1]")
+	assert.Error(deleteRes.DeleteRecordsResults[2].TopicPartition.Error,
+		"Error should be set in deleteRes.DeleteRecordsResults[2]")
+	assert.Nil(deleteRes.DeleteRecordsResults[2].DeletedRecords,
+		"DeletedRecords should be nil within deleteRes.DeleteRecordsResults[2]")
+
+	// Offsets after deletion reported by DeleteRecords, in order of topic
+	// partitions.
+	offsetAfterDeletion := []Offset{
+		deleteRes.DeleteRecordsResults[0].DeletedRecords.LowWatermark,
+		deleteRes.DeleteRecordsResults[1].DeletedRecords.LowWatermark,
+	}
+
+	// Expected minimum offsets at each partition (manually computed). in order
+	// of topic partitions.
+	offsetExpected := []Offset{Offset(2), Offset(3), Offset(0)}
+
+	// Find the minimum offsets in the partitions of the topic via ListOffsets.
+	// It should be equal to the offset we get after the deletion operation as
+	// well as the expected minimum offsets.
+	topicPartitionOffsets := map[TopicPartition]OffsetSpec{
+		{Topic: &topic, Partition: 0}: EarliestOffsetSpec,
+		{Topic: &topic, Partition: 1}: EarliestOffsetSpec,
+		{Topic: &topic, Partition: 2}: EarliestOffsetSpec,
+	}
+
+	results, err := a.ListOffsets(ctx, topicPartitionOffsets)
+	assert.Nil(err, "ListOffsets should not fail.")
+	assert.Len(results.ResultInfos, 3,
+		"Length of results.ResultInfos should be 3")
+
+	for toppar, info := range results.ResultInfos {
+		assert.Equal(info.Error.Code(), ErrNoError,
+			"Error code should be ErrNoError.")
+
+		// Compare the listed offset with the offset we expect the partition to be at.
+		assert.Equal(offsetExpected[toppar.Partition], info.Offset,
+			"Offset should be equal to %v on partition %d, got %v",
+			offsetExpected[toppar.Partition], toppar.Partition, info.Offset)
+
+		// If the DeleteRecords method for said partition succeeded, check if
+		// it also matches the return from DeleteRecords.
+		if int(toppar.Partition) < len(offsetAfterDeletion) {
+			assert.Equal(info.Offset, offsetAfterDeletion[toppar.Partition],
+				"Offset %v returned from DeleteRecords should be equal to the "+
+					"ListOffsets result %v on partition %d.",
+				offsetAfterDeletion[toppar.Partition], info.Offset, toppar.Partition)
+		}
+	}
+
+	delTopics := []string{topic}
+	_, err = a.DeleteTopics(ctx, delTopics)
+	assert.Nil(err, "DeleteTopics should not fail.")
+}
+
 func TestIntegration(t *testing.T) {
 	its := new(IntegrationTestSuite)
 	testconfInit()
