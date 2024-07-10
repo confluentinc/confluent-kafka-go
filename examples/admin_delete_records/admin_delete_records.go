@@ -65,7 +65,11 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		offset, err := strconv.ParseUint(args[i+2], 10, 64)
+		offset, err := strconv.ParseInt(args[i+2], 10, 64)
+		if offset < -1 {
+			err = fmt.Errorf("invalid offset %d for topic %s partition %d",
+				offset, topicName, partition)
+		}
 		if err != nil {
 			panic(err)
 		}
