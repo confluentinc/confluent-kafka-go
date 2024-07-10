@@ -31,7 +31,7 @@ import (
 func main() {
 	args := os.Args
 
-    if len(args) < 5 {
+	if len(args) < 5 {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s <bootstrap_servers> "+
 				"<topic1> <partition1> <offset1> ...\n",
@@ -92,7 +92,7 @@ func main() {
 		fmt.Printf("Failed to delete records: %s\n", err)
 		os.Exit(1)
 	}
-    
+
 	for _, deleteRecordsResult := range res.DeleteRecordsResults {
 		fmt.Printf("Delete records result for topic %s partition: %+v\n",
 			*deleteRecordsResult.TopicPartition.Topic,
