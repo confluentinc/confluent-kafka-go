@@ -92,5 +92,17 @@ func main() {
 		os.Exit(1)
 	}
     
-	fmt.Printf("Delete Records result: %+v\n", res)
+	for _, deleteRecordsResult := range res.DeleteRecordsResults {
+		fmt.Printf("Delete records result for topic %s partition: %+v\n",
+			*deleteRecordsResult.TopicPartition.Topic,
+			deleteRecordsResult.TopicPartition.Partition)
+		err := deleteRecordsResult.TopicPartition.Error
+		if err != nil {
+			fmt.Printf("\tDelete records failed with error: %s\n", err.Error())
+		} else {
+			fmt.Printf("\tDelete records succeeded\n")
+			fmt.Printf("\t\tNew low-watermark: %v\n",
+				deleteRecordsResult.DeletedRecords.LowWatermark)
+		}
+	}
 }
