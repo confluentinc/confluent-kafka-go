@@ -3264,7 +3264,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteRecords() {
 
 	topics := []TopicSpecification{TopicSpecification{Topic: topic, NumPartitions: 3, ReplicationFactor: 1}}
 	createTopicResult, createTopicError := a.CreateTopics(ctx, topics)
-	assert.Nil(createTopicError, "Create Topics should not fail.")
+	assert.Nil(createTopicError, "Create topics should not fail.")
 	assert.Equal(createTopicResult[0].Error.Code(), ErrNoError, "Create Topics Error Code should be ErrNoError.")
 
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": bootstrapServers})
