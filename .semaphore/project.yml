@@ -24,9 +24,10 @@ spec:
         level: pipeline
     whitelist:
       branches:
-      - master
-      - main
-      - /^v\d+\.\d+\.x$/
+      - 'master'
+      - 'main'
+      - '/^v\d+\.\d+\.x$/'
+      - '/^gh-readonly-queue.*/'
   custom_permissions: true
   debug_permissions:
   - empty
