@@ -40,7 +40,7 @@ func (f *FieldExecutor) Configure(clientConfig *schemaregistry.Config, config ma
 // NewTransform creates a new transform
 func (f *FieldExecutor) NewTransform(ctx serde.RuleContext) (serde.FieldTransform, error) {
 	transform := FieldExecutorTransform{
-		executor: f.executor,
+		executor: &f.executor,
 	}
 	return &transform, nil
 }
@@ -52,7 +52,7 @@ func (f *FieldExecutor) Close() error {
 
 // FieldExecutorTransform is a CEL field rule executor transform
 type FieldExecutorTransform struct {
-	executor Executor
+	executor *Executor
 }
 
 // Transform transforms the field value using the rule
