@@ -234,7 +234,24 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		} else {
 			msg = result
 		}
-		err = avro.Unmarshal(writer, payload[5:], msg)
+		msgType := reflect.TypeOf(msg)
+		if msgType.Kind() != reflect.Pointer {
+			return nil, errors.New("input message must be a pointer")
+		}
+		var reader avro.Schema
+		reader, err = StructToSchema(msgType.Elem())
+		if err != nil {
+			return nil, err
+		}
+		if reader.CacheFingerprint() != writer.CacheFingerprint() {
+			// reader and writer are different, perform schema resolution
+			sc := avro.NewSchemaCompatibility()
+			reader, err = sc.Resolve(reader, writer)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = avro.Unmarshal(reader, payload[5:], msg)
 		if err != nil {
 			return nil, err
 		}
