@@ -28,6 +28,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/gcpkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
@@ -45,6 +46,7 @@ func main() {
 	azurekms.Register()
 	gcpkms.Register()
 	hcvault.Register()
+	localkms.Register()
 	encryption.Register()
 
 	bootstrapServers := os.Args[1]
@@ -113,6 +115,11 @@ func main() {
 	serConfig := avrov2.NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
+	// KMS properties can be passed as follows
+	//serConfig.RuleConfig = map[string]string{
+	//	"secret.access.key": "xxx",
+	//	"access.key,id": "xxx",
+	//}
 
 	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, serConfig)
 
