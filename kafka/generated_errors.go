@@ -1,7 +1,7 @@
 package kafka
 
 // Copyright 2016-2024 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2024-05-07 12:59:28.782336233 +0200 CEST m=+0.000220978 USING librdkafka 2.4.0
+// AUTOMATICALLY GENERATED ON 2024-07-10 19:23:45.908188233 +0530 IST m=+0.000136904 USING librdkafka 2.5.0
 
 /*
 #include "select_rdkafka.h"
@@ -349,4 +349,8 @@ const (
 	ErrUnsupportedAssignor ErrorCode = C.RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR
 	// ErrStaleMemberEpoch Broker: The member epoch is stale
 	ErrStaleMemberEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH
+	// ErrUnknownSubscriptionID Broker: Client sent a push telemetry request with an invalid or outdated subscription ID
+	ErrUnknownSubscriptionID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID
+	// ErrTelemetryTooLarge Broker: Client sent a push telemetry request larger than the maximum size the broker will accept
+	ErrTelemetryTooLarge ErrorCode = C.RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE
 )
