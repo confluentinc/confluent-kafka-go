@@ -828,21 +828,135 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		t.Errorf("Consumer group %s should not be present\n", groupID)
 		return
 	}
+	return
 }
 
 // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
 // list consumer groups and describe consumer group APIs of the admin client.
 //
-// We test the following situations:
+// We test the following situations[Classic Protocol]:
 //
 // 1. One consumer group with one client.
 // 2. One consumer group with two clients.
 // 3. Empty consumer group.
+//
+// We test the following situations[Consumer Protocol]:
+// 1. No Consumer Group should be listed with Classic Group Type Option
+// 2. Our Consumer Group should be listed with Consumer Group Type Option
+// 3. All Consumer Groups should be listed with NULL Group Type Option
 func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups() {
 	t := its.T()
 	if !testConsumerGroupProtocolClassic() {
-		t.Skipf("KIP 848 Admin operations changes still aren't " +
-			"available")
+		// Generating a new topic/groupID to ensure a fresh group/topic is created.
+		rand.Seed(time.Now().Unix())
+		groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+		topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
+		nonExistentGroupID := fmt.Sprintf("%s-nonexistent-%d", testconf.GroupID, rand.Int())
+
+		clientID := "test.client"
+
+		ac := createAdminClient(t)
+		defer ac.Close()
+
+		// Create a topic
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err := ac.CreateTopics(ctx, []TopicSpecification{
+			{
+				Topic:         topic,
+				NumPartitions: 1,
+			},
+		})
+		if err != nil {
+			t.Errorf("Topic creation failed with error %v", err)
+			return
+		}
+
+		// Delete the topic after the test is done.
+		defer func() {
+			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_, err = ac.DeleteTopics(ctx, []string{topic})
+			if err != nil {
+				t.Errorf("Topic deletion failed with error %v", err)
+			}
+		}()
+
+		// Check the non-existence of consumer groups initially.
+		ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+		listGroupResult, err := ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+		if err != nil || len(listGroupResult.Errors) > 0 {
+			t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+			return
+		}
+
+		groups := listGroupResult.Valid
+		if findConsumerGroupListing(groups, groupID) != nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
+			t.Errorf("Consumer groups %s and %s should not be present\n", groupID, nonExistentGroupID)
+			return
+		}
+
+		config := &ConfigMap{
+			"bootstrap.servers":             testconf.Brokers,
+			"group.id":                      groupID,
+			"auto.offset.reset":             "earliest",
+			"enable.auto.offset.store":      false,
+			"client.id":                     clientID,
+			"partition.assignment.strategy": "range",
+		}
+		config.updateFromTestconf()
+		consumer, err := testNewConsumer(config)
+		if err != nil {
+			t.Errorf("Failed to create consumer: %s\n", err)
+			return
+		}
+		consumerClosed := false
+		defer func() {
+			if !consumerClosed {
+				consumer.Close()
+			}
+		}()
+		consumer.Subscribe(topic, nil)
+
+		// Call Poll to trigger a rebalance and give it enough time to finish.
+		consumer.Poll(10 * 1000)
+
+		// Check the existence of the group.
+		ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+
+		// No Classic Group Type should be present.
+		listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second), SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{ConsumerGroupTypeClassic}))
+		if err != nil || len(listGroupResult.Errors) > 0 {
+			t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+			return
+		}
+		if len(listGroupResult.Valid) > 0 {
+			t.Errorf("No Classic Consumer Groups should be present\n")
+			return
+		}
+		// Our Consumer should be listed in Consumer Groups with Consumer Type option.
+		listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second), SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{ConsumerGroupTypeConsumer}))
+		if err != nil || len(listGroupResult.Errors) > 0 {
+			t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+			return
+		}
+		groups = listGroupResult.Valid
+		if findConsumerGroupListing(groups, groupID) == nil || findConsumerGroupListing(groups, nonExistentGroupID) != nil {
+			t.Errorf("Consumer groups %s should be present and %s should not be\n", groupID, nonExistentGroupID)
+			return
+		}
+		// Null Group Type should give all the Consumer Groups(atleast 1) which we have just created.
+		listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second))
+		if err != nil || len(listGroupResult.Errors) > 0 {
+			t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+			return
+		}
+		if len(listGroupResult.Valid) < 1 {
+			t.Errorf("All Consumer Groups should be listed when no Group Type is set\n")
+			return
+		}
 		return
 	}
 

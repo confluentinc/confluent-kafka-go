@@ -30,22 +30,53 @@ func main() {
 
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <bootstrap-servers> [<state1> <state2> ...]\n", os.Args[0])
+			"Usage: %s <bootstrap-servers> [-states <state1> <state2> ...] [-types <type1> <type2> ...] \n", os.Args[0])
 		os.Exit(1)
 	}
-
 	bootstrapServers := os.Args[1]
 	var states []kafka.ConsumerGroupState
+	var groupTypes []kafka.ConsumerGroupType
+
 	if len(os.Args) > 2 {
-		statesStr := os.Args[2:]
-		for _, stateStr := range statesStr {
-			state, err := kafka.ConsumerGroupStateFromString(stateStr)
-			if err != nil {
-				fmt.Fprintf(os.Stderr,
-					"Given state %s is not a valid state\n", stateStr)
-				os.Exit(1)
+		args := os.Args[2:]
+		isState := false
+		isType := false
+		for _, arg := range args {
+			if arg == "-types" {
+				if isType {
+					fmt.Printf("Cannot pass the types flag (-types) more than once.\n")
+					os.Exit(1)
+				}
+				isType = true
+			} else if arg == "-states" {
+				if isState {
+					fmt.Printf("Cannot pass the states flag (-states) more than once.\n")
+					os.Exit(1)
+				}
+				isState = true
+			} else {
+				if isState {
+					state, err := kafka.ConsumerGroupStateFromString(arg)
+					if err != nil {
+						fmt.Fprintf(os.Stderr,
+							"Given state %s is not a valid state\n", arg)
+						os.Exit(1)
+					}
+					states = append(states, state)
+				} else if isType {
+					groupType, err := kafka.ConsumerGroupTypeFromString(arg)
+					if err != nil {
+						fmt.Fprintf(os.Stderr,
+							"Given group type %s is not a valid group type\n", arg)
+						os.Exit(1)
+					}
+					groupTypes = append(groupTypes, groupType)
+				} else {
+					fmt.Fprintf(os.Stderr,
+						"Usage: %s <bootstrap-servers> [-states <state1> <state2> ...] [-types <type1> <type2> ...] \n", os.Args[0])
+					os.Exit(1)
+				}
 			}
-			states = append(states, state)
 		}
 	}
 
@@ -61,7 +92,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	listGroupRes, err := a.ListConsumerGroups(
-		ctx, kafka.SetAdminMatchConsumerGroupStates(states))
+		ctx, kafka.SetAdminMatchConsumerGroupStates(states), kafka.SetAdminMatchConsumerGroupTypes(groupTypes))
 
 	if err != nil {
 		fmt.Printf("Failed to list groups with client-level error %s\n", err)
@@ -74,6 +105,7 @@ func main() {
 	for _, group := range groups {
 		fmt.Printf("GroupId: %s\n", group.GroupID)
 		fmt.Printf("State: %s\n", group.State)
+		fmt.Printf("Group Type: %s\n", group.GroupType)
 		fmt.Printf("IsSimpleConsumerGroup: %v\n", group.IsSimpleConsumerGroup)
 		fmt.Println()
 	}
