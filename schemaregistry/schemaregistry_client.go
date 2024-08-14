@@ -576,7 +576,7 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 // Returns SubjectAndVersion object on success.
 // This method cannot not use caching to increase performance.
 func (c *client) GetSubjectsAndVersionsByID(id int) (subbjectsAndVersions []SubjectAndVersion, err error) {
-	err = c.restService.HandleRequest(internal.NewRequest("GET", subjectsAndVersionsById, nil, id), &subbjectsAndVersions)
+	err = c.restService.HandleRequest(internal.NewRequest("GET", subjectsAndVersionsByID, nil, id), &subbjectsAndVersions)
 	return
 }
 
