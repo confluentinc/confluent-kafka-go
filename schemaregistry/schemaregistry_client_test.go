@@ -67,8 +67,8 @@ func testGetBySubjectAndIDNotFound(subject string, id int) {
 func testGetSubjectsAndVersionsByID(id int, ids [][]int, subjects []string, versions [][]int) {
 	expected := make([]SubjectAndVersion, 0)
 	for subjectIdx, subject := range subjects {
-		for idIdx, sId := range ids[subjectIdx] {
-			if sId == id {
+		for idIdx, sID := range ids[subjectIdx] {
+			if sID == id {
 				expected = append(expected, SubjectAndVersion{
 					Subject: subject,
 					Version: versions[subjectIdx][idIdx],
