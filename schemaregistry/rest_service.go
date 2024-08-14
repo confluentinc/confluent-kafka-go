@@ -43,7 +43,7 @@ const (
 	context = "/contexts"
 
 	schemasBySubject        = "/schemas/ids/%d?subject=%s"
-	subjectsAndVersionsById = "/schemas/ids/%d/versions"
+	subjectsAndVersionsByID = "/schemas/ids/%d/versions"
 	subject                 = "/subjects"
 	subjects                = subject + "/%s"
 	subjectsNormalize       = subject + "/%s?normalize=%t"
