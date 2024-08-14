@@ -63,7 +63,7 @@ const (
 	KekByName     = Keks + "/%s?deleted=%t"
 	Deks          = Keks + "/%s/deks"
 	DeksBySubject = Deks + "/%s?deleted=%t"
-	DeksByVersion = DeksBySubject + "/versions/%v?deleted=%t"
+	DeksByVersion = Deks + "/%s/versions/%v?deleted=%t"
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
