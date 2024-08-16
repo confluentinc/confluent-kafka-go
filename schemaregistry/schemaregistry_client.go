@@ -19,6 +19,7 @@ package schemaregistry
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"net/url"
 	"runtime"
 	"strings"
@@ -370,6 +371,7 @@ type Client interface {
 	GetSubjectsAndVersionsByID(id int) (subjectAndVersion []SubjectAndVersion, err error)
 	GetID(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	GetLatestSchemaMetadata(subject string) (SchemaMetadata, error)
+	RefreshLatestSchemaMetadataCache(subjects ...string) error
 	GetSchemaMetadata(subject string, version int) (SchemaMetadata, error)
 	GetSchemaMetadataIncludeDeleted(subject string, version int, deleted bool) (SchemaMetadata, error)
 	GetLatestWithMetadata(subject string, metadata map[string]string, deleted bool) (SchemaMetadata, error)
@@ -642,6 +644,25 @@ func (c *client) GetLatestSchemaMetadata(subject string) (result SchemaMetadata,
 	}
 	c.latestToSchemaCacheLock.Unlock()
 	return result, err
+}
+
+func (c *client) RefreshLatestSchemaMetadataCache(subjects ...string) (err error) {
+
+	var errors error
+
+	for _, subjectIter := range subjects {
+		sm := &SchemaMetadata{}
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.Versions, nil, url.PathEscape(subjectIter), "latest"), &sm)
+		if err != nil {
+			errors = multierror.Append(errors, err)
+			continue
+		}
+		c.latestToSchemaCacheLock.Lock() // lock r/w due to we need to be aware of the possible latest schema-metadata update
+		c.latestToSchemaCache.Put(subjectIter, sm)
+		c.latestToSchemaCacheLock.Unlock()
+	}
+
+	return errors
 }
 
 // GetSchemaMetadata fetches the requested subject schema identified by version

@@ -296,6 +296,10 @@ func (c *mockclient) GetLatestSchemaMetadata(subject string) (result SchemaMetad
 	return c.GetSchemaMetadata(subject, version)
 }
 
+func (c *mockclient) RefreshLatestSchemaMetadataCache(subjects ...string) (err error) {
+	return nil
+}
+
 // GetSchemaMetadata fetches the requested subject schema identified by version
 // Returns SchemaMetadata object
 func (c *mockclient) GetSchemaMetadata(subject string, version int) (result SchemaMetadata, err error) {
