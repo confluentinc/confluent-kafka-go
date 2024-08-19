@@ -350,6 +350,7 @@ type NoneAction struct {
 // RuleConditionErr represents a rule condition error
 type RuleConditionErr struct {
 	Rule *schemaregistry.Rule
+	Err  error
 }
 
 // Error returns the error message
@@ -635,13 +636,8 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 		}
 		var err error
 		result, err := ruleExecutor.Transform(ctx, msg)
-		if err != nil {
+		if result == nil || err != nil {
 			err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, err, "ERROR")
-			if err != nil {
-				return nil, err
-			}
-		} else if result == nil {
-			err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, nil, "ERROR")
 			if err != nil {
 				return nil, err
 			}
@@ -650,17 +646,19 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 			case "CONDITION":
 				condResult, ok2 := result.(bool)
 				if ok2 && !condResult {
-					return nil, RuleConditionErr{
-						Rule: ctx.Rule,
+					err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, err, "ERROR")
+					if err != nil {
+						return nil, RuleConditionErr{
+							Rule: ctx.Rule,
+							Err:  err,
+						}
 					}
 				}
 			case "TRANSFORM":
 				msg = result
 			}
-			err = s.runAction(ctx, ruleMode, rule, rule.OnSuccess, msg, nil, "NONE")
-			if err != nil {
-				return nil, err
-			}
+			// ignore error, since rule succeeded
+			_ = s.runAction(ctx, ruleMode, rule, rule.OnSuccess, msg, nil, "NONE")
 		}
 	}
 	return msg, nil
