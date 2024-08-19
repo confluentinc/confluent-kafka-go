@@ -534,7 +534,7 @@ func (s *Serde) getSchemasBetween(subject string, first *schemaregistry.SchemaMe
 	version2 := last.Version
 	result := []*schemaregistry.SchemaMetadata{first}
 	for i := version1 + 1; i < version2; i++ {
-		meta, err := s.Client.GetSchemaMetadata(subject, i)
+		meta, err := s.Client.GetSchemaMetadataIncludeDeleted(subject, i, true)
 		if err != nil {
 			return nil, err
 		}
@@ -785,7 +785,7 @@ func (s *BaseDeserializer) GetReaderSchema(subject string) (*schemaregistry.Sche
 // ResolveReferences resolves schema references
 func ResolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo, deps map[string]string) error {
 	for _, ref := range schema.References {
-		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
+		metadata, err := c.GetSchemaMetadataIncludeDeleted(ref.Subject, ref.Version, true)
 		if err != nil {
 			return err
 		}
