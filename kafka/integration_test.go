@@ -843,7 +843,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 // We test the following situations[Consumer Protocol]:
 // 1. No Consumer Group should be listed with Classic Group Type Option
 // 2. Our Consumer Group should be listed with Consumer Group Type Option
-// 3. All Consumer Groups should be listed with NULL Group Type Option
+// 3. All Consumer Groups should be listed with nil Group Type Option
 func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups() {
 	t := its.T()
 	if !testConsumerGroupProtocolClassic() {

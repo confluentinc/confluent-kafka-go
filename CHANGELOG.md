@@ -1,5 +1,12 @@
 # Confluent's Golang client for Apache Kafka
 
+# vNext
+
+This is a feature release.
+
+ * Adds ListGroupsAPI which is used by the public API ListConsumerGroups which specifies the Group Type for a
+Consumer Group, incase the broker version does not support then all Consumer Groups are listed with type `UNKNOWN`.
+
 # v2.5.0
 
 This is a feature release.

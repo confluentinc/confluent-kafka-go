@@ -448,6 +448,9 @@ func testAdminAPIsListConsumerGroups(
 		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+
 	listres, err := a.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(time.Second),
 		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}))
@@ -464,7 +467,10 @@ func testAdminAPIsListConsumerGroups(
 		t.Fatalf("Expected ConsumerGroupTypeFromString to work for Unknown type")
 	}
 
-	listres, err := a.ListConsumerGroups(
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+ 
+  listres, err := a.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(time.Second),
 		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{unknownGroupType}))
 	if err == nil {
@@ -479,6 +485,9 @@ func testAdminAPIsListConsumerGroups(
 	if err != nil || unknownGroupType != ConsumerGroupTypeUnknown {
 		t.Fatalf("Expected ConsumerGroupTypeFromString to work for Classic type")
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
 
 	listres, err := a.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(time.Second),
