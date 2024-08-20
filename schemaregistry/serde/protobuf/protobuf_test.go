@@ -397,7 +397,7 @@ func TestProtobufSerdeWithCELConditionFail(t *testing.T) {
 	_, err = ser.Serialize("topic1", &obj)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
-	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
+	serde.MaybeFail("serialization", nil, serde.Expect(encRule, *ruleErr.Rule))
 }
 
 func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {

@@ -117,9 +117,11 @@ func getType(fd protoreflect.FieldDescriptor) serde.FieldType {
 		return serde.TypeString
 	case protoreflect.BytesKind:
 		return serde.TypeBytes
-	case protoreflect.Int32Kind, protoreflect.Uint32Kind, protoreflect.Fixed32Kind, protoreflect.Sfixed32Kind:
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
+		protoreflect.Fixed32Kind, protoreflect.Sfixed32Kind:
 		return serde.TypeInt
-	case protoreflect.Int64Kind, protoreflect.Uint64Kind, protoreflect.Fixed64Kind, protoreflect.Sfixed64Kind:
+	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Uint64Kind,
+		protoreflect.Fixed64Kind, protoreflect.Sfixed64Kind:
 		return serde.TypeLong
 	case protoreflect.FloatKind:
 		return serde.TypeFloat

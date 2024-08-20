@@ -330,7 +330,7 @@ func name(avroType avro.Schema) string {
 
 func resolveAvroReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (avro.Schema, error) {
 	for _, ref := range schema.References {
-		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
+		metadata, err := c.GetSchemaMetadataIncludeDeleted(ref.Subject, ref.Version, true)
 		if err != nil {
 			return nil, err
 		}

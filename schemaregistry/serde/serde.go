@@ -350,6 +350,7 @@ type NoneAction struct {
 // RuleConditionErr represents a rule condition error
 type RuleConditionErr struct {
 	Rule *schemaregistry.Rule
+	Err  error
 }
 
 // Error returns the error message
@@ -534,7 +535,7 @@ func (s *Serde) getSchemasBetween(subject string, first *schemaregistry.SchemaMe
 	version2 := last.Version
 	result := []*schemaregistry.SchemaMetadata{first}
 	for i := version1 + 1; i < version2; i++ {
-		meta, err := s.Client.GetSchemaMetadata(subject, i)
+		meta, err := s.Client.GetSchemaMetadataIncludeDeleted(subject, i, true)
 		if err != nil {
 			return nil, err
 		}
@@ -635,13 +636,8 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 		}
 		var err error
 		result, err := ruleExecutor.Transform(ctx, msg)
-		if err != nil {
+		if result == nil || err != nil {
 			err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, err, "ERROR")
-			if err != nil {
-				return nil, err
-			}
-		} else if result == nil {
-			err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, nil, "ERROR")
 			if err != nil {
 				return nil, err
 			}
@@ -650,17 +646,19 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 			case "CONDITION":
 				condResult, ok2 := result.(bool)
 				if ok2 && !condResult {
-					return nil, RuleConditionErr{
-						Rule: ctx.Rule,
+					err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, err, "ERROR")
+					if err != nil {
+						return nil, RuleConditionErr{
+							Rule: ctx.Rule,
+							Err:  err,
+						}
 					}
 				}
 			case "TRANSFORM":
 				msg = result
 			}
-			err = s.runAction(ctx, ruleMode, rule, rule.OnSuccess, msg, nil, "NONE")
-			if err != nil {
-				return nil, err
-			}
+			// ignore error, since rule succeeded
+			_ = s.runAction(ctx, ruleMode, rule, rule.OnSuccess, msg, nil, "NONE")
 		}
 	}
 	return msg, nil
@@ -785,7 +783,7 @@ func (s *BaseDeserializer) GetReaderSchema(subject string) (*schemaregistry.Sche
 // ResolveReferences resolves schema references
 func ResolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo, deps map[string]string) error {
 	for _, ref := range schema.References {
-		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
+		metadata, err := c.GetSchemaMetadataIncludeDeleted(ref.Subject, ref.Version, true)
 		if err != nil {
 			return err
 		}
