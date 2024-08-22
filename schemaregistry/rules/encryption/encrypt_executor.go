@@ -280,14 +280,6 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateKek(ctx serde.RuleContext)
 			return nil, fmt.Errorf("no kms key id found for %s during produce", f.KekName)
 		}
 		kek, err = f.storeKekToRegistry(kekID, *kmsType, *kmsKeyID, false)
-		if err != nil {
-			var restErr *internal.RestError
-			if errors.As(err, &restErr) {
-				if !strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
-					return nil, err
-				}
-			}
-		}
 		if kek == nil {
 			// Handle conflicts (409)
 			kek, err = f.retrieveKekFromRegistry(kekID)
@@ -327,7 +319,7 @@ func (f *FieldEncryptionExecutorTransform) storeKekToRegistry(key deks.KekID, km
 	if err != nil {
 		var restErr *internal.RestError
 		if errors.As(err, &restErr) {
-			if strings.HasPrefix(strconv.Itoa(restErr.Code), "404") {
+			if strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
 				return nil, nil
 			}
 		}
@@ -389,14 +381,6 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 		}
 		// encryptedDek may be passed as null if kek is shared
 		dek, err = f.storeDekToRegistry(newDekID, encryptedDek)
-		if err != nil {
-			var restErr *internal.RestError
-			if errors.As(err, &restErr) {
-				if !strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
-					return nil, err
-				}
-			}
-		}
 		if dek == nil {
 			// Handle conflicts (409)
 			// Use the original version, which should be null or LATEST_VERSION
@@ -468,7 +452,7 @@ func (f *FieldEncryptionExecutorTransform) storeDekToRegistry(key deks.DekID, en
 	if err != nil {
 		var restErr *internal.RestError
 		if errors.As(err, &restErr) {
-			if strings.HasPrefix(strconv.Itoa(restErr.Code), "404") {
+			if strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
 				return nil, nil
 			}
 		}
