@@ -591,7 +591,7 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -637,7 +637,7 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)

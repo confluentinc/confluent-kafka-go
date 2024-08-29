@@ -249,6 +249,73 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
+func TestJSONSchemaSerdeWithReferences(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("demo-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	info = schemaregistry.SchemaInfo{
+		Schema:     rootSchema,
+		SchemaType: "JSON",
+		References: []schemaregistry.Reference{
+			{
+				Name:    "DemoSchema",
+				Subject: "demo-value",
+				Version: 1,
+			},
+		},
+	}
+
+	id, err = client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	nested := JSONDemoSchema{}
+	nested.IntField = 123
+	nested.DoubleField = 45.67
+	nested.StringField = "hi"
+	nested.BoolField = true
+	nested.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
+	obj := JSONNestedTestRecord{}
+	obj.OtherField = nested
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	var newobj JSONNestedTestRecord
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
+}
+
 func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -712,7 +779,7 @@ func TestJSONSchemaSerdeEncryption(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -762,7 +829,7 @@ func TestJSONSchemaSerdeEncryption(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -786,7 +853,7 @@ func TestJSONSchemaSerdeEncryptionWithUnion(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -836,7 +903,7 @@ func TestJSONSchemaSerdeEncryptionWithUnion(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -860,7 +927,7 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -930,7 +997,7 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
