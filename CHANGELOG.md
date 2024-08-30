@@ -13,6 +13,7 @@ v2.5.3 is a maintenance release with the following fixes and enhancements:
 * Use correct URL when calling DEK Registry to retrieve a DEK by version
 * Upgrade Hamba Avro library to 2.24.0
 * Perform Avro schema resolution in the Avro deserializer if necessary
+* Add some missing APIs to the Schema Registry client
 
 # v2.5.0
 
