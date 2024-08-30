@@ -67,7 +67,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 	stdinChan := make(chan string)
 
 	go func() {
-		for true {
+		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				break
@@ -85,7 +85,7 @@ func runProducer(config *kafka.ConfigMap, topic string, partition int32) {
 
 	run := true
 
-	for run == true {
+	for run {
 		select {
 		case sig := <-sigs:
 			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
@@ -132,7 +132,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 
 	fmt.Fprintf(os.Stderr, "%% Created Consumer %v\n", c)
 
-	c.SubscribeTopics(topics, func(c *kafka.Consumer, ev kafka.Event) error {
+	err = c.SubscribeTopics(topics, func(c *kafka.Consumer, ev kafka.Event) error {
 		var err error = nil
 		switch e := ev.(type) {
 		case kafka.AssignedPartitions:
@@ -149,6 +149,11 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 		return err
 	})
 
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topics: %s\n", err)
+		os.Exit(1)
+	}
+
 	run := true
 
 	go func() {
@@ -157,7 +162,7 @@ func runConsumer(config *kafka.ConfigMap, topics []string) {
 		run = false
 	}()
 
-	for run == true {
+	for run {
 		ev := c.Poll(1000)
 		switch e := ev.(type) {
 		case *kafka.Message:

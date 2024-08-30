@@ -1,7 +1,7 @@
 version: '3'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper
+    image: confluentinc/cp-zookeeper:7.6.2
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
 
@@ -14,7 +14,7 @@ services:
       - ./zookeeper_jaas.conf:/etc/zookeeper/zookeeper_jaas.conf
 
   kafka:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.6.2
     depends_on:
       - zookeeper
     ports:
@@ -33,7 +33,7 @@ services:
       KAFKA_SUPER_USERS: "User:ANONYMOUS"
 
   kafka_auth:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.6.2
     depends_on:
       - zookeeper_auth
     ports:
@@ -52,7 +52,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
       KAFKA_SUPER_USERS: "User:admin"
-      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: true
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
       KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_jaas.conf"
     volumes:
       - ./kafka_jaas.conf:/etc/kafka/kafka_jaas.conf

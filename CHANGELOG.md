@@ -1,8 +1,46 @@
 # Confluent's Golang client for Apache Kafka
 
-# v2.3.1
+# v2.5.0
 
-This is a maintenance release.
+This is a feature release.
+
+ * Adds an AdminAPI `DeleteRecords()` (#1141, @PratRanj07).
+ * Add support for metadata and ruleSet in the schema registry client, which together support data
+contracts.
+ * Add a new Avro package "avrov2" which uses the Avro hamba library.  The old package "avro" uses
+Avro libraries which are no longer maintained and should not be used in new code.
+ * Move rest service for schema registry client into internal package for use by both the SR client
+and the DEK Registry client.
+ * Add support for CSFLE (client-side field-level encryption) for AWS, Azure, GCP, and HashiCorp
+Vault.  See the encryption examples in the examples directory.
+ * Add support for CEL, CEL_FIELD, and JSONata rules.
+
+
+## Fixes
+
+ * Issues: #965
+   Windows builds are linked to `libssp` in addition to other libraries, since
+   the bundled zstd and zlib are built with `-fstack-protector`, and not linking
+   causes build failures.
+   Happening since 2.0.0 (#1184).
+
+confluent-kafka-go is based on librdkafka v2.5.0, see the
+[librdkafka v2.5.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+# v2.4.0
+
+This is a feature release.
+
+ * [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol):
+   Integration tests running with the new consumer group protocol. The feature is an **Early Access**: not production ready (#1185).
+ * Allow custom http.Client to be passed to schema registry client (#1099)
+ * Cache schemas when setting `UseLatestVersion=true` (#1100)
+ * Add `CacheLatestTtlSecs` to allow expiration of latest schemas (#1106)
+ * Cache parsed file descriptors in Protobuf deserializer (#1128)
+ * Add `CacheSchemas` option to Protobuf serializer (#1151)
+ * Add `tags` field to Confluent metadata (#1131)
 
 ## Fixes
 
@@ -10,7 +48,12 @@ This is a maintenance release.
    This is necessary to update test dependencies with security vulnerabilities.
    Code using the library will still work with Go 1.17.
    (#1136, @rzeijde).
+ * Fix JSON validation during serialization (#1101)
+ * Fix counter in mock schema registry client (#1170)
 
+confluent-kafka-go is based on librdkafka v2.4.0, see the
+[librdkafka v2.4.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 # v2.3.0
 

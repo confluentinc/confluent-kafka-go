@@ -38,22 +38,29 @@ import (
 // Relative Confluent Schema Registry REST API endpoints as described in the Confluent documentation
 // https://docs.confluent.io/current/schema-registry/docs/api.html
 const (
-	base              = ".."
-	schemas           = "/schemas/ids/%d"
-	schemasBySubject  = "/schemas/ids/%d?subject=%s"
-	subject           = "/subjects"
-	subjects          = subject + "/%s"
-	subjectsNormalize = subject + "/%s?normalize=%t"
-	subjectsDelete    = subjects + "?permanent=%t"
-	version           = subjects + "/versions"
-	versionNormalize  = subjects + "/versions?normalize=%t"
-	versions          = version + "/%v"
-	versionsDelete    = versions + "?permanent=%t"
-	compatibility     = "/compatibility" + versions
-	config            = "/config"
-	subjectConfig     = config + "/%s"
-	mode              = "/mode"
-	modeConfig        = mode + "/%s"
+	base    = ".."
+	schemas = "/schemas/ids/%d"
+	context = "/contexts"
+
+	schemasBySubject        = "/schemas/ids/%d?subject=%s"
+	subjectsAndVersionsByID = "/schemas/ids/%d/versions"
+	subject                 = "/subjects"
+	subjects                = subject + "/%s"
+	subjectsNormalize       = subject + "/%s?normalize=%t"
+	subjectsDelete          = subjects + "?permanent=%t"
+	latestWithMetadata      = subjects + "/metadata?deleted=%t%s"
+	version                 = subjects + "/versions"
+	versionNormalize        = subjects + "/versions?normalize=%t"
+	versions                = version + "/%v"
+	versionsIncludeDeleted  = versions + "?deleted=%t"
+	versionsDelete          = versions + "?permanent=%t"
+	subjectCompatibility    = "/compatibility" + version
+	compatibility           = "/compatibility" + versions
+	config                  = "/config"
+	subjectConfig           = config + "/%s"
+	subjectConfigDefault    = subjectConfig + "?defaultToGlobal=%t"
+	mode                    = "/mode"
+	modeConfig              = mode + "/%s"
 
 	targetSRClusterKey      = "Target-Sr-Cluster"
 	targetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
@@ -125,9 +132,6 @@ func newRestService(conf *Config) (*restService, error) {
 	}
 
 	headers.Add("Content-Type", "application/vnd.schemaregistry.v1+json")
-	if err != nil {
-		return nil, err
-	}
 
 	if conf.HTTPClient == nil {
 		transport, err := configureTransport(conf)
@@ -336,7 +340,7 @@ func (rs *restService) handleRequest(request *api, response interface{}) error {
 		if err != nil {
 			return err
 		}
-		readCloser = ioutil.NopCloser(bytes.NewBuffer(outbuf))
+		readCloser = io.NopCloser(bytes.NewBuffer(outbuf))
 	}
 
 	req := &http.Request{

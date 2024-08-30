@@ -25,15 +25,11 @@ import (
 
 func resolveAvroReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo, ns *parser.Namespace) (schema.AvroType, error) {
 	for _, ref := range schema.References {
-		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
+		metadata, err := c.GetSchemaMetadataIncludeDeleted(ref.Subject, ref.Version, true)
 		if err != nil {
 			return nil, err
 		}
-		info := schemaregistry.SchemaInfo{
-			Schema:     metadata.Schema,
-			SchemaType: metadata.SchemaType,
-			References: metadata.References,
-		}
+		info := metadata.SchemaInfo
 		_, err = resolveAvroReferences(c, info, ns)
 		if err != nil {
 			return nil, err
