@@ -1,5 +1,19 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.5.3
+
+v2.5.3 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Properly handle 409 conflicts when registering KEKs/DEKs
+* Run rule actions when a rule condition fails
+* Include deleted schemas when getting schemas by subject and version
+* Handle signed ints when transforming Protobuf payloads
+* Use correct URL when calling DEK Registry to retrieve a DEK by version
+* Upgrade Hamba Avro library to 2.24.0
+* Perform Avro schema resolution in the Avro deserializer if necessary
+
 # v2.5.0
 
 This is a feature release.
