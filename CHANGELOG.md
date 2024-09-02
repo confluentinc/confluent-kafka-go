@@ -15,6 +15,12 @@ v2.5.3 is a maintenance release with the following fixes and enhancements:
 * Perform Avro schema resolution in the Avro deserializer if necessary
 * Add some missing APIs to the Schema Registry client
 
+confluent-kafka-go is based on librdkafka v2.5.3, see the
+[librdkafka v2.5.3 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+There were no v2.5.1 or v2.5.2 releases.
+
 # v2.5.0
 
 This is a feature release.
