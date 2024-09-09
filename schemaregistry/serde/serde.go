@@ -83,6 +83,7 @@ type Serde struct {
 	SubjectNameStrategy SubjectNameStrategyFunc
 	MessageFactory      MessageFactory
 	FieldTransformer    FieldTransformer
+	RuleRegistry        *RuleRegistry
 }
 
 // BaseSerializer represents basic serializer info
@@ -462,6 +463,18 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 	return id, nil
 }
 
+// SetRuleRegistry sets the rule registry
+func (s *Serde) SetRuleRegistry(registry *RuleRegistry, ruleConfig map[string]string) error {
+	s.RuleRegistry = registry
+	for _, rule := range registry.GetExecutors() {
+		err := rule.Configure(s.Client.Config(), ruleConfig)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetMigrations returns the migration rules for the given subject
 func (s *Serde) GetMigrations(subject string, topic string, sourceInfo *schemaregistry.SchemaInfo,
 	target *schemaregistry.SchemaMetadata, msg interface{}) ([]Migration, error) {
@@ -625,7 +638,7 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 			Rules:            rules,
 			FieldTransformer: s.FieldTransformer,
 		}
-		ruleExecutor := GetRuleExecutor(rule.Type)
+		ruleExecutor := s.RuleRegistry.GetExecutor(rule.Type)
 		if ruleExecutor == nil {
 			err := s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg,
 				fmt.Errorf("could not find rule executor of type %s", rule.Type), "ERROR")
@@ -721,7 +734,7 @@ func (s *Serde) getRuleAction(_ RuleContext, actionName string) RuleAction {
 	} else if actionName == "NONE" {
 		return NoneAction{}
 	} else {
-		return GetRuleAction(actionName)
+		return s.RuleRegistry.GetAction(actionName)
 	}
 }
 
