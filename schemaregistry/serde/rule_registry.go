@@ -21,74 +21,97 @@ import (
 )
 
 var (
-	ruleExecutorsMu sync.RWMutex
-	ruleExecutors   = map[string]RuleExecutor{}
-	ruleActionsMu   sync.RWMutex
-	ruleActions     = map[string]RuleAction{}
+	globalInstance = RuleRegistry{
+		ruleExecutors: make(map[string]RuleExecutor),
+		ruleActions:   make(map[string]RuleAction),
+	}
 )
 
-// RegisterRuleExecutor is used to register a new rule executor.
-func RegisterRuleExecutor(ruleExecutor RuleExecutor) {
-	ruleExecutorsMu.Lock()
-	defer ruleExecutorsMu.Unlock()
-	ruleExecutors[ruleExecutor.Type()] = ruleExecutor
+// RuleRegistry is used to store all registered rule executors and actions.
+type RuleRegistry struct {
+	ruleExecutorsMu sync.RWMutex
+	ruleExecutors   map[string]RuleExecutor
+	ruleActionsMu   sync.RWMutex
+	ruleActions     map[string]RuleAction
 }
 
-// GetRuleExecutor fetches a rule executor by a given name.
-func GetRuleExecutor(name string) RuleExecutor {
-	ruleExecutorsMu.RLock()
-	defer ruleExecutorsMu.RUnlock()
-	return ruleExecutors[name]
+// RegisterExecutor is used to register a new rule executor.
+func (r *RuleRegistry) RegisterExecutor(ruleExecutor RuleExecutor) {
+	r.ruleExecutorsMu.Lock()
+	defer r.ruleExecutorsMu.Unlock()
+	r.ruleExecutors[ruleExecutor.Type()] = ruleExecutor
 }
 
-// GetRuleExecutors fetches all rule executors
-func GetRuleExecutors() []RuleExecutor {
-	ruleExecutorsMu.RLock()
-	defer ruleExecutorsMu.RUnlock()
+// GetExecutor fetches a rule executor by a given name.
+func (r *RuleRegistry) GetExecutor(name string) RuleExecutor {
+	r.ruleExecutorsMu.RLock()
+	defer r.ruleExecutorsMu.RUnlock()
+	return r.ruleExecutors[name]
+}
+
+// GetExecutors fetches all rule executors
+func (r *RuleRegistry) GetExecutors() []RuleExecutor {
+	r.ruleExecutorsMu.RLock()
+	defer r.ruleExecutorsMu.RUnlock()
 	var result []RuleExecutor
-	for _, v := range ruleExecutors {
+	for _, v := range r.ruleExecutors {
 		result = append(result, v)
 	}
 	return result
 }
 
-// RegisterRuleAction is used to register a new rule action.
-func RegisterRuleAction(ruleAction RuleAction) {
-	ruleActionsMu.Lock()
-	defer ruleActionsMu.Unlock()
-	ruleActions[ruleAction.Type()] = ruleAction
+// RegisterAction is used to register a new global rule action.
+func (r *RuleRegistry) RegisterAction(ruleAction RuleAction) {
+	r.ruleActionsMu.Lock()
+	defer r.ruleActionsMu.Unlock()
+	r.ruleActions[ruleAction.Type()] = ruleAction
 }
 
-// GetRuleAction fetches a rule action by a given name.
-func GetRuleAction(name string) RuleAction {
-	ruleActionsMu.RLock()
-	defer ruleActionsMu.RUnlock()
-	return ruleActions[name]
+// GetAction fetches a rule action by a given name.
+func (r *RuleRegistry) GetAction(name string) RuleAction {
+	r.ruleActionsMu.RLock()
+	defer r.ruleActionsMu.RUnlock()
+	return r.ruleActions[name]
 }
 
-// GetRuleActions fetches all rule actions
-func GetRuleActions() []RuleAction {
-	ruleActionsMu.RLock()
-	defer ruleActionsMu.RUnlock()
+// GetActions fetches all rule actions
+func (r *RuleRegistry) GetActions() []RuleAction {
+	r.ruleActionsMu.RLock()
+	defer r.ruleActionsMu.RUnlock()
 	var result []RuleAction
-	for _, v := range ruleActions {
+	for _, v := range r.ruleActions {
 		result = append(result, v)
 	}
 	return result
 }
 
-// ClearRules clears all registered rules
-func ClearRules() {
-	ruleActionsMu.Lock()
-	defer ruleActionsMu.Unlock()
-	for k, v := range ruleActions {
+// Clear clears all registered rules
+func (r *RuleRegistry) Clear() {
+	r.ruleActionsMu.Lock()
+	defer r.ruleActionsMu.Unlock()
+	for k, v := range r.ruleActions {
 		_ = v.Close()
-		delete(ruleActions, k)
+		delete(r.ruleActions, k)
 	}
-	ruleExecutorsMu.Lock()
-	defer ruleExecutorsMu.Unlock()
-	for k, v := range ruleExecutors {
+	r.ruleExecutorsMu.Lock()
+	defer r.ruleExecutorsMu.Unlock()
+	for k, v := range r.ruleExecutors {
 		_ = v.Close()
-		delete(ruleExecutors, k)
+		delete(r.ruleExecutors, k)
 	}
+}
+
+// GlobalRuleRegistry returns the global rule registry.
+func GlobalRuleRegistry() *RuleRegistry {
+	return &globalInstance
+}
+
+// RegisterRuleExecutor is used to register a new global rule executor.
+func RegisterRuleExecutor(ruleExecutor RuleExecutor) {
+	globalInstance.RegisterExecutor(ruleExecutor)
+}
+
+// RegisterRuleAction is used to register a new global rule action.
+func RegisterRuleAction(ruleAction RuleAction) {
+	globalInstance.RegisterAction(ruleAction)
 }
