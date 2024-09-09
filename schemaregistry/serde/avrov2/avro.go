@@ -73,11 +73,9 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
 	}
 	s.FieldTransformer = fieldTransformer
-	for _, rule := range serde.GetRuleExecutors() {
-		err = rule.Configure(client.Config(), conf.RuleConfig)
-		if err != nil {
-			return nil, err
-		}
+	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -146,11 +144,9 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
 	}
 	s.FieldTransformer = fieldTransformer
-	for _, rule := range serde.GetRuleExecutors() {
-		err = rule.Configure(client.Config(), conf.RuleConfig)
-		if err != nil {
-			return nil, err
-		}
+	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
