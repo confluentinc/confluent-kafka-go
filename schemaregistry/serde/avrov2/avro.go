@@ -112,6 +112,8 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Convert pointer to non-pointer
+	msg = reflect.ValueOf(msg).Elem().Interface()
 	msgBytes, err := avro.Marshal(avroSchema, msg)
 	if err != nil {
 		return nil, err
