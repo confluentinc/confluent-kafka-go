@@ -84,7 +84,7 @@ func testGetSubjectsAndVersionsByID(id int, ids [][]int, subjects []string, vers
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].Subject < expected[j].Subject
 	})
-	maybeFail(subject, err, expect(actual, expected))
+	maybeFail("testGetSubjectsAndVersionsByID", err, expect(actual, expected))
 }
 
 func testGetID(subject string, schema SchemaInfo, expected int) int {

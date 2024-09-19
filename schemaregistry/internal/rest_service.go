@@ -38,26 +38,28 @@ import (
 // Relative Confluent Schema Registry REST API endpoints as described in the Confluent documentation
 // https://docs.confluent.io/current/schema-registry/docs/api.html
 const (
-	Base                   = ".."
-	Schemas                = "/schemas/ids/%d"
-	SchemasBySubject       = "/schemas/ids/%d?subject=%s"
-	Subject                = "/subjects"
-	Subjects               = Subject + "/%s"
-	SubjectsNormalize      = Subject + "/%s?normalize=%t"
-	SubjectsDelete         = Subjects + "?permanent=%t"
-	LatestWithMetadata     = Subjects + "/metadata?deleted=%t%s"
-	Version                = Subjects + "/versions"
-	VersionNormalize       = Subjects + "/versions?normalize=%t"
-	Versions               = Version + "/%v"
-	VersionsIncludeDeleted = Versions + "?deleted=%t"
-	VersionsDelete         = Versions + "?permanent=%t"
-	SubjectCompatibility   = "/compatibility" + Version
-	Compatibility          = "/compatibility" + Versions
-	Config                 = "/config"
-	SubjectConfig          = Config + "/%s"
-	SubjectConfigDefault   = SubjectConfig + "?defaultToGlobal=%t"
-	Mode                   = "/mode"
-	SubjectMode            = Mode + "/%s"
+	Base                    = ".."
+	Schemas                 = "/schemas/ids/%d"
+	Contexts                = "/contexts"
+	SchemasBySubject        = "/schemas/ids/%d?subject=%s"
+	SubjectsAndVersionsByID = "/schemas/ids/%d/versions"
+	Subject                 = "/subjects"
+	Subjects                = Subject + "/%s"
+	SubjectsNormalize       = Subject + "/%s?normalize=%t"
+	SubjectsDelete          = Subjects + "?permanent=%t"
+	LatestWithMetadata      = Subjects + "/metadata?deleted=%t%s"
+	Version                 = Subjects + "/versions"
+	VersionNormalize        = Subjects + "/versions?normalize=%t"
+	Versions                = Version + "/%v"
+	VersionsIncludeDeleted  = Versions + "?deleted=%t"
+	VersionsDelete          = Versions + "?permanent=%t"
+	SubjectCompatibility    = "/compatibility" + Version
+	Compatibility           = "/compatibility" + Versions
+	Config                  = "/config"
+	SubjectConfig           = Config + "/%s"
+	SubjectConfigDefault    = SubjectConfig + "?defaultToGlobal=%t"
+	Mode                    = "/mode"
+	SubjectMode             = Mode + "/%s"
 
 	Keks          = "/dek-registry/v1/keks"
 	KekByName     = Keks + "/%s?deleted=%t"
