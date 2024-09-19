@@ -242,7 +242,7 @@ func (c *mockclient) GetSubjectsAndVersionsByID(id int) (subjectsAndVersions []S
 	if len(subjectsAndVersions) == 0 {
 		err = &url.Error{
 			Op:  "GET",
-			URL: c.url.String() + fmt.Sprintf(subjectsAndVersionsByID, id),
+			URL: c.url.String() + fmt.Sprintf(internal.SubjectsAndVersionsByID, id),
 			Err: errors.New("schema ID not found"),
 		}
 	}
