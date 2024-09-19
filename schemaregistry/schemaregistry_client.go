@@ -476,7 +476,7 @@ func NewClient(conf *Config) (Client, error) {
 // Returns a string slice containing all available contexts
 func (c *client) GetAllContexts() ([]string, error) {
 	var result []string
-	err := c.restService.HandleRequest(internal.NewRequest("GET", context, nil), &result)
+	err := c.restService.HandleRequest(internal.NewRequest("GET", internal.Contexts, nil), &result)
 
 	return result, err
 }
@@ -576,7 +576,7 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 // Returns SubjectAndVersion object on success.
 // This method cannot not use caching to increase performance.
 func (c *client) GetSubjectsAndVersionsByID(id int) (subbjectsAndVersions []SubjectAndVersion, err error) {
-	err = c.restService.HandleRequest(internal.NewRequest("GET", subjectsAndVersionsByID, nil, id), &subbjectsAndVersions)
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SubjectsAndVersionsByID, nil, id), &subbjectsAndVersions)
 	return
 }
 
