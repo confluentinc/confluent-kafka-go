@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.5.4
+
+v2.5.4 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Upgrade azidentity library to 1.6.0
+* Upgrade vault library to 1.15.0
+* Handle primitives in avrov2 library
+* Allow RuleRegistry to be set in serdes
+
 ## v2.5.3
 
 v2.5.3 is a maintenance release with the following fixes and enhancements:
