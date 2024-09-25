@@ -397,7 +397,7 @@ func TestProtobufSerdeWithCELConditionFail(t *testing.T) {
 	_, err = ser.Serialize("topic1", &obj)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
-	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
+	serde.MaybeFail("serialization", nil, serde.Expect(encRule, *ruleErr.Rule))
 }
 
 func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
@@ -591,7 +591,7 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -637,7 +637,7 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -809,7 +809,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err := ser1.Serialize("topic1", &widget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser1, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser1, bytes, &widget, &newWidget, &newerWidget)
 
 	serConfig2 := NewSerializerConfig()
 	serConfig2.AutoRegisterSchemas = false
@@ -824,7 +824,7 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser2.Serialize("topic1", &newWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser2, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser2, bytes, &widget, &newWidget, &newerWidget)
 
 	serConfig3 := NewSerializerConfig()
 	serConfig3.AutoRegisterSchemas = false
@@ -839,11 +839,11 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	bytes, err = ser3.Serialize("topic1", &newerWidget)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser3, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser3, bytes, &widget, &newWidget, &newerWidget)
 }
 
 func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
-	bytes []byte, widget test.Widget, newWidget test.NewWidget, newerWidget test.NewerWidget) {
+	bytes []byte, widget *test.Widget, newWidget *test.NewWidget, newerWidget *test.NewerWidget) {
 	deserConfig1 := NewDeserializerConfig()
 	deserConfig1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",

@@ -1,6 +1,56 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.5.4
+
+v2.5.4 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Upgrade azidentity library to 1.6.0
+* Upgrade vault library to 1.15.0
+* Handle primitives in avrov2 library
+* Allow RuleRegistry to be set in serdes
+
+confluent-kafka-go is based on librdkafka v2.5.3, see the
+[librdkafka v2.5.3 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.5.3
+
+v2.5.3 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Properly handle 409 conflicts when registering KEKs/DEKs
+* Run rule actions when a rule condition fails
+* Include deleted schemas when getting schemas by subject and version
+* Handle signed ints when transforming Protobuf payloads
+* Use correct URL when calling DEK Registry to retrieve a DEK by version
+* Upgrade Hamba Avro library to 2.24.0
+* Perform Avro schema resolution in the Avro deserializer if necessary
+* Add some missing APIs to the Schema Registry client
+
+confluent-kafka-go is based on librdkafka v2.5.3, see the
+[librdkafka v2.5.3 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+There were no v2.5.1 or v2.5.2 releases.
+
+
 # v2.5.0
+
+> [!WARNING]
+This version has introduced a regression in which an assert is triggered during **PushTelemetry** call. This happens when no metric is matched on the client side among those requested by broker subscription.
+>
+> You won't face any problem if:
+> * Broker doesn't support [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability).
+> * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) feature is disabled on the broker side.
+> * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) feature is disabled on the client side. This is enabled by default. Set configuration `enable.metrics.push` to `false`.
+> * If [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) is enabled on the broker side and there is no subscription configured there.
+> * If [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) is enabled on the broker side with subscriptions that match the [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) metrics defined on the client.
+>
+> Having said this, we strongly recommend using `v2.5.3` and above to not face this regression at all.
 
 This is a feature release.
 

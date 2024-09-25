@@ -8,7 +8,7 @@ replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.5.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.5.4
 	github.com/shirou/gopsutil v3.21.11+incompatible
 )
 
@@ -19,5 +19,5 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 )

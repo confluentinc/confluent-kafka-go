@@ -76,6 +76,12 @@ type mockclient struct {
 
 var _ Client = new(mockclient)
 
+// Fetch all contexts used
+// Returns a string slice containing contexts
+func (c *mockclient) GetAllContexts() ([]string, error) {
+	return []string{"."}, nil
+}
+
 // Config returns the client config
 func (c *mockclient) Config() *Config {
 	return c.config
@@ -196,6 +202,55 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 		Err: errors.New("Subject Not Found"),
 	}
 	return SchemaInfo{}, &posErr
+}
+
+func (c *mockclient) GetSubjectsAndVersionsByID(id int) (subjectsAndVersions []SubjectAndVersion, err error) {
+	subjectsAndVersions = make([]SubjectAndVersion, 0)
+
+	c.infoToSchemaCacheLock.RLock()
+	c.schemaToVersionCacheLock.RLock()
+
+	for key, value := range c.infoToSchemaCache {
+		if !value.softDeleted && value.metadata.ID == id {
+			var schemaJSON []byte
+			schemaJSON, err = value.metadata.SchemaInfo.MarshalJSON()
+			if err != nil {
+				return
+			}
+
+			versionCacheKey := subjectJSON{
+				subject: key.subject,
+				json:    string(schemaJSON),
+			}
+
+			versionEntry, ok := c.schemaToVersionCache[versionCacheKey]
+			if !ok {
+				err = fmt.Errorf("entry in version cache not found")
+				return
+			}
+
+			subjectsAndVersions = append(subjectsAndVersions, SubjectAndVersion{
+				Subject: key.subject,
+				Version: versionEntry.version,
+			})
+		}
+	}
+
+	c.schemaToVersionCacheLock.RUnlock()
+	c.infoToSchemaCacheLock.RUnlock()
+
+	if len(subjectsAndVersions) == 0 {
+		err = &url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(internal.SubjectsAndVersionsByID, id),
+			Err: errors.New("schema ID not found"),
+		}
+	}
+
+	sort.Slice(subjectsAndVersions, func(i, j int) bool {
+		return subjectsAndVersions[i].Subject < subjectsAndVersions[j].Subject
+	})
+	return
 }
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found

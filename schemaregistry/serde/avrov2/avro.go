@@ -73,11 +73,9 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
 	}
 	s.FieldTransformer = fieldTransformer
-	for _, rule := range serde.GetRuleExecutors() {
-		err = rule.Configure(client.Config(), conf.RuleConfig)
-		if err != nil {
-			return nil, err
-		}
+	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -114,6 +112,8 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Convert pointer to non-pointer
+	msg = reflect.ValueOf(msg).Elem().Interface()
 	msgBytes, err := avro.Marshal(avroSchema, msg)
 	if err != nil {
 		return nil, err
@@ -146,11 +146,9 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
 	}
 	s.FieldTransformer = fieldTransformer
-	for _, rule := range serde.GetRuleExecutors() {
-		err = rule.Configure(client.Config(), conf.RuleConfig)
-		if err != nil {
-			return nil, err
-		}
+	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -234,7 +232,24 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		} else {
 			msg = result
 		}
-		err = avro.Unmarshal(writer, payload[5:], msg)
+		msgType := reflect.TypeOf(msg)
+		if msgType.Kind() != reflect.Pointer {
+			return nil, errors.New("input message must be a pointer")
+		}
+		var reader avro.Schema
+		reader, err = StructToSchema(msgType.Elem())
+		if err != nil {
+			return nil, err
+		}
+		if reader.CacheFingerprint() != writer.CacheFingerprint() {
+			// reader and writer are different, perform schema resolution
+			sc := avro.NewSchemaCompatibility()
+			reader, err = sc.Resolve(reader, writer)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = avro.Unmarshal(reader, payload[5:], msg)
 		if err != nil {
 			return nil, err
 		}
@@ -313,7 +328,7 @@ func name(avroType avro.Schema) string {
 
 func resolveAvroReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (avro.Schema, error) {
 	for _, ref := range schema.References {
-		metadata, err := c.GetSchemaMetadata(ref.Subject, ref.Version)
+		metadata, err := c.GetSchemaMetadataIncludeDeleted(ref.Subject, ref.Version, true)
 		if err != nil {
 			return nil, err
 		}

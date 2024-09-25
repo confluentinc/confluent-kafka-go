@@ -78,6 +78,39 @@ const (
   ]
 } 
 `
+	demoSchemaWithLogicalType = `
+{
+  "name": "DemoSchema",
+  "type": "record",
+  "fields": [
+    {
+      "name": "IntField",
+      "type": "int"
+    },
+    {
+      "name": "DoubleField",
+      "type": "double"
+    },
+    {
+      "name": "StringField",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      },
+      "confluent:tags": [ "PII" ]
+    },
+    {
+      "name": "BoolField",
+      "type": "boolean"
+    },
+    {
+      "name": "BytesField",
+      "type": "bytes",
+      "confluent:tags": [ "PII" ]
+    }
+  ]
+} 
+`
 	demoSchemaSingleTag = `
 {
   "name": "DemoSchemaSingleTag",
@@ -176,6 +209,19 @@ const (
   ]
 }
 `
+	f1Schema = `
+{
+  "name": "F1Schema",
+  "type": "record",
+  "fields": [
+    {
+      "name": "F1",
+      "type": "string",
+      "confluent:tags": [ "PII" ]
+    }
+  ]
+} 
+`
 )
 
 func testMessageFactory(subject string, name string) (interface{}, error) {
@@ -192,6 +238,8 @@ func testMessageFactory(subject string, name string) (interface{}, error) {
 		return &DemoSchemaWithUnion{}, nil
 	case "ComplexSchema":
 		return &ComplexSchema{}, nil
+	case "F1Schema":
+		return &F1Schema{}, nil
 	case "NestedTestRecord":
 		return &NestedTestRecord{}, nil
 	case "NestedTestPointerRecord":
@@ -251,6 +299,31 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 
 	msg, err = deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithPrimitive(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := "Hello, World!"
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj string
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
 func TestAvroSerdeWithNested(t *testing.T) {
@@ -418,6 +491,66 @@ func TestAvroSerdeWithCELCondition(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
+func TestAvroSerdeWithCELConditionLogicalType(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	uuid := "550e8400-e29b-41d4-a716-446655440000"
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "CONDITION",
+		Mode: "WRITE",
+		Type: "CEL",
+		Expr: "message.StringField == '" + uuid + "'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchemaWithLogicalType,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = uuid
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+}
+
 func TestAvroSerdeWithCELConditionFail(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -466,7 +599,66 @@ func TestAvroSerdeWithCELConditionFail(t *testing.T) {
 	_, err = ser.Serialize("topic1", &obj)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
-	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
+	serde.MaybeFail("serialization", nil, serde.Expect(encRule, *ruleErr.Rule))
+}
+
+func TestAvroSerdeWithCELConditionIgnoreFail(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name:      "test-cel",
+		Kind:      "CONDITION",
+		Mode:      "WRITE",
+		Type:      "CEL",
+		Expr:      "message.StringField != 'hi'",
+		OnFailure: "NONE",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
 func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
@@ -767,6 +959,12 @@ func TestAvroSerdeWithCELFieldConditionFail(t *testing.T) {
 	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
 }
 
+type clock struct{}
+
+func (*clock) NowUnixMilli() int64 {
+	return time.Now().UnixMilli()
+}
+
 type fakeClock struct {
 	now int64
 }
@@ -788,7 +986,7 @@ func TestAvroSerdeEncryption(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -838,7 +1036,7 @@ func TestAvroSerdeEncryption(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -865,7 +1063,7 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -915,7 +1113,7 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -974,6 +1172,208 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	dek, err = executor.Client.GetDekVersion(
 		"kek1", "topic1-value", -1, "AES256_GCM", false)
 	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 3))
+
+	executor.Client.Close()
+}
+
+func TestAvroSerdeEncryptionF1Preserialized(t *testing.T) {
+	c := clock{}
+	executor := encryption.RegisterWithClock(&c)
+
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT",
+		Tags: []string{"PII"},
+		Params: map[string]string{
+			"encrypt.kek.name":   "kek1",
+			"encrypt.kms.type":   "local-kms",
+			"encrypt.kms.key.id": "mykey",
+		},
+		OnFailure: "ERROR,ERROR",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     f1Schema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := F1Schema{}
+	obj.F1 = "hello world"
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.MessageFactory = testMessageFactory
+
+	executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	serde.MaybeFail("Kek registration", err)
+
+	encryptedDek := "07V2ndh02DA73p+dTybwZFm7DKQSZN1tEwQh+FoX1DZLk4Yj2LLu4omYjp/84tAg3BYlkfGSz+zZacJHIE4="
+	executor.Client.RegisterDek("kek1", "topic1-value", "AES256_GCM", encryptedDek)
+	serde.MaybeFail("Dek registration", err)
+
+	bytes := []byte{0, 0, 0, 0, 1, 104, 122, 103, 121, 47, 106, 70, 78, 77, 86, 47, 101, 70, 105, 108, 97, 72, 114, 77, 121, 101, 66, 103, 100, 97, 86, 122, 114, 82, 48, 117, 100, 71, 101, 111, 116, 87, 56, 99, 65, 47, 74, 97, 108, 55, 117, 107, 114, 43, 77, 47, 121, 122}
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+
+	executor.Client.Close()
+}
+
+func TestAvroSerdeEncryptionDeterministicF1Preserialized(t *testing.T) {
+	c := clock{}
+	executor := encryption.RegisterWithClock(&c)
+
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT",
+		Tags: []string{"PII"},
+		Params: map[string]string{
+			"encrypt.kek.name":      "kek1",
+			"encrypt.kms.type":      "local-kms",
+			"encrypt.kms.key.id":    "mykey",
+			"encrypt.dek.algorithm": "AES256_SIV",
+		},
+		OnFailure: "ERROR,ERROR",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     f1Schema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := F1Schema{}
+	obj.F1 = "hello world"
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.MessageFactory = testMessageFactory
+
+	executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	serde.MaybeFail("Kek registration", err)
+
+	encryptedDek := "YSx3DTlAHrmpoDChquJMifmPntBzxgRVdMzgYL82rgWBKn7aUSnG+WIu9ozBNS3y2vXd++mBtK07w4/W/G6w0da39X9hfOVZsGnkSvry/QRht84V8yz3dqKxGMOK5A=="
+	executor.Client.RegisterDek("kek1", "topic1-value", "AES256_SIV", encryptedDek)
+	serde.MaybeFail("Dek registration", err)
+
+	bytes := []byte{0, 0, 0, 0, 1, 72, 68, 54, 89, 116, 120, 114, 108, 66, 110, 107, 84, 87, 87, 57, 78, 54, 86, 98, 107, 51, 73, 73, 110, 106, 87, 72, 56, 49, 120, 109, 89, 104, 51, 107, 52, 100}
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+
+	executor.Client.Close()
+}
+
+func TestAvroSerdeEncryptionDekRotationF1Preserialized(t *testing.T) {
+	c := clock{}
+	executor := encryption.RegisterWithClock(&c)
+
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT",
+		Tags: []string{"PII"},
+		Params: map[string]string{
+			"encrypt.kek.name":        "kek1",
+			"encrypt.kms.type":        "local-kms",
+			"encrypt.kms.key.id":      "mykey",
+			"encrypt.dek.expiry.days": "1",
+		},
+		OnFailure: "ERROR,ERROR",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     f1Schema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := F1Schema{}
+	obj.F1 = "hello world"
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.MessageFactory = testMessageFactory
+
+	executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	serde.MaybeFail("Kek registration", err)
+
+	encryptedDek := "W/v6hOQYq1idVAcs1pPWz9UUONMVZW4IrglTnG88TsWjeCjxmtRQ4VaNe/I5dCfm2zyY9Cu0nqdvqImtUk4="
+	executor.Client.RegisterDek("kek1", "topic1-value", "AES256_GCM", encryptedDek)
+	serde.MaybeFail("Dek registration", err)
+
+	bytes := []byte{0, 0, 0, 0, 1, 120, 65, 65, 65, 65, 65, 65, 71, 52, 72, 73, 54, 98, 49, 110, 88, 80, 88, 113, 76, 121, 71, 56, 99, 73, 73, 51, 53, 78, 72, 81, 115, 101, 113, 113, 85, 67, 100, 43, 73, 101, 76, 101, 70, 86, 65, 101, 78, 112, 83, 83, 51, 102, 120, 80, 110, 74, 51, 50, 65, 61}
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+
+	executor.Client.Close()
 }
 
 func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
@@ -989,7 +1389,7 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -1060,7 +1460,7 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -1094,7 +1494,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -1156,7 +1556,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -1181,7 +1581,7 @@ func TestAvroSerdeEncryptionWithUnion(t *testing.T) {
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -1233,7 +1633,7 @@ func TestAvroSerdeEncryptionWithUnion(t *testing.T) {
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
-		"secret": "foo",
+		"secret": "mysecret",
 	}
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
@@ -1526,6 +1926,10 @@ type ComplexSchema struct {
 	MapField map[string]string `json:"DoubleField"`
 
 	UnionField *string `json:"StringField"`
+}
+
+type F1Schema struct {
+	F1 string `json:"F1"`
 }
 
 type NestedTestRecord struct {

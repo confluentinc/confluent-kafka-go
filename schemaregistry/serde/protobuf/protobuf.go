@@ -20,11 +20,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"google.golang.org/protobuf/encoding/protojson"
 	"io"
 	"log"
 	"strings"
 	"sync"
+
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
@@ -169,11 +170,9 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
-	for _, rule := range serde.GetRuleExecutors() {
-		err = rule.Configure(client.Config(), conf.RuleConfig)
-		if err != nil {
-			return nil, err
-		}
+	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -497,11 +496,9 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
 	}
 	s.FieldTransformer = fieldTransformer
-	for _, rule := range serde.GetRuleExecutors() {
-		err = rule.Configure(client.Config(), conf.RuleConfig)
-		if err != nil {
-			return nil, err
-		}
+	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
