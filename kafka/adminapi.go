@@ -1048,6 +1048,50 @@ type ListOffsetsResult struct {
 	ResultInfos map[TopicPartition]ListOffsetsResultInfo
 }
 
+// ElectionType represents the type of election to be performed
+type ElectionType int
+
+const (
+	// ElectionTypePreferred - Preferred election type
+	ElectionTypePreferred ElectionType = C.RD_KAFKA_ELECTION_TYPE_PREFERRED
+	// ElectionTypeUnclean - Unclean election type
+	ElectionTypeUnclean ElectionType = C.RD_KAFKA_ELECTION_TYPE_UNCLEAN
+)
+
+func ElectionTypeFromString(electionTypeString string) (ElectionType, error) {
+	switch strings.ToUpper(electionTypeString) {
+	case "PREFERRED":
+		return ElectionTypePreferred, nil
+	case "UNCLEAN":
+		return ElectionTypeUnclean, nil
+	default:
+		return ElectionTypePreferred, NewError(ErrInvalidArg, "Unknown election type", false)
+	}
+}
+
+// ElectLeadersRequest holds parameters for the type of election to be performed and
+// the topic partitions for which election has to be performed
+type ElectLeadersRequest struct {
+	// Election type to be performed
+	electionType ElectionType
+	// TopicPartitions for which election has to be performed
+	partitions []TopicPartition
+}
+
+func NewElectLeadersRequest(electionType ElectionType, partitions []TopicPartition) ElectLeadersRequest {
+	return ElectLeadersRequest{
+		electionType: electionType,
+		partitions:   partitions,
+	}
+}
+
+// ElectLeadersResult holds the result of the election performed
+type ElectLeadersResult struct {
+	// TopicPartitions for which election has been performed and specific error if any
+	// that occured while election in the specific TopicPartition.
+	topicPartitions []TopicPartition
+}
+
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
 // first.
 // The returned result event is checked for errors its error is returned if set.
@@ -1526,6 +1570,25 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 	}
 
 	return result, nil
+}
+
+// Convert a C rd_kafka_topic_partition_result_t array to a Go TopicPartition list.
+func newTopicPartitionsFromCTopicPartitionResult(cResponse **C.rd_kafka_topic_partition_result_t, size C.size_t) (partitions []TopicPartition) {
+
+	partCnt := int(size)
+
+	partitions = make([]TopicPartition, partCnt)
+
+	for i := 0; i < partCnt; i++ {
+		topic := C.GoString(C.rd_kafka_topic_partition_result_topic(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i))))
+		partitions[i].Topic = &topic
+		partitions[i].Partition = int32(C.rd_kafka_topic_partition_result_partition(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i))))
+		cErrorCode := C.rd_kafka_topic_partition_result_error(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i)))
+		cErrorStr := C.rd_kafka_topic_partition_result_error_string(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i)))
+		partitions[i].Error = newErrorFromCString(cErrorCode, cErrorStr)
+	}
+
+	return partitions
 }
 
 // cToDeletedRecordResult converts a C topic partitions list to a Go DeleteRecordsResult slice.
@@ -3514,6 +3577,81 @@ func (a *AdminClient) DeleteRecords(ctx context.Context,
 		cToDeletedRecordResult(cDeleteRecordsResultList)
 
 	return result, nil
+}
+
+// ElectLeaders performs Preferred or Unclean Elections for the specified topic Partitions.
+//
+// Parameters:
+//   - `ctx` - context with the maximum amount of time to block, or nil for
+//     indefinite.
+//   - `electLeaderRequest` - ElectLeadersRequest containing the election type
+//         and the partitions to elect leaders for.
+//   - `options` - ElectLeadersAdminOption options.
+//
+// Returns ElectLeadersResult, which contains a slice of TopicPartitions containing the partitions for which the leader election was performed.
+// User has to check all the elements of the result to check any error occured per partition.
+// err returns any top level level that occured during the operation.
+
+func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest ElectLeadersRequest, options ...ElectLeadersAdminOption) (result ElectLeadersResult, err error) {
+
+	if len(electLeaderRequest.partitions) == 0 {
+		return result, newErrorFromString(ErrInvalidArg, "expected non-empty partitions")
+	}
+
+	result = ElectLeadersResult{}
+
+	err = a.verifyClient()
+	if err != nil {
+		return result, err
+	}
+
+	cTopicPartitions := newCPartsFromTopicPartitions(electLeaderRequest.partitions)
+	defer C.rd_kafka_topic_partition_list_destroy(cTopicPartitions)
+
+	cElectLeadersRequest := C.rd_kafka_ElectLeaders_new(C.rd_kafka_ElectionType_t(electLeaderRequest.electionType), cTopicPartitions)
+	defer C.rd_kafka_ElectLeaders_destroy(cElectLeadersRequest)
+
+	// Convert Go AdminOptions (if any) to C AdminOptions.
+	genericOptions := make([]AdminOption, len(options))
+	for i := range options {
+		genericOptions[i] = options[i]
+	}
+	cOptions, err := adminOptionsSetup(
+		a.handle, C.RD_KAFKA_ADMIN_OP_ELECTLEADERS, genericOptions)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_AdminOptions_destroy(cOptions)
+
+	// Create temporary queue for async operation.
+	cQueue := C.rd_kafka_queue_new(a.handle.rk)
+	defer C.rd_kafka_queue_destroy(cQueue)
+
+	// Call rd_kafka_ElectLeader (asynchronous).
+	C.rd_kafka_ElectLeaders(
+		a.handle.rk,
+		cElectLeadersRequest,
+		cOptions,
+		cQueue)
+
+	// Wait for result, error or context timeout.
+	rkev, err := a.waitResult(
+		ctx, cQueue, C.RD_KAFKA_EVENT_ELECTLEADERS_RESULT)
+	if err != nil {
+		return result, err
+	}
+	defer C.rd_kafka_event_destroy(rkev)
+
+	cResEvent := C.rd_kafka_event_ElectLeaders_result(rkev)
+	cRes := C.rd_kafka_ElectionResult_result(cResEvent)
+
+	err = newError(C.rd_kafka_ElectionResult_error(cRes))
+
+	var cResponseSize C.size_t
+	cResultPartitions := C.rd_kafka_ElectionResult_partitions(cRes, &cResponseSize)
+	result.topicPartitions = newTopicPartitionsFromCTopicPartitionResult(cResultPartitions, cResponseSize)
+
+	return result, err
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance
