@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/deks"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/tink-crypto/tink-go/v2/aead"
@@ -303,7 +303,7 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateKek(ctx serde.RuleContext)
 func (f *FieldEncryptionExecutorTransform) retrieveKekFromRegistry(key deks.KekID) (*deks.Kek, error) {
 	kek, err := f.Executor.Client.GetKek(key.Name, key.Deleted)
 	if err != nil {
-		var restErr *internal.RestError
+		var restErr *rest.Error
 		if errors.As(err, &restErr) {
 			if strings.HasPrefix(strconv.Itoa(restErr.Code), "404") {
 				return nil, nil
@@ -317,7 +317,7 @@ func (f *FieldEncryptionExecutorTransform) retrieveKekFromRegistry(key deks.KekI
 func (f *FieldEncryptionExecutorTransform) storeKekToRegistry(key deks.KekID, kmsType string, kmsKeyID string, shared bool) (*deks.Kek, error) {
 	kek, err := f.Executor.Client.RegisterKek(key.Name, kmsType, kmsKeyID, nil, "", shared)
 	if err != nil {
-		var restErr *internal.RestError
+		var restErr *rest.Error
 		if errors.As(err, &restErr) {
 			if strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
 				return nil, nil
@@ -426,7 +426,7 @@ func (f *FieldEncryptionExecutorTransform) retrieveDekFromRegistry(key deks.DekI
 		dek, err = f.Executor.Client.GetDek(key.KekName, key.Subject, key.Algorithm, key.Deleted)
 	}
 	if err != nil {
-		var restErr *internal.RestError
+		var restErr *rest.Error
 		if errors.As(err, &restErr) {
 			if strings.HasPrefix(strconv.Itoa(restErr.Code), "404") {
 				return nil, nil
@@ -450,7 +450,7 @@ func (f *FieldEncryptionExecutorTransform) storeDekToRegistry(key deks.DekID, en
 		dek, err = f.Executor.Client.RegisterDek(key.KekName, key.Subject, key.Algorithm, encryptedDekStr)
 	}
 	if err != nil {
-		var restErr *internal.RestError
+		var restErr *rest.Error
 		if errors.As(err, &restErr) {
 			if strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
 				return nil, nil

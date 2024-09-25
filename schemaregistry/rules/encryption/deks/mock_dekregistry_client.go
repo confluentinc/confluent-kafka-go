@@ -18,7 +18,7 @@ package deks
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"net/url"
 	"sync"
 	"time"
@@ -87,7 +87,7 @@ func (c *mockclient) GetKek(name string, deleted bool) (kek Kek, err error) {
 			return kek, nil
 		}
 	}
-	posErr := internal.RestError{
+	posErr := rest.Error{
 		Code:    404,
 		Message: "Key Not Found",
 	}
@@ -150,7 +150,7 @@ func (c *mockclient) GetDekVersion(kekName string, subject string, version int, 
 			}
 		}
 		if latestVersion == 0 {
-			posErr := internal.RestError{
+			posErr := rest.Error{
 				Code:    404,
 				Message: "Key Not Found",
 			}
@@ -173,7 +173,7 @@ func (c *mockclient) GetDekVersion(kekName string, subject string, version int, 
 			return dek, nil
 		}
 	}
-	posErr := internal.RestError{
+	posErr := rest.Error{
 		Code:    404,
 		Message: "Key Not Found",
 	}
