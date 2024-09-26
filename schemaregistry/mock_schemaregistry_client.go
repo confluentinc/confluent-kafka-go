@@ -723,6 +723,16 @@ func (c *mockclient) UpdateDefaultConfig(update ServerConfig) (result ServerConf
 	return update, nil
 }
 
+// ClearLatestCaches clears caches of latest versions
+func (c *mockclient) ClearLatestCaches() error {
+	return nil
+}
+
+// ClearCaches clears all caches
+func (c *mockclient) ClearCaches() error {
+	return nil
+}
+
 // Close closes the client
 func (c *mockclient) Close() error {
 	return nil
