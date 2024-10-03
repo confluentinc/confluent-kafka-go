@@ -33,6 +33,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 )
 
 // Relative Confluent Schema Registry REST API endpoints as described in the Confluent documentation
@@ -104,17 +106,6 @@ func NewRequest(method string, endpoint string, body interface{}, arguments ...i
 *		- 50002 - Operation timed out
 *		- 50003 - Error forwarding request to SR leader
  */
-
-// RestError represents a Schema Registry HTTP Error response
-type RestError struct {
-	Code    int    `json:"error_code"`
-	Message string `json:"message"`
-}
-
-// Error implements the errors.Error interface
-func (err *RestError) Error() string {
-	return fmt.Sprintf("schema registry request failed error code: %d: %s", err.Code, err.Message)
-}
 
 // RestService represents a REST client
 type RestService struct {
@@ -373,7 +364,7 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 		return nil
 	}
 
-	var failure RestError
+	var failure rest.Error
 	if err := json.NewDecoder(resp.Body).Decode(&failure); err != nil {
 		return err
 	}

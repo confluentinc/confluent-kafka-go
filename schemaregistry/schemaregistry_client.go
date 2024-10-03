@@ -362,8 +362,8 @@ var _ Client = new(client)
 // The Schema Registry's REST interface is further explained in Confluent's Schema Registry API documentation
 // https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
 type Client interface {
-	GetAllContexts() ([]string, error)
 	Config() *Config
+	GetAllContexts() ([]string, error)
 	Register(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	RegisterFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error)
 	GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error)
@@ -388,6 +388,8 @@ type Client interface {
 	UpdateConfig(subject string, update ServerConfig) (result ServerConfig, err error)
 	GetDefaultConfig() (result ServerConfig, err error)
 	UpdateDefaultConfig(update ServerConfig) (result ServerConfig, err error)
+	ClearLatestCaches() error
+	ClearCaches() error
 	Close() error
 }
 
@@ -1027,8 +1029,43 @@ func (c *client) UpdateDefaultConfig(update ServerConfig) (result ServerConfig, 
 	return result, err
 }
 
+// ClearLatestCaches clears caches of latest versions
+func (c *client) ClearLatestCaches() error {
+	c.latestToSchemaCacheLock.Lock()
+	c.latestToSchemaCache.Clear()
+	c.latestToSchemaCacheLock.Unlock()
+	c.metadataToSchemaCacheLock.Lock()
+	c.metadataToSchemaCache.Clear()
+	c.metadataToSchemaCacheLock.Unlock()
+	return nil
+}
+
+// ClearCaches clears all caches
+func (c *client) ClearCaches() error {
+	c.infoToSchemaCacheLock.Lock()
+	c.infoToSchemaCache.Clear()
+	c.infoToSchemaCacheLock.Unlock()
+	c.idToSchemaInfoCacheLock.Lock()
+	c.idToSchemaInfoCache.Clear()
+	c.idToSchemaInfoCacheLock.Unlock()
+	c.schemaToVersionCacheLock.Lock()
+	c.schemaToVersionCache.Clear()
+	c.schemaToVersionCacheLock.Unlock()
+	c.versionToSchemaCacheLock.Lock()
+	c.versionToSchemaCache.Clear()
+	c.versionToSchemaCacheLock.Unlock()
+	c.latestToSchemaCacheLock.Lock()
+	c.latestToSchemaCache.Clear()
+	c.latestToSchemaCacheLock.Unlock()
+	c.metadataToSchemaCacheLock.Lock()
+	c.metadataToSchemaCache.Clear()
+	c.metadataToSchemaCacheLock.Unlock()
+	return nil
+}
+
 // Close closes the client
 func (c *client) Close() error {
+	c.ClearCaches()
 	return nil
 }
 
