@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Perform Preffered or Unclean Elections for the specified Topic Partitions.
+// Perform Preferred or Unclean Elections for the specified Topic Partitions.
 
 package main
 
