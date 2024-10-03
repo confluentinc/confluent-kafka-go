@@ -3592,13 +3592,12 @@ func (a *AdminClient) DeleteRecords(ctx context.Context,
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
 //   - `electLeaderRequest` - ElectLeadersRequest containing the election type
-//         and the partitions to elect leaders for.
+//     and the partitions to elect leaders for.
 //   - `options` - ElectLeadersAdminOption options.
 //
 // Returns ElectLeadersResult, which contains a slice of TopicPartitions containing the partitions for which the leader election was performed.
 // User has to check all the elements of the result to check any error occured per partition.
 // err returns any top level level that occured during the operation.
-
 func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest ElectLeadersRequest, options ...ElectLeadersAdminOption) (result ElectLeadersResult, err error) {
 
 	if len(electLeaderRequest.partitions) == 0 {
