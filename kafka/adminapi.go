@@ -145,6 +145,13 @@ error_by_idx(const rd_kafka_error_t **errors, size_t cnt, size_t idx) {
 		return NULL;
 	return errors[idx];
 }
+
+static const rd_kafka_topic_partition_result_t *
+TopicPartitionResult_by_idx(const rd_kafka_topic_partition_result_t **result, size_t cnt, size_t idx) {
+	if (idx >= cnt)
+		return NULL;
+	return result[idx];
+}
 */
 import "C"
 
@@ -1580,11 +1587,11 @@ func newTopicPartitionsFromCTopicPartitionResult(cResponse **C.rd_kafka_topic_pa
 	partitions = make([]TopicPartition, partCnt)
 
 	for i := 0; i < partCnt; i++ {
-		topic := C.GoString(C.rd_kafka_topic_partition_result_topic(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i))))
+		topic := C.GoString(C.rd_kafka_topic_partition_result_topic(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
 		partitions[i].Topic = &topic
-		partitions[i].Partition = int32(C.rd_kafka_topic_partition_result_partition(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i))))
-		cErrorCode := C.rd_kafka_topic_partition_result_error(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i)))
-		cErrorStr := C.rd_kafka_topic_partition_result_error_string(C.rd_kafka_ElectionResult_partitions_by_idx(cResponse, C.size_t(i)))
+		partitions[i].Partition = int32(C.rd_kafka_topic_partition_result_partition(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
+		cErrorCode := C.rd_kafka_topic_partition_result_error(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i)))
+		cErrorStr := C.rd_kafka_topic_partition_result_error_string(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i)))
 		partitions[i].Error = newErrorFromCString(cErrorCode, cErrorStr)
 	}
 
@@ -3643,12 +3650,12 @@ func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest Elect
 	defer C.rd_kafka_event_destroy(rkev)
 
 	cResEvent := C.rd_kafka_event_ElectLeaders_result(rkev)
-	cRes := C.rd_kafka_ElectionResult_result(cResEvent)
+	cRes := C.rd_kafka_ElectLeaders_result(cResEvent)
 
-	err = newError(C.rd_kafka_ElectionResult_error(cRes))
+	err = newError(C.rd_kafka_ElectLeadersResult_error(cRes))
 
 	var cResponseSize C.size_t
-	cResultPartitions := C.rd_kafka_ElectionResult_partitions(cRes, &cResponseSize)
+	cResultPartitions := C.rd_kafka_ElectLeadersResult_partitions(cRes, &cResponseSize)
 	result.topicPartitions = newTopicPartitionsFromCTopicPartitionResult(cResultPartitions, cResponseSize)
 
 	return result, err
