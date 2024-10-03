@@ -43,3 +43,4 @@ protobuf_consumer_example/protobuf_consumer_example
 protobuf_producer_example/protobuf_producer_example
 stats_example/stats_example
 transactions_example/transactions_example
+admin_elect_leaders/admin_elect_leaders

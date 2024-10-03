@@ -86,6 +86,8 @@ Examples
 
   [transactions_example](transactions_example) - Showcasing a transactional consume-process-produce application
 
+  [admin_elect_leaders](admin_elect_leaders) - Perform Preferred/ Unclean elections for the specified Topic Partitions
+
 Usage example
 -------------
 
