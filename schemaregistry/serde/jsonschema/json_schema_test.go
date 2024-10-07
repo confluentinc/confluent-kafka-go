@@ -217,6 +217,38 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
+func TestJSONSchemaSerdeWithSimpleMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := make(map[string]interface{})
+	obj["IntField"] = 123
+	obj["DoubleField"] = 45.67
+	obj["StringField"] = "hi"
+	obj["BoolField"] = true
+	obj["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	// JSON decoding produces floats
+	obj["IntField"] = 123.0
+
+	var newobj map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+}
+
 func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
