@@ -85,16 +85,24 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
-	msgType := reflect.TypeOf(msg)
-	if msgType.Kind() != reflect.Pointer {
-		return nil, errors.New("input message must be a pointer")
-	}
-	avroSchema, err := StructToSchema(msgType.Elem())
-	if err != nil {
-		return nil, err
-	}
-	info := schemaregistry.SchemaInfo{
-		Schema: avroSchema.String(),
+	var avroSchema avro.Schema
+	var info schemaregistry.SchemaInfo
+	var err error
+	// Don't derive the schema if it is being looked up in the following ways
+	if s.Conf.UseSchemaID == -1 &&
+		!s.Conf.UseLatestVersion &&
+		len(s.Conf.UseLatestWithMetadata) == 0 {
+		msgType := reflect.TypeOf(msg)
+		if msgType.Kind() != reflect.Pointer {
+			return nil, errors.New("input message must be a pointer")
+		}
+		avroSchema, err = StructToSchema(msgType.Elem())
+		if err != nil {
+			return nil, err
+		}
+		info = schemaregistry.SchemaInfo{
+			Schema: avroSchema.String(),
+		}
 	}
 	id, err := s.GetID(topic, msg, &info)
 	if err != nil {
