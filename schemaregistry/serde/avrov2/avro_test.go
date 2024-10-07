@@ -209,6 +209,31 @@ const (
   ]
 }
 `
+	schemaEvolution1 = `
+{
+  "name": "SchemaEvolution",
+  "type": "record",
+  "fields": [
+    {
+      "name": "FieldToDelete",
+      "type": "string"
+    }
+  ]
+}
+`
+	schemaEvolution2 = `
+{
+  "name": "SchemaEvolution",
+  "type": "record",
+  "fields": [
+    {
+      "name": "NewOptionalField",
+      "type": "string",
+      "default": "optional"
+    }
+  ]
+}
+`
 	f1Schema = `
 {
   "name": "F1Schema",
@@ -238,6 +263,8 @@ func testMessageFactory(subject string, name string) (interface{}, error) {
 		return &DemoSchemaWithUnion{}, nil
 	case "ComplexSchema":
 		return &ComplexSchema{}, nil
+	case "SchemaEvolution":
+		return &SchemaEvolution2{}, nil
 	case "F1Schema":
 		return &F1Schema{}, nil
 	case "NestedTestRecord":
@@ -431,6 +458,69 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 
 	msg, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSchemaEvolution(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     string(schemaEvolution1),
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := SchemaEvolution1{}
+	obj.FieldToDelete = "bye"
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	info = schemaregistry.SchemaInfo{
+		Schema:     string(schemaEvolution2),
+		SchemaType: "AVRO",
+	}
+
+	id, err = client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	client.ClearLatestCaches()
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.UseLatestVersion = true
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	obj2 := SchemaEvolution2{}
+	obj2.NewOptionalField = "optional"
+
+	var newobj SchemaEvolution2
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj2))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj2))
 }
 
 func TestAvroSerdeWithCELCondition(t *testing.T) {
@@ -1962,4 +2052,12 @@ type NewerWidget struct {
 	Length int `json:"length"`
 
 	Version int `json:"version"`
+}
+
+type SchemaEvolution1 struct {
+	FieldToDelete string `json:"FieldToDelete"`
+}
+
+type SchemaEvolution2 struct {
+	NewOptionalField string `json:"NewOptionalField"`
 }
