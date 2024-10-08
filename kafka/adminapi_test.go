@@ -1246,6 +1246,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
 	testAdminAPIsDeleteRecords(what, a, expDuration, t)
+	testAdminAPIsElectLeaders(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
