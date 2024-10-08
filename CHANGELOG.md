@@ -1,5 +1,9 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.6.0
+
+* Adds an AdminAPI `ElectLeaders()` (#1311, @PratRanj07).
+
 ## v2.5.4
 
 v2.5.4 is a maintenance release with the following fixes and enhancements:
