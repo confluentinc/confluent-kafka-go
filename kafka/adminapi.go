@@ -1579,6 +1579,17 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 	return result, nil
 }
 
+// setupTopicPartitionFromCtopicPartitionResult sets up a Go TopicPartition from a C rd_kafka_topic_partition_t & C.rd_kafka_error_t.
+func setupTopicPartitionFromCtopicPartitionResult(partition *TopicPartition, crktpar *C.rd_kafka_topic_partition_t, cerr *C.rd_kafka_error_t) {
+
+	topic := C.GoString(crktpar.topic)
+	partition.Topic = &topic
+	partition.Partition = int32(crktpar.partition)
+	if crktpar.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
+		partition.Error = newErrorFromCString(C.rd_kafka_error_code(cerr), C.rd_kafka_error_string(cerr))
+	}
+}
+
 // Convert a C rd_kafka_topic_partition_result_t array to a Go TopicPartition list.
 func newTopicPartitionsFromCTopicPartitionResult(cResponse **C.rd_kafka_topic_partition_result_t, size C.size_t) (partitions []TopicPartition) {
 
@@ -1587,12 +1598,7 @@ func newTopicPartitionsFromCTopicPartitionResult(cResponse **C.rd_kafka_topic_pa
 	partitions = make([]TopicPartition, partCnt)
 
 	for i := 0; i < partCnt; i++ {
-		topic := C.GoString(C.rd_kafka_topic_partition_result_topic(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
-		partitions[i].Topic = &topic
-		partitions[i].Partition = int32(C.rd_kafka_topic_partition_result_partition(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
-		cErrorCode := C.rd_kafka_topic_partition_result_error(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i)))
-		cErrorStr := C.rd_kafka_topic_partition_result_error_string(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i)))
-		partitions[i].Error = newErrorFromCString(cErrorCode, cErrorStr)
+		setupTopicPartitionFromCtopicPartitionResult(&partitions[i], C.rd_kafka_topic_partition_result_partition(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))), C.rd_kafka_topic_partition_result_error(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
 	}
 
 	return partitions
@@ -3651,13 +3657,11 @@ func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest Elect
 	cResEvent := C.rd_kafka_event_ElectLeaders_result(rkev)
 	cRes := C.rd_kafka_ElectLeaders_result(cResEvent)
 
-	err = newError(C.rd_kafka_ElectLeadersResult_error(cRes))
-
 	var cResponseSize C.size_t
 	cResultPartitions := C.rd_kafka_ElectLeadersResult_partitions(cRes, &cResponseSize)
 	result.topicPartitions = newTopicPartitionsFromCTopicPartitionResult(cResultPartitions, cResponseSize)
 
-	return result, err
+	return result, nil
 }
 
 // NewAdminClient creats a new AdminClient instance with a new underlying client instance
