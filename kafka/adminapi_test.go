@@ -924,7 +924,6 @@ func testAdminAPIsElectLeaders(what string, a *AdminClient, expDuration time.Dur
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 	topicPartition := []TopicPartition{{Topic: &topic, Partition: partition}}
-	emptyTopicPartition := []TopicPartition{}
 	electLeaderRequestPreferred := ElectLeadersRequest{
 		electionType: ElectionTypePreferred,
 		partitions:   topicPartition,
@@ -955,40 +954,6 @@ func testAdminAPIsElectLeaders(what string, a *AdminClient, expDuration time.Dur
 	_, err = a.ElectLeaders(ctx, electLeadersRequestUnclean, SetAdminRequestTimeout(-1))
 	if err == nil || err.(Error).Code() != ErrInvalidArg {
 		t.Fatalf("Expected ErrInvalidArg, not %v", err)
-	}
-
-	for _, options := range [][]ElectLeadersAdminOption{
-		{},
-		{SetAdminRequestTimeout(time.Second)},
-	} {
-		// empty list should fail
-		ctx, cancel = context.WithTimeout(context.Background(), expDuration)
-		defer cancel()
-		emptyElectLeadersRequestPreferred := ElectLeadersRequest{
-			electionType: ElectionTypePreferred,
-			partitions:   emptyTopicPartition,
-		}
-		emptyElectLeadersRequestUnclean := ElectLeadersRequest{
-			electionType: ElectionTypeUnclean,
-			partitions:   emptyTopicPartition,
-		}
-		result, err := a.ElectLeaders(ctx, emptyElectLeadersRequestPreferred, options...)
-		if result.topicPartitions != nil || err == nil {
-			t.Fatalf("Expected ElectLeaders to fail, but got result: %v, err: %v",
-				result, err)
-		}
-		if err.(Error).Code() != ErrInvalidArg {
-			t.Fatalf("Expected ErrInvalidArg, not %v", err)
-		}
-
-		result, err = a.ElectLeaders(ctx, emptyElectLeadersRequestUnclean, options...)
-		if result.topicPartitions != nil || err == nil {
-			t.Fatalf("Expected ElectLeaders to fail, but got result: %v, err: %v",
-				result, err)
-		}
-		if err.(Error).Code() != ErrInvalidArg {
-			t.Fatalf("Expected ErrInvalidArg, not %v", err)
-		}
 	}
 }
 

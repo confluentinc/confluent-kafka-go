@@ -1065,6 +1065,8 @@ const (
 	ElectionTypeUnclean ElectionType = C.RD_KAFKA_ELECTION_TYPE_UNCLEAN
 )
 
+// ElectionTypeFromString translates an election type name to
+// an ElectionType value.
 func ElectionTypeFromString(electionTypeString string) (ElectionType, error) {
 	switch strings.ToUpper(electionTypeString) {
 	case "PREFERRED":
@@ -1085,6 +1087,8 @@ type ElectLeadersRequest struct {
 	partitions []TopicPartition
 }
 
+// NewElectLeadersRequest creates a new ElectLeadersRequest with the given election type
+// and topic partitions
 func NewElectLeadersRequest(electionType ElectionType, partitions []TopicPartition) ElectLeadersRequest {
 	return ElectLeadersRequest{
 		electionType: electionType,
@@ -1094,8 +1098,8 @@ func NewElectLeadersRequest(electionType ElectionType, partitions []TopicPartiti
 
 // ElectLeadersResult holds the result of the election performed
 type ElectLeadersResult struct {
-	// TopicPartitions for which election has been performed and specific error if any
-	// that occured while election in the specific TopicPartition.
+	// TopicPartitions for which election has been performed and the per-partition error, if any
+	// that occurred while running the election for the specific TopicPartition.
 	topicPartitions []TopicPartition
 }
 
@@ -1580,14 +1584,10 @@ func (a *AdminClient) cConfigResourceToResult(cRes **C.rd_kafka_ConfigResource_t
 }
 
 // setupTopicPartitionFromCtopicPartitionResult sets up a Go TopicPartition from a C rd_kafka_topic_partition_t & C.rd_kafka_error_t.
-func setupTopicPartitionFromCtopicPartitionResult(partition *TopicPartition, crktpar *C.rd_kafka_topic_partition_t, cerr *C.rd_kafka_error_t) {
+func setupTopicPartitionFromCtopicPartitionResult(partition *TopicPartition, ctopicPartRes *C.rd_kafka_topic_partition_result_t) {
 
-	topic := C.GoString(crktpar.topic)
-	partition.Topic = &topic
-	partition.Partition = int32(crktpar.partition)
-	if crktpar.err != C.RD_KAFKA_RESP_ERR_NO_ERROR {
-		partition.Error = newErrorFromCString(C.rd_kafka_error_code(cerr), C.rd_kafka_error_string(cerr))
-	}
+	setupTopicPartitionFromCrktpar(partition, C.rd_kafka_topic_partition_result_partition(ctopicPartRes))
+	partition.Error = newErrorFromCError(C.rd_kafka_topic_partition_result_error(ctopicPartRes))
 }
 
 // Convert a C rd_kafka_topic_partition_result_t array to a Go TopicPartition list.
@@ -1598,9 +1598,7 @@ func newTopicPartitionsFromCTopicPartitionResult(cResponse **C.rd_kafka_topic_pa
 	partitions = make([]TopicPartition, partCnt)
 
 	for i := 0; i < partCnt; i++ {
-		setupTopicPartitionFromCtopicPartitionResult(&partitions[i],
-			C.rd_kafka_topic_partition_result_partition(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))),
-			C.rd_kafka_topic_partition_result_error(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
+		setupTopicPartitionFromCtopicPartitionResult(&partitions[i], C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i)))
 	}
 
 	return partitions
@@ -3604,15 +3602,11 @@ func (a *AdminClient) DeleteRecords(ctx context.Context,
 //   - `options` - ElectLeadersAdminOption options.
 //
 // Returns ElectLeadersResult, which contains a slice of TopicPartitions containing the partitions for which the leader election was performed.
-// User has to check all the elements of the result to check any error occured per partition.
-// err returns any top level level that occured during the operation.
+// If we are passing partitions as nil, the broker will perform leader elections for all partitions,
+// but the results will only contain partitions for which there was an election or resulted in an error.
+// Individual TopicPartitions inside the ElectLeadersResult should be checked for errors.
+// Additionally, an error that is not nil for client-level errors is returned.
 func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest ElectLeadersRequest, options ...ElectLeadersAdminOption) (result ElectLeadersResult, err error) {
-
-	if len(electLeaderRequest.partitions) == 0 {
-		return result, newErrorFromString(ErrInvalidArg, "expected non-empty partitions")
-	}
-
-	result = ElectLeadersResult{}
 
 	err = a.verifyClient()
 	if err != nil {

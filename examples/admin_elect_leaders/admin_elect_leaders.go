@@ -31,7 +31,8 @@ import (
 func main() {
 	args := os.Args
 
-	if len(args) < 5 {
+	// Providing an empty topic partition list will give an empty list as result.
+	if len(args) < 2 {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s <bootstrap_servers> "+
 				"<election_type (Preferred/Unclean)> <topic1> <partition1> ...\n",
@@ -85,7 +86,7 @@ func main() {
 
 	res, err := ac.ElectLeaders(ctx, kafka.NewElectLeadersRequest(electionType, topicPartitionList))
 	if err != nil {
-		kafkaErr, ok := err.(kafka.Error) // Type assertion
+		kafkaErr, ok := err.(kafka.Error)
 		if ok && kafkaErr.Code() != kafka.ErrNoError {
 			fmt.Printf("Failed to elect Leaders: %s\n", err)
 			os.Exit(1)
