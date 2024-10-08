@@ -2,7 +2,7 @@
 
 ## v2.6.0
 
-* Adds an AdminAPI `ElectLeaders()` (#1311, @PratRanj07).
+* [KIP-460](https://cwiki.apache.org/confluence/display/KAFKA/KIP-460%3A+Admin+Leader+Election+RPC) Admin Leader Election RPC (#1311, @PratRanj07)
 
 ## v2.5.4
 
