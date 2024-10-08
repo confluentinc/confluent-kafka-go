@@ -1598,7 +1598,9 @@ func newTopicPartitionsFromCTopicPartitionResult(cResponse **C.rd_kafka_topic_pa
 	partitions = make([]TopicPartition, partCnt)
 
 	for i := 0; i < partCnt; i++ {
-		setupTopicPartitionFromCtopicPartitionResult(&partitions[i], C.rd_kafka_topic_partition_result_partition(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))), C.rd_kafka_topic_partition_result_error(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
+		setupTopicPartitionFromCtopicPartitionResult(&partitions[i],
+			C.rd_kafka_topic_partition_result_partition(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))),
+			C.rd_kafka_topic_partition_result_error(C.TopicPartitionResult_by_idx(cResponse, C.size_t(partCnt), C.size_t(i))))
 	}
 
 	return partitions
