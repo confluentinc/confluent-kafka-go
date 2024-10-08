@@ -828,6 +828,128 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		t.Errorf("Consumer group %s should not be present\n", groupID)
 		return
 	}
+	return
+}
+
+// TestAdminClient_ListConsumerGroups validates the working of the
+// list consumer groups API of the admin client.
+//
+// We test the following situations:
+//  1. when creating a consumer of type T in group G and listing with that type,
+//     all returned groups should be of type T and G must be included.
+//  2. when creating a consumer of type T and listing with the opposite type,
+//     all returned groups should be of type opposite of T and G must not be included.
+func (its *IntegrationTestSuite) TestAdminClient_ListConsumerGroups() {
+	t := its.T()
+	if testConsumerGroupProtocolClassic() {
+		// TODO: Remove this check once the image used for testing Classic protocol supports ListConsumerGroups type filter.
+		t.Skipf("Image used for testing Classic protocol doesn't support ListConsumerGroups type filter still")
+	}
+
+	usedType := ConsumerGroupTypeClassic
+	oppositeType := ConsumerGroupTypeConsumer
+	if !testConsumerGroupProtocolClassic() {
+		usedType = ConsumerGroupTypeConsumer
+		oppositeType = ConsumerGroupTypeClassic
+	}
+
+	groupID := fmt.Sprintf("%s-%d", testconf.GroupID, rand.Int())
+	topic := fmt.Sprintf("%s-%d", testconf.TopicName, rand.Int())
+
+	clientID := "test.client"
+
+	ac := createAdminClient(t)
+	defer ac.Close()
+
+	// Create a topic
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := ac.CreateTopics(ctx, []TopicSpecification{
+		{
+			Topic:         topic,
+			NumPartitions: 1,
+		},
+	})
+	if err != nil {
+		t.Errorf("Topic creation failed with error %v", err)
+		return
+	}
+
+	// Delete the topic after the test is done.
+	defer func() {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = ac.DeleteTopics(ctx, []string{topic})
+		if err != nil {
+			t.Errorf("Topic deletion failed with error %v", err)
+		}
+	}()
+
+	config := &ConfigMap{
+		"bootstrap.servers": testconf.Brokers,
+		"group.id":          groupID,
+		"client.id":         clientID,
+	}
+	config.updateFromTestconf()
+	consumer, err := testNewConsumer(config)
+	if err != nil {
+		t.Errorf("Failed to create consumer: %s\n", err)
+		return
+	}
+	consumerClosed := false
+	defer func() {
+		if !consumerClosed {
+			consumer.Close()
+		}
+	}()
+	consumer.Subscribe(topic, nil)
+
+	// Call Poll to trigger a rebalance and give it enough time to finish.
+	consumer.Poll(10 * 1000)
+
+	// Our Consumer should be listed when searching groups of the same type.
+	listGroupResult, err := ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second),
+		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{usedType}))
+	if err != nil || len(listGroupResult.Errors) > 0 {
+		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+		return
+	}
+	groups := listGroupResult.Valid
+	if findConsumerGroupListing(groups, groupID) == nil {
+		t.Errorf("Consumer groups %s should be present\n", groupID)
+		return
+	}
+	for _, groupInfo := range groups {
+		if groupInfo.Type != usedType {
+			fmt.Printf("GroupName : %s, Type : %d", groupInfo.GroupID, groupInfo.Type)
+			t.Errorf("Consumer group type should be %s\n", usedType)
+			return
+		}
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	// Check opposite group type and current group shouldn't be found.
+	listGroupResult, err = ac.ListConsumerGroups(ctx, SetAdminRequestTimeout(30*time.Second),
+		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{oppositeType}))
+	if err != nil || len(listGroupResult.Errors) > 0 {
+		t.Errorf("Error listing consumer groups %s %v\n", err, listGroupResult.Errors)
+		return
+	}
+	groups = listGroupResult.Valid
+	for _, groupInfo := range groups {
+		if groupInfo.Type != oppositeType {
+			fmt.Printf("GroupName : %s, Type : %d", groupInfo.GroupID, groupInfo.Type)
+			t.Errorf("Consumer group type should be %s\n", oppositeType)
+			return
+		}
+	}
+	if findConsumerGroupListing(groups, groupID) != nil {
+		t.Errorf("Consumer group %s should not be present as the Type filter "+
+			"was set to the opposite one: %s\n", groupID, oppositeType)
+		return
+	}
 }
 
 // TestAdminClient_ListAndDescribeConsumerGroups validates the working of the
@@ -843,7 +965,6 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 	if !testConsumerGroupProtocolClassic() {
 		t.Skipf("KIP 848 Admin operations changes still aren't " +
 			"available")
-		return
 	}
 
 	// Generating a new topic/groupID to ensure a fresh group/topic is created.
