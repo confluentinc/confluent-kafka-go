@@ -93,5 +93,21 @@ func main() {
 		}
 	}
 
-	fmt.Printf("ElectLeaders result: %+v\n", res)
+	fmt.Printf("ElectLeaders result contains %d partition(s):\n",
+		len(res.TopicPartitions))
+	for _, topicPartition := range res.TopicPartitions {
+		kafkaErr, ok := topicPartition.Error.(kafka.Error)
+		if !ok {
+			fmt.Printf("Topic: %s, Partition: %d - Unexpected error type: %s\n",
+				*topicPartition.Topic, topicPartition.Partition, err)
+			continue
+		}
+		if kafkaErr.Code() == kafka.ErrNoError {
+			fmt.Printf("Topic: %s, Partition: %d - Success\n",
+				*topicPartition.Topic, topicPartition.Partition)
+		} else {
+			fmt.Printf("Topic: %s, Partition: %d - Failed: %s\n",
+				*topicPartition.Topic, topicPartition.Partition, kafkaErr.String())
+		}
+	}
 }

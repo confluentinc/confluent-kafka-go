@@ -147,10 +147,10 @@ error_by_idx(const rd_kafka_error_t **errors, size_t cnt, size_t idx) {
 }
 
 static const rd_kafka_topic_partition_result_t *
-TopicPartitionResult_by_idx(const rd_kafka_topic_partition_result_t **result, size_t cnt, size_t idx) {
+TopicPartitionResult_by_idx(const rd_kafka_topic_partition_result_t **results, size_t cnt, size_t idx) {
 	if (idx >= cnt)
 		return NULL;
-	return result[idx];
+	return results[idx];
 }
 */
 import "C"
@@ -1100,7 +1100,7 @@ func NewElectLeadersRequest(electionType ElectionType, partitions []TopicPartiti
 type ElectLeadersResult struct {
 	// TopicPartitions for which election has been performed and the per-partition error, if any
 	// that occurred while running the election for the specific TopicPartition.
-	topicPartitions []TopicPartition
+	TopicPartitions []TopicPartition
 }
 
 // waitResult waits for a result event on cQueue or the ctx to be cancelled, whichever happens
@@ -3613,8 +3613,11 @@ func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest Elect
 		return result, err
 	}
 
-	cTopicPartitions := newCPartsFromTopicPartitions(electLeaderRequest.partitions)
-	defer C.rd_kafka_topic_partition_list_destroy(cTopicPartitions)
+	var cTopicPartitions *C.rd_kafka_topic_partition_list_t
+	if electLeaderRequest.partitions != nil {
+		cTopicPartitions = newCPartsFromTopicPartitions(electLeaderRequest.partitions)
+		defer C.rd_kafka_topic_partition_list_destroy(cTopicPartitions)
+	}
 
 	cElectLeadersRequest := C.rd_kafka_ElectLeaders_new(C.rd_kafka_ElectionType_t(electLeaderRequest.electionType), cTopicPartitions)
 	defer C.rd_kafka_ElectLeaders_destroy(cElectLeadersRequest)
@@ -3650,12 +3653,11 @@ func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest Elect
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
-	cResEvent := C.rd_kafka_event_ElectLeaders_result(rkev)
-	cRes := C.rd_kafka_ElectLeaders_result(cResEvent)
-
+	cRes := C.rd_kafka_event_ElectLeaders_result(rkev)
 	var cResponseSize C.size_t
-	cResultPartitions := C.rd_kafka_ElectLeadersResult_partitions(cRes, &cResponseSize)
-	result.topicPartitions = newTopicPartitionsFromCTopicPartitionResult(cResultPartitions, cResponseSize)
+
+	cResultPartitions := C.rd_kafka_ElectLeaders_result_partitions(cRes, &cResponseSize)
+	result.TopicPartitions = newTopicPartitionsFromCTopicPartitionResult(cResultPartitions, cResponseSize)
 
 	return result, nil
 }

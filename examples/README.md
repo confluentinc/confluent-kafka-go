@@ -28,7 +28,7 @@ Examples
 
   [admin_describe_topics](admin_describe_topics) - Describe topics
 
-  [admin_elect_leaders](admin_elect_leaders) - Perform Preferred/Unclean elections for the specified Topic Partitions
+  [admin_elect_leaders](admin_elect_leaders) - Perform Preferred/Unclean elections for the specified partitions or for all of them
 
   [admin_list_consumer_group_offsets](admin_list_consumer_group_offsets) - List consumer group offsets
 
@@ -87,7 +87,6 @@ Examples
   [stats_example](stats_example) - Receiving stats events
 
   [transactions_example](transactions_example) - Showcasing a transactional consume-process-produce application
-
 
 Usage example
 -------------
