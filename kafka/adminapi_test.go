@@ -444,19 +444,6 @@ func testAdminAPIsListConsumerGroups(
 		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
-	defer cancel()
-	listres, err := a.ListConsumerGroups(
-		ctx, SetAdminRequestTimeout(time.Second),
-		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}))
-	if err == nil {
-		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v",
-			listres, err)
-	}
-	if ctx.Err() != context.DeadlineExceeded {
-		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
-	}
-
 	unknownGroupType := ConsumerGroupTypeFromString("Unknown")
 	if unknownGroupType != ConsumerGroupTypeUnknown {
 		t.Fatalf("%s: Expected ConsumerGroupTypeFromString to work for Unknown type", what)
@@ -467,10 +454,11 @@ func testAdminAPIsListConsumerGroups(
 		t.Fatalf("%s: Expected ConsumerGroupTypeFromString to work for Classic type", what)
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	// Test with unknown group type
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 
-	listres, err = a.ListConsumerGroups(
+	listres, err := a.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(time.Second),
 		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{unknownGroupType}))
 
@@ -479,6 +467,7 @@ func testAdminAPIsListConsumerGroups(
 			what, listres, err)
 	}
 
+	// Test with duplicate group type
 	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
 
@@ -489,6 +478,21 @@ func testAdminAPIsListConsumerGroups(
 	if err.(Error).Code() != ErrInvalidArg {
 		t.Fatalf("%s: Expected ListConsumerGroups to fail when duplicate group type options are set, but got result: %v, err: %v",
 			what, listres, err)
+	}
+
+	// Successful call
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	listres, err = a.ListConsumerGroups(
+		ctx, SetAdminRequestTimeout(time.Second),
+		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}),
+		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{classicGroupType}))
+	if err == nil {
+		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v",
+			listres, err)
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected DeadlineExceeded, not %v", ctx.Err())
 	}
 }
 
