@@ -19,35 +19,62 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-func main() {
-
-	if len(os.Args) < 2 {
+func usage(message string, fs *flag.FlagSet) {
+	if message != "" {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s <bootstrap-servers> [<state1> <state2> ...]\n", os.Args[0])
-		os.Exit(1)
+			message)
 	}
+	fs.Usage()
+	os.Exit(1)
+}
 
-	bootstrapServers := os.Args[1]
-	var states []kafka.ConsumerGroupState
-	if len(os.Args) > 2 {
-		statesStr := os.Args[2:]
-		for _, stateStr := range statesStr {
-			state, err := kafka.ConsumerGroupStateFromString(stateStr)
-			if err != nil {
-				fmt.Fprintf(os.Stderr,
-					"Given state %s is not a valid state\n", stateStr)
-				os.Exit(1)
+func parseListConsumerGroupsArgs() (
+	bootstrapServers string,
+	states []kafka.ConsumerGroupState,
+	types []kafka.ConsumerGroupType,
+) {
+	var statesString, typesString string
+	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	fs.StringVar(&bootstrapServers, "b", "localhost:9092", "Bootstrap servers")
+	fs.StringVar(&statesString, "states", "", "States to match")
+	fs.StringVar(&typesString, "types", "", "Types to match")
+	fs.Parse(os.Args[1:])
+
+	if statesString != "" {
+		for _, stateString := range strings.Split(statesString, ",") {
+			state, _ := kafka.ConsumerGroupStateFromString(stateString)
+			if state == kafka.ConsumerGroupStateUnknown {
+				usage(fmt.Sprintf("Given state %s is not a valid state\n",
+					stateString), fs)
 			}
 			states = append(states, state)
 		}
 	}
+	if typesString != "" {
+		for _, typeString := range strings.Split(typesString, ",") {
+			groupType := kafka.ConsumerGroupTypeFromString(typeString)
+			if groupType == kafka.ConsumerGroupTypeUnknown {
+				usage(fmt.Sprintf("Given type %s is not a valid type\n",
+					typeString), fs)
+			}
+			types = append(types, groupType)
+		}
+	}
+	return
+}
+
+func main() {
+
+	bootstrapServers, states, types := parseListConsumerGroupsArgs()
 
 	// Create a new AdminClient.
 	a, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
@@ -60,8 +87,17 @@ func main() {
 	// Call ListConsumerGroups.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
+	var options []kafka.ListConsumerGroupsAdminOption
+	if len(states) > 0 {
+		options = append(options, kafka.SetAdminMatchConsumerGroupStates(states))
+	}
+	if len(types) > 0 {
+		options = append(options, kafka.SetAdminMatchConsumerGroupTypes(types))
+	}
+
 	listGroupRes, err := a.ListConsumerGroups(
-		ctx, kafka.SetAdminMatchConsumerGroupStates(states))
+		ctx,
+		options...)
 
 	if err != nil {
 		fmt.Printf("Failed to list groups with client-level error %s\n", err)
@@ -74,6 +110,7 @@ func main() {
 	for _, group := range groups {
 		fmt.Printf("GroupId: %s\n", group.GroupID)
 		fmt.Printf("State: %s\n", group.State)
+		fmt.Printf("Type: %s\n", group.Type)
 		fmt.Printf("IsSimpleConsumerGroup: %v\n", group.IsSimpleConsumerGroup)
 		fmt.Println()
 	}
