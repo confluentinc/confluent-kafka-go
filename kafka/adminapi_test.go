@@ -444,11 +444,49 @@ func testAdminAPIsListConsumerGroups(
 		t.Fatalf("Expected ConsumerGroupStateFromString to work for Stable state")
 	}
 
+	unknownGroupType := ConsumerGroupTypeFromString("Unknown")
+	if unknownGroupType != ConsumerGroupTypeUnknown {
+		t.Fatalf("%s: Expected ConsumerGroupTypeFromString to work for Unknown type", what)
+	}
+
+	classicGroupType := ConsumerGroupTypeFromString("Classic")
+	if classicGroupType != ConsumerGroupTypeClassic {
+		t.Fatalf("%s: Expected ConsumerGroupTypeFromString to work for Classic type", what)
+	}
+
+	// Test with unknown group type
 	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
 	defer cancel()
+
 	listres, err := a.ListConsumerGroups(
 		ctx, SetAdminRequestTimeout(time.Second),
-		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}))
+		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{unknownGroupType}))
+
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("%s: Expected ListConsumerGroups to fail when unknown group type option is set, but got result: %v, err: %v",
+			what, listres, err)
+	}
+
+	// Test with duplicate group type
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+
+	listres, err = a.ListConsumerGroups(
+		ctx, SetAdminRequestTimeout(time.Second),
+		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{classicGroupType, classicGroupType}))
+
+	if err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("%s: Expected ListConsumerGroups to fail when duplicate group type options are set, but got result: %v, err: %v",
+			what, listres, err)
+	}
+
+	// Successful call
+	ctx, cancel = context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	listres, err = a.ListConsumerGroups(
+		ctx, SetAdminRequestTimeout(time.Second),
+		SetAdminMatchConsumerGroupStates([]ConsumerGroupState{state}),
+		SetAdminMatchConsumerGroupTypes([]ConsumerGroupType{classicGroupType}))
 	if err == nil {
 		t.Fatalf("Expected ListConsumerGroups to fail, but got result: %v, err: %v",
 			listres, err)
