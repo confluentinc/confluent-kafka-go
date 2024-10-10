@@ -167,7 +167,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020503ff
+#define RD_KAFKA_VERSION 0x020600ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -263,6 +263,8 @@ typedef struct rd_kafka_headers_s rd_kafka_headers_t;
 typedef struct rd_kafka_group_result_s rd_kafka_group_result_t;
 typedef struct rd_kafka_acl_result_s rd_kafka_acl_result_t;
 typedef struct rd_kafka_Uuid_s rd_kafka_Uuid_t;
+typedef struct rd_kafka_topic_partition_result_s
+    rd_kafka_topic_partition_result_t;
 /* @endcond */
 
 
@@ -5159,6 +5161,18 @@ typedef enum {
 } rd_kafka_consumer_group_state_t;
 
 /**
+ * @enum rd_kafka_consumer_group_type_t
+ *
+ * @brief Consumer group type.
+ */
+typedef enum {
+        RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN  = 0,
+        RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER = 1,
+        RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC  = 2,
+        RD_KAFKA_CONSUMER_GROUP_TYPE__CNT
+} rd_kafka_consumer_group_type_t;
+
+/**
  * @brief Group information
  */
 struct rd_kafka_group_info {
@@ -5241,6 +5255,30 @@ rd_kafka_consumer_group_state_name(rd_kafka_consumer_group_state_t state);
 RD_EXPORT
 rd_kafka_consumer_group_state_t
 rd_kafka_consumer_group_state_code(const char *name);
+
+/**
+ * @brief Returns a name for a group type code.
+ *
+ * @param type The group type value.
+ *
+ * @return The group type name corresponding to the provided group type value.
+ */
+RD_EXPORT
+const char *
+rd_kafka_consumer_group_type_name(rd_kafka_consumer_group_type_t type);
+
+/**
+ * @brief Returns a code for a group type name.
+ *
+ * @param name The group type name.
+ *
+ * @remark The comparison is case-insensitive.
+ *
+ * @return The group type value corresponding to the provided group type name.
+ */
+RD_EXPORT
+rd_kafka_consumer_group_type_t
+rd_kafka_consumer_group_type_code(const char *name);
 
 /**
  * @brief Release list memory
@@ -5515,6 +5553,8 @@ typedef int rd_kafka_event_type_t;
 #define RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT 0x200000
 /** ListOffsets_result_t */
 #define RD_KAFKA_EVENT_LISTOFFSETS_RESULT 0x400000
+/** ElectLeaders_result_t */
+#define RD_KAFKA_EVENT_ELECTLEADERS_RESULT 0x800000
 
 /**
  * @returns the event type for the given event.
@@ -5673,6 +5713,7 @@ int rd_kafka_event_error_is_fatal(rd_kafka_event_t *rkev);
  *  - RD_KAFKA_EVENT_DESCRIBETOPICS_RESULT
  *  - RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT
  *  - RD_KAFKA_EVENT_LISTOFFSETS_RESULT
+ *  - RD_KAFKA_EVENT_ELECTLEADERS_RESULT
  */
 RD_EXPORT
 void *rd_kafka_event_opaque(rd_kafka_event_t *rkev);
@@ -5796,6 +5837,8 @@ typedef rd_kafka_event_t rd_kafka_DescribeUserScramCredentials_result_t;
 typedef rd_kafka_event_t rd_kafka_AlterUserScramCredentials_result_t;
 /*! ListOffsets result type */
 typedef rd_kafka_event_t rd_kafka_ListOffsets_result_t;
+/*! ElectLeaders result type */
+typedef rd_kafka_event_t rd_kafka_ElectLeaders_result_t;
 
 /**
  * @brief Get CreateTopics result.
@@ -6067,6 +6110,21 @@ rd_kafka_event_DescribeUserScramCredentials_result(rd_kafka_event_t *rkev);
  */
 RD_EXPORT const rd_kafka_AlterUserScramCredentials_result_t *
 rd_kafka_event_AlterUserScramCredentials_result(rd_kafka_event_t *rkev);
+
+/**
+ * @brief Get ElectLeaders result.
+ *
+ * @returns the result of a ElectLeaders request, or NULL if
+ *          event is of different type.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p rkev object.
+ *
+ * Event types:
+ *  RD_KAFKA_EVENT_ELECTLEADERS_RESULT
+ */
+RD_EXPORT const rd_kafka_ElectLeaders_result_t *
+rd_kafka_event_ElectLeaders_result(rd_kafka_event_t *rkev);
 
 /**
  * @brief Poll a queue for an event for max \p timeout_ms.
@@ -6904,6 +6962,30 @@ rd_kafka_group_result_name(const rd_kafka_group_result_t *groupres);
 RD_EXPORT const rd_kafka_topic_partition_list_t *
 rd_kafka_group_result_partitions(const rd_kafka_group_result_t *groupres);
 
+/**
+ * @brief Topic Partition Result provides per-topic+partition operation result
+ *        Consists of TopicPartition object and error object.
+ */
+
+/**
+ * @returns the topic partition object from the topic partition result object.
+ * @remarks lifetime of the returned string is the same as the \p
+ *          partition_result.
+ *          The error object is set inside the topic partition object. For the
+ *          detailed error information, use
+ *          rd_kafka_topic_partition_result_error()
+ */
+RD_EXPORT const rd_kafka_topic_partition_t *
+rd_kafka_topic_partition_result_partition(
+    const rd_kafka_topic_partition_result_t *partition_result);
+
+/**
+ * @returns the error object from the topic partition result object.
+ * @remarks lifetime of the returned string is the same as the \p
+ *          partition_result.
+ */
+RD_EXPORT const rd_kafka_error_t *rd_kafka_topic_partition_result_error(
+    const rd_kafka_topic_partition_result_t *partition_result);
 
 /**@}*/
 
@@ -6980,6 +7062,7 @@ typedef enum rd_kafka_admin_op_t {
         RD_KAFKA_ADMIN_OP_DESCRIBETOPICS,  /**< DescribeTopics */
         RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER, /**< DescribeCluster */
         RD_KAFKA_ADMIN_OP_LISTOFFSETS,     /**< ListOffsets */
+        RD_KAFKA_ADMIN_OP_ELECTLEADERS,    /**< ElectLeaders */
         RD_KAFKA_ADMIN_OP__CNT             /**< Number of ops defined */
 } rd_kafka_admin_op_t;
 
@@ -7207,6 +7290,24 @@ rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_states(
     rd_kafka_AdminOptions_t *options,
     const rd_kafka_consumer_group_state_t *consumer_group_states,
     size_t consumer_group_states_cnt);
+
+/**
+ * @brief Set consumer groups types to query for.
+ *
+ * @param options Admin options.
+ * @param consumer_group_types Array of consumer group types.
+ * @param consumer_group_types_cnt Size of the \p consumer_group_types array.
+ *
+ * @return NULL on success, a new error instance that must be
+ *         released with rd_kafka_error_destroy() in case of error.
+ *
+ * @remark This option is valid for ListConsumerGroups.
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_types(
+    rd_kafka_AdminOptions_t *options,
+    const rd_kafka_consumer_group_type_t *consumer_group_types,
+    size_t consumer_group_types_cnt);
 
 /**
  * @brief Set Isolation Level to an allowed `rd_kafka_IsolationLevel_t` value.
@@ -7719,12 +7820,13 @@ rd_kafka_ConfigEntry_synonyms(const rd_kafka_ConfigEntry_t *entry,
  * @brief Apache Kafka resource types
  */
 typedef enum rd_kafka_ResourceType_t {
-        RD_KAFKA_RESOURCE_UNKNOWN = 0, /**< Unknown */
-        RD_KAFKA_RESOURCE_ANY     = 1, /**< Any (used for lookups) */
-        RD_KAFKA_RESOURCE_TOPIC   = 2, /**< Topic */
-        RD_KAFKA_RESOURCE_GROUP   = 3, /**< Group */
-        RD_KAFKA_RESOURCE_BROKER  = 4, /**< Broker */
-        RD_KAFKA_RESOURCE__CNT,        /**< Number of resource types defined */
+        RD_KAFKA_RESOURCE_UNKNOWN          = 0, /**< Unknown */
+        RD_KAFKA_RESOURCE_ANY              = 1, /**< Any (used for lookups) */
+        RD_KAFKA_RESOURCE_TOPIC            = 2, /**< Topic */
+        RD_KAFKA_RESOURCE_GROUP            = 3, /**< Group */
+        RD_KAFKA_RESOURCE_BROKER           = 4, /**< Broker */
+        RD_KAFKA_RESOURCE_TRANSACTIONAL_ID = 5, /**< Transactional ID */
+        RD_KAFKA_RESOURCE__CNT, /**< Number of resource types defined */
 } rd_kafka_ResourceType_t;
 
 /**
@@ -8530,6 +8632,17 @@ int rd_kafka_ConsumerGroupListing_is_simple_consumer_group(
  */
 RD_EXPORT
 rd_kafka_consumer_group_state_t rd_kafka_ConsumerGroupListing_state(
+    const rd_kafka_ConsumerGroupListing_t *grplist);
+
+/**
+ * @brief Gets type for the \p grplist group.
+ *
+ * @param grplist The group listing.
+ *
+ * @return A group type.
+ */
+RD_EXPORT
+rd_kafka_consumer_group_type_t rd_kafka_ConsumerGroupListing_type(
     const rd_kafka_ConsumerGroupListing_t *grplist);
 
 /**
@@ -9847,6 +9960,100 @@ RD_EXPORT void rd_kafka_DeleteAcls(rd_kafka_t *rk,
                                    size_t del_acls_cnt,
                                    const rd_kafka_AdminOptions_t *options,
                                    rd_kafka_queue_t *rkqu);
+
+/**@}*/
+
+/**
+ * @name Admin API - Elect Leaders
+ * @{
+ *
+ *
+ *
+ */
+
+/**
+ * @brief Represents elect leaders request.
+ */
+typedef struct rd_kafka_ElectLeaders_s rd_kafka_ElectLeaders_t;
+
+/**
+ * @enum rd_kafka_ElectionType_t
+ * @brief Apache Kafka Election Types
+ */
+typedef enum rd_kafka_ElectionType_t {
+        RD_KAFKA_ELECTION_TYPE_PREFERRED = 0, /**< Preferred Replica Election */
+        RD_KAFKA_ELECTION_TYPE_UNCLEAN   = 1, /**< Unclean Election */
+} rd_kafka_ElectionType_t;
+
+/**
+ * @brief Create a new rd_kafka_ElectLeaders_t object. This object is later
+ *        passed to rd_kafka_ElectLeaders().
+ *
+ * @param election_type The election type that needs to be performed,
+ *        preferred or unclean.
+ * @param partitions The topic partitions for which the leader election
+ *        needs to be performed.
+ *
+ * @returns a new allocated elect leaders object or returns NULL in case
+ *          of invalid election_type.
+ *          Use rd_kafka_ElectLeaders_destroy() to free object when done.
+ */
+RD_EXPORT rd_kafka_ElectLeaders_t *
+rd_kafka_ElectLeaders_new(rd_kafka_ElectionType_t election_type,
+                          rd_kafka_topic_partition_list_t *partitions);
+
+/**
+ * @brief Destroy and free a rd_kafka_ElectLeaders_t object previously created
+ *        with rd_kafka_ElectLeaders_new()
+ *
+ * @param elect_leaders The rd_kafka_ElectLeaders_t object to be destroyed.
+ */
+RD_EXPORT void
+rd_kafka_ElectLeaders_destroy(rd_kafka_ElectLeaders_t *elect_leaders);
+
+/**
+ * @brief Elect Leaders for the provided Topic Partitions
+ *        according to the specified election type.
+ *
+ * @param rk Client instance.
+ * @param elect_leaders The elect leaders request containing
+ *        election type and partitions information.
+ * @param options Optional admin options, or NULL for defaults.
+ * @param rkqu Queue to emit result on.
+ *
+ * Supported admin options:
+ *  - rd_kafka_AdminOptions_set_operation_timeout() - default 60 seconds.
+ *    Controls how long the brokers will wait for records to be deleted.
+ *  - rd_kafka_AdminOptions_set_request_timeout() - default socket.timeout.ms.
+ *    Controls how long \c rdkafka will wait for the request to complete.
+ *
+ * @remark The result event type emitted on the supplied queue is of type
+ *         \c RD_KAFKA_EVENT_ELECTLEADERS_RESULT
+ * @remark If we are passing partitions as NULL, then the broker
+ *         will attempt leader election for all partitions, but the results
+ *         will contain only partitions for which there was an election or
+ *         resulted in an error.
+ */
+RD_EXPORT void rd_kafka_ElectLeaders(rd_kafka_t *rk,
+                                     rd_kafka_ElectLeaders_t *elect_leaders,
+                                     const rd_kafka_AdminOptions_t *options,
+                                     rd_kafka_queue_t *rkqu);
+
+/**
+ * @brief Get the array of topic partition result objects from the
+ *        elect leaders result event and populates the size of the
+ *        array in \p cntp.
+ *
+ * @param result The elect leaders result.
+ * @param cntp The number of elements in the array.
+ *
+ * @returns the array of topic partition result objects from the
+ *          elect leaders result event.
+ */
+RD_EXPORT const rd_kafka_topic_partition_result_t **
+rd_kafka_ElectLeaders_result_partitions(
+    const rd_kafka_ElectLeaders_result_t *result,
+    size_t *cntp);
 
 /**@}*/
 
