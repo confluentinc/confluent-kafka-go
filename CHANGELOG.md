@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.6.0
+
+This is a feature release.
+
+* [KIP-460](https://cwiki.apache.org/confluence/display/KAFKA/KIP-460%3A+Admin+Leader+Election+RPC) Admin Leader Election RPC (#1311)
+
+confluent-kafka-go is based on librdkafka v2.6.0, see the
+[librdkafka v2.6.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.5.4
 
 v2.5.4 is a maintenance release with the following fixes and enhancements:
