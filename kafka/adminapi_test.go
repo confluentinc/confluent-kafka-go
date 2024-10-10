@@ -918,6 +918,45 @@ func testAdminAPIsDeleteRecords(what string, a *AdminClient, expDuration time.Du
 	}
 }
 
+func testAdminAPIsElectLeaders(what string, a *AdminClient, expDuration time.Duration, t *testing.T) {
+	topic := "test"
+	partition := int32(0)
+	ctx, cancel := context.WithTimeout(context.Background(), expDuration)
+	defer cancel()
+	topicPartition := []TopicPartition{{Topic: &topic, Partition: partition}}
+	electLeaderRequestPreferred := ElectLeadersRequest{
+		electionType: ElectionTypePreferred,
+		partitions:   topicPartition,
+	}
+	electLeadersRequestUnclean := ElectLeadersRequest{
+		electionType: ElectionTypeUnclean,
+		partitions:   topicPartition,
+	}
+
+	_, err := a.ElectLeaders(ctx, electLeaderRequestPreferred, SetAdminRequestTimeout(time.Second))
+	if err == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			err, ctx.Err())
+	}
+
+	_, err = a.ElectLeaders(ctx, electLeadersRequestUnclean, SetAdminRequestTimeout(time.Second))
+	if err == nil || ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("Expected context deadline exceeded, got %s and %s\n",
+			err, ctx.Err())
+	}
+
+	// Invalid option value
+	_, err = a.ElectLeaders(ctx, electLeaderRequestPreferred, SetAdminRequestTimeout(-1))
+	if err == nil || err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err)
+	}
+
+	_, err = a.ElectLeaders(ctx, electLeadersRequestUnclean, SetAdminRequestTimeout(-1))
+	if err == nil || err.(Error).Code() != ErrInvalidArg {
+		t.Fatalf("Expected ErrInvalidArg, not %v", err)
+	}
+}
+
 func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 	t.Logf("AdminClient API testing on %s: %s", a, what)
 
@@ -1172,6 +1211,7 @@ func testAdminAPIs(what string, a *AdminClient, t *testing.T) {
 
 	testAdminAPIsUserScramCredentials(what, a, expDuration, t)
 	testAdminAPIsDeleteRecords(what, a, expDuration, t)
+	testAdminAPIsElectLeaders(what, a, expDuration, t)
 }
 
 // TestAdminAPIs dry-tests most Admin APIs, no broker is needed.
