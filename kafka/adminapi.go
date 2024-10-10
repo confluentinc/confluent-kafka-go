@@ -3592,13 +3592,14 @@ func (a *AdminClient) DeleteRecords(ctx context.Context,
 	return result, nil
 }
 
-// ElectLeaders performs Preferred or Unclean Elections for the specified topic Partitions.
+// ElectLeaders performs Preferred or Unclean Elections for the specified topic Partitions or for all of them.
 //
 // Parameters:
 //   - `ctx` - context with the maximum amount of time to block, or nil for
 //     indefinite.
 //   - `electLeaderRequest` - ElectLeadersRequest containing the election type
-//     and the partitions to elect leaders for.
+//     and the partitions to elect leaders for or nil for election in all the
+//     partitions.
 //   - `options` - ElectLeadersAdminOption options.
 //
 // Returns ElectLeadersResult, which contains a slice of TopicPartitions containing the partitions for which the leader election was performed.
