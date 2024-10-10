@@ -238,12 +238,39 @@ func (t ConsumerGroupState) String() string {
 }
 
 // ConsumerGroupStateFromString translates a consumer group state name/string to
-// a ConsumerGroupStateFromString value.
+// a ConsumerGroupState value.
 func ConsumerGroupStateFromString(stateString string) (ConsumerGroupState, error) {
 	cStr := C.CString(stateString)
 	defer C.free(unsafe.Pointer(cStr))
 	state := ConsumerGroupState(C.rd_kafka_consumer_group_state_code(cStr))
 	return state, nil
+}
+
+// ConsumerGroupType represents a consumer group type
+type ConsumerGroupType int
+
+const (
+	// ConsumerGroupTypeUnknown - Unknown ConsumerGroupType
+	ConsumerGroupTypeUnknown ConsumerGroupType = C.RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN
+	// ConsumerGroupTypeConsumer - Consumer ConsumerGroupType
+	ConsumerGroupTypeConsumer ConsumerGroupType = C.RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER
+	// ConsumerGroupTypeClassic - Classic ConsumerGroupType
+	ConsumerGroupTypeClassic ConsumerGroupType = C.RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC
+)
+
+// String returns the human-readable representation of a ConsumerGroupType
+func (t ConsumerGroupType) String() string {
+	return C.GoString(C.rd_kafka_consumer_group_type_name(
+		C.rd_kafka_consumer_group_type_t(t)))
+}
+
+// ConsumerGroupTypeFromString translates a consumer group type name/string to
+// a ConsumerGroupType value.
+func ConsumerGroupTypeFromString(typeString string) ConsumerGroupType {
+	cStr := C.CString(typeString)
+	defer C.free(unsafe.Pointer(cStr))
+	groupType := ConsumerGroupType(C.rd_kafka_consumer_group_type_code(cStr))
+	return groupType
 }
 
 // ConsumerGroupListing represents the result of ListConsumerGroups for a single
@@ -255,6 +282,8 @@ type ConsumerGroupListing struct {
 	IsSimpleConsumerGroup bool
 	// Group state.
 	State ConsumerGroupState
+	// Group type.
+	Type ConsumerGroupType
 }
 
 // ListConsumerGroupsResult represents ListConsumerGroups results and errors.
@@ -1531,16 +1560,16 @@ func (a *AdminClient) cToConsumerGroupListings(
 			C.ConsumerGroupListing_by_idx(cGroups, cGroupCount, C.size_t(idx))
 		state := ConsumerGroupState(
 			C.rd_kafka_ConsumerGroupListing_state(cGroup))
-
+		groupType := ConsumerGroupType(C.rd_kafka_ConsumerGroupListing_type(cGroup))
 		result[idx] = ConsumerGroupListing{
 			GroupID: C.GoString(
 				C.rd_kafka_ConsumerGroupListing_group_id(cGroup)),
-			State: state,
 			IsSimpleConsumerGroup: cint2bool(
 				C.rd_kafka_ConsumerGroupListing_is_simple_consumer_group(cGroup)),
+			State: state,
+			Type:  groupType,
 		}
 	}
-
 	return result
 }
 
