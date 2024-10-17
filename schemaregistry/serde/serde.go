@@ -427,33 +427,21 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 		if err != nil {
 			return -1, err
 		}
-		id, err = s.Client.GetID(subject, *info, false)
-		if err != nil {
-			return -1, err
-		}
-		if id != useSchemaID {
-			return -1, fmt.Errorf("failed to match schema ID (%d != %d)", id, useSchemaID)
-		}
+		id = useSchemaID
 	} else if len(useLatestWithMetadata) != 0 {
 		metadata, err := s.Client.GetLatestWithMetadata(subject, useLatestWithMetadata, true)
 		if err != nil {
 			return -1, err
 		}
 		*info = metadata.SchemaInfo
-		id, err = s.Client.GetID(subject, *info, false)
-		if err != nil {
-			return -1, err
-		}
+		id = metadata.ID
 	} else if useLatest {
 		metadata, err := s.Client.GetLatestSchemaMetadata(subject)
 		if err != nil {
 			return -1, err
 		}
 		*info = metadata.SchemaInfo
-		id, err = s.Client.GetID(subject, *info, false)
-		if err != nil {
-			return -1, err
-		}
+		id = metadata.ID
 	} else {
 		id, err = s.Client.GetID(subject, *info, normalizeSchema)
 		if err != nil {
