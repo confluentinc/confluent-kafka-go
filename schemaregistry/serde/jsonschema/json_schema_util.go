@@ -101,7 +101,7 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 			}
 			return msg, nil
 		} else {
-			return nil, fmt.Errorf("message is not a struct or map")
+			return nil, fmt.Errorf("message of kind %s is not a struct or map", val.Kind())
 		}
 	case serde.TypeEnum, serde.TypeString, serde.TypeInt, serde.TypeDouble, serde.TypeBoolean:
 		if fieldCtx != nil {

@@ -100,7 +100,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			}
 			return msg, nil
 		} else {
-			return nil, fmt.Errorf("message of kind %s is not a struct or map, value: %v", val.Kind(), val)
+			return nil, fmt.Errorf("message of kind %s is not a struct or map", val.Kind())
 		}
 	default:
 		if fieldCtx != nil {
