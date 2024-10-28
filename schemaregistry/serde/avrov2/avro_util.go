@@ -76,19 +76,32 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		return msg, nil
 	case *avro.RecordSchema:
 		val := deref(msg)
-		fieldByNames := fieldByNames(val)
 		recordSchema := schema.(*avro.RecordSchema)
-		for _, avroField := range recordSchema.Fields() {
-			structField, ok := fieldByNames[avroField.Name()]
-			if !ok {
-				return nil, fmt.Errorf("avro: missing field %s", avroField.Name())
+		if val.Kind() == reflect.Struct {
+			fieldByNames := fieldByNames(val)
+			for _, avroField := range recordSchema.Fields() {
+				structField, ok := fieldByNames[avroField.Name()]
+				if !ok {
+					return nil, fmt.Errorf("avro: missing field %s", avroField.Name())
+				}
+				err := transformField(ctx, resolver, recordSchema, avroField, structField, val, fieldTransform)
+				if err != nil {
+					return nil, err
+				}
 			}
-			err := transformField(ctx, resolver, recordSchema, avroField, structField, val, fieldTransform)
-			if err != nil {
-				return nil, err
+			return msg, nil
+		} else if val.Kind() == reflect.Map {
+			for _, avroField := range recordSchema.Fields() {
+				mapField := val.MapIndex(reflect.ValueOf(avroField.Name()))
+				err := transformField(ctx, resolver, recordSchema, avroField, &mapField, val, fieldTransform)
+				if err != nil {
+					return nil, err
+				}
 			}
+			return msg, nil
+		} else {
+			return nil, fmt.Errorf("message of kind %s is not a struct or map, value: %v", val.Kind(), val)
 		}
-		return msg, nil
 	default:
 		if fieldCtx != nil {
 			ruleTags := ctx.Rule.Tags
@@ -137,9 +150,13 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 			}
 		}
 	} else {
-		err = setField(structField, newVal)
-		if err != nil {
-			return err
+		if val.Kind() == reflect.Struct {
+			err = setField(structField, newVal)
+			if err != nil {
+				return err
+			}
+		} else {
+			val.SetMapIndex(reflect.ValueOf(avroField.Name()), *newVal)
 		}
 	}
 	return nil
@@ -203,6 +220,9 @@ func disjoint(slice1 []string, map1 map[string]bool) bool {
 }
 
 func getField(msg *reflect.Value, name string) (*reflect.Value, error) {
+	if msg.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("message is not a struct")
+	}
 	fieldVal := msg.FieldByName(name)
 	return &fieldVal, nil
 }
