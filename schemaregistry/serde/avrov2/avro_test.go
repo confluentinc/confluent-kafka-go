@@ -1181,6 +1181,81 @@ func TestAvroSerdeEncryption(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
+func TestAvroSerdeEncryptionWithSimpleMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT",
+		Tags: []string{"PII"},
+		Params: map[string]string{
+			"encrypt.kek.name":   "kek1",
+			"encrypt.kms.type":   "local-kms",
+			"encrypt.kms.key.id": "mykey",
+		},
+		OnFailure: "ERROR,NONE",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := make(map[string]interface{})
+	obj["IntField"] = 123
+	obj["DoubleField"] = 45.67
+	obj["StringField"] = "hi"
+	obj["BoolField"] = true
+	obj["BytesField"] = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// Reset encrypted field
+	obj["StringField"] = "hi"
+	obj["BytesField"] = []byte{1, 2}
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+}
+
 func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	f := fakeClock{now: time.Now().UnixMilli()}
 	executor := encryption.RegisterWithClock(&f)
