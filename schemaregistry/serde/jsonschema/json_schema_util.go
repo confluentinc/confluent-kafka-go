@@ -90,6 +90,7 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 					return nil, err
 				}
 			}
+			return msg, nil
 		} else if val.Kind() == reflect.Map {
 			for propName, propSchema := range schema.Properties {
 				mapField := val.MapIndex(reflect.ValueOf(propName))
@@ -99,8 +100,9 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 				}
 			}
 			return msg, nil
+		} else {
+			return nil, fmt.Errorf("message is not a struct or map")
 		}
-		return msg, nil
 	case serde.TypeEnum, serde.TypeString, serde.TypeInt, serde.TypeDouble, serde.TypeBoolean:
 		if fieldCtx != nil {
 			ruleTags := ctx.Rule.Tags

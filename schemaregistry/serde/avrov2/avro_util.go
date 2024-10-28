@@ -99,8 +99,9 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 				}
 			}
 			return msg, nil
+		} else {
+			return nil, fmt.Errorf("message is not a struct or map")
 		}
-		return msg, nil
 	default:
 		if fieldCtx != nil {
 			ruleTags := ctx.Rule.Tags
