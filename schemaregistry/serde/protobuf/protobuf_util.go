@@ -108,6 +108,9 @@ func getType(fd protoreflect.FieldDescriptor) serde.FieldType {
 	if fd.IsMap() {
 		return serde.TypeMap
 	}
+	if fd.IsList() {
+		return serde.TypeArray
+	}
 	switch fd.Kind() {
 	case protoreflect.MessageKind:
 		return serde.TypeRecord
