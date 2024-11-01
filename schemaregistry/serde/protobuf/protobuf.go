@@ -203,19 +203,27 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	info, err := s.getSchemaInfo(protoMsg)
+	var info schemaregistry.SchemaInfo
+	var err error
+	// Don't derive the schema if it is being looked up in the following ways
+	if s.Conf.UseSchemaID == -1 &&
+		!s.Conf.UseLatestVersion &&
+		len(s.Conf.UseLatestWithMetadata) == 0 {
+		schemaInfo, err := s.getSchemaInfo(protoMsg)
+		if err != nil {
+			return nil, err
+		}
+		info = *schemaInfo
+	}
+	id, err := s.GetID(topic, protoMsg, &info)
 	if err != nil {
 		return nil, err
 	}
-	id, err := s.GetID(topic, protoMsg, info)
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, *info)
-	if err != nil {
-		return nil, err
-	}
-	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, info, protoMsg)
+	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, protoMsg)
 	if err != nil {
 		return nil, err
 	}
