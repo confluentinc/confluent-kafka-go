@@ -566,7 +566,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		if err != nil {
 			return nil, err
 		}
-		jsonBytes, err := protojson.Marshal(dynamicMsg)
+		jsonBytes, err := protojson.MarshalOptions{EmitDefaultValues: true}.Marshal(dynamicMsg)
 		if err != nil {
 			return nil, err
 		}
