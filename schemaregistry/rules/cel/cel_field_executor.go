@@ -63,12 +63,16 @@ func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde
 	if !fieldCtx.IsPrimitive() {
 		return fieldValue, nil
 	}
+	tags := make([]string, 0, len(fieldCtx.Tags))
+	for tag := range fieldCtx.Tags {
+		tags = append(tags, tag)
+	}
 	args := map[string]interface{}{
 		"value":    fieldValue,
 		"fullName": fieldCtx.FullName,
 		"name":     fieldCtx.Name,
 		"typeName": fieldCtx.TypeName(),
-		"tags":     fieldCtx.Tags,
+		"tags":     tags,
 		"message":  fieldCtx.ContainingMessage,
 	}
 	return f.executor.execute(ctx, fieldValue, args)
