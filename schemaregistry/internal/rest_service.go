@@ -405,5 +405,6 @@ func isSuccess(statusCode int) bool {
 }
 
 func isRetriable(statusCode int) bool {
-	return statusCode == 500 || statusCode == 429
+	return statusCode == 408 || statusCode == 429 ||
+		statusCode == 500 || statusCode == 502 || statusCode == 503 || statusCode == 504
 }
