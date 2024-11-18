@@ -5,7 +5,7 @@
 This is a maintenance release:
 
 confluent-kafka-go is based on librdkafka v2.6.1, see the
-[librdkafka v2.6.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1-RC2)
+[librdkafka v2.6.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
