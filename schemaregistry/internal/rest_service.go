@@ -393,6 +393,9 @@ func isRetriable(statusCode int) bool {
 	return statusCode == 500 || statusCode == 429
 }
 
-func fullJitter(baseDelay int, retriesAttempted int) time.Duration {
-	return time.Duration(rand.Intn(int(1<<retriesAttempted))) * time.Millisecond
+func fullJitter(baseDelayMs int, retriesAttempted int) time.Duration {
+	b := rand.Float64()
+	ri := int64(1 << uint64(retriesAttempted))
+	delayMs := b * float64(ri) * float64(baseDelayMs)
+	return time.Duration(delayMs) * time.Millisecond
 }

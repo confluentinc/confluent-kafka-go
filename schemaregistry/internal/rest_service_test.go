@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestConfigureTLS tests the configureTLS function called while creating a new
@@ -166,5 +167,14 @@ func TestNewAuthHeader(t *testing.T) {
 	_, err = NewAuthHeader(url, config)
 	if err == nil {
 		t.Errorf("Should not work if basic auth source is invalid")
+	}
+}
+
+func TestFullJitter(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		v := fullJitter(1000, 2)
+		if v < 0 || v > time.Duration(4000)*time.Millisecond {
+			t.Errorf("Value %d should be between 0 and 4000 ms", v)
+		}
 	}
 }
