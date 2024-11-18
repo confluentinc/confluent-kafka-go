@@ -44,6 +44,9 @@ func NewConfig(url string) *Config {
 	c.ConnectionTimeoutMs = 10000
 	c.RequestTimeoutMs = 10000
 
+	c.MaxRetries = 2
+	c.RetriesWaitMs = 1000
+
 	return c
 }
 

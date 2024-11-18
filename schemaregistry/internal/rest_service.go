@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -109,8 +110,10 @@ func NewRequest(method string, endpoint string, body interface{}, arguments ...i
 
 // RestService represents a REST client
 type RestService struct {
-	url     *url.URL
-	headers http.Header
+	url           *url.URL
+	headers       http.Header
+	maxRetries    int
+	retriesWaitMs int
 	*http.Client
 }
 
@@ -148,9 +151,11 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 	}
 
 	return &RestService{
-		url:     u,
-		headers: headers,
-		Client:  conf.HTTPClient,
+		url:           u,
+		headers:       headers,
+		maxRetries:    conf.MaxRetries,
+		retriesWaitMs: conf.RetriesWaitMs,
+		Client:        conf.HTTPClient,
 	}, nil
 }
 
@@ -350,10 +355,18 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 		Header: rs.headers,
 	}
 
-	resp, err := rs.Do(req)
+	var resp *http.Response
+	for i := 0; i < rs.maxRetries+1; i++ {
+		resp, err = rs.Do(req)
+		if err != nil {
+			return err
+		}
 
-	if err != nil {
-		return err
+		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries {
+			break
+		}
+
+		time.Sleep(fullJitter(rs.retriesWaitMs, i))
 	}
 
 	defer resp.Body.Close()
@@ -370,4 +383,16 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	}
 
 	return &failure
+}
+
+func isSuccess(statusCode int) bool {
+	return statusCode >= 200 && statusCode <= 299
+}
+
+func isRetriable(statusCode int) bool {
+	return statusCode == 500 || statusCode == 429
+}
+
+func fullJitter(baseDelay int, retriesAttempted int) time.Duration {
+	return time.Duration(rand.Intn(int(1<<retriesAttempted))) * time.Millisecond
 }
