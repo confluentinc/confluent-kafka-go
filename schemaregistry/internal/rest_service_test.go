@@ -18,9 +18,11 @@ package internal
 
 import (
 	"crypto/tls"
+	"math"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestConfigureTLS tests the configureTLS function called while creating a new
@@ -166,5 +168,27 @@ func TestNewAuthHeader(t *testing.T) {
 	_, err = NewAuthHeader(url, config)
 	if err == nil {
 		t.Errorf("Should not work if basic auth source is invalid")
+	}
+}
+
+func TestFullJitter(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.MaxRetries = 2
+	config.RetriesWaitMs = 1000
+	config.RetriesMaxWaitMs = 20000
+	rs, _ := NewRestService(config)
+	for i := 0; i < 10; i++ {
+		v := rs.fullJitter(i)
+		var d time.Duration
+		if i < 5 {
+			d = time.Duration(
+				math.Pow(2, float64(i))*float64(config.RetriesWaitMs)) * time.Millisecond
+		} else {
+			d = time.Duration(config.RetriesMaxWaitMs) * time.Millisecond
+		}
+		if v < 0 || v > d {
+			t.Errorf("Value %d should be between 0 and %d ms", v, d)
+		}
 	}
 }
