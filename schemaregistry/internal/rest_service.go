@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -110,10 +111,12 @@ func NewRequest(method string, endpoint string, body interface{}, arguments ...i
 
 // RestService represents a REST client
 type RestService struct {
-	url           *url.URL
-	headers       http.Header
-	maxRetries    int
-	retriesWaitMs int
+	url              *url.URL
+	headers          http.Header
+	maxRetries       int
+	retriesWaitMs    int
+	retriesMaxWaitMs int
+	ceilingRetries   int
 	*http.Client
 }
 
@@ -151,11 +154,13 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 	}
 
 	return &RestService{
-		url:           u,
-		headers:       headers,
-		maxRetries:    conf.MaxRetries,
-		retriesWaitMs: conf.RetriesWaitMs,
-		Client:        conf.HTTPClient,
+		url:              u,
+		headers:          headers,
+		maxRetries:       conf.MaxRetries,
+		retriesWaitMs:    conf.RetriesWaitMs,
+		retriesMaxWaitMs: conf.RetriesMaxWaitMs,
+		ceilingRetries:   int(math.Log2(float64(conf.RetriesMaxWaitMs) / float64(conf.RetriesWaitMs))),
+		Client:           conf.HTTPClient,
 	}, nil
 }
 
@@ -366,7 +371,7 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 			break
 		}
 
-		time.Sleep(fullJitter(rs.retriesWaitMs, i))
+		time.Sleep(rs.fullJitter(i))
 	}
 
 	defer resp.Body.Close()
@@ -385,17 +390,20 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	return &failure
 }
 
+func (rs *RestService) fullJitter(retriesAttempted int) time.Duration {
+	if retriesAttempted > rs.ceilingRetries {
+		return time.Duration(rs.retriesMaxWaitMs) * time.Millisecond
+	}
+	b := rand.Float64()
+	ri := int64(1 << uint64(retriesAttempted))
+	delayMs := b * float64(ri) * float64(rs.retriesWaitMs)
+	return time.Duration(delayMs) * time.Millisecond
+}
+
 func isSuccess(statusCode int) bool {
 	return statusCode >= 200 && statusCode <= 299
 }
 
 func isRetriable(statusCode int) bool {
 	return statusCode == 500 || statusCode == 429
-}
-
-func fullJitter(baseDelayMs int, retriesAttempted int) time.Duration {
-	b := rand.Float64()
-	ri := int64(1 << uint64(retriesAttempted))
-	delayMs := b * float64(ri) * float64(baseDelayMs)
-	return time.Duration(delayMs) * time.Millisecond
 }

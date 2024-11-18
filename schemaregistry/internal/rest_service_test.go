@@ -18,6 +18,7 @@ package internal
 
 import (
 	"crypto/tls"
+	"math"
 	"net/url"
 	"strings"
 	"testing"
@@ -171,10 +172,23 @@ func TestNewAuthHeader(t *testing.T) {
 }
 
 func TestFullJitter(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.MaxRetries = 2
+	config.RetriesWaitMs = 1000
+	config.RetriesMaxWaitMs = 20000
+	rs, _ := NewRestService(config)
 	for i := 0; i < 10; i++ {
-		v := fullJitter(1000, 2)
-		if v < 0 || v > time.Duration(4000)*time.Millisecond {
-			t.Errorf("Value %d should be between 0 and 4000 ms", v)
+		v := rs.fullJitter(i)
+		var d time.Duration
+		if i < 5 {
+			d = time.Duration(
+				math.Pow(2, float64(i))*float64(config.RetriesWaitMs)) * time.Millisecond
+		} else {
+			d = time.Duration(config.RetriesMaxWaitMs) * time.Millisecond
+		}
+		if v < 0 || v > d {
+			t.Errorf("Value %d should be between 0 and %d ms", v, d)
 		}
 	}
 }

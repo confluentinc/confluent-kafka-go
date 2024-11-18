@@ -68,6 +68,8 @@ type ClientConfig struct {
 	MaxRetries int
 	// RetriesWaitMs specifies the maximum time to wait for the first retry.
 	RetriesWaitMs int
+	// RetriesMaxWaitMs specifies the maximum time to wait any retry.
+	RetriesMaxWaitMs int
 
 	// HTTP client
 	HTTPClient *http.Client
