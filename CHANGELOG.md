@@ -8,6 +8,12 @@ confluent-kafka-go is based on librdkafka v2.6.1, see the
 [librdkafka v2.6.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
+### Fixes
+
+* Minor optimization to reduce schema ID lookups (#1318).
+* Support transforming maps in Data Contract rules (#1324).
+* Minor optimization to not derive schema when using existing schema (#1327).
+
 
 ## v2.6.0
 
