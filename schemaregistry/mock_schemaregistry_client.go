@@ -491,6 +491,12 @@ func (c *mockclient) deleteMetadata(key subjectJSON, metadata *SchemaMetadata, p
 // GetVersion finds the Subject SchemaMetadata associated with the provided schema
 // Returns integer SchemaMetadata number
 func (c *mockclient) GetVersion(subject string, schema SchemaInfo, normalize bool) (int, error) {
+	return c.GetVersionIncludeDeleted(subject, schema, normalize, false)
+}
+
+// GetVersionIncludeDeleted finds the Subject SchemaMetadata associated with the schema and deleted flag
+// Returns integer SchemaMetadata number
+func (c *mockclient) GetVersionIncludeDeleted(subject string, schema SchemaInfo, normalize bool, deleted bool) (int, error) {
 	schemaJSON, err := schema.MarshalJSON()
 	if err != nil {
 		return -1, err

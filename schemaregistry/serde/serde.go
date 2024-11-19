@@ -466,7 +466,7 @@ func (s *Serde) SetRuleRegistry(registry *RuleRegistry, ruleConfig map[string]st
 // GetMigrations returns the migration rules for the given subject
 func (s *Serde) GetMigrations(subject string, topic string, sourceInfo *schemaregistry.SchemaInfo,
 	target *schemaregistry.SchemaMetadata, msg interface{}) ([]Migration, error) {
-	version, err := s.Client.GetVersion(subject, *sourceInfo, false)
+	version, err := s.Client.GetVersionIncludeDeleted(subject, *sourceInfo, false, true)
 	if err != nil {
 		return nil, err
 	}
