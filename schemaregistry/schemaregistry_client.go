@@ -317,6 +317,7 @@ type ServerConfig struct {
 type subjectJSON struct {
 	subject string
 	json    string
+	deleted bool
 }
 
 type subjectID struct {
@@ -375,6 +376,7 @@ type Client interface {
 	GetLatestWithMetadata(subject string, metadata map[string]string, deleted bool) (SchemaMetadata, error)
 	GetAllVersions(subject string) ([]int, error)
 	GetVersion(subject string, schema SchemaInfo, normalize bool) (version int, err error)
+	GetVersionIncludeDeleted(subject string, schema SchemaInfo, normalize bool, deleted bool) (version int, err error)
 	GetAllSubjects() ([]string, error)
 	DeleteSubject(subject string, permanent bool) ([]int, error)
 	DeleteSubjectVersion(subject string, version int, permanent bool) (deletes int, err error)
@@ -733,6 +735,12 @@ func (c *client) GetAllVersions(subject string) (results []int, err error) {
 // GetVersion finds the Subject SchemaMetadata associated with the provided schema
 // Returns integer SchemaMetadata number
 func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (version int, err error) {
+	return c.GetVersionIncludeDeleted(subject, schema, normalize, false)
+}
+
+// GetVersionIncludeDeleted finds the Subject SchemaMetadata associated with the schema and deleted flag
+// Returns integer SchemaMetadata number
+func (c *client) GetVersionIncludeDeleted(subject string, schema SchemaInfo, normalize bool, deleted bool) (version int, err error) {
 	schemaJSON, err := schema.MarshalJSON()
 	if err != nil {
 		return -1, err
@@ -740,6 +748,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 	cacheKey := subjectJSON{
 		subject: subject,
 		json:    string(schemaJSON),
+		deleted: deleted,
 	}
 	c.schemaToVersionCacheLock.RLock()
 	versionValue, ok := c.schemaToVersionCache.Get(cacheKey)
@@ -755,7 +764,7 @@ func (c *client) GetVersion(subject string, schema SchemaInfo, normalize bool) (
 	// another goroutine could have already put it in cache
 	versionValue, ok = c.schemaToVersionCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
+		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalizeDeleted, &metadata, url.PathEscape(subject), normalize, deleted), &metadata)
 		if err == nil {
 			c.schemaToVersionCache.Put(cacheKey, metadata.Version)
 		} else {
