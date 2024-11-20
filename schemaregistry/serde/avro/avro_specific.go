@@ -50,11 +50,12 @@ type SpecificAvroMessage interface {
 	Schema() string
 }
 
-// NewSpecificSerializer creates an Avro serializer for Avro-generated objects
+// NewSpecificSerializer creates an Avro serializer for Avro-generated objects using TopicNameStrategy
 func NewSpecificSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*SpecificSerializer, error) {
 	return NewSpecificSerializerWithStrategy(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, conf)
 }
 
+// NewSpecificSerializer creates an Avro serializer for Avro-generated objects
 func NewSpecificSerializerWithStrategy(client schemaregistry.Client, subjectNameStrategy serde.SubjectNameStrategy, conf *SerializerConfig) (*SpecificSerializer, error) {
 	s := &SpecificSerializer{}
 	err := s.ConfigureSerializer(client, subjectNameStrategy, &conf.SerializerConfig)
@@ -97,10 +98,15 @@ func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	return payload, nil
 }
 
-// NewSpecificDeserializer creates an Avro deserializer for Avro-generated objects
+// NewSpecificDeserializer creates an Avro deserializer for Avro-generated objects using TopicNameStrategy
 func NewSpecificDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*SpecificDeserializer, error) {
+	return NewSpecificDeserializerWithStrategy(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, conf)
+}
+
+// NewSpecificDeserializerWithStrategy creates an Avro deserializer for Avro-generated objects
+func NewSpecificDeserializerWithStrategy(client schemaregistry.Client, subjectNameStrategy serde.SubjectNameStrategy, conf *DeserializerConfig) (*SpecificDeserializer, error) {
 	s := &SpecificDeserializer{}
-	err := s.ConfigureDeserializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.DeserializerConfig)
+	err := s.ConfigureDeserializer(client, subjectNameStrategy, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
