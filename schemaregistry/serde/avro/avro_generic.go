@@ -43,7 +43,7 @@ var _ serde.Deserializer = new(GenericDeserializer)
 // NewGenericSerializer creates an Avro serializer for generic objects
 func NewGenericSerializer(client schemaregistry.Client, serdeType serde.Type, conf *SerializerConfig) (*GenericSerializer, error) {
 	s := &GenericSerializer{}
-	err := s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	err := s.ConfigureSerializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.SerializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 // NewGenericDeserializer creates an Avro deserializer for generic objects
 func NewGenericDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*GenericDeserializer, error) {
 	s := &GenericDeserializer{}
-	err := s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	err := s.ConfigureDeserializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interfa
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, info)
 	if err != nil {
 		return nil, err
 	}

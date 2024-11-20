@@ -160,7 +160,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		Serde:             ps,
 		descToSchemaCache: descToSchemaCache,
 	}
-	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	err = s.ConfigureSerializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.SerializerConfig)
 	s.Conf = conf
 	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
@@ -178,12 +178,12 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 }
 
 // ConfigureDeserializer configures the Protobuf deserializer
-func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType serde.Type,
+func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, subjectNameStrategy serde.SubjectNameStrategy,
 	conf *serde.DeserializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
-	if err := s.BaseDeserializer.ConfigureDeserializer(client, serdeType, conf); err != nil {
+	if err := s.BaseDeserializer.ConfigureDeserializer(client, subjectNameStrategy, conf); err != nil {
 		return err
 	}
 	s.MessageFactory = s.protoMessageFactory
@@ -219,7 +219,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, info)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +496,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	s := &Deserializer{
 		Serde: ps,
 	}
-	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	err = s.ConfigureDeserializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +543,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		return nil, err
 	}
 	name := messageDesc.GetFullyQualifiedName()
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, info)
 	if err != nil {
 		return nil, err
 	}

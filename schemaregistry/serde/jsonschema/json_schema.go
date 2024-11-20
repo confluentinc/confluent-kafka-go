@@ -71,7 +71,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	s := &Serializer{
 		Serde: sr,
 	}
-	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	err = s.ConfigureSerializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.SerializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, info)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	s := &Deserializer{
 		Serde: sr,
 	}
-	err = s.ConfigureDeserializer(client, serdeType, &conf.DeserializerConfig)
+	err = s.ConfigureDeserializer(client, serde.TopicNameStrategyFunc{SerdeType: serdeType}, &conf.DeserializerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +209,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 			return nil, err
 		}
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, info)
 	if err != nil {
 		return nil, err
 	}

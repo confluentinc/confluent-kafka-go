@@ -56,7 +56,7 @@ type MessageFactory func(subject string, name string) (interface{}, error)
 
 // Serializer represents a serializer
 type Serializer interface {
-	ConfigureSerializer(client schemaregistry.Client, serdeType Type,
+	ConfigureSerializer(client schemaregistry.Client, subjectNameStrategy SubjectNameStrategy,
 		conf *SerializerConfig) error
 	// Serialize will serialize the given message, which should be a pointer.
 	// For example, in Protobuf, messages are always a pointer to a struct and never just a struct.
@@ -66,7 +66,7 @@ type Serializer interface {
 
 // Deserializer represents a deserializer
 type Deserializer interface {
-	ConfigureDeserializer(client schemaregistry.Client, serdeType Type,
+	ConfigureDeserializer(client schemaregistry.Client, subjectNameStrategy SubjectNameStrategy,
 		conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
@@ -79,8 +79,7 @@ type Deserializer interface {
 // Serde is a common instance for both the serializers and deserializers
 type Serde struct {
 	Client              schemaregistry.Client
-	SerdeType           Type
-	SubjectNameStrategy SubjectNameStrategyFunc
+	SubjectNameStrategy SubjectNameStrategy
 	MessageFactory      MessageFactory
 	FieldTransformer    FieldTransformer
 	RuleRegistry        *RuleRegistry
@@ -367,41 +366,27 @@ func (re RuleConditionErr) Error() string {
 }
 
 // ConfigureSerializer configures the Serializer
-func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, serdeType Type,
+func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, subjectNameStrategy SubjectNameStrategy,
 	conf *SerializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
 	s.Client = client
 	s.Conf = conf
-	s.SerdeType = serdeType
-	s.SubjectNameStrategy = TopicNameStrategy
+	s.SubjectNameStrategy = subjectNameStrategy
 	return nil
 }
 
 // ConfigureDeserializer configures the Deserializer
-func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, serdeType Type,
+func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, subjectNameStrategy SubjectNameStrategy,
 	conf *DeserializerConfig) error {
 	if client == nil {
 		return fmt.Errorf("schema registry client missing")
 	}
 	s.Client = client
 	s.Conf = conf
-	s.SerdeType = serdeType
-	s.SubjectNameStrategy = TopicNameStrategy
+	s.SubjectNameStrategy = subjectNameStrategy
 	return nil
-}
-
-// SubjectNameStrategyFunc determines the subject for the given parameters
-type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
-
-// TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
-func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
-	suffix := "-value"
-	if serdeType == KeySerde {
-		suffix = "-key"
-	}
-	return topic + suffix, nil
 }
 
 // GetID returns a schema ID for the given schema
@@ -413,7 +398,7 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 	normalizeSchema := s.Conf.NormalizeSchemas
 
 	var id = -1
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, *info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, *info)
 	if err != nil {
 		return -1, err
 	}
@@ -619,7 +604,7 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 			Target:           target,
 			Subject:          subject,
 			Topic:            topic,
-			IsKey:            s.SerdeType == KeySerde,
+			IsKey:            s.SubjectNameStrategy.IsKey(),
 			RuleMode:         ruleMode,
 			Rule:             &rule,
 			Index:            i,
@@ -753,7 +738,7 @@ func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregist
 		return info, fmt.Errorf("unknown magic byte")
 	}
 	id := binary.BigEndian.Uint32(payload[1:5])
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
+	subject, err := s.SubjectNameStrategy.GetSubject(topic, info)
 	if err != nil {
 		return info, err
 	}
