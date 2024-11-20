@@ -189,7 +189,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	if len(payload) == 0 {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload, "JSON")
 	if err != nil {
 		return nil, err
 	}

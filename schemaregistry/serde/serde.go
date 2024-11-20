@@ -732,8 +732,8 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 }
 
 // GetSchema returns a schema for a payload
-func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
-	info := schemaregistry.SchemaInfo{}
+func (s *BaseDeserializer) GetSchema(topic string, payload []byte, schemaType string) (schemaregistry.SchemaInfo, error) {
+	info := schemaregistry.SchemaInfo{SchemaType: schemaType}
 	if payload[0] != MagicByte {
 		return info, fmt.Errorf("unknown magic byte")
 	}

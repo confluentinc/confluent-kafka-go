@@ -98,7 +98,7 @@ func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interfa
 	if payload == nil {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload, "AVRO")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *GenericDeserializer) DeserializeInto(topic string, payload []byte, msg 
 	if payload == nil {
 		return nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload, "AVRO")
 	if err != nil {
 		return err
 	}

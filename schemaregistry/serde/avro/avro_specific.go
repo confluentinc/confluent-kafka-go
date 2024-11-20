@@ -118,7 +118,7 @@ func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interf
 	if payload == nil {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload, "AVRO")
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *SpecificDeserializer) DeserializeInto(topic string, payload []byte, msg
 	default:
 		return fmt.Errorf("serialization target must be an avro message. Got '%v'", t)
 	}
-	info, err := s.GetSchema(topic, payload)
+	info, err := s.GetSchema(topic, payload, "AVRO")
 	if err != nil {
 		return err
 	}
