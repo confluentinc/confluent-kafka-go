@@ -101,7 +101,8 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 			return nil, err
 		}
 		info = schemaregistry.SchemaInfo{
-			Schema: avroSchema.String(),
+			Schema:     avroSchema.String(),
+			SchemaType: "AVRO",
 		}
 	}
 	id, err := s.GetID(topic, msg, &info)

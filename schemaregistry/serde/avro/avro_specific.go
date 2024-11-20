@@ -78,7 +78,8 @@ func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	}
 	var id int
 	info := schemaregistry.SchemaInfo{
-		Schema: avroMsg.Schema(),
+		Schema:     avroMsg.Schema(),
+		SchemaType: "AVRO",
 	}
 	id, err := s.GetID(topic, avroMsg, &info)
 	if err != nil {

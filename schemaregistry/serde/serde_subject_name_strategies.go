@@ -36,7 +36,7 @@ type TopicRecordNameStrategyFunc struct {
 }
 
 func (t TopicRecordNameStrategyFunc) GetSubject(topic string, info schemaregistry.SchemaInfo) (string, error) {
-	return fmt.Sprintf("%s-%s", topic, info.Schema), nil
+	return fmt.Sprintf("%s-%s", topic, info.Name()), nil
 }
 
 func (t TopicRecordNameStrategyFunc) IsKey() bool {
