@@ -518,8 +518,8 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 	serConfig.UseLatestVersion = true
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
-	ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
-	ser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
+	_ = ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = ser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
 
 	info := schemaregistry.SchemaInfo{
 		Schema:     string(demoSchema),
@@ -580,8 +580,8 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
-	deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
-	deser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
+	_ = deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = deser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
 
 	oldmap := map[string]interface{}{
 		"DemoSchema": map[string]interface{}{
@@ -1808,7 +1808,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
-	ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
 
 	info := schemaregistry.SchemaInfo{
 		Schema:     string(demoSchema),
@@ -1872,7 +1872,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
-	deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
