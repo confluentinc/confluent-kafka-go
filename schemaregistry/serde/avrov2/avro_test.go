@@ -583,7 +583,7 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 	deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
 	deser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
 
-	expected := map[string]interface{}{
+	oldmap := map[string]interface{}{
 		"DemoSchema": map[string]interface{}{
 			"IntField":    123,
 			"DoubleField": 45.67,
@@ -592,17 +592,17 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 			"BytesField":  []byte{1, 2},
 		},
 	}
-	var newobj map[string]interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
-	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, expected))
 
-	// The following lines don't work due to a Hamba bug
-	//var newobj DemoSchema
-	//err = deser.DeserializeInto("topic1", bytes, &newobj)
-	//serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
-	//
-	//msg, err := deser.Deserialize("topic1", bytes)
-	//serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+	// deserialize into map
+	var newmap map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newmap)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newmap, oldmap))
+
+	// deserialize into interface{}
+	var newany interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newany)
+	var newobj = newany.(DemoSchema)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
 func TestAvroSchemaEvolution(t *testing.T) {
