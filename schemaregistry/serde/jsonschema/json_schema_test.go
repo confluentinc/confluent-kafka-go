@@ -161,6 +161,38 @@ const (
   }
 }
 `
+	defSchema = `
+{
+	"$schema" : "http://json-schema.org/draft-07/schema#",
+	"additionalProperties" : false,
+	"definitions" : {
+		"Address" : {
+			"additionalProperties" : false,
+			"properties" : {
+				"doornumber" : {
+					"type" : "integer"
+				},
+				"doorpin" : {
+					"confluent:tags" : [ "PII" ],
+					"type" : "string"
+				}
+			},
+			"type" : "object"
+		}
+	},
+	"properties" : {
+		"address" : {
+			"$ref" : "#/definitions/Address"
+		},
+		"name" : {
+			"confluent:tags" : [ "PII" ],
+			"type" : "string"
+		}
+	},
+	"title" : "Sample Event",
+	"type" : "object"
+}
+`
 )
 
 func testMessageFactory1(subject string, name string) (interface{}, error) {
@@ -561,6 +593,72 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
 	var newobj JSONDemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Tags: []string{"PII"},
+		Expr: "value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     defSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	addr := Address{}
+	addr.DoorNumber = 123
+	addr.DoorPin = "1234"
+	obj := JSONPerson{}
+	obj.Name = "bob"
+	obj.Address = addr
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	addr2 := Address{}
+	addr2.DoorNumber = 123
+	addr2.DoorPin = "1234-suffix"
+	obj2 := JSONPerson{}
+	obj2.Name = "bob-suffix"
+	obj2.Address = addr2
+
+	var newobj JSONPerson
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
@@ -1420,4 +1518,16 @@ type NewerWidget struct {
 	Length int `json:"length"`
 
 	Version int `json:"version"`
+}
+
+type Address struct {
+	DoorNumber int `json:"doornumber"`
+
+	DoorPin string `json:"doorpin"`
+}
+
+type JSONPerson struct {
+	Name string `json:"name"`
+
+	Address Address `json:"address"`
 }
