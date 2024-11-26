@@ -44,6 +44,8 @@ type Deserializer struct {
 
 // Serde represents an Avro serde
 type Serde struct {
+	// we don't have a way to pass a resolver to the api, so we track both separately
+	api                   avro.API
 	resolver              *avro.TypeResolver
 	schemaToTypeCache     cache.Cache
 	schemaToTypeCacheLock sync.RWMutex
@@ -59,6 +61,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		return nil, err
 	}
 	ps := &Serde{
+		api:               avro.Config{}.Freeze(),
 		resolver:          avro.NewTypeResolver(),
 		schemaToTypeCache: schemaToTypeCache,
 	}
@@ -123,7 +126,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	}
 	// Convert pointer to non-pointer
 	msg = reflect.ValueOf(msg).Elem().Interface()
-	msgBytes, err := avro.Marshal(avroSchema, msg)
+	msgBytes, err := s.api.Marshal(avroSchema, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +144,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 		return nil, err
 	}
 	ps := &Serde{
+		api:               avro.Config{}.Freeze(),
 		resolver:          avro.NewTypeResolver(),
 		schemaToTypeCache: schemaToTypeCache,
 	}
@@ -202,7 +206,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	}
 	var msg interface{}
 	if len(migrations) > 0 {
-		err = avro.Unmarshal(writer, payload[5:], &msg)
+		err = s.api.Unmarshal(writer, payload[5:], &msg)
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +220,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 			return nil, err
 		}
 		var bytes []byte
-		bytes, err = avro.Marshal(reader, msg)
+		bytes, err = s.api.Marshal(reader, msg)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +232,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		} else {
 			msg = result
 		}
-		err = avro.Unmarshal(reader, bytes, msg)
+		err = s.api.Unmarshal(reader, bytes, msg)
 		if err != nil {
 			return nil, err
 		}
@@ -255,12 +259,12 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 					return nil, err
 				}
 			}
-			err = avro.Unmarshal(reader, payload[5:], msg)
+			err = s.api.Unmarshal(reader, payload[5:], msg)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			err = avro.Unmarshal(writer, payload[5:], msg)
+			err = s.api.Unmarshal(writer, payload[5:], msg)
 			if err != nil {
 				return nil, err
 			}
@@ -281,6 +285,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 
 // RegisterType registers a type with the Avro Serde
 func (s *Serde) RegisterType(name string, msgType interface{}) {
+	s.api.Register(name, msgType)
 	s.resolver.Register(name, msgType)
 }
 
