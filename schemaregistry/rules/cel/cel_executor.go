@@ -206,12 +206,15 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 	var declType cel.EnvOption
 	if ok {
 		declType = cel.Types(protoType)
-	} else {
+	} else if typ.Kind() == reflect.Struct {
 		declType = ext.NativeTypes(typ)
 	}
-	envOptions := make([]cel.EnvOption, len(decls))
-	copy(envOptions, decls)
-	envOptions = append(envOptions, declType)
+	envOptions := decls
+	if declType != nil {
+		envOptions = make([]cel.EnvOption, len(decls))
+		copy(envOptions, decls)
+		envOptions = append(envOptions, declType)
+	}
 	env, err := c.env.Extend(envOptions...)
 	if err != nil {
 		return nil, err
