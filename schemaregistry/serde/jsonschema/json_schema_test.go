@@ -663,6 +663,70 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
+func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := make(map[string]interface{})
+	obj["IntField"] = 123
+	obj["DoubleField"] = 45.67
+	obj["StringField"] = "hi"
+	obj["BoolField"] = true
+	obj["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	obj2 := JSONDemoSchema{}
+	// JSON decoding produces floats
+	obj2.IntField = 123.0
+	obj2.DoubleField = 45.67
+	obj2.StringField = "hi-suffix"
+	obj2.BoolField = true
+	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+
+	var newobj JSONDemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
 func TestJSONSchemaSerdeWithCELFieldTransformComplex(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
