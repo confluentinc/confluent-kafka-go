@@ -137,6 +137,9 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 
 	newobj, err = deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+
+	err = deser.DeserializeInto("topic1", bytes, newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
 func TestProtobufSerdeWithSecondMessage(t *testing.T) {
@@ -647,7 +650,10 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	serde.MaybeFail("register message", err)
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
+
+	err = deser.DeserializeInto("topic1", bytes, newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
 }
 
 func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
