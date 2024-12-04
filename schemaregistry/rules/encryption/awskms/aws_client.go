@@ -64,7 +64,7 @@ func (c *awsClient) Supported(keyURI string) bool {
 // See https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
 func (c *awsClient) GetAEAD(keyURI string) (tink.AEAD, error) {
 	if !c.Supported(keyURI) {
-		return nil, fmt.Errorf("keyURI must start with prefix %s, but got %s", prefix, keyURI)
+		return nil, fmt.Errorf("keyURI must start with prefix %s, but got %s", c.keyURI, keyURI)
 	}
 	uri := strings.TrimPrefix(keyURI, prefix)
 	return NewAEAD(uri, c.creds)
