@@ -51,7 +51,7 @@ func NewClient(keyURI string, creds azcore.TokenCredential, algorithm azkeys.Enc
 
 // Supported true if this client does support keyURI
 func (c *azureClient) Supported(keyURI string) bool {
-	return strings.HasPrefix(keyURI, prefix)
+	return strings.HasPrefix(keyURI, c.keyURI)
 }
 
 // GetAEAD gets an AEAD backend by keyURI.

@@ -51,7 +51,7 @@ func NewClient(keyURI string, creds aws.CredentialsProvider) (registry.KMSClient
 // Supported returns true if keyURI starts with the URI prefix provided when
 // creating the client.
 func (c *awsClient) Supported(keyURI string) bool {
-	return strings.HasPrefix(keyURI, prefix)
+	return strings.HasPrefix(keyURI, c.keyURI)
 }
 
 // GetAEAD returns an implementation of the AEAD interface which performs
