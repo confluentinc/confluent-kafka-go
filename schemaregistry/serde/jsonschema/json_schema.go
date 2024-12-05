@@ -91,14 +91,21 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
-	jschema := jsonschema.Reflect(msg)
-	raw, err := json.Marshal(jschema)
-	if err != nil {
-		return nil, err
-	}
-	info := schemaregistry.SchemaInfo{
-		Schema:     string(raw),
-		SchemaType: "JSON",
+	var info schemaregistry.SchemaInfo
+	var err error
+	// Don't derive the schema if it is being looked up in the following ways
+	if s.Conf.UseSchemaID == -1 &&
+		!s.Conf.UseLatestVersion &&
+		len(s.Conf.UseLatestWithMetadata) == 0 {
+		jschema := jsonschema.Reflect(msg)
+		raw, err := json.Marshal(jschema)
+		if err != nil {
+			return nil, err
+		}
+		info = schemaregistry.SchemaInfo{
+			Schema:     string(raw),
+			SchemaType: "JSON",
+		}
 	}
 	id, err := s.GetID(topic, msg, &info)
 	if err != nil {
@@ -112,7 +119,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	raw, err = json.Marshal(msg)
+	raw, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}

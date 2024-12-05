@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -203,19 +204,27 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	info, err := s.getSchemaInfo(protoMsg)
+	var info schemaregistry.SchemaInfo
+	var err error
+	// Don't derive the schema if it is being looked up in the following ways
+	if s.Conf.UseSchemaID == -1 &&
+		!s.Conf.UseLatestVersion &&
+		len(s.Conf.UseLatestWithMetadata) == 0 {
+		schemaInfo, err := s.getSchemaInfo(protoMsg)
+		if err != nil {
+			return nil, err
+		}
+		info = *schemaInfo
+	}
+	id, err := s.GetID(topic, protoMsg, &info)
 	if err != nil {
 		return nil, err
 	}
-	id, err := s.GetID(topic, protoMsg, info)
+	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
 	}
-	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, *info)
-	if err != nil {
-		return nil, err
-	}
-	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, info, protoMsg)
+	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, protoMsg)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +519,13 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 
 // DeserializeInto implements deserialization of Protobuf data to the given object
 func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	_, err := s.deserialize(topic, payload, msg)
+	result, err := s.deserialize(topic, payload, msg)
+	// Copy the result into the target since we may have created a clone during transformations
+	value := reflect.ValueOf(msg)
+	if value.Kind() == reflect.Ptr {
+		rv := value.Elem()
+		rv.Set(reflect.ValueOf(result).Elem())
+	}
 	return err
 }
 
@@ -558,7 +573,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		if err != nil {
 			return nil, err
 		}
-		jsonBytes, err := protojson.Marshal(dynamicMsg)
+		jsonBytes, err := protojson.MarshalOptions{EmitDefaultValues: true}.Marshal(dynamicMsg)
 		if err != nil {
 			return nil, err
 		}

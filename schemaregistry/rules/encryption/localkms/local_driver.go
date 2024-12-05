@@ -24,6 +24,7 @@ import (
 	"github.com/tink-crypto/tink-go/v2/core/registry"
 	"github.com/tink-crypto/tink-go/v2/subtle"
 	"google.golang.org/protobuf/proto"
+	"os"
 	"strings"
 
 	agpb "github.com/tink-crypto/tink-go/v2/proto/aes_gcm_go_proto"
@@ -57,8 +58,11 @@ func (l *localDriver) NewKMSClient(config map[string]string, keyURL *string) (re
 	if keyURL != nil {
 		uriPrefix = *keyURL
 	}
-	secretKey, ok := config[secret]
-	if !ok {
+	secretKey := config[secret]
+	if secretKey == "" {
+		secretKey = os.Getenv("LOCAL_SECRET")
+	}
+	if secretKey == "" {
 		return nil, errors.New("cannot load secret")
 	}
 	return NewLocalClient(uriPrefix, secretKey)
