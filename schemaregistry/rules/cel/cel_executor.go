@@ -199,7 +199,7 @@ func typeToCELType(arg interface{}) *cel.Type {
 
 func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
-	if typ.Kind() == reflect.Pointer {
+	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
 		typ = typ.Elem()
 	}
 	protoType, ok := msg.(proto.Message)

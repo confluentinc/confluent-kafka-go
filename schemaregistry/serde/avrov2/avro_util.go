@@ -270,7 +270,7 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 }
 
 func deref(val *reflect.Value) *reflect.Value {
-	if val.Kind() == reflect.Pointer {
+	if val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
 		v := val.Elem()
 		return &v
 	}

@@ -522,7 +522,7 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 	result, err := s.deserialize(topic, payload, msg)
 	// Copy the result into the target since we may have created a clone during transformations
 	value := reflect.ValueOf(msg)
-	if value.Kind() == reflect.Ptr {
+	if value.Kind() == reflect.Pointer {
 		rv := value.Elem()
 		rv.Set(reflect.ValueOf(result).Elem())
 	}
