@@ -21,11 +21,7 @@ import (
 )
 
 var (
-	globalInstance = RuleRegistry{
-		ruleExecutors: make(map[string]RuleExecutor),
-		ruleActions:   make(map[string]RuleAction),
-		ruleOverrides: make(map[string]*RuleOverride),
-	}
+	globalInstance = NewRuleRegistry()
 )
 
 // RuleOverride represents a rule override
@@ -48,6 +44,15 @@ type RuleRegistry struct {
 	ruleActions     map[string]RuleAction
 	ruleOverridesMu sync.RWMutex
 	ruleOverrides   map[string]*RuleOverride
+}
+
+// NewRuleRegistry creates a Rule Registry instance.
+func NewRuleRegistry() RuleRegistry {
+	return RuleRegistry{
+		ruleExecutors: make(map[string]RuleExecutor),
+		ruleActions:   make(map[string]RuleAction),
+		ruleOverrides: make(map[string]*RuleOverride),
+	}
 }
 
 // RegisterExecutor is used to register a new rule executor.
