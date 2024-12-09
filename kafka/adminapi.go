@@ -335,6 +335,8 @@ type MemberDescription struct {
 	Host string
 	// Member assignment.
 	Assignment MemberAssignment
+	// Member Target Assignment.
+	TargetAssignment MemberAssignment
 }
 
 // ConsumerGroupDescription represents the result of DescribeConsumerGroups for
@@ -350,6 +352,8 @@ type ConsumerGroupDescription struct {
 	PartitionAssignor string
 	// Consumer group state.
 	State ConsumerGroupState
+	// Consumer group type.
+	Type ConsumerGroupType
 	// Consumer group coordinator (has ID == -1 if not known).
 	Coordinator Node
 	// Members list.
@@ -1321,6 +1325,8 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			C.rd_kafka_ConsumerGroupDescription_partition_assignor(cGroup))
 		state := ConsumerGroupState(
 			C.rd_kafka_ConsumerGroupDescription_state(cGroup))
+		groupType := ConsumerGroupType(
+			C.rd_kafka_ConsumerGroupDescription_type(cGroup))
 
 		cNode := C.rd_kafka_ConsumerGroupDescription_coordinator(cGroup)
 		coordinator := a.cToNode(cNode)
@@ -1340,6 +1346,14 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			if cToppars != nil {
 				memberAssignment.TopicPartitions = newTopicPartitionsFromCparts(cToppars)
 			}
+			cMemberTargetAssignment :=
+				C.rd_kafka_MemberDescription_target_assignment(cMember)
+			cTargetToppars :=
+				C.rd_kafka_MemberAssignment_partitions(cMemberTargetAssignment)
+			memberTargetAssignment := MemberAssignment{}
+			if cTargetToppars != nil {
+				memberTargetAssignment.TopicPartitions = newTopicPartitionsFromCparts(cTargetToppars)
+			}
 			members[midx] = MemberDescription{
 				ClientID: C.GoString(
 					C.rd_kafka_MemberDescription_client_id(cMember)),
@@ -1349,7 +1363,8 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 					C.rd_kafka_MemberDescription_consumer_id(cMember)),
 				Host: C.GoString(
 					C.rd_kafka_MemberDescription_host(cMember)),
-				Assignment: memberAssignment,
+				Assignment:       memberAssignment,
+				TargetAssignment: memberTargetAssignment,
 			}
 		}
 
@@ -1364,6 +1379,7 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			Error:                 err,
 			IsSimpleConsumerGroup: isSimple,
 			PartitionAssignor:     paritionAssignor,
+			Type:                  groupType,
 			State:                 state,
 			Coordinator:           coordinator,
 			Members:               members,
