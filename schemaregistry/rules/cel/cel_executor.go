@@ -199,19 +199,22 @@ func typeToCELType(arg interface{}) *cel.Type {
 
 func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
-	if typ.Kind() == reflect.Pointer {
+	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
 		typ = typ.Elem()
 	}
 	protoType, ok := msg.(proto.Message)
 	var declType cel.EnvOption
 	if ok {
 		declType = cel.Types(protoType)
-	} else {
+	} else if typ.Kind() == reflect.Struct {
 		declType = ext.NativeTypes(typ)
 	}
-	envOptions := make([]cel.EnvOption, len(decls))
-	copy(envOptions, decls)
-	envOptions = append(envOptions, declType)
+	envOptions := decls
+	if declType != nil {
+		envOptions = make([]cel.EnvOption, len(decls))
+		copy(envOptions, decls)
+		envOptions = append(envOptions, declType)
+	}
 	env, err := c.env.Extend(envOptions...)
 	if err != nil {
 		return nil, err

@@ -51,14 +51,14 @@ func NewClient(keyURI string, creds azcore.TokenCredential, algorithm azkeys.Enc
 
 // Supported true if this client does support keyURI
 func (c *azureClient) Supported(keyURI string) bool {
-	return strings.HasPrefix(keyURI, prefix)
+	return strings.HasPrefix(keyURI, c.keyURI)
 }
 
 // GetAEAD gets an AEAD backend by keyURI.
 // keyURI must have the following format: 'azure-kms://https://{vaultURL}/keys/{keyName}/{keyVersion}"
 func (c *azureClient) GetAEAD(keyURI string) (tink.AEAD, error) {
 	if !c.Supported(keyURI) {
-		return nil, fmt.Errorf("keyURI must start with prefix %s, but got %s", prefix, keyURI)
+		return nil, fmt.Errorf("keyURI must start with prefix %s, but got %s", c.keyURI, keyURI)
 	}
 	uri := strings.TrimPrefix(keyURI, prefix)
 	return NewAEAD(uri, c.creds, c.algorithm)
