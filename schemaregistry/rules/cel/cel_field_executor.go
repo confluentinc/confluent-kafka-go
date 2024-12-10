@@ -19,7 +19,24 @@ package cel
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	"github.com/google/cel-go/cel"
 )
+
+// NewFieldExecutor creates a new CEL field rule executor
+func NewFieldExecutor() serde.RuleExecutor {
+	env, _ := DefaultEnv()
+
+	a := &serde.AbstractFieldRuleExecutor{}
+	f := &FieldExecutor{
+		AbstractFieldRuleExecutor: *a,
+		executor: Executor{
+			env:   env,
+			cache: map[string]cel.Program{},
+		},
+	}
+	f.FieldRuleExecutor = f
+	return f
+}
 
 // FieldExecutor is a CEL field rule executor
 type FieldExecutor struct {
