@@ -89,9 +89,6 @@ func (l *awsDriver) NewKMSClient(conf map[string]string, keyURL *string) (regist
 		creds = cfg.Credentials
 	}
 	if arn != "" {
-		println("arn: ", arn)
-		println("arn: ", arn)
-		println("arn: ", arn)
 		region, err := getRegion(strings.TrimPrefix(uriPrefix, prefix))
 		if err != nil {
 			return nil, err
