@@ -36,7 +36,7 @@ const (
 	profile         = "profile"
 	roleArn         = "role.arn"
 	roleSessionName = "role.session.name"
-	roleExternalId  = "role.external.id"
+	roleExternalID  = "role.external.id"
 )
 
 func init() {
@@ -69,9 +69,9 @@ func (l *awsDriver) NewKMSClient(conf map[string]string, keyURL *string) (regist
 	if sessionName == "" {
 		sessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
 	}
-	externalId := conf[roleExternalId]
-	if externalId == "" {
-		externalId = os.Getenv("AWS_ROLE_EXTERNAL_ID")
+	externalID := conf[roleExternalID]
+	if externalID == "" {
+		externalID = os.Getenv("AWS_ROLE_EXTERNAL_ID")
 	}
 	var creds aws.CredentialsProvider
 	key := conf[accessKeyID]
@@ -100,13 +100,13 @@ func (l *awsDriver) NewKMSClient(conf map[string]string, keyURL *string) (regist
 		if sessionName == "" {
 			sessionName = "confluent-encrypt"
 		}
-		var extId *string
-		if externalId != "" {
-			extId = &externalId
+		var extID *string
+		if externalID != "" {
+			extID = &externalID
 		}
 		creds = stscreds.NewAssumeRoleProvider(stsSvc, arn, func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = sessionName
-			o.ExternalID = extId
+			o.ExternalID = extID
 		})
 		creds = aws.NewCredentialsCache(creds)
 	}
