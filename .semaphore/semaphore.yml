@@ -148,5 +148,4 @@ after_pipeline:
       - name: SonarQube
         commands:
           - checkout
-          - sem-version java 11
-          - emit-sonarqube-data
+          - emit-sonarqube-data --run_only_sonar_scan
