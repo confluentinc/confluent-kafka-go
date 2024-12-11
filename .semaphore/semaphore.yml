@@ -143,7 +143,7 @@ after_pipeline:
   task:
     agent:
       machine:
-        type: s1-prod-ubuntu20-04-amd64-3
+        type: s1-prod-ubuntu20-04-arm64-0
     jobs:
       - name: SonarQube
         commands:
