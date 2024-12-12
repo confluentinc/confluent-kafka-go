@@ -7,6 +7,8 @@ global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
       value: v2.6.1
+    - name: GO_COVERAGE_PROFILE
+      value: coverage.txt
   prologue:
     commands:
       - checkout
