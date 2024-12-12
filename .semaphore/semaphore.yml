@@ -140,15 +140,3 @@ blocks:
 #            - name: MSYSTEM
 #              value: UCRT64
 #          commands_file: semaphore_commands.ps1
-
-after_pipeline:
-  task:
-    agent:
-      machine:
-        type: s1-prod-ubuntu20-04-arm64-0
-    jobs:
-      - name: SonarQube
-        commands:
-          - checkout
-          - sem-version java 11
-          - emit-sonarqube-data --run_only_sonar_scan
