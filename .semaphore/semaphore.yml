@@ -13,6 +13,28 @@ global_job_config:
     commands:
       - checkout
 blocks:
+  - name: "TEMP go tests"
+  - dependencies: [ ]
+  - task:
+    - agent:
+      - machine:
+        - type: s1-prod-ubuntu20-04-amd64-1
+    - prologue:
+      - commands:
+        - sem-version go 1.21
+        - export GOPATH=$(go env GOPATH)
+        - export PATH="$PATH:$GOPATH/bin"
+        - go install golang.org/x/lint/golint@latest && touch .do_lint
+    - jobs:
+      - name: "Test"
+        commands:
+          - go test -timeout 180s -v -coverprofile=$GO_COVERAGE_PROFILE ./...
+    - epilogue:
+      - always:
+        - commands:
+          - . publish-test-results
+          - artifact push workflow target/test-results
+          - artifact push workflow target
   - name: "go 1.21 OSX bundled librdkafka"
     dependencies: [ ]
     task:
@@ -140,3 +162,19 @@ blocks:
 #            - name: MSYSTEM
 #              value: UCRT64
 #          commands_file: semaphore_commands.ps1
+
+after_pipeline:
+  task:
+    agent:
+      machine:
+        type: s1-prod-ubuntu20-04-arm64-0
+    jobs:
+      - name: Publish Test Results
+        commands:
+          - test-results gen-pipeline-report
+      - name: SonarQube
+        commands:
+          - checkout
+          - sem-version java 11
+          - artifact pull workflow target
+          - emit-sonarqube-data --run_only_sonar_scan
