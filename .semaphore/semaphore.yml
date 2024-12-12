@@ -33,8 +33,9 @@ blocks:
         always:
           commands:
           - . publish-test-results
-          - artifact push workflow target/test-results
-          - artifact push workflow target
+          - test-results gen-pipeline-report
+          - sem-version java 11
+          - emit-sonarqube-data --run_only_sonar_scan
   - name: "go 1.21 OSX bundled librdkafka"
     dependencies: [ ]
     task:
@@ -162,19 +163,3 @@ blocks:
 #            - name: MSYSTEM
 #              value: UCRT64
 #          commands_file: semaphore_commands.ps1
-
-after_pipeline:
-  task:
-    agent:
-      machine:
-        type: s1-prod-ubuntu20-04-arm64-0
-    jobs:
-      - name: Publish Test Results
-        commands:
-          - test-results gen-pipeline-report
-      - name: SonarQube
-        commands:
-          - checkout
-          - sem-version java 11
-          - artifact pull workflow target
-          - emit-sonarqube-data --run_only_sonar_scan
