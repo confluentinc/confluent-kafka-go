@@ -10,6 +10,5 @@ library-version
 (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
 
 # Report code coverage results to SonarQube
-checkout
 sem-version java 11
 emit-sonarqube-data --run_only_sonar_scan
