@@ -300,7 +300,7 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 	obj.StringField = "hi"
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -308,11 +308,13 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj DemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 
 	// serialize second object
@@ -322,10 +324,11 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 	obj.StringField = "bye"
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
-	bytes, err = ser.Serialize("topic1", &obj)
+
+	bytes, err = ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
-	msg, err = deser.Deserialize("topic1", bytes)
+	msg, err = deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -339,7 +342,8 @@ func TestAvroSerdeWithSimpleMap(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -360,7 +364,7 @@ func TestAvroSerdeWithSimpleMap(t *testing.T) {
 	obj["StringField"] = "hi"
 	obj["BoolField"] = true
 	obj["BytesField"] = []byte{1, 2}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -369,7 +373,7 @@ func TestAvroSerdeWithSimpleMap(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 
 	var newobj map[string]interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
@@ -385,7 +389,7 @@ func TestAvroSerdeWithPrimitive(t *testing.T) {
 	serde.MaybeFail("Serializer configuration", err)
 
 	obj := "Hello, World!"
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -394,7 +398,7 @@ func TestAvroSerdeWithPrimitive(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 
 	var newobj string
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
@@ -419,7 +423,7 @@ func TestAvroSerdeWithNested(t *testing.T) {
 		OtherField: nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -427,11 +431,13 @@ func TestAvroSerdeWithNested(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj NestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -446,7 +452,8 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -489,7 +496,7 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 		OtherField: nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -497,11 +504,13 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj NestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -516,7 +525,7 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 	_ = ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
@@ -574,7 +583,10 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -594,14 +606,16 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 		},
 	}
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	// deserialize into map
 	var newmap map[string]interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newmap)
+	err = deser.DeserializeInto("topic1", bytes, &newmap, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newmap, oldmap))
 
 	// deserialize into interface{}
 	var newany interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newany)
+	err = deser.DeserializeInto("topic1", bytes, &newany, deserializeHint)
 	var newobj = newany.(DemoSchema)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
@@ -617,7 +631,7 @@ func TestAvroSchemaEvolution(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -635,7 +649,9 @@ func TestAvroSchemaEvolution(t *testing.T) {
 	obj := SchemaEvolution1{}
 	obj.FieldToDelete = "bye"
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	info = schemaregistry.SchemaInfo{
@@ -651,9 +667,7 @@ func TestAvroSchemaEvolution(t *testing.T) {
 
 	client.ClearLatestCaches()
 
-	deserConfig := NewDeserializerConfig()
-	deserConfig.UseLatestVersion = true
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
@@ -661,11 +675,14 @@ func TestAvroSchemaEvolution(t *testing.T) {
 	obj2 := SchemaEvolution2{}
 	obj2.NewOptionalField = "optional"
 
+	deserializeHint := serde.NewDeserializeHint()
+	deserializeHint.UseLatestVersion = true
+
 	var newobj SchemaEvolution2
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj2))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj2))
 }
 
@@ -680,7 +697,7 @@ func TestAvroSerdeWithCELCondition(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -714,16 +731,18 @@ func TestAvroSerdeWithCELCondition(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -738,7 +757,7 @@ func TestAvroSerdeWithCELConditionLogicalType(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -774,16 +793,18 @@ func TestAvroSerdeWithCELConditionLogicalType(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -798,7 +819,7 @@ func TestAvroSerdeWithCELConditionFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -832,7 +853,10 @@ func TestAvroSerdeWithCELConditionFail(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
 	serde.MaybeFail("serialization", nil, serde.Expect(encRule, *ruleErr.Rule))
@@ -849,7 +873,7 @@ func TestAvroSerdeWithCELConditionIgnoreFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -884,16 +908,18 @@ func TestAvroSerdeWithCELConditionIgnoreFail(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -908,7 +934,7 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -950,16 +976,18 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -974,7 +1002,7 @@ func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1008,7 +1036,10 @@ func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deserConfig := NewDeserializerConfig()
@@ -1024,7 +1055,7 @@ func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
 	obj2.BoolField = true
 	obj2.BytesField = []byte{1, 2}
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj2))
 }
 
@@ -1039,7 +1070,7 @@ func TestAvroSerdeWithCELFieldTransformComplex(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1072,11 +1103,13 @@ func TestAvroSerdeWithCELFieldTransformComplex(t *testing.T) {
 	obj.MapField = map[string]string{"key": "world"}
 	obj.UnionField = &str
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
@@ -1087,7 +1120,7 @@ func TestAvroSerdeWithCELFieldTransformComplex(t *testing.T) {
 	obj2.MapField = map[string]string{"key": "world-suffix"}
 	obj2.UnionField = &str2
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj2))
 }
 
@@ -1102,7 +1135,7 @@ func TestAvroSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1134,11 +1167,13 @@ func TestAvroSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 	obj.MapField = map[string]string{"key": "world"}
 	obj.UnionField = nil
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
@@ -1148,7 +1183,7 @@ func TestAvroSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 	obj2.MapField = map[string]string{"key": "world-suffix"}
 	obj2.UnionField = nil
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj2))
 }
 
@@ -1163,7 +1198,7 @@ func TestAvroSerdeWithCELFieldCondition(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1197,16 +1232,18 @@ func TestAvroSerdeWithCELFieldCondition(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -1221,7 +1258,7 @@ func TestAvroSerdeWithCELFieldConditionFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1255,7 +1292,10 @@ func TestAvroSerdeWithCELFieldConditionFail(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
 	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
@@ -1286,7 +1326,7 @@ func TestAvroSerdeEncryption(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1329,7 +1369,10 @@ func TestAvroSerdeEncryption(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1345,7 +1388,7 @@ func TestAvroSerdeEncryption(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -1360,7 +1403,7 @@ func TestAvroSerdeEncryptionWithSimpleMap(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1403,7 +1446,10 @@ func TestAvroSerdeEncryptionWithSimpleMap(t *testing.T) {
 	obj["BoolField"] = true
 	obj["BytesField"] = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1420,7 +1466,7 @@ func TestAvroSerdeEncryptionWithSimpleMap(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 
 	var newobj map[string]interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
@@ -1438,7 +1484,7 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1482,7 +1528,10 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1497,7 +1546,7 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
 	dek, err := executor.Client.GetDekVersion(
@@ -1514,13 +1563,13 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err = ser.Serialize("topic1", &obj)
+	bytes, err = ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
 	obj.StringField = "hi"
 
-	newobj, err = deser.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
 	dek, err = executor.Client.GetDekVersion(
@@ -1537,13 +1586,13 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
 
-	bytes, err = ser.Serialize("topic1", &obj)
+	bytes, err = ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
 	obj.StringField = "hi"
 
-	newobj, err = deser.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
 	dek, err = executor.Client.GetDekVersion(
@@ -1613,7 +1662,7 @@ func TestAvroSerdeEncryptionF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Dek registration", err)
 
 	bytes := []byte{0, 0, 0, 0, 1, 104, 122, 103, 121, 47, 106, 70, 78, 77, 86, 47, 101, 70, 105, 108, 97, 72, 114, 77, 121, 101, 66, 103, 100, 97, 86, 122, 114, 82, 48, 117, 100, 71, 101, 111, 116, 87, 56, 99, 65, 47, 74, 97, 108, 55, 117, 107, 114, 43, 77, 47, 121, 122}
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
 	executor.Client.Close()
@@ -1680,7 +1729,7 @@ func TestAvroSerdeEncryptionDeterministicF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Dek registration", err)
 
 	bytes := []byte{0, 0, 0, 0, 1, 72, 68, 54, 89, 116, 120, 114, 108, 66, 110, 107, 84, 87, 87, 57, 78, 54, 86, 98, 107, 51, 73, 73, 110, 106, 87, 72, 56, 49, 120, 109, 89, 104, 51, 107, 52, 100}
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
 	executor.Client.Close()
@@ -1747,7 +1796,7 @@ func TestAvroSerdeEncryptionDekRotationF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Dek registration", err)
 
 	bytes := []byte{0, 0, 0, 0, 1, 120, 65, 65, 65, 65, 65, 65, 71, 52, 72, 73, 54, 98, 49, 110, 88, 80, 88, 113, 76, 121, 71, 56, 99, 73, 73, 51, 53, 78, 72, 81, 115, 101, 113, 113, 85, 67, 100, 43, 73, 101, 76, 101, 70, 86, 65, 101, 78, 112, 83, 83, 51, 102, 120, 80, 110, 74, 51, 50, 65, 61}
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
 	executor.Client.Close()
@@ -1764,7 +1813,6 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1828,7 +1876,10 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 		OtherField: nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1844,7 +1895,7 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -1869,7 +1920,6 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1924,7 +1974,10 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 		t.Errorf("Expected valid schema id, found %d", id)
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1941,7 +1994,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 	_ = deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -1956,7 +2009,6 @@ func TestAvroSerdeEncryptionWithUnion(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -2001,7 +2053,10 @@ func TestAvroSerdeEncryptionWithUnion(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = &b
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -2017,7 +2072,7 @@ func TestAvroSerdeEncryptionWithUnion(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
@@ -2117,23 +2172,20 @@ func TestAvroSerdeJSONataWithCEL(t *testing.T) {
 
 	serConfig1 := NewSerializerConfig()
 	serConfig1.AutoRegisterSchemas = false
-	serConfig1.UseLatestVersion = false
-	serConfig1.UseLatestWithMetadata = map[string]string{
-		"application.version": "v1",
-	}
 
 	ser1, err := NewSerializer(client, serde.ValueSerde, serConfig1)
 	serde.MaybeFail("Serializer configuration", err)
 
-	bytes, err := ser1.Serialize("topic1", &widget)
-	serde.MaybeFail("serialization", err)
-
-	deserConfig2 := NewDeserializerConfig()
-	deserConfig2.UseLatestWithMetadata = map[string]string{
-		"application.version": "v2",
+	serializeHint1 := serde.NewSerializeHint()
+	serializeHint1.UseLatestVersion = true
+	serializeHint1.UseLatestWithMetadata = map[string]string{
+		"application.version": "v1",
 	}
 
-	deser2, err := NewDeserializer(client, serde.ValueSerde, deserConfig2)
+	bytes, err := ser1.Serialize("topic1", &widget, serializeHint1)
+	serde.MaybeFail("serialization", err)
+
+	deser2, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser2.Client = ser1.Client
 	deser2.MessageFactory = testMessageFactory
@@ -2144,7 +2196,12 @@ func TestAvroSerdeJSONataWithCEL(t *testing.T) {
 		Version: 1,
 	}
 
-	newobj, err := deser2.Deserialize("topic1", bytes)
+	deserializeHint2 := serde.NewDeserializeHint()
+	deserializeHint2.UseLatestWithMetadata = map[string]string{
+		"application.version": "v2",
+	}
+
+	newobj, err := deser2.Deserialize("topic1", bytes, deserializeHint2)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &newWidget2))
 
 }
@@ -2301,91 +2358,76 @@ func TestAvroSerdeJSONataFullyCompatible(t *testing.T) {
 		t.Errorf("Expected valid schema id, found %d", id)
 	}
 
-	serConfig1 := NewSerializerConfig()
-	serConfig1.AutoRegisterSchemas = false
-	serConfig1.UseLatestVersion = false
-	serConfig1.UseLatestWithMetadata = map[string]string{
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	serializeHint1 := serde.NewSerializeHint()
+	serializeHint1.UseLatestVersion = false
+	serializeHint1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",
 	}
 
-	ser1, err := NewSerializer(client, serde.ValueSerde, serConfig1)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err := ser1.Serialize("topic1", &widget)
+	bytes, err := ser.Serialize("topic1", &widget, serializeHint1)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser1, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, widget, newWidget, newerWidget)
 
-	serConfig2 := NewSerializerConfig()
-	serConfig2.AutoRegisterSchemas = false
-	serConfig2.UseLatestVersion = false
-	serConfig2.UseLatestWithMetadata = map[string]string{
+	serializeHint2 := serde.NewSerializeHint()
+	serializeHint2.UseLatestVersion = false
+	serializeHint2.UseLatestWithMetadata = map[string]string{
 		"application.version": "v2",
 	}
 
-	ser2, err := NewSerializer(client, serde.ValueSerde, serConfig2)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err = ser2.Serialize("topic1", &newWidget)
+	bytes, err = ser.Serialize("topic1", &newWidget, serializeHint2)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser2, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, widget, newWidget, newerWidget)
 
-	serConfig3 := NewSerializerConfig()
-	serConfig3.AutoRegisterSchemas = false
-	serConfig3.UseLatestVersion = false
-	serConfig3.UseLatestWithMetadata = map[string]string{
+	serializeHint3 := serde.NewSerializeHint()
+	serializeHint3.UseLatestVersion = false
+	serializeHint3.UseLatestWithMetadata = map[string]string{
 		"application.version": "v3",
 	}
 
-	ser3, err := NewSerializer(client, serde.ValueSerde, serConfig3)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err = ser3.Serialize("topic1", &newerWidget)
+	bytes, err = ser.Serialize("topic1", &newerWidget, serializeHint3)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser3, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, widget, newWidget, newerWidget)
 }
 
 func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	bytes []byte, widget OldWidget, newWidget NewWidget, newerWidget NewerWidget) {
-	deserConfig1 := NewDeserializerConfig()
-	deserConfig1.UseLatestWithMetadata = map[string]string{
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	deserializeHint1 := serde.NewDeserializeHint()
+	deserializeHint1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",
 	}
 
-	deser1, err := NewDeserializer(client, serde.ValueSerde, deserConfig1)
-	serde.MaybeFail("Deserializer configuration", err)
-	deser1.Client = ser.Client
-	deser1.MessageFactory = testMessageFactory
-
-	newobj, err := deser1.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, deserializeHint1)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &widget))
 
-	deserConfig2 := NewDeserializerConfig()
-	deserConfig2.UseLatestWithMetadata = map[string]string{
+	deserializeHint2 := serde.NewDeserializeHint()
+	deserializeHint2.UseLatestWithMetadata = map[string]string{
 		"application.version": "v2",
 	}
 
-	deser2, err := NewDeserializer(client, serde.ValueSerde, deserConfig2)
-	serde.MaybeFail("Deserializer configuration", err)
-	deser2.Client = ser.Client
-	deser2.MessageFactory = testMessageFactory
-
-	newobj, err = deser2.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, deserializeHint2)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &newWidget))
 
-	deserConfig3 := NewDeserializerConfig()
-	deserConfig3.UseLatestWithMetadata = map[string]string{
+	deserializeHint3 := serde.NewDeserializeHint()
+	deserializeHint3.UseLatestWithMetadata = map[string]string{
 		"application.version": "v3",
 	}
 
-	deser3, err := NewDeserializer(client, serde.ValueSerde, deserConfig3)
-	serde.MaybeFail("Deserializer configuration", err)
-	deser3.Client = ser.Client
-	deser3.MessageFactory = testMessageFactory
-
-	newobj, err = deser3.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, deserializeHint3)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &newerWidget))
 }
 

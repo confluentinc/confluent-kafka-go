@@ -71,7 +71,7 @@ func main() {
 		Favorite_number: 42,
 		Favorite_color:  "blue",
 	}
-	payload, err := ser.Serialize(topic, &value)
+	payload, err := ser.Serialize(topic, &value, serde.NewSerializeHint())
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)

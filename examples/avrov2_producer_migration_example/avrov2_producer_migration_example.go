@@ -134,15 +134,16 @@ func main() {
 
 	serConfig := avrov2.NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestWithMetadata = map[string]string{
-		"application.major.version": "1",
-	}
 
 	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, serConfig)
-
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
 		os.Exit(1)
+	}
+
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestWithMetadata = map[string]string{
+		"application.major.version": "1",
 	}
 
 	// Optional delivery channel, if not specified the Producer object's
@@ -154,7 +155,7 @@ func main() {
 		FavoriteNumber: 42,
 		FavoriteColor:  "blue",
 	}
-	payload, err := ser.Serialize(topic, &value)
+	payload, err := ser.Serialize(topic, &value, serializeHint)
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)
@@ -175,7 +176,7 @@ func main() {
 		FavoriteNumber: 42,
 		FavoriteColor:  "blue",
 	}
-	payload, err = ser.Serialize(topic, &value)
+	payload, err = ser.Serialize(topic, &value, serializeHint)
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)
