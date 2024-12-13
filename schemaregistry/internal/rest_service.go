@@ -355,7 +355,7 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 		}
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
+	if isSuccess(resp.StatusCode) {
 		if err = json.NewDecoder(resp.Body).Decode(response); err != nil {
 			return err
 		}
