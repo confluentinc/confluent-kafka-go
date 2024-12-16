@@ -113,7 +113,7 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 		Id:    123,
 		Works: []string{"The Castle", "The Trial"},
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -123,7 +123,9 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	deserializeHint := serde.NewDeserializeHint()
+
+	newobj, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 
 	// serialize second object
@@ -132,13 +134,13 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 		Id:    123,
 		Works: []string{"Fear And Trembling"},
 	}
-	bytes, err = ser.Serialize("topic1", &obj)
+	bytes, err = ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
-	newobj, err = deser.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 
-	err = deser.DeserializeInto("topic1", bytes, newobj)
+	err = deser.DeserializeInto("topic1", bytes, newobj, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -157,7 +159,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 		Size:     "Extra extra large",
 		Toppings: []string{"anchovies", "mushrooms"},
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -167,7 +169,7 @@ func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -185,7 +187,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	obj := test.NestedMessage_InnerMessage{
 		Id: "inner",
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -195,7 +197,7 @@ func TestProtobufSerdeWithNestedMessage(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -231,7 +233,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 		IsActive:     true,
 		TestMesssage: &msg,
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -241,7 +243,7 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -263,7 +265,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 		Value: 1,
 		Next:  &inner,
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -273,7 +275,7 @@ func TestProtobufSerdeWithCycle(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -286,9 +288,11 @@ func TestProtobufSerdeEmptyMessage(t *testing.T) {
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 
-	_, err = deser.Deserialize("topic1", nil)
+	deserializeHint := serde.NewDeserializeHint()
+
+	_, err = deser.Deserialize("topic1", nil, deserializeHint)
 	serde.MaybeFail("deserialization", err)
-	_, err = deser.Deserialize("topic1", []byte{})
+	_, err = deser.Deserialize("topic1", []byte{}, deserializeHint)
 	serde.MaybeFail("deserialization", err)
 }
 
@@ -303,7 +307,7 @@ func TestProtobufSerdeWithCELCondition(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -337,7 +341,10 @@ func TestProtobufSerdeWithCELCondition(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deserConfig := NewDeserializerConfig()
@@ -348,7 +355,7 @@ func TestProtobufSerdeWithCELCondition(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -363,7 +370,7 @@ func TestProtobufSerdeWithCELConditionFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -397,7 +404,10 @@ func TestProtobufSerdeWithCELConditionFail(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
 	serde.MaybeFail("serialization", nil, serde.Expect(encRule, *ruleErr.Rule))
@@ -414,7 +424,7 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -448,7 +458,10 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deserConfig := NewDeserializerConfig()
@@ -466,7 +479,7 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj2.ProtoReflect()))
 }
 
@@ -481,7 +494,7 @@ func TestProtobufSerdeWithCELFieldCondition(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -515,7 +528,10 @@ func TestProtobufSerdeWithCELFieldCondition(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deserConfig := NewDeserializerConfig()
@@ -526,7 +542,7 @@ func TestProtobufSerdeWithCELFieldCondition(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
@@ -541,7 +557,7 @@ func TestProtobufSerdeWithCELFieldConditionFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -575,7 +591,10 @@ func TestProtobufSerdeWithCELFieldConditionFail(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
 	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
@@ -592,7 +611,6 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -635,7 +653,10 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 		Works:   []string{"The Castle", "The Trial"},
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deserConfig := NewDeserializerConfig()
@@ -649,10 +670,12 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	newobj, err := deser.Deserialize("topic1", bytes)
+	deserializeHint := serde.NewDeserializeHint()
+
+	newobj, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
 
-	err = deser.DeserializeInto("topic1", bytes, newobj)
+	err = deser.DeserializeInto("topic1", bytes, newobj, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
 }
 
@@ -802,94 +825,83 @@ func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 		t.Errorf("Expected valid schema id, found %d", id)
 	}
 
-	serConfig1 := NewSerializerConfig()
-	serConfig1.AutoRegisterSchemas = false
-	serConfig1.UseLatestVersion = false
-	serConfig1.UseLatestWithMetadata = map[string]string{
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	serializeHint1 := serde.NewSerializeHint()
+	serializeHint1.UseLatestVersion = false
+	serializeHint1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",
 	}
 
-	ser1, err := NewSerializer(client, serde.ValueSerde, serConfig1)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err := ser1.Serialize("topic1", &widget)
+	bytes, err := ser.Serialize("topic1", &widget, serializeHint1)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser1, bytes, &widget, &newWidget, &newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, &widget, &newWidget, &newerWidget)
 
-	serConfig2 := NewSerializerConfig()
-	serConfig2.AutoRegisterSchemas = false
-	serConfig2.UseLatestVersion = false
-	serConfig2.UseLatestWithMetadata = map[string]string{
+	serializeHint2 := serde.NewSerializeHint()
+	serializeHint2.UseLatestVersion = false
+	serializeHint2.UseLatestWithMetadata = map[string]string{
 		"application.version": "v2",
 	}
 
-	ser2, err := NewSerializer(client, serde.ValueSerde, serConfig2)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err = ser2.Serialize("topic1", &newWidget)
+	bytes, err = ser.Serialize("topic1", &newWidget, serializeHint2)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser2, bytes, &widget, &newWidget, &newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, &widget, &newWidget, &newerWidget)
 
-	serConfig3 := NewSerializerConfig()
-	serConfig3.AutoRegisterSchemas = false
-	serConfig3.UseLatestVersion = false
-	serConfig3.UseLatestWithMetadata = map[string]string{
+	serializeHint3 := serde.NewSerializeHint()
+	serializeHint3.UseLatestVersion = false
+	serializeHint3.UseLatestWithMetadata = map[string]string{
 		"application.version": "v3",
 	}
 
-	ser3, err := NewSerializer(client, serde.ValueSerde, serConfig3)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err = ser3.Serialize("topic1", &newerWidget)
+	bytes, err = ser.Serialize("topic1", &newerWidget, serializeHint3)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser3, bytes, &widget, &newWidget, &newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, &widget, &newWidget, &newerWidget)
 }
 
 func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	bytes []byte, widget *test.Widget, newWidget *test.NewWidget, newerWidget *test.NewerWidget) {
-	deserConfig1 := NewDeserializerConfig()
-	deserConfig1.UseLatestWithMetadata = map[string]string{
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	err = deser.ProtoRegistry.RegisterMessage(widget.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+	err = deser.ProtoRegistry.RegisterMessage(newWidget.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+	err = deser.ProtoRegistry.RegisterMessage(newerWidget.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	deserializeHint1 := serde.NewDeserializeHint()
+	deserializeHint1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",
 	}
 
-	deser1, err := NewDeserializer(client, serde.ValueSerde, deserConfig1)
-	serde.MaybeFail("Deserializer configuration", err)
-	deser1.Client = ser.Client
-	err = deser1.ProtoRegistry.RegisterMessage(widget.ProtoReflect().Type())
-	serde.MaybeFail("register message", err)
-
-	newobj, err := deser1.Deserialize("topic1", bytes)
+	newobj, err := deser.Deserialize("topic1", bytes, deserializeHint1)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), widget.ProtoReflect()))
 
-	deserConfig2 := NewDeserializerConfig()
-	deserConfig2.UseLatestWithMetadata = map[string]string{
+	deserializeHint2 := serde.NewDeserializeHint()
+	deserializeHint2.UseLatestWithMetadata = map[string]string{
 		"application.version": "v2",
 	}
 
-	deser2, err := NewDeserializer(client, serde.ValueSerde, deserConfig2)
-	serde.MaybeFail("Deserializer configuration", err)
-	deser2.Client = ser.Client
-	err = deser2.ProtoRegistry.RegisterMessage(newWidget.ProtoReflect().Type())
-	serde.MaybeFail("register message", err)
-
-	newobj, err = deser2.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, deserializeHint2)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), newWidget.ProtoReflect()))
 
-	deserConfig3 := NewDeserializerConfig()
-	deserConfig3.UseLatestWithMetadata = map[string]string{
+	serde.MaybeFail("register message", err)
+
+	deserializeHint3 := serde.NewDeserializeHint()
+	deserializeHint3.UseLatestWithMetadata = map[string]string{
 		"application.version": "v3",
 	}
 
-	deser3, err := NewDeserializer(client, serde.ValueSerde, deserConfig3)
-	serde.MaybeFail("Deserializer configuration", err)
-	deser3.Client = ser.Client
-	err = deser3.ProtoRegistry.RegisterMessage(newerWidget.ProtoReflect().Type())
-	serde.MaybeFail("register message", err)
-
-	newobj, err = deser3.Deserialize("topic1", bytes)
+	newobj, err = deser.Deserialize("topic1", bytes, deserializeHint3)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), newerWidget.ProtoReflect()))
 }
 
@@ -926,9 +938,11 @@ func BenchmarkProtobufSerWithReference(b *testing.B) {
 		TestMesssage: &msg,
 	}
 
+	serializeHint := serde.NewSerializeHint()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ser.Serialize("topic1", &obj)
+		ser.Serialize("topic1", &obj, serializeHint)
 	}
 }
 
@@ -967,9 +981,11 @@ func BenchmarkProtobufSerWithReferenceCached(b *testing.B) {
 		TestMesssage: &msg,
 	}
 
+	serializeHint := serde.NewSerializeHint()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ser.Serialize("topic1", &obj)
+		ser.Serialize("topic1", &obj, serializeHint)
 	}
 }
 
@@ -1005,7 +1021,7 @@ func BenchmarkProtobufDeserWithReference(b *testing.B) {
 		IsActive:     true,
 		TestMesssage: &msg,
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -1014,8 +1030,10 @@ func BenchmarkProtobufDeserWithReference(b *testing.B) {
 
 	deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		deser.Deserialize("topic1", bytes)
+		deser.Deserialize("topic1", bytes, deserializeHint)
 	}
 }
