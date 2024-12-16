@@ -342,8 +342,7 @@ func TestAvroSerdeWithSimpleMap(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serializeHint := serde.NewSerializeHint()
-	serializeHint.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -364,6 +363,10 @@ func TestAvroSerdeWithSimpleMap(t *testing.T) {
 	obj["StringField"] = "hi"
 	obj["BoolField"] = true
 	obj["BytesField"] = []byte{1, 2}
+
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
 	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
@@ -452,8 +455,7 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serializeHint := serde.NewSerializeHint()
-	serializeHint.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -495,6 +497,9 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 	obj := NestedTestRecord{
 		OtherField: nested,
 	}
+
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
 
 	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
