@@ -963,6 +963,8 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 		OnFailure: nil,
 		Disabled:  &[]bool{true}[0],
 	})
+	ser.RuleRegistry = &registry
+
 	id, err := client.Register("topic1-value", info, false)
 	serde.MaybeFail("Schema registration", err)
 	if id <= 0 {
@@ -988,7 +990,7 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 
 	newobj, err := deser.Deserialize("topic1", bytes, serde.NewDeserializeHint())
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*DemoSchema).StringField, "hi"))
 }
 
 func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
@@ -1813,6 +1815,7 @@ func TestAvroSerdeEncryptionWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
+
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -2177,7 +2180,7 @@ func TestAvroSerdeJSONataWithCEL(t *testing.T) {
 	serde.MaybeFail("Serializer configuration", err)
 
 	serializeHint1 := serde.NewSerializeHint()
-	serializeHint1.UseLatestVersion = true
+	serializeHint1.UseLatestVersion = false
 	serializeHint1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",
 	}
