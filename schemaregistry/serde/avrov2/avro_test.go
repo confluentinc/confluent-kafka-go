@@ -656,6 +656,7 @@ func TestAvroSchemaEvolution(t *testing.T) {
 
 	serializeHint := serde.NewSerializeHint()
 	serializeHint.UseLatestVersion = true
+
 	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
