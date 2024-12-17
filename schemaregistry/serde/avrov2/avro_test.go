@@ -937,6 +937,8 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 		OnFailure: nil,
 		Disabled:  &[]bool{true}[0],
 	})
+	ser.RuleRegistry = &registry
+
 	id, err := client.Register("topic1-value", info, false)
 	serde.MaybeFail("Schema registration", err)
 	if id <= 0 {
@@ -960,7 +962,7 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 
 	newobj, err := deser.Deserialize("topic1", bytes)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*DemoSchema).StringField, "hi"))
 }
 
 func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
