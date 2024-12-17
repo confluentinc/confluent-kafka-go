@@ -22,7 +22,7 @@ import (
 
 // ClientConfig is used to pass multiple configuration options to the Schema Registry client.
 type ClientConfig struct {
-	// SchemaRegistryURL determines the URL of Schema Registry.
+	// SchemaRegistryURL is a comma-space separated list of URLs for the Schema Registry.
 	SchemaRegistryURL string
 
 	// BasicAuthUserInfo specifies the user info in the form of {username}:{password}.

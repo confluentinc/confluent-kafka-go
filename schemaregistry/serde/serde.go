@@ -578,7 +578,7 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 		}
 	}
 	for i, rule := range rules {
-		if rule.Disabled {
+		if s.isDisabled(rule) {
 			continue
 		}
 		mode, ok := schemaregistry.ParseMode(rule.Mode)
@@ -613,7 +613,7 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 		}
 		ruleExecutor := s.RuleRegistry.GetExecutor(rule.Type)
 		if ruleExecutor == nil {
-			err := s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg,
+			err := s.runAction(ctx, ruleMode, rule, s.getOnFailure(rule), msg,
 				fmt.Errorf("could not find rule executor of type %s", rule.Type), "ERROR")
 			if err != nil {
 				return nil, err
@@ -623,7 +623,7 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 		var err error
 		result, err := ruleExecutor.Transform(ctx, msg)
 		if result == nil || err != nil {
-			err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, err, "ERROR")
+			err = s.runAction(ctx, ruleMode, rule, s.getOnFailure(rule), msg, err, "ERROR")
 			if err != nil {
 				return nil, err
 			}
@@ -632,7 +632,7 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 			case "CONDITION":
 				condResult, ok2 := result.(bool)
 				if ok2 && !condResult {
-					err = s.runAction(ctx, ruleMode, rule, rule.OnFailure, msg, err, "ERROR")
+					err = s.runAction(ctx, ruleMode, rule, s.getOnFailure(rule), msg, err, "ERROR")
 					if err != nil {
 						return nil, RuleConditionErr{
 							Rule: ctx.Rule,
@@ -644,10 +644,34 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 				msg = result
 			}
 			// ignore error, since rule succeeded
-			_ = s.runAction(ctx, ruleMode, rule, rule.OnSuccess, msg, nil, "NONE")
+			_ = s.runAction(ctx, ruleMode, rule, s.getOnSuccess(rule), msg, nil, "NONE")
 		}
 	}
 	return msg, nil
+}
+
+func (s *Serde) getOnSuccess(rule schemaregistry.Rule) string {
+	override := s.RuleRegistry.GetOverride(rule.Type)
+	if override != nil && override.OnSuccess != nil {
+		return *override.OnSuccess
+	}
+	return rule.OnSuccess
+}
+
+func (s *Serde) getOnFailure(rule schemaregistry.Rule) string {
+	override := s.RuleRegistry.GetOverride(rule.Type)
+	if override != nil && override.OnFailure != nil {
+		return *override.OnFailure
+	}
+	return rule.OnFailure
+}
+
+func (s *Serde) isDisabled(rule schemaregistry.Rule) bool {
+	override := s.RuleRegistry.GetOverride(rule.Type)
+	if override != nil && override.Disabled != nil {
+		return *override.Disabled
+	}
+	return rule.Disabled
 }
 
 func reverseRules(rules []schemaregistry.Rule) []schemaregistry.Rule {

@@ -21,11 +21,20 @@ import (
 )
 
 var (
-	globalInstance = RuleRegistry{
-		ruleExecutors: make(map[string]RuleExecutor),
-		ruleActions:   make(map[string]RuleAction),
-	}
+	globalInstance = NewRuleRegistry()
 )
+
+// RuleOverride represents a rule override
+type RuleOverride struct {
+	// Rule type
+	Type string
+	// Rule action on success
+	OnSuccess *string
+	// Rule action on failure
+	OnFailure *string
+	// Whether the rule is disabled
+	Disabled *bool
+}
 
 // RuleRegistry is used to store all registered rule executors and actions.
 type RuleRegistry struct {
@@ -33,6 +42,17 @@ type RuleRegistry struct {
 	ruleExecutors   map[string]RuleExecutor
 	ruleActionsMu   sync.RWMutex
 	ruleActions     map[string]RuleAction
+	ruleOverridesMu sync.RWMutex
+	ruleOverrides   map[string]*RuleOverride
+}
+
+// NewRuleRegistry creates a Rule Registry instance.
+func NewRuleRegistry() RuleRegistry {
+	return RuleRegistry{
+		ruleExecutors: make(map[string]RuleExecutor),
+		ruleActions:   make(map[string]RuleAction),
+		ruleOverrides: make(map[string]*RuleOverride),
+	}
 }
 
 // RegisterExecutor is used to register a new rule executor.
@@ -85,8 +105,38 @@ func (r *RuleRegistry) GetActions() []RuleAction {
 	return result
 }
 
+// RegisterOverride is used to register a new global rule override.
+func (r *RuleRegistry) RegisterOverride(ruleOverride *RuleOverride) {
+	r.ruleOverridesMu.Lock()
+	defer r.ruleOverridesMu.Unlock()
+	r.ruleOverrides[ruleOverride.Type] = ruleOverride
+}
+
+// GetOverride fetches a rule override by a given name.
+func (r *RuleRegistry) GetOverride(name string) *RuleOverride {
+	r.ruleOverridesMu.RLock()
+	defer r.ruleOverridesMu.RUnlock()
+	return r.ruleOverrides[name]
+}
+
+// GetOverrides fetches all rule overrides
+func (r *RuleRegistry) GetOverrides() []*RuleOverride {
+	r.ruleOverridesMu.RLock()
+	defer r.ruleOverridesMu.RUnlock()
+	var result []*RuleOverride
+	for _, v := range r.ruleOverrides {
+		result = append(result, v)
+	}
+	return result
+}
+
 // Clear clears all registered rules
 func (r *RuleRegistry) Clear() {
+	r.ruleOverridesMu.Lock()
+	defer r.ruleOverridesMu.Unlock()
+	for k := range r.ruleOverrides {
+		delete(r.ruleOverrides, k)
+	}
 	r.ruleActionsMu.Lock()
 	defer r.ruleActionsMu.Unlock()
 	for k, v := range r.ruleActions {
@@ -114,4 +164,9 @@ func RegisterRuleExecutor(ruleExecutor RuleExecutor) {
 // RegisterRuleAction is used to register a new global rule action.
 func RegisterRuleAction(ruleAction RuleAction) {
 	globalInstance.RegisterAction(ruleAction)
+}
+
+// RegisterRuleOverride is used to register a new global rule override.
+func RegisterRuleOverride(ruleOverride *RuleOverride) {
+	globalInstance.RegisterOverride(ruleOverride)
 }

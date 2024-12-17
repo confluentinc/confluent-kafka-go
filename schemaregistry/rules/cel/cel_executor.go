@@ -35,24 +35,18 @@ func init() {
 
 // Register registers the CEL rule executor
 func Register() {
+	serde.RegisterRuleExecutor(NewExecutor())
+	serde.RegisterRuleExecutor(NewFieldExecutor())
+}
+
+// NewExecutor creates a new CEL rule executor
+func NewExecutor() serde.RuleExecutor {
 	env, _ := DefaultEnv()
 
-	e := &Executor{
+	return &Executor{
 		env:   env,
 		cache: map[string]cel.Program{},
 	}
-	serde.RegisterRuleExecutor(e)
-
-	a := &serde.AbstractFieldRuleExecutor{}
-	f := &FieldExecutor{
-		AbstractFieldRuleExecutor: *a,
-		executor: Executor{
-			env:   env,
-			cache: map[string]cel.Program{},
-		},
-	}
-	f.FieldRuleExecutor = f
-	serde.RegisterRuleExecutor(f)
 }
 
 // Executor is a CEL rule executor
