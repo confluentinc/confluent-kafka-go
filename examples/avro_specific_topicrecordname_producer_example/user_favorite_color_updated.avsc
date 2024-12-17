@@ -1,0 +1,9 @@
+{
+    "namespace": "confluent.io.examples.serialization.avro",
+    "name": "UserFavoriteColorUpdated",
+    "type": "record",
+    "fields": [
+        {"name": "name", "type": "string"},
+        {"name": "favorite_color", "type": "string"}
+    ]
+}
