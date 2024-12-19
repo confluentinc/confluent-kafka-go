@@ -32,6 +32,7 @@ blocks:
       epilogue:
         always:
           commands:
+          - tail $GO_COVERAGE_PROFILE
           - . publish-test-results
           - test-results gen-pipeline-report
           - sem-version java 11
