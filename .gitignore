@@ -7,3 +7,4 @@ tmp-build
 .go-version
 .vscode/
 .trunk/
+**/coverage.txt
