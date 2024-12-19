@@ -7,10 +7,37 @@ global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
       value: v2.6.1
+    - name: GO_COVERAGE_PROFILE
+      value: coverage.txt
   prologue:
     commands:
       - checkout
 blocks:
+  - name: "TEMP go tests"
+    dependencies: [ ]
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu20-04-amd64-1
+      prologue:
+        commands:
+        - sem-version go 1.21
+        - export GOPATH=$(go env GOPATH)
+        - export PATH="$PATH:$GOPATH/bin"
+        - go install golang.org/x/lint/golint@latest && touch .do_lint
+      jobs:
+      - name: "Test"
+        commands:
+          - go test -timeout 180s -v -coverprofile=$GO_COVERAGE_PROFILE ./...
+      epilogue:
+        always:
+          commands:
+          - tail $GO_COVERAGE_PROFILE
+          - artifact push workflow $GO_COVERAGE_PROFILE
+          - . publish-test-results
+          - test-results gen-pipeline-report
+#          - sem-version java 11
+#          - emit-sonarqube-data --run_only_sonar_scan
   - name: "go 1.21 OSX bundled librdkafka"
     dependencies: [ ]
     task:
@@ -114,27 +141,46 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "go 1.21 Windows bundled librdkafka"
-    dependencies: [ ]
-    task:
-      agent:
-        machine:
-          type: s1-prod-windows
-      prologue:
+#  - name: "go 1.21 Windows bundled librdkafka"
+#    dependencies: [ ]
+#    task:
+#      agent:
+#        machine:
+#          type: s1-prod-windows
+#      prologue:
+#        commands:
+#          # Install Go
+#          - "& .\\mk\\setup-go.ps1"
+#          # Set up msys2
+#          - ".\\mk\\mingw-w64\\setup-msys2.ps1"
+#          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+#          - bash -lc './mk/mingw-w64/msys2-dependencies.sh'
+#      jobs:
+#        - name: "Static Build"
+#          env_vars:
+#            - name: EXPECT_LINK_INFO
+#              value: static
+#            - name: CHERE_INVOKING
+#              value: 'yes'
+#            - name: MSYSTEM
+#              value: UCRT64
+#          commands_file: semaphore_commands.ps1
+
+after_pipeline:
+  task:
+    agent:
+      machine:
+        type: s1-prod-ubuntu20-04-amd64-1
+    jobs:
+      - name: SonarQube
         commands:
-          # Install Go
-          - "& .\\mk\\setup-go.ps1"
-          # Set up msys2
-          - ".\\mk\\mingw-w64\\setup-msys2.ps1"
-          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
-          - bash -lc './mk/mingw-w64/msys2-dependencies.sh'
-      jobs:
-        - name: "Static Build"
-          env_vars:
-            - name: EXPECT_LINK_INFO
-              value: static
-            - name: CHERE_INVOKING
-              value: 'yes'
-            - name: MSYSTEM
-              value: UCRT64
-          commands_file: semaphore_commands.ps1
+          - checkout
+          - artifact pull workflow coverage.txt
+          - artifact pull workflow dynamic_coverage.txt
+          - artifact pull workflow integration_coverage.txt
+          - artifact pull workflow dynamic_integration_coverage.txt
+          - go install github.com/wadey/gocovmerge@latest
+          - find . -type f -iname "*coverage.txt"
+          - gocovmerge $(find . -type f -iname "*coverage.txt") > coverage.txt
+          - sem-version java 11
+          - emit-sonarqube-data --run_only_sonar_scan
