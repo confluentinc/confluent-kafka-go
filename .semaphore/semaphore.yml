@@ -176,11 +176,11 @@ after_pipeline:
         commands:
           - checkout
           - artifact pull workflow coverage.txt
-#          - artifact pull workflow dynamic_coverage.txt
-#          - artifact pull workflow integration_coverage.txt
-#          - artifact pull workflow dynamic_integration_coverage.txt
-#          - go install github.com/wadey/gocovmerge@latest
-#          - find . -type f -iname "*coverage.txt"
-#          - gocovmerge $(find . -type f -iname "*coverage.txt") > coverage.txt
+          - artifact pull workflow dynamic_coverage.txt
+          - artifact pull workflow integration_coverage.txt
+          - artifact pull workflow dynamic_integration_coverage.txt
+          - go install github.com/wadey/gocovmerge@latest
+          - find . -type f -iname "*coverage.txt"
+          - gocovmerge $(find . -type f -iname "*coverage.txt") > coverage.txt
           - sem-version java 11
           - emit-sonarqube-data --run_only_sonar_scan
