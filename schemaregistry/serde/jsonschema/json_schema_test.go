@@ -19,7 +19,6 @@ package jsonschema
 import (
 	"encoding/base64"
 	"errors"
-
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
@@ -92,6 +91,30 @@ const (
   }
 }
 `
+	demoSchemaNested = `
+{
+  "type": "object",
+  "properties": {
+    "OtherField": {
+	  "type": "object",
+	  "properties": {
+		"IntField": { "type": "integer" },
+		"DoubleField": { "type": "number" },
+		"StringField": { 
+		   "type": "string",
+		   "confluent:tags": [ "PII" ]
+		},
+		"BoolField": { "type": "boolean" },
+		"BytesField": { 
+		   "type": "string",
+		   "contentEncoding": "base64",
+		   "confluent:tags": [ "PII" ]
+		}
+	  }
+    }
+  }
+}
+`
 	complexSchema = `
 {
   "type": "object",
@@ -159,6 +182,38 @@ const (
     "length": { "type": "number" },
     "version": { "type": "integer" }
   }
+}
+`
+	defSchema = `
+{
+	"$schema" : "http://json-schema.org/draft-07/schema#",
+	"additionalProperties" : false,
+	"definitions" : {
+		"Address" : {
+			"additionalProperties" : false,
+			"properties" : {
+				"doornumber" : {
+					"type" : "integer"
+				},
+				"doorpin" : {
+					"confluent:tags" : [ "PII" ],
+					"type" : "string"
+				}
+			},
+			"type" : "object"
+		}
+	},
+	"properties" : {
+		"address" : {
+			"$ref" : "#/definitions/Address"
+		},
+		"name" : {
+			"confluent:tags" : [ "PII" ],
+			"type" : "string"
+		}
+	},
+	"title" : "Sample Event",
+	"type" : "object"
 }
 `
 )
@@ -561,6 +616,204 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
 	var newobj JSONDemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Tags: []string{"PII"},
+		Expr: "value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     defSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	addr := Address{}
+	addr.DoorNumber = 123
+	addr.DoorPin = "1234"
+	obj := JSONPerson{}
+	obj.Name = "bob"
+	obj.Address = addr
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	addr2 := Address{}
+	addr2.DoorNumber = 123
+	addr2.DoorPin = "1234-suffix"
+	obj2 := JSONPerson{}
+	obj2.Name = "bob-suffix"
+	obj2.Address = addr2
+
+	var newobj JSONPerson
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := make(map[string]interface{})
+	obj["IntField"] = 123
+	obj["DoubleField"] = 45.67
+	obj["StringField"] = "hi"
+	obj["BoolField"] = true
+	obj["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	obj2 := JSONDemoSchema{}
+	// JSON decoding produces floats
+	obj2.IntField = 123.0
+	obj2.DoubleField = 45.67
+	obj2.StringField = "hi-suffix"
+	obj2.BoolField = true
+	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+
+	var newobj JSONDemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformWithNestedMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchemaNested,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	nested := make(map[string]interface{})
+	nested["IntField"] = 123
+	nested["DoubleField"] = 45.67
+	nested["StringField"] = "hi"
+	nested["BoolField"] = true
+	nested["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	obj := make(map[string]interface{})
+	obj["OtherField"] = nested
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	nested2 := JSONDemoSchema{}
+	// JSON decoding produces floats
+	nested2.IntField = 123.0
+	nested2.DoubleField = 45.67
+	nested2.StringField = "hi-suffix"
+	nested2.BoolField = true
+	nested2.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	obj2 := JSONNestedTestRecord{nested2}
+
+	var newobj JSONNestedTestRecord
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
@@ -1420,4 +1673,16 @@ type NewerWidget struct {
 	Length int `json:"length"`
 
 	Version int `json:"version"`
+}
+
+type Address struct {
+	DoorNumber int `json:"doornumber"`
+
+	DoorPin string `json:"doorpin"`
+}
+
+type JSONPerson struct {
+	Name string `json:"name"`
+
+	Address Address `json:"address"`
 }

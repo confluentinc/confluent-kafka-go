@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -518,7 +519,13 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 
 // DeserializeInto implements deserialization of Protobuf data to the given object
 func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	_, err := s.deserialize(topic, payload, msg)
+	result, err := s.deserialize(topic, payload, msg)
+	// Copy the result into the target since we may have created a clone during transformations
+	value := reflect.ValueOf(msg)
+	if value.Kind() == reflect.Pointer {
+		rv := value.Elem()
+		rv.Set(reflect.ValueOf(result).Elem())
+	}
 	return err
 }
 

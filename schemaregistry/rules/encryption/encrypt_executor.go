@@ -42,16 +42,27 @@ func init() {
 
 // Register registers the encryption rule executor
 func Register() {
-	c := clock{}
-	RegisterWithClock(&c)
+	serde.RegisterRuleExecutor(NewExecutor())
 }
 
 // RegisterWithClock registers the encryption rule executor with a given clock
 func RegisterWithClock(c Clock) *FieldEncryptionExecutor {
+	f := NewExecutorWithClock(c)
+	serde.RegisterRuleExecutor(f)
+	return f
+}
+
+// NewExecutor creates a new encryption rule executor
+func NewExecutor() serde.RuleExecutor {
+	c := clock{}
+	return NewExecutorWithClock(&c)
+}
+
+// NewExecutorWithClock creates a new encryption rule executor with a given clock
+func NewExecutorWithClock(c Clock) *FieldEncryptionExecutor {
 	a := &serde.AbstractFieldRuleExecutor{}
 	f := &FieldEncryptionExecutor{*a, nil, nil, c}
 	f.FieldRuleExecutor = f
-	serde.RegisterRuleExecutor(f)
 	return f
 }
 

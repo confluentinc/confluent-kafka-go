@@ -17,16 +17,26 @@
 package awskms
 
 import (
+	"context"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
 	"github.com/tink-crypto/tink-go/v2/core/registry"
+	"os"
+	"strings"
 )
 
 const (
 	prefix          = "aws-kms://"
 	accessKeyID     = "access.key.id"
 	secretAccessKey = "secret.access.key"
+	profile         = "profile"
+	roleArn         = "role.arn"
+	roleSessionName = "role.session.name"
+	roleExternalID  = "role.external.id"
 )
 
 func init() {
@@ -51,13 +61,55 @@ func (l *awsDriver) NewKMSClient(conf map[string]string, keyURL *string) (regist
 	if keyURL != nil {
 		uriPrefix = *keyURL
 	}
-	var creds aws.CredentialsProvider
-	key, ok := conf[accessKeyID]
-	if ok {
-		secret, ok := conf[secretAccessKey]
-		if ok {
-			creds = credentials.NewStaticCredentialsProvider(key, secret, "")
-		}
+	arn := conf[roleArn]
+	if arn == "" {
+		arn = os.Getenv("AWS_ROLE_ARN")
 	}
+	sessionName := conf[roleSessionName]
+	if sessionName == "" {
+		sessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
+	}
+	externalID := conf[roleExternalID]
+	if externalID == "" {
+		externalID = os.Getenv("AWS_ROLE_EXTERNAL_ID")
+	}
+	var creds aws.CredentialsProvider
+	key := conf[accessKeyID]
+	secret := conf[secretAccessKey]
+	sourceProfile := conf[profile]
+	if key != "" && secret != "" {
+		creds = credentials.NewStaticCredentialsProvider(key, secret, "")
+	} else if sourceProfile != "" {
+		cfg, err := config.LoadDefaultConfig(context.Background(),
+			config.WithSharedConfigProfile(sourceProfile),
+		)
+		if err != nil {
+			return nil, err
+		}
+		creds = cfg.Credentials
+	}
+	if arn != "" {
+		region, err := getRegion(strings.TrimPrefix(uriPrefix, prefix))
+		if err != nil {
+			return nil, err
+		}
+		stsSvc := sts.New(sts.Options{
+			Credentials: creds,
+			Region:      region,
+		})
+		if sessionName == "" {
+			sessionName = "confluent-encrypt"
+		}
+		var extID *string
+		if externalID != "" {
+			extID = &externalID
+		}
+		creds = stscreds.NewAssumeRoleProvider(stsSvc, arn, func(o *stscreds.AssumeRoleOptions) {
+			o.RoleSessionName = sessionName
+			o.ExternalID = extID
+		})
+		creds = aws.NewCredentialsCache(creds)
+	}
+
 	return NewClient(uriPrefix, creds)
 }
