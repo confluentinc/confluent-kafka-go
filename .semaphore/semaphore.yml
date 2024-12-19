@@ -8,7 +8,7 @@ global_job_config:
     - name: LIBRDKAFKA_VERSION
       value: v2.6.1
     - name: GO_COVERAGE_PROFILE
-      value: coverage.txt
+      value: default_coverage.txt
   prologue:
     commands:
       - checkout
@@ -54,6 +54,7 @@ blocks:
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build"
           env_vars:
@@ -85,6 +86,7 @@ blocks:
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build + Integration tests (CGRP classic)"
           env_vars:
@@ -130,6 +132,7 @@ blocks:
           #- sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build"
           env_vars:
@@ -175,9 +178,10 @@ after_pipeline:
       - name: SonarQube
         commands:
           - checkout
-          - artifact pull workflow coverage.txt
+          - artifact pull workflow default_coverage.txt
+          - artifact pull workflow static_coverage.txt
           - artifact pull workflow dynamic_coverage.txt
-          - artifact pull workflow integration_coverage.txt
+          - artifact pull workflow static_integration_coverage.txt
           - artifact pull workflow dynamic_integration_coverage.txt
           - go install github.com/wadey/gocovmerge@latest
           - find . -type f -iname "*coverage.txt"

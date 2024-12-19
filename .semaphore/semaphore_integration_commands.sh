@@ -1,5 +1,5 @@
 set -e
-coverage_profile="integration_coverage.txt"
+coverage_profile="static_integration_coverage.txt"
 if [ "$EXPECT_LINK_INFO" = "dynamic" ]; then export GO_TAGS="-tags dynamic" && coverage_profile="dynamic_integration_coverage.txt"; bash mk/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build; fi
 for dir in kafka examples ; do (cd $dir && go install $GO_TAGS ./...) ; done
 if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
@@ -9,4 +9,5 @@ go-kafkacat --help
 library-version
 (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
 
+gocovmerge $(find . -type f -iname "*coverage.txt") > ${coverage_profile}
 artifact push workflow ${coverage_profile}
