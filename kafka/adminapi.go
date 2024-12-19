@@ -660,6 +660,31 @@ func (c ConfigEntry) String() string {
 	return fmt.Sprintf("%v %s=\"%s\"", c.Operation, c.Name, c.Value)
 }
 
+type ConfigType int
+
+const (
+	// ConfigTypeUnknown is an unknown configuration type.
+	ConfigTypeUnknown ConfigType = C.RD_KAFKA_CONFIG_UNKNOWN
+	// ConfigTypeBoolean is a boolean configuration type.
+	ConfigTypeBoolean ConfigType = C.RD_KAFKA_CONFIG_BOOLEAN
+	// ConfigTypeString is a string configuration type.
+	ConfigTypeString ConfigType = C.RD_KAFKA_CONFIG_STRING
+	// ConfigTypeInt is an integer configuration type.
+	ConfigTypeInt ConfigType = C.RD_KAFKA_CONFIG_INT
+	// ConfigTypeShort is a short integer configuration type.
+	ConfigTypeShort ConfigType = C.RD_KAFKA_CONFIG_SHORT
+	// ConfigTypeLong is a long integer configuration type.
+	ConfigTypeLong ConfigType = C.RD_KAFKA_CONFIG_LONG
+	// ConfigTypeDouble is a double precision floating point configuration type.
+	ConfigTypeDouble ConfigType = C.RD_KAFKA_CONFIG_DOUBLE
+	// ConfigTypeList is a list configuration type.
+	ConfigTypeList ConfigType = C.RD_KAFKA_CONFIG_LIST
+	// ConfigTypeClass is a class configuration type.
+	ConfigTypeClass ConfigType = C.RD_KAFKA_CONFIG_CLASS
+	// ConfigTypePassword is a password configuration type.
+	ConfigTypePassword ConfigType = C.RD_KAFKA_CONFIG_PASSWORD
+)
+
 // ConfigEntryResult contains the result of a single configuration entry from a
 // DescribeConfigs request.
 type ConfigEntryResult struct {
@@ -679,6 +704,10 @@ type ConfigEntryResult struct {
 	IsSynonym bool
 	// Synonyms contains a map of configuration entries that are synonyms to this configuration entry.
 	Synonyms map[string]ConfigEntryResult
+	// Type of configuration entry.
+	Type ConfigType
+	// Documentation of configuration entry.
+	Documentation string
 }
 
 // String returns a human-readable representation of a ConfigEntryResult.
@@ -710,6 +739,8 @@ func configEntryResultFromC(cEntry *C.rd_kafka_ConfigEntry_t) (entry ConfigEntry
 		Syn := configEntryResultFromC(cSyn)
 		entry.Synonyms[Syn.Name] = Syn
 	}
+	entry.Type = ConfigType(C.rd_kafka_ConfigEntry_type(cEntry))
+	entry.Documentation = C.GoString(C.rd_kafka_ConfigEntry_documentation(cEntry))
 
 	return entry
 }
