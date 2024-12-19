@@ -178,6 +178,9 @@ after_pipeline:
       - name: SonarQube
         commands:
           - checkout
+          - sem-version go 1.21
+          - export GOPATH=$(go env GOPATH)
+          - export PATH="$PATH:$GOPATH/bin"
           - artifact pull workflow default_coverage.txt
           - artifact pull workflow static_coverage.txt
           - artifact pull workflow dynamic_coverage.txt
