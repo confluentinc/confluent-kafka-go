@@ -9,4 +9,4 @@ library-version
 (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
 
 gocovmerge $(find . -type f -iname "*coverage.txt") > ${coverage_profile}
-artifact push workflow ${coverage_profile}
+artifact push workflow ${coverage_profile} || true

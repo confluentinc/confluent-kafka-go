@@ -183,7 +183,7 @@ after_pipeline:
           - artifact pull workflow dynamic_coverage.txt
           - artifact pull workflow static_integration_coverage.txt
           - artifact pull workflow dynamic_integration_coverage.txt
-          - go install github.com/wadey/gocovmerge
+          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
           - find . -type f -iname "*coverage.txt"
           - gocovmerge $(find . -type f -iname "*coverage.txt") > coverage.txt
           - sem-version java 11
