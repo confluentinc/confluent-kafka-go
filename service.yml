@@ -1,6 +1,6 @@
 name: confluent-kafka-go
 lang: go
-lang_version: 1.18
+lang_version: 1.21
 git:
   enable: true
 github:
@@ -10,3 +10,5 @@ semaphore:
   enable: true
 sonarqube:
   enable: true
+  coverage_reports:
+    - "**/*coverage.txt"
