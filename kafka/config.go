@@ -57,7 +57,11 @@ func (m ConfigMap) SetKey(key string, value ConfigValue) error {
 		if !found {
 			m["default.topic.config"] = ConfigMap{}
 		}
-		m["default.topic.config"].(ConfigMap)[strings.TrimPrefix(key, "{topic}.")] = value
+		if cm, ok := m["default.topic.config"].(ConfigMap); !ok {
+			return newErrorFromString(ErrInvalidArg, "value type is not a ConfigMap")
+		} else {
+			cm[strings.TrimPrefix(key, "{topic}.")] = value
+		}
 	} else {
 		m[key] = value
 	}
