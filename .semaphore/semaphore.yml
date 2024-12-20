@@ -27,6 +27,7 @@ blocks:
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
+          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
       jobs:
         - name: "Static Build"
           env_vars:
@@ -58,6 +59,7 @@ blocks:
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
+          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
       jobs:
         - name: "Static Build + Integration tests (CGRP classic)"
           env_vars:
@@ -103,6 +105,7 @@ blocks:
           #- sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
+          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
       jobs:
         - name: "Static Build"
           env_vars:
@@ -138,3 +141,25 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands_file: semaphore_commands.ps1
+
+after_pipeline:
+  task:
+    agent:
+      machine:
+        type: s1-prod-ubuntu20-04-amd64-1
+    jobs:
+      - name: SonarQube
+        commands:
+          - checkout
+          - sem-version go 1.21
+          - export GOPATH=$(go env GOPATH)
+          - export PATH="$PATH:$GOPATH/bin"
+          - artifact pull workflow static_coverage.txt
+          - artifact pull workflow dynamic_coverage.txt
+          - artifact pull workflow static_integration_coverage.txt
+          - artifact pull workflow dynamic_integration_coverage.txt
+          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - find . -type f -iname "*coverage.txt"
+          - gocovmerge $(find . -type f -iname "*coverage.txt") > coverage.txt
+          - sem-version java 11
+          - emit-sonarqube-data --run_only_sonar_scan
