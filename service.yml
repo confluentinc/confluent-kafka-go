@@ -10,5 +10,9 @@ semaphore:
   enable: true
 sonarqube:
   enable: true
+  coverage_exclusions:
+    - "examples/**"
+    - "**/*.pb.*"
+    - "**/mk-include/**/*"
   coverage_reports:
     - "**/*coverage.txt"
