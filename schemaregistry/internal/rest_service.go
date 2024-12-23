@@ -69,8 +69,8 @@ const (
 	Keks          = "/dek-registry/v1/keks"
 	KekByName     = Keks + "/%s?deleted=%t"
 	Deks          = Keks + "/%s/deks"
-	DeksBySubject = Deks + "/%s?deleted=%t"
-	DeksByVersion = Deks + "/%s/versions/%v?deleted=%t"
+	DeksBySubject = Deks + "/%s?algorithm=%s&deleted=%t"
+	DeksByVersion = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
