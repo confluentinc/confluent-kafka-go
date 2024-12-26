@@ -298,7 +298,7 @@ func validate(schema *jsonschema2.Schema, msg *reflect.Value) (bool, error) {
 }
 
 func deref(val *reflect.Value) *reflect.Value {
-	if val.Kind() == reflect.Pointer {
+	if val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
 		v := val.Elem()
 		return &v
 	}

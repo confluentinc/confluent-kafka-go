@@ -35,24 +35,18 @@ func init() {
 
 // Register registers the CEL rule executor
 func Register() {
+	serde.RegisterRuleExecutor(NewExecutor())
+	serde.RegisterRuleExecutor(NewFieldExecutor())
+}
+
+// NewExecutor creates a new CEL rule executor
+func NewExecutor() serde.RuleExecutor {
 	env, _ := DefaultEnv()
 
-	e := &Executor{
+	return &Executor{
 		env:   env,
 		cache: map[string]cel.Program{},
 	}
-	serde.RegisterRuleExecutor(e)
-
-	a := &serde.AbstractFieldRuleExecutor{}
-	f := &FieldExecutor{
-		AbstractFieldRuleExecutor: *a,
-		executor: Executor{
-			env:   env,
-			cache: map[string]cel.Program{},
-		},
-	}
-	f.FieldRuleExecutor = f
-	serde.RegisterRuleExecutor(f)
 }
 
 // Executor is a CEL rule executor
@@ -199,19 +193,22 @@ func typeToCELType(arg interface{}) *cel.Type {
 
 func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
-	if typ.Kind() == reflect.Pointer {
+	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
 		typ = typ.Elem()
 	}
 	protoType, ok := msg.(proto.Message)
 	var declType cel.EnvOption
 	if ok {
 		declType = cel.Types(protoType)
-	} else {
+	} else if typ.Kind() == reflect.Struct {
 		declType = ext.NativeTypes(typ)
 	}
-	envOptions := make([]cel.EnvOption, len(decls))
-	copy(envOptions, decls)
-	envOptions = append(envOptions, declType)
+	envOptions := decls
+	if declType != nil {
+		envOptions = make([]cel.EnvOption, len(decls))
+		copy(envOptions, decls)
+		envOptions = append(envOptions, declType)
+	}
 	env, err := c.env.Extend(envOptions...)
 	if err != nil {
 		return nil, err

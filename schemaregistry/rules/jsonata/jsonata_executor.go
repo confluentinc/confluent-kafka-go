@@ -29,10 +29,14 @@ func init() {
 
 // Register registers the JSONata rule executor
 func Register() {
-	e := &Executor{
+	serde.RegisterRuleExecutor(NewExecutor())
+}
+
+// NewExecutor creates a new JSONata rule executor
+func NewExecutor() serde.RuleExecutor {
+	return &Executor{
 		cache: map[string]*jsonata.Expr{},
 	}
-	serde.RegisterRuleExecutor(e)
 }
 
 // Executor is a JSONata rule executor

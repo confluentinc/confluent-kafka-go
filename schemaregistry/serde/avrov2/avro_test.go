@@ -18,6 +18,7 @@ package avrov2
 
 import (
 	"errors"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"reflect"
 	"testing"
 	"time"
@@ -504,6 +505,107 @@ func TestAvroSerdeWithReferences(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
+func TestAvroSerdeUnionWithReferences(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	_ = ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = ser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     string(demoSchema),
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("demo-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	info = schemaregistry.SchemaInfo{
+		Schema:     string(complexSchema),
+		SchemaType: "AVRO",
+	}
+
+	id, err = client.Register("complex-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	info = schemaregistry.SchemaInfo{
+		Schema:     `[ "DemoSchema", "ComplexSchema" ]`,
+		SchemaType: "AVRO",
+		References: []schemaregistry.Reference{
+			{
+				Name:    "DemoSchema",
+				Subject: "demo-value",
+				Version: 1,
+			},
+			{
+				Name:    "Complexchema",
+				Subject: "complex-value",
+				Version: 1,
+			},
+		},
+	}
+
+	id, err = client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+	_ = deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = deser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
+
+	oldmap := map[string]interface{}{
+		"DemoSchema": map[string]interface{}{
+			"IntField":    123,
+			"DoubleField": 45.67,
+			"StringField": "hi",
+			"BoolField":   true,
+			"BytesField":  []byte{1, 2},
+		},
+	}
+
+	// deserialize into map
+	var newmap map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newmap)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newmap, oldmap))
+
+	// deserialize into interface{}
+	var newany interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newany)
+	var newobj = newany.(DemoSchema)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+}
+
 func TestAvroSchemaEvolution(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -793,6 +895,74 @@ func TestAvroSerdeWithCELConditionIgnoreFail(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+}
+
+func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	registry := serde.NewRuleRegistry()
+	registry.RegisterExecutor(cel.NewFieldExecutor())
+	registry.RegisterOverride(&serde.RuleOverride{
+		Type:      "CEL_FIELD",
+		OnSuccess: nil,
+		OnFailure: nil,
+		Disabled:  &[]bool{true}[0],
+	})
+	ser.RuleRegistry = &registry
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*DemoSchema).StringField, "hi"))
 }
 
 func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
@@ -1707,7 +1877,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
-	ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
 
 	info := schemaregistry.SchemaInfo{
 		Schema:     string(demoSchema),
@@ -1771,7 +1941,7 @@ func TestAvroSerdeEncryptionWithPointerReferences(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactory
-	deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
