@@ -117,7 +117,6 @@ message User {
 
 	serConfig := protobuf.NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	// KMS properties can be passed as follows
 	//serConfig.RuleConfig = map[string]string{
 	//	"secret.access.key": "xxx",
@@ -125,11 +124,13 @@ message User {
 	//}
 
 	ser, err := protobuf.NewSerializer(client, serde.ValueSerde, serConfig)
-
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
 		os.Exit(1)
 	}
+
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
 
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
@@ -141,7 +142,7 @@ message User {
 		FavoriteNumber: 42,
 		FavoriteColor:  "blue",
 	}
-	payload, err := ser.Serialize(topic, &value)
+	payload, err := ser.Serialize(topic, &value, serializeHint)
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)

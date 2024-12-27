@@ -118,7 +118,7 @@ func main() {
 		FavoriteColor:  "blue",
 	}
 
-	payload, err := ser.Serialize(topic, &value)
+	payload, err := ser.Serialize(topic, &value, serde.NewSerializeHint())
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)
@@ -171,7 +171,7 @@ func main() {
 		message, err := consumer.ReadMessage(100 * time.Millisecond)
 		if err == nil {
 			received := User{}
-			err := deser.DeserializeInto(*message.TopicPartition.Topic, message.Value, &received)
+			err := deser.DeserializeInto(*message.TopicPartition.Topic, message.Value, &received, serde.NewDeserializeHint())
 			if err != nil {
 				fmt.Printf("Failed to deserialize payload: %s\n", err)
 			} else {
