@@ -349,7 +349,7 @@ func (c *client) GetDek(kekName string, subject string, algorithm string, delete
 	// another goroutine could have already put it in cache
 	cacheValue, ok = c.dekCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.DeksBySubject, nil, url.QueryEscape(kekName), url.QueryEscape(subject), deleted), &dek)
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.DeksBySubject, nil, url.QueryEscape(kekName), url.QueryEscape(subject), algorithm, deleted), &dek)
 		if err == nil {
 			c.dekCache.Put(cacheKey, &dek)
 		}
@@ -423,7 +423,7 @@ func (c *client) GetDekVersion(kekName string, subject string, version int, algo
 	// another goroutine could have already put it in cache
 	cacheValue, ok = c.dekCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.DeksByVersion, nil, url.QueryEscape(kekName), url.QueryEscape(subject), version, deleted), &dek)
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.DeksByVersion, nil, url.QueryEscape(kekName), url.QueryEscape(subject), version, algorithm, deleted), &dek)
 		if err == nil {
 			c.dekCache.Put(cacheKey, &dek)
 		}
