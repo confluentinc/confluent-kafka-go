@@ -10,4 +10,4 @@ package kafka
 import "C"
 
 // LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
-const LibrdkafkaLinkInfo = "static windows from librdkafka-static-bundle-v2.6.1.tgz"
+const LibrdkafkaLinkInfo = "static windows from librdkafka-static-bundle-v2.8.0-RC1.tgz"
