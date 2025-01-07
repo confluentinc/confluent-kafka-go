@@ -167,7 +167,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020601ff
+#define RD_KAFKA_VERSION 0x020800ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -4592,11 +4592,37 @@ rd_kafka_consumer_group_metadata_new_with_genid(const char *group_id,
                                                 const char *member_id,
                                                 const char *group_instance_id);
 
+/**
+ * @brief Get group id of a group metadata.
+ *
+ * @param group_metadata The group metadata.
+ *
+ * @returns The group id contained in the passed \p group_metadata.
+ *
+ * @remark The returned pointer has the same lifetime as \p group_metadata.
+ */
+RD_EXPORT
+const char *rd_kafka_consumer_group_metadata_group_id(
+    const rd_kafka_consumer_group_metadata_t *group_metadata);
+
+/**
+ * @brief Get group instance id of a group metadata.
+ *
+ * @param group_metadata The group metadata.
+ *
+ * @returns The group instance id contained in the passed \p group_metadata
+ *          or NULL.
+ *
+ * @remark The returned pointer has the same lifetime as \p group_metadata.
+ */
+RD_EXPORT
+const char *rd_kafka_consumer_group_metadata_group_instance_id(
+    const rd_kafka_consumer_group_metadata_t *group_metadata);
 
 /**
  * @brief Get member id of a group metadata.
  *
- * @param group_metadata The group metadata
+ * @param group_metadata The group metadata.
  *
  * @returns The member id contained in the passed \p group_metadata.
  *
@@ -4606,6 +4632,18 @@ RD_EXPORT
 const char *rd_kafka_consumer_group_metadata_member_id(
     const rd_kafka_consumer_group_metadata_t *group_metadata);
 
+/**
+ * @brief Get the generation id (classic protocol)
+ *        or member epoch (consumer protocol) of a group metadata.
+ *
+ * @param group_metadata The group metadata.
+ *
+ * @returns The generation id or member epoch
+ *          contained in the passed \p group_metadata.
+ */
+RD_EXPORT
+int32_t rd_kafka_consumer_group_metadata_generation_id(
+    const rd_kafka_consumer_group_metadata_t *group_metadata);
 
 /**
  * @brief Frees the consumer group metadata object as returned by
