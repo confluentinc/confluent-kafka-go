@@ -74,3 +74,21 @@ type ClientConfig struct {
 	// HTTP client
 	HTTPClient *http.Client
 }
+
+// ConfigsEqual compares two configurations for approximate equality
+func ConfigsEqual(c1 *ClientConfig, c2 *ClientConfig) bool {
+	return c1.SchemaRegistryURL == c2.SchemaRegistryURL &&
+		c1.BasicAuthUserInfo == c2.BasicAuthUserInfo &&
+		c1.BasicAuthCredentialsSource == c2.BasicAuthCredentialsSource &&
+		c1.SaslMechanism == c2.SaslMechanism &&
+		c1.SaslUsername == c2.SaslUsername &&
+		c1.SaslPassword == c2.SaslPassword &&
+		c1.BearerAuthToken == c2.BearerAuthToken &&
+		c1.BearerAuthCredentialsSource == c2.BearerAuthCredentialsSource &&
+		c1.BearerAuthLogicalCluster == c2.BearerAuthLogicalCluster &&
+		c1.BearerAuthIdentityPoolID == c2.BearerAuthIdentityPoolID &&
+		c1.SslCertificateLocation == c2.SslCertificateLocation &&
+		c1.SslKeyLocation == c2.SslKeyLocation &&
+		c1.SslCaLocation == c2.SslCaLocation &&
+		c1.SslDisableEndpointVerification == c2.SslDisableEndpointVerification
+}
