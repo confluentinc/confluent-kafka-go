@@ -88,3 +88,8 @@ func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID stri
 
 	return c
 }
+
+// ConfigsEqual compares two configurations for approximate equality
+func ConfigsEqual(c1 *Config, c2 *Config) bool {
+	return internal.ConfigsEqual(&c1.ClientConfig, &c2.ClientConfig)
+}
