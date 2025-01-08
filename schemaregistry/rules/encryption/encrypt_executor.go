@@ -127,7 +127,7 @@ func (f *FieldEncryptionExecutor) Configure(clientConfig *schemaregistry.Config,
 			v, ok := f.Config[key]
 			if ok {
 				if v != value {
-					return fmt.Errorf("rule config key %s already set", key)
+					return fmt.Errorf("rule config key already set: %s", key)
 				}
 			} else {
 				f.Config[key] = value
