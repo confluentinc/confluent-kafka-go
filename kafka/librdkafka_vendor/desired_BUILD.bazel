@@ -1,0 +1,62 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+cc_import(
+    name = "librdkafka_glibc_linux_amd64",
+    static_library = "kafka/librdkafka_vendor/librdkafka_glibc_linux_amd64.a",
+    hdrs = ["rdkafka.h", "rdkafka_mock.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "librdkafka_musl_linux_amd64",
+    static_library = "kafka/librdkafka_vendor/librdkafka_musl_linux_amd64.a",
+    hdrs = ["rdkafka.h", "rdkafka_mock.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "librdkafka_glibc_linux_arm64",
+    static_library = "kafka/librdkafka_vendor/librdkafka_glibc_linux_arm64.a",
+    hdrs = ["rdkafka.h", "rdkafka_mock.h"],
+    visibility = ["//visibility:public"],
+)
+
+
+cc_import(
+    name = "librdkafka_darwin_amd64",
+    static_library = "kafka/librdkafka_vendor/librdkafka_darwin_amd64.a",
+    hdrs = ["rdkafka.h", "rdkafka_mock.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "librdkafka_darwin_arm64",
+    static_library = "kafka/librdkafka_vendor/librdkafka_darwin_arm64.a",
+    hdrs = ["rdkafka.h", "rdkafka_mock.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "librdkafka_windows",
+    static_library = "kafka/librdkafka_vendor/librdkafka_windows.a",
+    hdrs = ["rdkafka.h", "rdkafka_mock.h"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "librdkafka_vendor",
+    srcs = [
+        "librdkafka.go",
+        "rdkafka.h",
+        "rdkafka_mock.h",
+    ],
+    importpath = "github.com/confluentinc/confluent-kafka-go/v2/kafka/librdkafka_vendor",
+    importpath_aliases = ["github.com/confluentinc/confluent-kafka-go/kafka/librdkafka_vendor"],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":librdkafka_vendor",
+    visibility = ["//visibility:public"],
+)

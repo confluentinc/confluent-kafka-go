@@ -1,0 +1,174 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kafka",
+    srcs = [
+        "00version.go",
+        "adminapi.go",
+        "adminoptions.go",
+        "build_darwin_amd64.go",
+        "build_darwin_arm64.go",
+        "build_glibc_linux_amd64.go",
+        "build_glibc_linux_arm64.go",
+        "build_windows.go",
+        "config.go",
+        "consumer.go",
+        "context.go",
+        "error.go",
+        "error_gen.go",
+        "event.go",
+        "generated_errors.go",
+        "glue_rdkafka.h",
+        "handle.go",
+        "header.go",
+        "kafka.go",
+        "log.go",
+        "message.go",
+        "metadata.go",
+        "misc.go",
+        "mockcluster.go",
+        "offset.go",
+        "producer.go",
+        "select_rdkafka.h",
+        "time.go",
+    ],
+    cgo = True,
+    cdeps = select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//kafka/librdkafka_vendor:librdkafka_windows",
+        ],
+        "@io_bazel_rules_go//go/platform:android_amd64": [
+            "//kafka/librdkafka_vendor:librdkafka_glibc_linux_amd64",
+            "//kafka/librdkafka_vendor:librdkafka_musl_linux_amd64",
+        ],
+        "@io_bazel_rules_go//go/platform:android_arm64": [
+            "//kafka/librdkafka_vendor:librdkafka_glibc_linux_amd64",
+            "//kafka/librdkafka_vendor:librdkafka_musl_linux_amd64",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin_amd64": [
+            "//kafka/librdkafka_vendor:librdkafka_darwin_amd64",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin_arm64": [
+            "//kafka/librdkafka_vendor:librdkafka_darwin_arm64",
+        ],
+        "@io_bazel_rules_go//go/platform:ios_amd64": [
+            "//kafka/librdkafka_vendor:librdkafka_darwin_amd64",
+        ],
+        "@io_bazel_rules_go//go/platform:ios_arm64": [
+            "//kafka/librdkafka_vendor:librdkafka_darwin_arm64",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_amd64": [
+            "//kafka/librdkafka_vendor:librdkafka_glibc_linux_amd64",
+            "//kafka/librdkafka_vendor:librdkafka_musl_linux_amd64",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//kafka/librdkafka_vendor:librdkafka_glibc_linux_arm64",
+            "//kafka/librdkafka_vendor:librdkafka_musl_linux_arm64",
+        ],
+        "//conditions:default": [],
+    }),
+    clinkopts = select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "-lws2_32", "-lsecur32", "-lcrypt32",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "@io_bazel_rules_go//go/platform:android_amd64": [
+            "-lm", "-ldl", "-lpthread", "-lrt",
+        ],
+        "@io_bazel_rules_go//go/platform:android_arm64": [
+            "-lm", "-ldl", "-lpthread", "-lrt",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin_amd64": [
+            "-lm", "-lsasl2", "-ldl", "-lpthread", "-framework", "CoreFoundation", "-framework", "SystemConfiguration",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin_arm64": [
+            "-lm", "-lsasl2", "-ldl", "-lpthread", "-framework", "CoreFoundation", "-framework", "SystemConfiguration",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_amd64": [
+            "-lm", "-ldl", "-lpthread", "-lrt",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "-lm", "-ldl", "-lpthread", "-lrt",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@io_bazel_rules_go//go/platform:android_amd64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:android_arm64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin_amd64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin_arm64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:ios_amd64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:ios_arm64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_amd64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:windows_386": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:windows_amd64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:windows_arm": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "@io_bazel_rules_go//go/platform:windows_arm64": [
+            "-DUSE_VENDORED_LIBRDKAFKA -DLIBRDKAFKA_STATICLIB",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/confluentinc/confluent-kafka-go/v2/kafka",
+    importpath_aliases = ["github.com/confluentinc/confluent-kafka-go/kafka"],
+    visibility = ["//visibility:public"],
+    deps = ["//kafka/librdkafka_vendor"],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":kafka",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "kafka_test",
+    srcs = [
+        "adminapi_test.go",
+        "config_test.go",
+        "consumer_performance_test.go",
+        "consumer_test.go",
+        "error_test.go",
+        "event_test.go",
+        "header_test.go",
+        "integration_mock_test.go",
+        "integration_test.go",
+        "kafka_test.go",
+        "message_test.go",
+        "metadata_test.go",
+        "producer_performance_test.go",
+        "producer_test.go",
+        "stats_event_test.go",
+        "testhelpers_test.go",
+        "txn_integration_test.go",
+    ],
+    embed = [":kafka"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+        "@com_github_testcontainers_testcontainers_go_modules_compose//:go_default_library",
+    ],
+)
