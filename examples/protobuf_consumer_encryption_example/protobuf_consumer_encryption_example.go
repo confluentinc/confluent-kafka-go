@@ -82,7 +82,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	deser, err := protobuf.NewDeserializer(client, serde.ValueSerde, protobuf.NewDeserializerConfig())
+	deserConfig := protobuf.NewDeserializerConfig()
+	// KMS properties can be passed as follows
+	//deserConfig.RuleConfig = map[string]string{
+	//	"secret.access.key": "xxx",
+	//	"access.key,id": "xxx",
+	//}
+
+	deser, err := protobuf.NewDeserializer(client, serde.ValueSerde, deserConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)
