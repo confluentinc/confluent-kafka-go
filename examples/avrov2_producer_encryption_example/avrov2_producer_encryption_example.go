@@ -114,7 +114,6 @@ func main() {
 
 	serConfig := avrov2.NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	// KMS properties can be passed as follows
 	//serConfig.RuleConfig = map[string]string{
 	//	"secret.access.key": "xxx",
@@ -122,6 +121,9 @@ func main() {
 	//}
 
 	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, serConfig)
+
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
@@ -137,7 +139,7 @@ func main() {
 		FavoriteNumber: 42,
 		FavoriteColor:  "blue",
 	}
-	payload, err := ser.Serialize(topic, &value)
+	payload, err := ser.Serialize(topic, &value, serializeHint)
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)
@@ -158,7 +160,7 @@ func main() {
 		FavoriteNumber: 42,
 		FavoriteColor:  "blue",
 	}
-	payload, err = ser.Serialize(topic, &value)
+	payload, err = ser.Serialize(topic, &value, serializeHint)
 	if err != nil {
 		fmt.Printf("Failed to serialize payload: %s\n", err)
 		os.Exit(1)

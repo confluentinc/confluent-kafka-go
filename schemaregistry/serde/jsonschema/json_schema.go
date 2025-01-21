@@ -87,16 +87,17 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 }
 
 // Serialize implements serialization of generic data to JSON
-func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+func (s *Serializer) Serialize(topic string, msg interface{}, hint *serde.SerializeHint) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
 	var info schemaregistry.SchemaInfo
 	var err error
 	// Don't derive the schema if it is being looked up in the following ways
-	if s.Conf.UseSchemaID == -1 &&
-		!s.Conf.UseLatestVersion &&
-		len(s.Conf.UseLatestWithMetadata) == 0 {
+	if hint.UseSchemaID == -1 &&
+		hint.UseSpecificVersion == -1 &&
+		!hint.UseLatestVersion &&
+		len(hint.UseLatestWithMetadata) == 0 {
 		jschema := jsonschema.Reflect(msg)
 		raw, err := json.Marshal(jschema)
 		if err != nil {
@@ -107,7 +108,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 			SchemaType: "JSON",
 		}
 	}
-	id, err := s.GetID(topic, msg, &info)
+	id, err := s.GetID(topic, msg, &info, hint)
 	if err != nil {
 		return nil, err
 	}
@@ -175,17 +176,17 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 }
 
 // Deserialize implements deserialization of generic data from JSON
-func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	return s.deserialize(topic, payload, nil)
+func (s *Deserializer) Deserialize(topic string, payload []byte, hint *serde.DeserializeHint) (interface{}, error) {
+	return s.deserialize(topic, payload, nil, hint)
 }
 
 // DeserializeInto implements deserialization of generic data from JSON to the given object
-func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	_, err := s.deserialize(topic, payload, msg)
+func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}, hint *serde.DeserializeHint) error {
+	_, err := s.deserialize(topic, payload, msg, hint)
 	return err
 }
 
-func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
+func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}, hint *serde.DeserializeHint) (interface{}, error) {
 	if len(payload) == 0 {
 		return nil, nil
 	}
@@ -213,7 +214,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	if err != nil {
 		return nil, err
 	}
-	readerMeta, err := s.GetReaderSchema(subject)
+	readerMeta, err := s.GetReaderSchema(subject, hint)
 	if err != nil {
 		return nil, err
 	}
