@@ -1,5 +1,33 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.8.0
+
+This is a feature release:
+
+confluent-kafka-go is based on librdkafka v2.8.0, see the
+[librdkafka v2.8.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+There was no v2.7.0 release.
+
+### Enhancements
+
+* Add retry logic to RestService for Schema Registry (#1337)
+* Add ability to override disable flag and actions on a rule (#1356)
+* Add AWS AssumeRole support to AWS KMS (#1359)
+* Add support for comma-separated URLs (#1364)
+ 
+### Fixes
+
+* Add deleted query param when looking up schema under subject (#1340)
+* For Protobuf, copy the result into the target if necessary (#1347)
+* Don't register maps as native types in CEL rules (#1348)
+* Lookup local secret from env if needed (#1349)
+* Ensure different key ids use different client instances (#1352)
+* Fix handling of nested maps for Avro and JSON Schema (#1355)
+* Ensure algorithm query param is passed for CSFLE (#1373)
+
+
 ## v2.6.1
 
 This is a maintenance release:
