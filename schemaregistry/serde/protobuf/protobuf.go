@@ -520,13 +520,16 @@ func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, e
 // DeserializeInto implements deserialization of Protobuf data to the given object
 func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
 	result, err := s.deserialize(topic, payload, msg)
+	if err != nil {
+		return err
+	}
 	// Copy the result into the target since we may have created a clone during transformations
 	value := reflect.ValueOf(msg)
 	if value.Kind() == reflect.Pointer {
 		rv := value.Elem()
 		rv.Set(reflect.ValueOf(result).Elem())
 	}
-	return err
+	return nil
 }
 
 func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
