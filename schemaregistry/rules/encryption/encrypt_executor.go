@@ -110,12 +110,32 @@ type FieldEncryptionExecutor struct {
 
 // Configure configures the executor
 func (f *FieldEncryptionExecutor) Configure(clientConfig *schemaregistry.Config, config map[string]string) error {
-	client, err := deks.NewClient(clientConfig)
-	if err != nil {
-		return err
+	if f.Client != nil {
+		if !schemaregistry.ConfigsEqual(f.Client.Config(), clientConfig) {
+			return errors.New("executor already configured")
+		}
+	} else {
+		client, err := deks.NewClient(clientConfig)
+		if err != nil {
+			return err
+		}
+		f.Client = client
 	}
-	f.Config = config
-	f.Client = client
+
+	if f.Config != nil {
+		for key, value := range config {
+			v, ok := f.Config[key]
+			if ok {
+				if v != value {
+					return fmt.Errorf("rule config key already set: %s", key)
+				}
+			} else {
+				f.Config[key] = value
+			}
+		}
+	} else {
+		f.Config = config
+	}
 	return nil
 }
 
