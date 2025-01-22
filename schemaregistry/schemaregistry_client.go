@@ -202,6 +202,34 @@ type SubjectAndVersion struct {
 	Version int    `json:"version,omitempty"`
 }
 
+func (sd *SchemaInfo) Name() string {
+	// check whether is json, avro or protobuf and then do calculations
+	name := ""
+	switch sd.SchemaType {
+	case "AVRO":
+		name = sd.avroName(sd.Schema)
+	default:
+		name = ""
+	}
+	return name
+}
+
+func (sd *SchemaInfo) avroName(schemaInfo string) string {
+	schemaInJson := map[string]any{}
+	err := json.Unmarshal([]byte(schemaInfo), &schemaInJson)
+	if err != nil {
+		return ""
+	}
+	fqn := ""
+	if namespace, ok := schemaInJson["namespace"]; ok && namespace != "" {
+		fqn = fmt.Sprintf("%s.%s", namespace.(string), schemaInJson["name"].(string))
+	} else if name, ok := schemaInJson["name"]; ok && name != "" {
+		fqn = name.(string)
+	}
+
+	return fqn
+}
+
 // MarshalJSON implements the json.Marshaler interface
 func (sd *SchemaInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
