@@ -2120,7 +2120,10 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	topic := testconf.TopicName
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
-	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
+	wrongPrincipalError := NewError(ErrInvalidRequest,
+		"Could not parse principal "+
+			"from `wrong-principal` (no colon is present separating"+
+			" the principal type from the principal name)", false)
 	var expectedCreateACLs []CreateACLResult
 	var expectedDescribeACLs DescribeACLsResult
 	var expectedDeleteACLs []DeleteACLsResult
@@ -2241,7 +2244,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 		if err != nil {
 			t.Fatalf("CreateACLs() failed: %s", err)
 		}
-		expectedCreateACLs = []CreateACLResult{{Error: unknownError}}
+		expectedCreateACLs = []CreateACLResult{{Error: wrongPrincipalError}}
 		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 	}
 
@@ -2964,11 +2967,12 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 
 	drChan := make(chan Event, 1)
 
-	/* Offset the timestamp to avoid comparison with system clock */
-	future, _ := time.ParseDuration("87658h") // 10y
+	/* Messages produced with a timestamp more than 1 hour in the future
+	 * are rejected. */
+	future, _ := time.ParseDuration("2h")
 	timestamp := time.Now().Add(future)
 	key := fmt.Sprintf("TS: %v", timestamp)
-	t.Logf("Producing message with timestamp %v", timestamp)
+	t.Logf("Producing message with timestamp %v, should fail", timestamp)
 	err = p.Produce(&Message{
 		TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
 		Key:            []byte(key),
@@ -2983,6 +2987,37 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	t.Logf("Awaiting delivery report")
 	ev := <-drChan
 	m, ok := ev.(*Message)
+	if !ok {
+		t.Fatalf("drChan: Expected *Message, got %v", ev)
+	}
+	if m.TopicPartition.Error == nil {
+		t.Fatalf("Delivery should fail, got no Error")
+	}
+
+	if m.TopicPartition.Error.Error() != "Broker: Invalid timestamp" {
+		t.Fatalf(
+			"Delivery should fail with error 'Broker: Invalid timestamp', not %v",
+			m.TopicPartition.Error)
+	}
+
+	future, _ = time.ParseDuration("1h")
+	timestamp = time.Now().Add(future)
+	key = fmt.Sprintf("TS: %v", timestamp)
+	t.Logf("Producing message with timestamp %v, should succeed", timestamp)
+	err = p.Produce(&Message{
+		TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
+		Key:            []byte(key),
+		Timestamp:      timestamp},
+		drChan)
+
+	if err != nil {
+		t.Fatalf("Produce: %v", err)
+	}
+
+	// Wait for delivery
+	t.Logf("Awaiting delivery report")
+	ev = <-drChan
+	m, ok = ev.(*Message)
 	if !ok {
 		t.Fatalf("drChan: Expected *Message, got %v", ev)
 	}
