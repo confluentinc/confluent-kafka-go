@@ -2,7 +2,7 @@ version: '3'
 services:
   kafka:
     build: ./kraft
-    restart: always
+    restart: unless-stopped
     ports:
       - 9092:29092
       - 9093:29093
