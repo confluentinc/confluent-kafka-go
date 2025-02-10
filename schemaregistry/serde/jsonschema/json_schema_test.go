@@ -247,15 +247,17 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	obj.StringField = "hi"
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 
 	// serialize second object
@@ -265,10 +267,10 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	obj.StringField = "bye"
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
-	bytes, err = ser.Serialize("topic1", &obj)
+	bytes, err = ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
@@ -289,7 +291,7 @@ func TestJSONSchemaSerdeWithSimpleMap(t *testing.T) {
 	obj["StringField"] = "hi"
 	obj["BoolField"] = true
 	obj["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -300,7 +302,7 @@ func TestJSONSchemaSerdeWithSimpleMap(t *testing.T) {
 	obj["IntField"] = 123.0
 
 	var newobj map[string]interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
@@ -324,7 +326,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	obj := JSONNestedTestRecord{
 		OtherField: nested,
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -332,7 +334,7 @@ func TestJSONSchemaSerdeWithNested(t *testing.T) {
 	deser.Client = ser.Client
 
 	var newobj JSONNestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
@@ -347,7 +349,6 @@ func TestJSONSchemaSerdeWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
@@ -390,16 +391,18 @@ func TestJSONSchemaSerdeWithReferences(t *testing.T) {
 	obj := JSONNestedTestRecord{}
 	obj.OtherField = nested
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj JSONNestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
@@ -415,7 +418,7 @@ func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
 	serConfig.EnableValidation = true
 	// We don't want to risk registering one instead of using the already registered one
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -434,13 +437,16 @@ func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
 		t.Errorf("Expected valid schema id, found %d", id)
 	}
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	if err != nil {
 		t.Errorf("Expected no validation error, found %s", err)
 	}
 
 	diffObj := DifferentJSONDemoSchema{}
-	_, err = ser.Serialize("topic1", &diffObj)
+	_, err = ser.Serialize("topic1", &diffObj, serializeHint)
 	if err == nil || !strings.Contains(err.Error(), "jsonschema") {
 		t.Errorf("Expected validation error, found %s", err)
 	}
@@ -457,7 +463,7 @@ func TestJSONSchemaSerdeWithCELCondition(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -491,16 +497,18 @@ func TestJSONSchemaSerdeWithCELCondition(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
@@ -515,7 +523,7 @@ func TestJSONSchemaSerdeWithCELConditionFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -549,7 +557,10 @@ func TestJSONSchemaSerdeWithCELConditionFail(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
 	serde.MaybeFail("serialization", nil, serde.Expect(encRule, *ruleErr.Rule))
@@ -566,7 +577,7 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -600,11 +611,13 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -616,7 +629,7 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
@@ -631,7 +644,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -666,11 +679,13 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
 	obj.Name = "bob"
 	obj.Address = addr
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -682,7 +697,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
 	obj2.Address = addr2
 
 	var newobj JSONPerson
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
@@ -697,7 +712,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -730,7 +745,11 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
 	obj["StringField"] = "hi"
 	obj["BoolField"] = true
 	obj["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
-	bytes, err := ser.Serialize("topic1", &obj)
+
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -746,7 +765,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
 	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
 
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
@@ -761,7 +780,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithNestedMap(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -797,7 +816,10 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithNestedMap(t *testing.T) {
 	obj := make(map[string]interface{})
 	obj["OtherField"] = nested
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -814,7 +836,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithNestedMap(t *testing.T) {
 	obj2 := JSONNestedTestRecord{nested2}
 
 	var newobj JSONNestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
@@ -829,7 +851,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplex(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -862,11 +884,13 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplex(t *testing.T) {
 	obj.ObjectField = NestedSchema{StringField: "world"}
 	obj.UnionField = &str
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -877,7 +901,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplex(t *testing.T) {
 	obj2.UnionField = &str2
 
 	var newobj JSONComplexSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
@@ -892,7 +916,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -924,11 +948,13 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 	obj.ObjectField = NestedSchema{StringField: "world"}
 	obj.UnionField = nil
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -938,7 +964,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformComplexWithNil(t *testing.T) {
 	obj2.UnionField = nil
 
 	var newobj JSONComplexSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
 
@@ -953,7 +979,7 @@ func TestJSONSchemaSerdeWithCELFieldCondition(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -987,16 +1013,18 @@ func TestJSONSchemaSerdeWithCELFieldCondition(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
-	deserConfig := NewDeserializerConfig()
-	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
@@ -1011,7 +1039,7 @@ func TestJSONSchemaSerdeWithCELFieldConditionFail(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
+
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1045,7 +1073,10 @@ func TestJSONSchemaSerdeWithCELFieldConditionFail(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	_, err = ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	_, err = ser.Serialize("topic1", &obj, serializeHint)
 	var ruleErr serde.RuleConditionErr
 	errors.As(err, &ruleErr)
 	serde.MaybeFail("serialization", nil, serde.Expect(ruleErr, serde.RuleConditionErr{Rule: &encRule}))
@@ -1062,7 +1093,6 @@ func TestJSONSchemaSerdeEncryptionWithSimpleMap(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1105,7 +1135,10 @@ func TestJSONSchemaSerdeEncryptionWithSimpleMap(t *testing.T) {
 	obj["BoolField"] = true
 	obj["BytesField"] = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1124,7 +1157,7 @@ func TestJSONSchemaSerdeEncryptionWithSimpleMap(t *testing.T) {
 	deser.Client = ser.Client
 
 	var newobj map[string]interface{}
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
@@ -1139,7 +1172,6 @@ func TestJSONSchemaSerdeEncryption(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1182,7 +1214,10 @@ func TestJSONSchemaSerdeEncryption(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1198,7 +1233,7 @@ func TestJSONSchemaSerdeEncryption(t *testing.T) {
 	deser.Client = ser.Client
 
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
@@ -1213,7 +1248,6 @@ func TestJSONSchemaSerdeEncryptionWithUnion(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1256,7 +1290,10 @@ func TestJSONSchemaSerdeEncryptionWithUnion(t *testing.T) {
 	obj.BoolField = true
 	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1272,7 +1309,7 @@ func TestJSONSchemaSerdeEncryptionWithUnion(t *testing.T) {
 	deser.Client = ser.Client
 
 	var newobj JSONDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
@@ -1287,7 +1324,6 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
@@ -1350,7 +1386,10 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 	obj := JSONNestedTestRecord{}
 	obj.OtherField = nested
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	serializeHint := serde.NewSerializeHint()
+	serializeHint.UseLatestVersion = true
+
+	bytes, err := ser.Serialize("topic1", &obj, serializeHint)
 	serde.MaybeFail("serialization", err)
 
 	// Reset encrypted field
@@ -1366,7 +1405,7 @@ func TestJSONSchemaSerdeEncryptionWithReferences(t *testing.T) {
 	deser.Client = ser.Client
 
 	var newobj JSONNestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, serde.NewDeserializeHint())
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
@@ -1516,69 +1555,66 @@ func TestJSONSchemaSerdeJSONataFullyCompatible(t *testing.T) {
 		t.Errorf("Expected valid schema id, found %d", id)
 	}
 
-	serConfig1 := NewSerializerConfig()
-	serConfig1.AutoRegisterSchemas = false
-	serConfig1.UseLatestVersion = false
-	serConfig1.UseLatestWithMetadata = map[string]string{
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	serializeHint1 := serde.NewSerializeHint()
+	serializeHint1.UseLatestVersion = false
+	serializeHint1.UseLatestWithMetadata = map[string]string{
 		"application.version": "v1",
 	}
 
-	ser1, err := NewSerializer(client, serde.ValueSerde, serConfig1)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err := ser1.Serialize("topic1", &widget)
+	bytes, err := ser.Serialize("topic1", &widget, serializeHint1)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser1, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, widget, newWidget, newerWidget)
 
-	serConfig2 := NewSerializerConfig()
-	serConfig2.AutoRegisterSchemas = false
-	serConfig2.UseLatestVersion = false
-	serConfig2.UseLatestWithMetadata = map[string]string{
+	serializeHint2 := serde.NewSerializeHint()
+	serializeHint2.UseLatestVersion = false
+	serializeHint2.UseLatestWithMetadata = map[string]string{
 		"application.version": "v2",
 	}
 
-	ser2, err := NewSerializer(client, serde.ValueSerde, serConfig2)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err = ser2.Serialize("topic1", &newWidget)
+	bytes, err = ser.Serialize("topic1", &newWidget, serializeHint2)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser2, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, widget, newWidget, newerWidget)
 
-	serConfig3 := NewSerializerConfig()
-	serConfig3.AutoRegisterSchemas = false
-	serConfig3.UseLatestVersion = false
-	serConfig3.UseLatestWithMetadata = map[string]string{
+	serializeHint3 := serde.NewSerializeHint()
+	serializeHint3.UseLatestVersion = false
+	serializeHint3.UseLatestWithMetadata = map[string]string{
 		"application.version": "v3",
 	}
 
-	ser3, err := NewSerializer(client, serde.ValueSerde, serConfig3)
-	serde.MaybeFail("Serializer configuration", err)
-
-	bytes, err = ser3.Serialize("topic1", &newerWidget)
+	bytes, err = ser.Serialize("topic1", &newerWidget, serializeHint3)
 	serde.MaybeFail("serialization", err)
 
-	deserializeWithAllVersions(client, ser3, bytes, widget, newWidget, newerWidget)
+	deserializeWithAllVersions(client, ser, bytes, widget, newWidget, newerWidget)
 }
 
 func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	bytes []byte, widget OldWidget, newWidget NewWidget, newerWidget NewerWidget) {
-	deserConfig1 := NewDeserializerConfig()
-	deserConfig1.UseLatestWithMetadata = map[string]string{
-		"application.version": "v1",
-	}
 
+	deserConfig1 := NewDeserializerConfig()
 	deser1, err := NewDeserializer(client, serde.ValueSerde, deserConfig1)
 	serde.MaybeFail("Deserializer configuration", err)
 	deser1.Client = ser.Client
 	deser1.MessageFactory = testMessageFactory1
 
-	newobj, err := deser1.Deserialize("topic1", bytes)
+	deserializeHint1 := serde.NewDeserializeHint()
+	deserializeHint1.UseLatestWithMetadata = map[string]string{
+		"application.version": "v1",
+	}
+
+	newobj, err := deser1.Deserialize("topic1", bytes, deserializeHint1)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &widget))
 
 	deserConfig2 := NewDeserializerConfig()
-	deserConfig2.UseLatestWithMetadata = map[string]string{
+	deserializeHint2 := serde.NewDeserializeHint()
+	deserializeHint2.UseLatestWithMetadata = map[string]string{
 		"application.version": "v2",
 	}
 
@@ -1587,11 +1623,12 @@ func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	deser2.Client = ser.Client
 	deser2.MessageFactory = testMessageFactory2
 
-	newobj, err = deser2.Deserialize("topic1", bytes)
+	newobj, err = deser2.Deserialize("topic1", bytes, deserializeHint2)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &newWidget))
 
 	deserConfig3 := NewDeserializerConfig()
-	deserConfig3.UseLatestWithMetadata = map[string]string{
+	deserializeHint3 := serde.NewDeserializeHint()
+	deserializeHint3.UseLatestWithMetadata = map[string]string{
 		"application.version": "v3",
 	}
 
@@ -1600,7 +1637,7 @@ func deserializeWithAllVersions(client schemaregistry.Client, ser *Serializer,
 	deser3.Client = ser.Client
 	deser3.MessageFactory = testMessageFactory3
 
-	newobj, err = deser3.Deserialize("topic1", bytes)
+	newobj, err = deser3.Deserialize("topic1", bytes, deserializeHint3)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &newerWidget))
 }
 

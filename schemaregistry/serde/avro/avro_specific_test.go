@@ -59,7 +59,7 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	obj.StringField = "hi"
 	obj.BoolField = true
 	obj.BytesField = []byte{0, 0, 0, 1}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -67,11 +67,13 @@ func TestSpecificAvroSerdeWithSimple(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactorySpecific
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj test.DemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -101,7 +103,7 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 		NumberField: number,
 		OtherField:  nested,
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -109,11 +111,13 @@ func TestSpecificAvroSerdeWithNested(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactorySpecific
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj test.NestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -138,7 +142,7 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	obj := test.RecursiveUnionTestRecord{
 		RecursiveField: &wrapper,
 	}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewSpecificDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -146,10 +150,12 @@ func TestSpecificAvroSerdeWithCycle(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactorySpecific
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj test.RecursiveUnionTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }

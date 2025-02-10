@@ -20,12 +20,6 @@ package serde
 type SerializerConfig struct {
 	// AutoRegisterSchemas determines whether to automatically register schemas during serialization
 	AutoRegisterSchemas bool
-	// UseSchemaID specifies a schema ID to use during serialization
-	UseSchemaID int
-	// UseLatestVersion specifies whether to use the latest schema version during serialization
-	UseLatestVersion bool
-	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during serialization
-	UseLatestWithMetadata map[string]string
 	// NormalizeSchemas determines whether to normalize schemas during serialization
 	NormalizeSchemas bool
 	// RuleConfig specifies configuration options to the rules
@@ -37,8 +31,6 @@ func NewSerializerConfig() *SerializerConfig {
 	c := &SerializerConfig{}
 
 	c.AutoRegisterSchemas = true
-	c.UseSchemaID = -1
-	c.UseLatestVersion = false
 	c.NormalizeSchemas = false
 
 	return c
@@ -46,10 +38,6 @@ func NewSerializerConfig() *SerializerConfig {
 
 // DeserializerConfig is used to pass multiple configuration options to the deserializers.
 type DeserializerConfig struct {
-	// UseLatestVersion specifies whether to use the latest schema version during deserialization
-	UseLatestVersion bool
-	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during serialization
-	UseLatestWithMetadata map[string]string
 	// RuleConfig specifies configuration options to the rules
 	RuleConfig map[string]string
 }
@@ -57,6 +45,44 @@ type DeserializerConfig struct {
 // NewDeserializerConfig returns a new configuration instance with sane defaults.
 func NewDeserializerConfig() *DeserializerConfig {
 	c := &DeserializerConfig{}
+
+	return c
+}
+
+type SerializeHint struct {
+	// UseSchemaID specifies a schema ID to use during serialization
+	UseSchemaID int
+	// UseVersion specifies a specific schema version to use during serialization
+	UseSpecificVersion int
+	// UseLatestVersion specifies whether to use the latest schema version during serialization
+	UseLatestVersion bool
+	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during serialization
+	UseLatestWithMetadata map[string]string
+}
+
+func NewSerializeHint() *SerializeHint {
+	c := &SerializeHint{
+		UseSchemaID:           -1,
+		UseSpecificVersion:    -1,
+		UseLatestVersion:      false,
+		UseLatestWithMetadata: make(map[string]string),
+	}
+
+	return c
+}
+
+type DeserializeHint struct {
+	// UseLatestVersion specifies whether to use the latest schema version during deserialization
+	UseLatestVersion bool
+	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during deserialization
+	UseLatestWithMetadata map[string]string
+}
+
+func NewDeserializeHint() *DeserializeHint {
+	c := &DeserializeHint{
+		UseLatestVersion:      false,
+		UseLatestWithMetadata: make(map[string]string),
+	}
 
 	return c
 }
