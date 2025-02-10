@@ -193,22 +193,6 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	if err != nil {
 		return nil, err
 	}
-	if s.validate {
-		// Need to unmarshal to pure interface
-		var obj interface{}
-		err = json.Unmarshal(payload[5:], &obj)
-		if err != nil {
-			return nil, err
-		}
-		jschema, err := s.toJSONSchema(s.Client, info)
-		if err != nil {
-			return nil, err
-		}
-		err = jschema.Validate(obj)
-		if err != nil {
-			return nil, err
-		}
-	}
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
@@ -261,6 +245,16 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Read, nil, target, msg)
 	if err != nil {
 		return nil, err
+	}
+	if s.validate {
+		jschema, err := s.toJSONSchema(s.Client, info)
+		if err != nil {
+			return nil, err
+		}
+		err = jschema.Validate(msg)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return msg, nil
 }
