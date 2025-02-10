@@ -408,6 +408,7 @@ func createTestTopic(t *testing.T, suffix string, numPartitions int, replication
 		}
 
 	}
+	time.Sleep(1 * time.Second)
 
 	return topic
 }
