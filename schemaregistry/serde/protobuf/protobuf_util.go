@@ -29,21 +29,6 @@ func transform(ctx serde.RuleContext, descriptor protoreflect.Descriptor, msg in
 	if msg == nil || descriptor == nil {
 		return msg, nil
 	}
-	v := reflect.ValueOf(msg)
-	if v.Kind() == reflect.Slice {
-		var result []interface{}
-		for i := 0; i < v.Len(); i++ {
-			newmsg, err := transform(ctx, descriptor, v.Index(i).Interface(), fieldTransform)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, newmsg)
-		}
-		return result, nil
-	}
-	if v.Kind() == reflect.Map {
-		return msg, nil
-	}
 	m, ok := msg.(proto.Message)
 	if ok {
 		desc := descriptor.(protoreflect.MessageDescriptor)
@@ -60,9 +45,30 @@ func transform(ctx serde.RuleContext, descriptor protoreflect.Descriptor, msg in
 	}
 	fieldCtx := ctx.CurrentField()
 	if fieldCtx != nil {
+		desc := descriptor.(protoreflect.MessageDescriptor)
+		fd := desc.Fields().ByName(protoreflect.Name(fieldCtx.Name))
+		val := msg.(protoreflect.Value)
+
+		// val.Interface() returns a pointer for list and map
+		if reflect.ValueOf(val.Interface()).Kind() == reflect.Pointer {
+			if fd.IsList() {
+				v := val.List()
+				var result []interface{}
+				for i := 0; i < v.Len(); i++ {
+					newmsg, err := transform(ctx, descriptor, v.Get(i), fieldTransform)
+					if err != nil {
+						return nil, err
+					}
+					result = append(result, newmsg)
+				}
+				return result, nil
+			} else if fd.IsMap() {
+				return msg, nil
+			}
+		}
+
 		ruleTags := ctx.Rule.Tags
 		if (len(ruleTags) == 0) || !disjoint(ruleTags, fieldCtx.Tags) {
-			val := msg.(protoreflect.Value)
 			newVal, err := fieldTransform.Transform(ctx, *fieldCtx, val.Interface())
 			if err != nil {
 				return nil, err
@@ -75,9 +81,15 @@ func transform(ctx serde.RuleContext, descriptor protoreflect.Descriptor, msg in
 
 func transformField(ctx serde.RuleContext, fd protoreflect.FieldDescriptor, desc protoreflect.MessageDescriptor,
 	msg interface{}, clone proto.Message, fieldTransform serde.FieldTransform) error {
-	schemaFd := desc.Fields().ByName(fd.Name())
+	name := fd.Name()
+	fullName := fd.FullName()
+	schemaFd := desc.Fields().ByName(name)
 	defer ctx.LeaveField()
-	ctx.EnterField(msg, string(fd.FullName()), string(fd.Name()), getType(fd), getInlineTags(schemaFd))
+	ctx.EnterField(msg, string(fullName), string(name), getType(fd), getInlineTags(schemaFd))
+	if fd.ContainingOneof() != nil && !clone.ProtoReflect().Has(fd) {
+		// skip oneof fields that are not set
+		return nil
+	}
 	value := clone.ProtoReflect().Get(fd)
 	d := desc
 	md, ok := desc.(protoreflect.MessageDescriptor)
@@ -89,17 +101,33 @@ func transformField(ctx serde.RuleContext, fd protoreflect.FieldDescriptor, desc
 	if err != nil {
 		return err
 	}
-	newProtoValue := newValue.(protoreflect.Value)
 	if ctx.Rule.Kind == "CONDITION" {
-		i := newProtoValue.Interface()
-		newBool, ok := i.(bool)
-		if ok && !newBool {
-			return serde.RuleConditionErr{
-				Rule: ctx.Rule,
+		newProtoValue, ok := newValue.(protoreflect.Value)
+		if ok {
+			i := newProtoValue.Interface()
+			newBool, ok := i.(bool)
+			if ok && !newBool {
+				return serde.RuleConditionErr{
+					Rule: ctx.Rule,
+				}
 			}
 		}
 	} else {
-		clone.ProtoReflect().Set(fd, newProtoValue)
+		newProtoValue, ok := newValue.(protoreflect.Value)
+		if ok {
+			clone.ProtoReflect().Set(fd, newProtoValue)
+		} else {
+			if fd.IsList() {
+				newValues := newValue.([]interface{})
+				list := clone.ProtoReflect().NewField(fd).List()
+				for i := 0; i < len(newValues); i++ {
+					list.Append(newValues[i].(protoreflect.Value))
+				}
+				clone.ProtoReflect().Set(fd, protoreflect.ValueOfList(list))
+			} else {
+				clone.ProtoReflect().Set(fd, protoreflect.ValueOf(newValue))
+			}
+		}
 	}
 	return nil
 }
