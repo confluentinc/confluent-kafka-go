@@ -8,6 +8,10 @@ message Author {
   int32 id = 2;
   bytes picture = 3;
   repeated string works = 4;
+  oneof pii_oneof {
+    Pizza oneof_message = 5;
+    string oneof_string = 6;
+  }
 }
 
 message Pizza {

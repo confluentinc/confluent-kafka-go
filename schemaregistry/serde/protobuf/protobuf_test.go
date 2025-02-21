@@ -52,6 +52,10 @@ const (
 		(confluent.field_meta).tags = "PII"
 	 ];
 	 repeated string works = 4;
+     oneof pii_oneof {
+         Pizza oneof_message = 5;
+         string oneof_string = 6 [(.confluent.field_meta).tags = "PII"];
+     }
  }
  
  message Pizza {
@@ -109,9 +113,10 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("Serializer configuration", err)
 
 	obj := test.Author{
-		Name:  "Kafka",
-		Id:    123,
-		Works: []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
@@ -128,9 +133,10 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 
 	// serialize second object
 	obj = test.Author{
-		Name:  "Kierkegaard",
-		Id:    123,
-		Works: []string{"Fear And Trembling"},
+		Name:     "Kierkegaard",
+		Id:       123,
+		Works:    []string{"Fear And Trembling"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 	bytes, err = ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
@@ -331,10 +337,11 @@ func TestProtobufSerdeWithCELCondition(t *testing.T) {
 	}
 
 	obj := test.Author{
-		Name:    "Kafka",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 
 	bytes, err := ser.Serialize("topic1", &obj)
@@ -391,10 +398,11 @@ func TestProtobufSerdeWithCELConditionFail(t *testing.T) {
 	}
 
 	obj := test.Author{
-		Name:    "Kafka",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 
 	_, err = ser.Serialize("topic1", &obj)
@@ -423,7 +431,7 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 		Kind: "TRANSFORM",
 		Mode: "WRITE",
 		Type: "CEL_FIELD",
-		Expr: "name == 'name' ; value + '-suffix'",
+		Expr: "typeName == 'STRING' ; value + '-suffix'",
 	}
 	ruleSet := schemaregistry.RuleSet{
 		DomainRules: []schemaregistry.Rule{encRule},
@@ -442,10 +450,11 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 	}
 
 	obj := test.Author{
-		Name:    "Kafka",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 
 	bytes, err := ser.Serialize("topic1", &obj)
@@ -460,10 +469,11 @@ func TestProtobufSerdeWithCELFieldTransform(t *testing.T) {
 	serde.MaybeFail("register message", err)
 
 	obj2 := test.Author{
-		Name:    "Kafka-suffix",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka-suffix",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle-suffix", "The Trial-suffix"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof-suffix"},
 	}
 
 	newobj, err := deser.Deserialize("topic1", bytes)
@@ -509,10 +519,11 @@ func TestProtobufSerdeWithCELFieldCondition(t *testing.T) {
 	}
 
 	obj := test.Author{
-		Name:    "Kafka",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 
 	bytes, err := ser.Serialize("topic1", &obj)
@@ -569,10 +580,11 @@ func TestProtobufSerdeWithCELFieldConditionFail(t *testing.T) {
 	}
 
 	obj := test.Author{
-		Name:    "Kafka",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 
 	_, err = ser.Serialize("topic1", &obj)
@@ -629,10 +641,11 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	}
 
 	obj := test.Author{
-		Name:    "Kafka",
-		Id:      123,
-		Picture: []byte{1, 2},
-		Works:   []string{"The Castle", "The Trial"},
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
 	}
 
 	bytes, err := ser.Serialize("topic1", &obj)
