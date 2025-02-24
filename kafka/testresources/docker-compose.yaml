@@ -2,11 +2,13 @@ version: '3'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.2
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
 
   zookeeper_auth:
     image: confluentinc/cp-zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2182
       KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/zookeeper/zookeeper_jaas.conf"
@@ -15,6 +17,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.6.2
+    restart: unless-stopped
     depends_on:
       - zookeeper
     ports:
@@ -34,6 +37,7 @@ services:
 
   kafka_auth:
     image: confluentinc/cp-kafka:7.6.2
+    restart: unless-stopped
     depends_on:
       - zookeeper_auth
     ports:
