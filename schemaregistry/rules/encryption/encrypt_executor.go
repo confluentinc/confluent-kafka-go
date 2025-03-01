@@ -424,7 +424,7 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 			return nil, fmt.Errorf("no dek found for %s during produce", f.KekName)
 		}
 	}
-	keyBytes, err := dek.GetKeyMaterialBytes()
+	keyBytes, err := f.Executor.Client.GetKeyMaterialBytes(dek)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +435,7 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 				return nil, err
 			}
 		}
-		encryptedDek, err := dek.GetEncryptedKeyMaterialBytes()
+		encryptedDek, err := f.Executor.Client.GetEncryptedKeyMaterialBytes(dek)
 		if err != nil {
 			return nil, err
 		}
@@ -443,7 +443,7 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 		if err != nil {
 			return nil, err
 		}
-		dek.SetKeyMaterial(rawDek)
+		f.Executor.Client.SetKeyMaterial(dek, rawDek)
 	}
 	return dek, nil
 }
@@ -520,7 +520,7 @@ func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fiel
 		if err != nil {
 			return nil, err
 		}
-		keyMaterialBytes, err := dek.GetKeyMaterialBytes()
+		keyMaterialBytes, err := f.Executor.Client.GetKeyMaterialBytes(dek)
 		if err != nil {
 			return nil, err
 		}
@@ -563,7 +563,7 @@ func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fiel
 		if err != nil {
 			return nil, err
 		}
-		keyMaterialBytes, err := dek.GetKeyMaterialBytes()
+		keyMaterialBytes, err := f.Executor.Client.GetKeyMaterialBytes(dek)
 		if err != nil {
 			return nil, err
 		}
