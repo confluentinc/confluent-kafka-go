@@ -102,6 +102,7 @@ type Dek struct {
 	Ts int64 `json:"ts,omitempty"`
 	// Deleted
 	Deleted bool `json:"deleted,omitempty"`
+	mu      sync.Mutex
 }
 
 // GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
@@ -110,11 +111,15 @@ func (d *Dek) GetEncryptedKeyMaterialBytes() ([]byte, error) {
 		return nil, nil
 	}
 	if d.EncryptedKeyMaterialBytes == nil {
-		bytes, err := base64.StdEncoding.DecodeString(d.EncryptedKeyMaterial)
-		if err != nil {
-			return nil, err
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.EncryptedKeyMaterialBytes == nil {
+			bytes, err := base64.StdEncoding.DecodeString(d.EncryptedKeyMaterial)
+			if err != nil {
+				return nil, err
+			}
+			d.EncryptedKeyMaterialBytes = bytes
 		}
-		d.EncryptedKeyMaterialBytes = bytes
 	}
 	return d.EncryptedKeyMaterialBytes, nil
 }
@@ -125,17 +130,23 @@ func (d *Dek) GetKeyMaterialBytes() ([]byte, error) {
 		return nil, nil
 	}
 	if d.KeyMaterialBytes == nil {
-		bytes, err := base64.StdEncoding.DecodeString(d.KeyMaterial)
-		if err != nil {
-			return nil, err
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.KeyMaterialBytes == nil {
+			bytes, err := base64.StdEncoding.DecodeString(d.KeyMaterial)
+			if err != nil {
+				return nil, err
+			}
+			d.KeyMaterialBytes = bytes
 		}
-		d.KeyMaterialBytes = bytes
 	}
 	return d.KeyMaterialBytes, nil
 }
 
 // SetKeyMaterial sets the KeyMaterial using the given bytes
 func (d *Dek) SetKeyMaterial(keyMaterialBytes []byte) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if keyMaterialBytes != nil {
 		str := base64.StdEncoding.EncodeToString(keyMaterialBytes)
 		d.KeyMaterial = str
