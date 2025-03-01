@@ -162,9 +162,9 @@ type Client interface {
 	GetDek(kekName string, subject string, algorithm string, deleted bool) (dek Dek, err error)
 	RegisterDekVersion(kekName string, subject string, version int, algorithm string, encryptedKeyMaterial string) (dek Dek, err error)
 	GetDekVersion(kekName string, subject string, version int, algorithm string, deleted bool) (dek Dek, err error)
-	GetEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error)
-	GetKeyMaterialBytes(dek *Dek) ([]byte, error)
-	SetKeyMaterial(dek *Dek, keyMaterialBytes []byte)
+	GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error)
+	GetDekKeyMaterialBytes(dek *Dek) ([]byte, error)
+	SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte)
 	Close() error
 }
 
@@ -398,7 +398,7 @@ func (c *client) GetDekVersion(kekName string, subject string, version int, algo
 }
 
 // GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
-func (c *client) GetEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
+func (c *client) GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	if dek.EncryptedKeyMaterial == "" {
 		return nil, nil
 	}
@@ -417,7 +417,7 @@ func (c *client) GetEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
 }
 
 // GetKeyMaterialBytes returns the KeyMaterialBytes
-func (c *client) GetKeyMaterialBytes(dek *Dek) ([]byte, error) {
+func (c *client) GetDekKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	if dek.KeyMaterial == "" {
 		return nil, nil
 	}
@@ -436,7 +436,7 @@ func (c *client) GetKeyMaterialBytes(dek *Dek) ([]byte, error) {
 }
 
 // SetKeyMaterial sets the KeyMaterial using the given bytes
-func (c *client) SetKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
+func (c *client) SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
 	c.dekCacheLock.Lock()
 	defer c.dekCacheLock.Unlock()
 	if keyMaterialBytes != nil {

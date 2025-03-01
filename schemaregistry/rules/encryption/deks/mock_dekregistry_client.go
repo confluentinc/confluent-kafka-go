@@ -182,7 +182,7 @@ func (c *mockclient) GetDekVersion(kekName string, subject string, version int, 
 }
 
 // GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
-func (c *mockclient) GetEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
+func (c *mockclient) GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	if dek.EncryptedKeyMaterial == "" {
 		return nil, nil
 	}
@@ -201,7 +201,7 @@ func (c *mockclient) GetEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
 }
 
 // GetKeyMaterialBytes returns the KeyMaterialBytes
-func (c *mockclient) GetKeyMaterialBytes(dek *Dek) ([]byte, error) {
+func (c *mockclient) GetDekKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	if dek.KeyMaterial == "" {
 		return nil, nil
 	}
@@ -220,7 +220,7 @@ func (c *mockclient) GetKeyMaterialBytes(dek *Dek) ([]byte, error) {
 }
 
 // SetKeyMaterial sets the KeyMaterial using the given bytes
-func (c *mockclient) SetKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
+func (c *mockclient) SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
 	dekCacheLock.Lock()
 	defer dekCacheLock.Unlock()
 	if keyMaterialBytes != nil {
