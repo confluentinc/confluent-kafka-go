@@ -104,46 +104,6 @@ type Dek struct {
 	Deleted bool `json:"deleted,omitempty"`
 }
 
-// GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
-func (d *Dek) GetEncryptedKeyMaterialBytes() ([]byte, error) {
-	if d.EncryptedKeyMaterial == "" {
-		return nil, nil
-	}
-	if d.EncryptedKeyMaterialBytes == nil {
-		bytes, err := base64.StdEncoding.DecodeString(d.EncryptedKeyMaterial)
-		if err != nil {
-			return nil, err
-		}
-		d.EncryptedKeyMaterialBytes = bytes
-	}
-	return d.EncryptedKeyMaterialBytes, nil
-}
-
-// GetKeyMaterialBytes returns the KeyMaterialBytes
-func (d *Dek) GetKeyMaterialBytes() ([]byte, error) {
-	if d.KeyMaterial == "" {
-		return nil, nil
-	}
-	if d.KeyMaterialBytes == nil {
-		bytes, err := base64.StdEncoding.DecodeString(d.KeyMaterial)
-		if err != nil {
-			return nil, err
-		}
-		d.KeyMaterialBytes = bytes
-	}
-	return d.KeyMaterialBytes, nil
-}
-
-// SetKeyMaterial sets the KeyMaterial using the given bytes
-func (d *Dek) SetKeyMaterial(keyMaterialBytes []byte) {
-	if keyMaterialBytes != nil {
-		str := base64.StdEncoding.EncodeToString(keyMaterialBytes)
-		d.KeyMaterial = str
-	} else {
-		d.KeyMaterial = ""
-	}
-}
-
 // CreateDekRequest represents a request to create a dek
 type CreateDekRequest struct {
 	// Subject
@@ -202,6 +162,9 @@ type Client interface {
 	GetDek(kekName string, subject string, algorithm string, deleted bool) (dek Dek, err error)
 	RegisterDekVersion(kekName string, subject string, version int, algorithm string, encryptedKeyMaterial string) (dek Dek, err error)
 	GetDekVersion(kekName string, subject string, version int, algorithm string, deleted bool) (dek Dek, err error)
+	GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error)
+	GetDekKeyMaterialBytes(dek *Dek) ([]byte, error)
+	SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte)
 	Close() error
 }
 
@@ -432,6 +395,56 @@ func (c *client) GetDekVersion(kekName string, subject string, version int, algo
 	}
 	c.dekCacheLock.Unlock()
 	return dek, err
+}
+
+// GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
+func (c *client) GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
+	if dek.EncryptedKeyMaterial == "" {
+		return nil, nil
+	}
+	if dek.EncryptedKeyMaterialBytes == nil {
+		c.dekCacheLock.Lock()
+		defer c.dekCacheLock.Unlock()
+		if dek.EncryptedKeyMaterialBytes == nil {
+			bytes, err := base64.StdEncoding.DecodeString(dek.EncryptedKeyMaterial)
+			if err != nil {
+				return nil, err
+			}
+			dek.EncryptedKeyMaterialBytes = bytes
+		}
+	}
+	return dek.EncryptedKeyMaterialBytes, nil
+}
+
+// GetKeyMaterialBytes returns the KeyMaterialBytes
+func (c *client) GetDekKeyMaterialBytes(dek *Dek) ([]byte, error) {
+	if dek.KeyMaterial == "" {
+		return nil, nil
+	}
+	if dek.KeyMaterialBytes == nil {
+		c.dekCacheLock.Lock()
+		defer c.dekCacheLock.Unlock()
+		if dek.KeyMaterialBytes == nil {
+			bytes, err := base64.StdEncoding.DecodeString(dek.KeyMaterial)
+			if err != nil {
+				return nil, err
+			}
+			dek.KeyMaterialBytes = bytes
+		}
+	}
+	return dek.KeyMaterialBytes, nil
+}
+
+// SetKeyMaterial sets the KeyMaterial using the given bytes
+func (c *client) SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
+	c.dekCacheLock.Lock()
+	defer c.dekCacheLock.Unlock()
+	if keyMaterialBytes != nil {
+		str := base64.StdEncoding.EncodeToString(keyMaterialBytes)
+		dek.KeyMaterial = str
+	} else {
+		dek.KeyMaterial = ""
+	}
 }
 
 // Close closes the client
