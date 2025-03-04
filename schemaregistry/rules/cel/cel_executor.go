@@ -18,6 +18,7 @@ package cel
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/google/cel-go/cel"
@@ -132,7 +133,7 @@ func (c *Executor) executeRule(ctx serde.RuleContext, expr string, obj interface
 		c.cache[string(ruleJSON)] = program
 		c.cacheLock.Unlock()
 	}
-	return c.eval(program, args)
+	return c.eval(expr, program, args)
 }
 
 func toDecls(args map[string]interface{}) []cel.EnvOption {
@@ -224,10 +225,10 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 	return prg, nil
 }
 
-func (c *Executor) eval(program cel.Program, args map[string]interface{}) (interface{}, error) {
+func (c *Executor) eval(expr string, program cel.Program, args map[string]interface{}) (interface{}, error) {
 	out, _, err := program.Eval(args)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("CEL expr %s failed: %w", expr, err)
 	}
 	if out.Type() == types.ErrType {
 		return nil, out.Value().(error)

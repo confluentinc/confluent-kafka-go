@@ -81,7 +81,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
+	deserConfig := avrov2.NewDeserializerConfig()
+	// KMS properties can be passed as follows
+	//deserConfig.RuleConfig = map[string]string{
+	//	"secret.access.key": "xxx",
+	//	"access.key,id": "xxx",
+	//}
+
+	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, deserConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

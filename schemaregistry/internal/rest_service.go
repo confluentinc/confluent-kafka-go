@@ -69,8 +69,8 @@ const (
 	Keks          = "/dek-registry/v1/keks"
 	KekByName     = Keks + "/%s?deleted=%t"
 	Deks          = Keks + "/%s/deks"
-	DeksBySubject = Deks + "/%s?deleted=%t"
-	DeksByVersion = Deks + "/%s/versions/%v?deleted=%t"
+	DeksBySubject = Deks + "/%s?algorithm=%s&deleted=%t"
+	DeksByVersion = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
@@ -378,24 +378,29 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 		return nil, err
 	}
 
-	var readCloser io.ReadCloser
+	var outbuf []byte
 	if request.body != nil {
-		outbuf, err := json.Marshal(request.body)
+		outbuf, err = json.Marshal(request.body)
 		if err != nil {
 			return nil, err
 		}
-		readCloser = ioutil.NopCloser(bytes.NewBuffer(outbuf))
-	}
-
-	req := &http.Request{
-		Method: request.method,
-		URL:    endpoint,
-		Body:   readCloser,
-		Header: rs.headers,
 	}
 
 	var resp *http.Response
 	for i := 0; i < rs.maxRetries+1; i++ {
+
+		var readCloser io.ReadCloser
+		if outbuf != nil {
+			readCloser = ioutil.NopCloser(bytes.NewBuffer(outbuf))
+		}
+
+		req := &http.Request{
+			Method: request.method,
+			URL:    endpoint,
+			Body:   readCloser,
+			Header: rs.headers,
+		}
+
 		resp, err = rs.Do(req)
 		if err != nil {
 			return nil, err
