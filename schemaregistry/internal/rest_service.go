@@ -378,28 +378,25 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 		return nil, err
 	}
 
-	var outbuf []byte
+	var outbuf io.Reader
 	if request.body != nil {
-		outbuf, err = json.Marshal(request.body)
+		body, err := json.Marshal(request.body)
 		if err != nil {
 			return nil, err
 		}
+		outbuf = bytes.NewBuffer(body)
 	}
 
+	var req *http.Request
 	var resp *http.Response
 	for i := 0; i < rs.maxRetries+1; i++ {
 
-		var readCloser io.ReadCloser
-		if outbuf != nil {
-			readCloser = ioutil.NopCloser(bytes.NewBuffer(outbuf))
-		}
-
-		req := &http.Request{
-			Method: request.method,
-			URL:    endpoint,
-			Body:   readCloser,
-			Header: rs.headers,
-		}
+		req, err = http.NewRequest(
+			request.method,
+			endpoint.String(),
+			outbuf,
+		)
+		req.Header = rs.headers
 
 		resp, err = rs.Do(req)
 		if err != nil {
