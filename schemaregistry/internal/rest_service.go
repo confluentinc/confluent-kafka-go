@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -372,8 +373,12 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 // HandleHTTPRequest sends a HTTP(S) request to the Schema Registry, placing results into the response object
 func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Response, error) {
 	urlPath := path.Join(url.Path, fmt.Sprintf(request.endpoint, request.arguments...))
+	endpoint, err := url.Parse(urlPath)
+	if err != nil {
+		return nil, err
+	}
 
-	var outbuf *bytes.Buffer
+	var outbuf io.Reader
 	if request.body != nil {
 		body, err := json.Marshal(request.body)
 		if err != nil {
@@ -387,7 +392,7 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 		req, err := http.NewRequest(
 			request.method,
-			urlPath,
+			endpoint.String(),
 			outbuf,
 		)
 		req.Header = rs.headers
