@@ -387,10 +387,11 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 		outbuf = bytes.NewBuffer(body)
 	}
 
+	var req *http.Request
 	var resp *http.Response
 	for i := 0; i < rs.maxRetries+1; i++ {
 
-		req, err := http.NewRequest(
+		req, err = http.NewRequest(
 			request.method,
 			endpoint.String(),
 			outbuf,
