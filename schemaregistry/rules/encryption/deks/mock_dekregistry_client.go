@@ -17,6 +17,7 @@
 package deks
 
 import (
+	"encoding/base64"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"net/url"
@@ -178,6 +179,56 @@ func (c *mockclient) GetDekVersion(kekName string, subject string, version int, 
 		Message: "Key Not Found",
 	}
 	return Dek{}, &posErr
+}
+
+// GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
+func (c *mockclient) GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
+	if dek.EncryptedKeyMaterial == "" {
+		return nil, nil
+	}
+	if dek.EncryptedKeyMaterialBytes == nil {
+		dekCacheLock.Lock()
+		defer dekCacheLock.Unlock()
+		if dek.EncryptedKeyMaterialBytes == nil {
+			bytes, err := base64.StdEncoding.DecodeString(dek.EncryptedKeyMaterial)
+			if err != nil {
+				return nil, err
+			}
+			dek.EncryptedKeyMaterialBytes = bytes
+		}
+	}
+	return dek.EncryptedKeyMaterialBytes, nil
+}
+
+// GetKeyMaterialBytes returns the KeyMaterialBytes
+func (c *mockclient) GetDekKeyMaterialBytes(dek *Dek) ([]byte, error) {
+	if dek.KeyMaterial == "" {
+		return nil, nil
+	}
+	if dek.KeyMaterialBytes == nil {
+		dekCacheLock.Lock()
+		defer dekCacheLock.Unlock()
+		if dek.KeyMaterialBytes == nil {
+			bytes, err := base64.StdEncoding.DecodeString(dek.KeyMaterial)
+			if err != nil {
+				return nil, err
+			}
+			dek.KeyMaterialBytes = bytes
+		}
+	}
+	return dek.KeyMaterialBytes, nil
+}
+
+// SetKeyMaterial sets the KeyMaterial using the given bytes
+func (c *mockclient) SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
+	dekCacheLock.Lock()
+	defer dekCacheLock.Unlock()
+	if keyMaterialBytes != nil {
+		str := base64.StdEncoding.EncodeToString(keyMaterialBytes)
+		dek.KeyMaterial = str
+	} else {
+		dek.KeyMaterial = ""
+	}
 }
 
 // Close closes the client
