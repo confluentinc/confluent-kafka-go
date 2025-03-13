@@ -22,6 +22,8 @@ type SerializerConfig struct {
 	AutoRegisterSchemas bool
 	// UseSchemaID specifies a schema ID to use during serialization
 	UseSchemaID int
+	// UseVersion specifies a specific schema version to use during serialization
+	UseSpecificVersion int
 	// UseLatestVersion specifies whether to use the latest schema version during serialization
 	UseLatestVersion bool
 	// UseLatestWithMetadata specifies whether to use the latest schema with metadata during serialization
@@ -38,6 +40,7 @@ func NewSerializerConfig() *SerializerConfig {
 
 	c.AutoRegisterSchemas = true
 	c.UseSchemaID = -1
+	c.UseSpecificVersion = -1
 	c.UseLatestVersion = false
 	c.NormalizeSchemas = false
 
