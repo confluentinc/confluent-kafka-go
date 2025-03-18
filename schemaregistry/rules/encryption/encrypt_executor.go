@@ -459,7 +459,7 @@ func (f *FieldEncryptionExecutorTransform) createDek(dekID deks.DekID, newVersio
 		}
 	}
 	if dek == nil {
-		return nil, fmt.Errorf("no dek found for %s during produce", f.KekName)
+		return nil, fmt.Errorf("no dek found for %s during produce", dekID.KekName)
 	}
 	return dek, nil
 }
