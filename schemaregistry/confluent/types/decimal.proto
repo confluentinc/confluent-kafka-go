@@ -9,7 +9,7 @@ message Decimal {
   // The two's-complement representation of the unscaled integer value in big-endian byte order
   bytes value = 1;
 
-  // The precision
+  // The precision (zero indicates unlimited precision)
   uint32 precision = 2;
 
   // The scale
