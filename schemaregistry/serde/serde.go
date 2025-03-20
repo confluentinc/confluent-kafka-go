@@ -707,12 +707,12 @@ func (s *Serde) runAction(ctx RuleContext, ruleMode schemaregistry.RuleMode, rul
 	}
 	ruleAction := s.getRuleAction(ctx, *actionName)
 	if ruleAction == nil {
-		log.Printf("could not find rule action of type %s", *actionName)
+		log.Printf("could not find rule action of type %s\n", *actionName)
 		return fmt.Errorf("could not find rule action of type %s", *actionName)
 	}
 	e := ruleAction.Run(ctx, msg, err)
 	if e != nil {
-		log.Printf("WARN: could not run post-rule action %s: %v", *actionName, e)
+		log.Printf("WARN: could not run post-rule action %s: %v\n", *actionName, e)
 		return e
 	}
 	return nil
