@@ -13,6 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.10
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.10
 	github.com/aws/aws-sdk-go-v2/service/kms v1.30.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6
 	github.com/golang/protobuf v1.5.4
 	github.com/google/cel-go v0.20.1
 	github.com/google/uuid v1.6.0
@@ -22,7 +23,7 @@ require (
 	github.com/invopop/jsonschema v0.12.0
 	github.com/jhump/protoreflect v1.15.6
 	github.com/modern-go/reflect2 v1.0.2
-	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
 	github.com/stretchr/testify v1.9.0
 	github.com/testcontainers/testcontainers-go/modules/compose v0.33.0
 	github.com/tink-crypto/tink-go-gcpkms/v2 v2.1.0
@@ -57,7 +58,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6 // indirect
 	github.com/aws/smithy-go v1.20.2 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

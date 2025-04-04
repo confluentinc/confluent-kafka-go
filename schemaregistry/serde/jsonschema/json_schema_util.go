@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
+	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v6"
 	"reflect"
 )
 

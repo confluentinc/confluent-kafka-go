@@ -29,7 +29,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/invopop/jsonschema"
-	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
+	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 const (
