@@ -85,6 +85,19 @@ type ClientConfig struct {
 	HTTPClient *http.Client
 }
 
+// stringSlicesEqual compares two string slices for equality
+func stringSlicesEqual(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ConfigsEqual compares two configurations for approximate equality
 func ConfigsEqual(c1 *ClientConfig, c2 *ClientConfig) bool {
 	return c1.SchemaRegistryURL == c2.SchemaRegistryURL &&
@@ -97,6 +110,11 @@ func ConfigsEqual(c1 *ClientConfig, c2 *ClientConfig) bool {
 		c1.BearerAuthCredentialsSource == c2.BearerAuthCredentialsSource &&
 		c1.BearerAuthLogicalCluster == c2.BearerAuthLogicalCluster &&
 		c1.BearerAuthIdentityPoolID == c2.BearerAuthIdentityPoolID &&
+		c1.BearerAuthIssuerEndpointURL == c2.BearerAuthIssuerEndpointURL &&
+		c1.BearerAuthClientID == c2.BearerAuthClientID &&
+		c1.BearerAuthClientSecret == c2.BearerAuthClientSecret &&
+		stringSlicesEqual(c1.BearerAuthScopes, c2.BearerAuthScopes) &&
+		c1.AuthenticationHeaderProvider == c2.AuthenticationHeaderProvider &&
 		c1.SslCertificateLocation == c2.SslCertificateLocation &&
 		c1.SslKeyLocation == c2.SslKeyLocation &&
 		c1.SslCaLocation == c2.SslCaLocation &&
