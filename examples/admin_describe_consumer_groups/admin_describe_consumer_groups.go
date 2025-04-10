@@ -76,10 +76,11 @@ func main() {
 			"IsSimpleConsumerGroup: %v\n"+
 			"PartitionAssignor: %s\n"+
 			"State: %s\n"+
+			"Type: %s\n"+
 			"Coordinator: %+v\n"+
 			"Members: %+v\n",
 			g.GroupID, g.Error, g.IsSimpleConsumerGroup, g.PartitionAssignor,
-			g.State, g.Coordinator, g.Members)
+			g.State, g.Type, g.Coordinator, g.Members)
 		if includeAuthorizedOperations {
 			fmt.Printf("Allowed operations: %s\n", g.AuthorizedOperations)
 		}
