@@ -494,13 +494,13 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 	return nil, fmt.Errorf("failed to send request after %d retries", rs.maxRetries)
 }
 
-func fullJitter(retriesAttempted, ceilingRetries, maxWaitMs, baseWaitMs int) time.Duration {
+func fullJitter(retriesAttempted, ceilingRetries, retriesMaxWaitMs, retriesWaitMs int) time.Duration {
 	if retriesAttempted > ceilingRetries {
-		return time.Duration(maxWaitMs) * time.Millisecond
+		return time.Duration(retriesMaxWaitMs) * time.Millisecond
 	}
 	b := rand.Float64()
 	ri := int64(1 << uint64(retriesAttempted))
-	delayMs := b * float64(ri) * float64(baseWaitMs)
+	delayMs := b * float64(ri) * float64(retriesWaitMs)
 	return time.Duration(delayMs) * time.Millisecond
 }
 
