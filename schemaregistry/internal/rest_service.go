@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 // Relative Confluent Schema Registry REST API endpoints as described in the Confluent documentation
@@ -112,12 +113,13 @@ func NewRequest(method string, endpoint string, body interface{}, arguments ...i
 
 // RestService represents a REST client
 type RestService struct {
-	urls             []*url.URL
-	headers          http.Header
-	maxRetries       int
-	retriesWaitMs    int
-	retriesMaxWaitMs int
-	ceilingRetries   int
+	urls                         []*url.URL
+	headers                      http.Header
+	maxRetries                   int
+	retriesWaitMs                int
+	retriesMaxWaitMs             int
+	ceilingRetries               int
+	authenticationHeaderProvider AuthenticationHeaderProvider
 	*http.Client
 }
 
@@ -139,7 +141,7 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 		return nil, err
 	}
 
-	headers.Add("Content-Type", "application/vnd.schemaregistry.v1+json")
+	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
 
 	if conf.HTTPClient == nil {
 		transport, err := configureTransport(conf)
@@ -155,14 +157,73 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 		}
 	}
 
+	var authenticationHeaderProvider AuthenticationHeaderProvider = nil
+
+	if conf.BearerAuthCredentialsSource == "OAUTHBEARER" {
+		if conf.AuthenticationHeaderProvider != nil {
+			return nil, fmt.Errorf("cannot have bearer.auth.credentials.source oauthbearer " +
+				"with custom authentication header provider")
+		}
+
+		if conf.BearerAuthIssuerEndpointURL == "" {
+			return nil, fmt.Errorf("bearer.auth.issuer.endpoint.url must be specified when bearer.auth.credentials.source is" +
+				" specified with OAUTHBEARER")
+		}
+
+		if conf.BearerAuthClientID == "" {
+			return nil, fmt.Errorf("bearer.auth.client.id must be specified when bearer.auth.credentials.source is" +
+				" specified with OAUTHBEARER")
+		}
+
+		if conf.BearerAuthClientSecret == "" {
+			return nil, fmt.Errorf("bearer.auth.client.secret must be specified when bearer.auth.credentials.source is" +
+				" specified with OAUTHBEARER")
+		}
+
+		if len(conf.BearerAuthScopes) == 0 {
+			return nil, fmt.Errorf("bearer.auth.scopes must be specified when bearer.auth.credentials.source is" +
+				" specified with OAUTHBEARER")
+		}
+		//TODO: For major version release, lsrc + identity pool id should be required for static token as well
+		if conf.BearerAuthLogicalCluster == "" {
+			return nil, fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
+				" specified with OAUTHBEARER")
+		}
+
+		if conf.BearerAuthIdentityPoolID == "" {
+			return nil, fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
+				" specified with OAUTHBEARER")
+		}
+
+		tokenFetcher := &clientcredentials.Config{
+			ClientID:     conf.BearerAuthClientID,
+			ClientSecret: conf.BearerAuthClientSecret,
+			TokenURL:     conf.BearerAuthIssuerEndpointURL,
+			Scopes:       conf.BearerAuthScopes,
+		}
+		authenticationHeaderProvider = NewBearerTokenAuthenticationHeaderProvider(
+			tokenFetcher,
+			conf.MaxRetries,
+			conf.RetriesWaitMs,
+			conf.RetriesMaxWaitMs,
+		)
+	} else if conf.BearerAuthCredentialsSource == "CUSTOM" {
+		if conf.AuthenticationHeaderProvider == nil {
+			return nil, fmt.Errorf("cannot have bearer.auth.credentials.source custom " +
+				"with no custom authentication header provider")
+		}
+		authenticationHeaderProvider = conf.AuthenticationHeaderProvider
+	}
+
 	return &RestService{
-		urls:             urls,
-		headers:          headers,
-		maxRetries:       conf.MaxRetries,
-		retriesWaitMs:    conf.RetriesWaitMs,
-		retriesMaxWaitMs: conf.RetriesMaxWaitMs,
-		ceilingRetries:   int(math.Log2(float64(conf.RetriesMaxWaitMs) / float64(conf.RetriesWaitMs))),
-		Client:           conf.HTTPClient,
+		urls:                         urls,
+		headers:                      headers,
+		maxRetries:                   conf.MaxRetries,
+		retriesWaitMs:                conf.RetriesWaitMs,
+		retriesMaxWaitMs:             conf.RetriesMaxWaitMs,
+		ceilingRetries:               int(math.Log2(float64(conf.RetriesMaxWaitMs) / float64(conf.RetriesWaitMs))),
+		Client:                       conf.HTTPClient,
+		authenticationHeaderProvider: authenticationHeaderProvider,
 	}, nil
 }
 
@@ -267,7 +328,6 @@ func configureUSERINFOAuth(conf *ClientConfig, header http.Header) error {
 
 	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(auth)))
 	return nil
-
 }
 
 func configureStaticTokenAuth(conf *ClientConfig, header http.Header) error {
@@ -281,7 +341,21 @@ func configureStaticTokenAuth(conf *ClientConfig, header http.Header) error {
 	return nil
 }
 
-func setBearerAuthExtraHeaders(conf *ClientConfig, header http.Header) {
+func configureBearerAuth(conf *ClientConfig, header http.Header) error {
+	if len(conf.BearerAuthIdentityPoolID) == 0 {
+		return fmt.Errorf("config bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
+			" specified with OAUTHBEARER")
+	}
+
+	if len(conf.BearerAuthLogicalCluster) == 0 {
+		return fmt.Errorf("config bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
+			" specified with OAUTHBEARER")
+	}
+
+	return setBearerAuthExtraHeaders(conf, header)
+}
+
+func setBearerAuthExtraHeaders(conf *ClientConfig, header http.Header) error {
 	targetIdentityPoolID := conf.BearerAuthIdentityPoolID
 	if len(targetIdentityPoolID) > 0 {
 		header.Add(TargetIdentityPoolIDKey, targetIdentityPoolID)
@@ -291,6 +365,8 @@ func setBearerAuthExtraHeaders(conf *ClientConfig, header http.Header) {
 	if len(targetSr) > 0 {
 		header.Add(TargetSRClusterKey, targetSr)
 	}
+
+	return nil
 }
 
 // NewAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
@@ -324,12 +400,10 @@ func NewAuthHeader(service *url.URL, conf *ClientConfig) (http.Header, error) {
 		switch strings.ToUpper(bearerSource) {
 		case "STATIC_TOKEN":
 			err = configureStaticTokenAuth(conf, header)
-		//case "OAUTHBEARER":
-		//	err = configureOauthBearerAuth(conf, header)
-		//case "SASL_OAUTHBEARER_INHERIT":
-		//	err = configureSASLOauth()
-		//case "CUSTOM":
-		//	err = configureCustomOauth(conf, header)
+		case "OAUTHBEARER":
+			err = configureBearerAuth(conf, header)
+		case "CUSTOM":
+			err = nil
 		default:
 			err = fmt.Errorf("unrecognized value for bearer.auth.credentials.source %s", bearerSource)
 		}
@@ -389,6 +463,14 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 	var req *http.Request
 	var resp *http.Response
+
+	if rs.authenticationHeaderProvider != nil {
+		err = rs.authenticationHeaderProvider.SetAuthenticationHeaders(&rs.headers)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	for i := 0; i < rs.maxRetries+1; i++ {
 
 		req, err = http.NewRequest(
@@ -407,18 +489,18 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 			return resp, nil
 		}
 
-		time.Sleep(rs.fullJitter(i))
+		time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
 	}
 	return nil, fmt.Errorf("failed to send request after %d retries", rs.maxRetries)
 }
 
-func (rs *RestService) fullJitter(retriesAttempted int) time.Duration {
-	if retriesAttempted > rs.ceilingRetries {
-		return time.Duration(rs.retriesMaxWaitMs) * time.Millisecond
+func fullJitter(retriesAttempted, ceilingRetries, maxWaitMs, baseWaitMs int) time.Duration {
+	if retriesAttempted > ceilingRetries {
+		return time.Duration(maxWaitMs) * time.Millisecond
 	}
 	b := rand.Float64()
 	ri := int64(1 << uint64(retriesAttempted))
-	delayMs := b * float64(ri) * float64(rs.retriesWaitMs)
+	delayMs := b * float64(ri) * float64(baseWaitMs)
 	return time.Duration(delayMs) * time.Millisecond
 }
 

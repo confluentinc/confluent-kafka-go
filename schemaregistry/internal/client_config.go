@@ -45,6 +45,16 @@ type ClientConfig struct {
 	BearerAuthLogicalCluster string
 	// BearerAuthIdentityPoolID specifies the identity pool ID. It is required for Confluent Cloud Schema Registry
 	BearerAuthIdentityPoolID string
+	// BearerAuthIssuerEndpointURL specifies the issuer endpoint URL for OAuth Bearer Token authentication.
+	BearerAuthIssuerEndpointURL string
+	// BearerAuthClientID specifies the client ID for OAuth Bearer Token authentication.
+	BearerAuthClientID string
+	// BearerAuthClientSecret specifies the client secret for OAuth Bearer Token authentication.
+	BearerAuthClientSecret string
+	// BearerAuthScopes specifies the scopes for OAuth Bearer Token authentication.
+	BearerAuthScopes []string
+	// AuthenticationHeaderProvider specifies a custom authentication header provider.
+	AuthenticationHeaderProvider AuthenticationHeaderProvider
 
 	// SslCertificateLocation specifies the location of SSL certificates.
 	SslCertificateLocation string
