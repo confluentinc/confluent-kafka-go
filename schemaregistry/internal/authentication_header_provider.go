@@ -29,14 +29,17 @@ import (
 
 const tokenExpiryThreshold = 0.8
 
+// AuthenticationHeaderProvider is an interface that provides a method to set authentication headers.
 type AuthenticationHeaderProvider interface {
 	SetAuthenticationHeaders(header *http.Header) error
 }
 
+// TokenFetcher is an interface that provides a method to fetch a token
 type TokenFetcher interface {
 	Token(ctx context.Context) (*oauth2.Token, error)
 }
 
+// BearerTokenAuthenticationHeaderProvider is a struct that implements the AuthenticationHeaderProvider interface
 type BearerTokenAuthenticationHeaderProvider struct {
 	maxRetries       int
 	retriesWaitMs    int
@@ -48,6 +51,7 @@ type BearerTokenAuthenticationHeaderProvider struct {
 	tokenLock        sync.RWMutex
 }
 
+// NewBearerTokenAuthenticationHeaderProvider creates a new BearerTokenAuthenticationHeaderProvider
 func NewBearerTokenAuthenticationHeaderProvider(
 	client TokenFetcher,
 	maxRetries int,
@@ -65,6 +69,7 @@ func NewBearerTokenAuthenticationHeaderProvider(
 	}
 }
 
+// GetToken returns an up-to-date token if it is still valid, otherwise it generates a new token
 func (p *BearerTokenAuthenticationHeaderProvider) GetToken() (string, error) {
 	p.tokenLock.RLock()
 	if time.Now().Before(p.expiry) {
@@ -90,6 +95,7 @@ func (p *BearerTokenAuthenticationHeaderProvider) GetToken() (string, error) {
 	return p.token.AccessToken, nil
 }
 
+// GenerateToken generates a new token and updates the provider's token and expiry
 func (p *BearerTokenAuthenticationHeaderProvider) GenerateToken() error {
 	ctx := context.Background()
 
@@ -111,6 +117,8 @@ func (p *BearerTokenAuthenticationHeaderProvider) GenerateToken() error {
 	return fmt.Errorf("failed to generate token after %d retries", p.maxRetries)
 }
 
+// SetAuthenticationHeaders sets the Authorization header on the given http.Header using the current token
+// and returns an error if the token cannot be fetched or the header cannot be set.
 func (p *BearerTokenAuthenticationHeaderProvider) SetAuthenticationHeaders(header *http.Header) error {
 	token, err := p.GetToken()
 	if err != nil {
