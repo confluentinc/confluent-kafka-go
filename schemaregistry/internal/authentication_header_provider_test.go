@@ -10,8 +10,8 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 )
 
-var tokenUrl = "test-url"
-var clientId = "client-id"
+var tokenURL = "test-url"
+var clientID = "client-id"
 var clientSecret = "client-secret"
 var scopes = []string{"schema_registry"}
 
@@ -43,9 +43,9 @@ var retriesMaxWaitMs = 5000
 
 func TestSetAuthenticationHeaders(t *testing.T) {
 	client := &clientcredentials.Config{
-		ClientID:     clientId,
+		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		TokenURL:     tokenUrl,
+		TokenURL:     tokenURL,
 		Scopes:       scopes,
 	}
 	provider := NewBearerTokenAuthenticationHeaderProvider(
@@ -75,9 +75,9 @@ func TestSetAuthenticationHeaders(t *testing.T) {
 
 func TestGenerateToken(t *testing.T) {
 	client := &clientcredentials.Config{
-		ClientID:     clientId,
+		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		TokenURL:     tokenUrl,
+		TokenURL:     tokenURL,
 		Scopes:       scopes,
 	}
 	provider := NewBearerTokenAuthenticationHeaderProvider(
