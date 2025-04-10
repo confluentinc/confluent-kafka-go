@@ -303,8 +303,6 @@ func TestClient(t *testing.T) {
 	}
 }
 
-// func TestBearerAuthOAuthbearerConfig(t *testing.T) {
-
 func init() {
 	if !testconfRead() {
 		log.Print("WARN: Missing testconf.json, using mock client")
