@@ -73,25 +73,6 @@ func TestSetAuthenticationHeaders(t *testing.T) {
 	}
 }
 
-func TestGenerateToken(t *testing.T) {
-	client := &clientcredentials.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		TokenURL:     tokenURL,
-		Scopes:       scopes,
-	}
-	provider := NewBearerTokenAuthenticationHeaderProvider(
-		client,
-		maxRetries,
-		retriesWaitMs,
-		retriesMaxWaitMs,
-	)
-	err := provider.GenerateToken()
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-}
-
 func TestBearerTokenAuthenticationHeaderProviderWithMock(t *testing.T) {
 	// Create a mock client that returns a test token
 	mockClient := &clientcredentials.Config{
