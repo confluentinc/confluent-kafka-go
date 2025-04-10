@@ -341,20 +341,6 @@ func configureStaticTokenAuth(conf *ClientConfig, header http.Header) error {
 	return nil
 }
 
-func configureBearerAuth(conf *ClientConfig, header http.Header) error {
-	if len(conf.BearerAuthIdentityPoolID) == 0 {
-		return fmt.Errorf("config bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
-			" specified with OAUTHBEARER")
-	}
-
-	if len(conf.BearerAuthLogicalCluster) == 0 {
-		return fmt.Errorf("config bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
-			" specified with OAUTHBEARER")
-	}
-
-	return setBearerAuthExtraHeaders(conf, header)
-}
-
 func setBearerAuthExtraHeaders(conf *ClientConfig, header http.Header) error {
 	targetIdentityPoolID := conf.BearerAuthIdentityPoolID
 	if len(targetIdentityPoolID) > 0 {
@@ -401,7 +387,7 @@ func NewAuthHeader(service *url.URL, conf *ClientConfig) (http.Header, error) {
 		case "STATIC_TOKEN":
 			err = configureStaticTokenAuth(conf, header)
 		case "OAUTHBEARER":
-			err = configureBearerAuth(conf, header)
+			err = setBearerAuthExtraHeaders(conf, header)
 		case "CUSTOM":
 			err = nil
 		default:

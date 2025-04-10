@@ -124,7 +124,7 @@ func (p *BearerTokenAuthenticationHeaderProvider) SetAuthenticationHeaders(heade
 	if err != nil {
 		return err
 	}
-	fmt.Println("token", token)
+
 	header.Set("Authorization", "Bearer "+token)
 	return nil
 }

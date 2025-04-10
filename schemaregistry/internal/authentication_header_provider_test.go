@@ -10,43 +10,22 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 )
 
-var tokenURL = "test-url"
-var clientID = "client-id"
-var clientSecret = "client-secret"
-var scopes = []string{"schema_registry"}
+var testTokenURL = "test-url"
+var testClientID = "client-id"
+var testClientSecret = "client-secret"
+var testScopes = []string{"schema_registry"}
+var testToken = "test-token"
 
 var maxRetries = 3
 var retriesWaitMs = 1000
 var retriesMaxWaitMs = 5000
 
-// func TestBearerTokenAuthenticationHeaderProvider(t *testing.T) {
-
-// 	client := &clientcredentials.Config{
-// 		ClientID:     clientId,
-// 		ClientSecret: clientSecret,
-// 		TokenURL:     tokenUrl,
-// 		Scopes:       scopes,
-// 	}
-
-// 	provider := NewBearerTokenAuthenticationHeaderProvider(
-// 		client,
-// 		maxRetries,
-// 		retriesWaitMs,
-// 		retriesMaxWaitMs,
-// 	)
-// 	token, err := provider.GetToken()
-// 	if err != nil {
-// 		t.Fatalf("Expected no error, got %v", err)
-// 	}
-// 	fmt.Println("token", token)
-// }
-
 func TestSetAuthenticationHeaders(t *testing.T) {
 	client := &clientcredentials.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		TokenURL:     tokenURL,
-		Scopes:       scopes,
+		ClientID:     testClientID,
+		ClientSecret: testClientSecret,
+		TokenURL:     testTokenURL,
+		Scopes:       testScopes,
 	}
 	provider := NewBearerTokenAuthenticationHeaderProvider(
 		client,
@@ -56,7 +35,7 @@ func TestSetAuthenticationHeaders(t *testing.T) {
 	)
 
 	token := oauth2.Token{
-		AccessToken: "test-token",
+		AccessToken: testToken,
 		Expiry:      time.Now().Add(time.Hour * 1),
 	}
 	provider.token = &token
@@ -68,23 +47,23 @@ func TestSetAuthenticationHeaders(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if headers.Get("Authorization") != "Bearer test-token" {
-		t.Errorf("Expected Authorization header to be 'Bearer test-token', got '%s'", headers.Get("Authorization"))
+	if headers.Get("Authorization") != "Bearer "+testToken {
+		t.Errorf("Expected Authorization header to be %s, got '%s'", "Bearer "+testToken, headers.Get("Authorization"))
 	}
 }
 
 func TestBearerTokenAuthenticationHeaderProviderWithMock(t *testing.T) {
 	// Create a mock client that returns a test token
 	mockClient := &clientcredentials.Config{
-		ClientID:     "mock-client-id",
-		ClientSecret: "mock-client-secret",
-		TokenURL:     "https://mock-token-url.com",
-		Scopes:       []string{"mock_scope"},
+		ClientID:     testClientID,
+		ClientSecret: testClientSecret,
+		TokenURL:     testTokenURL,
+		Scopes:       testScopes,
 	}
 
 	// Create a custom token source that returns a predefined token
 	mockToken := &oauth2.Token{
-		AccessToken: "mock-test-token",
+		AccessToken: testToken,
 		TokenType:   "Bearer",
 		Expiry:      time.Now().Add(time.Hour * 1),
 	}
@@ -105,8 +84,8 @@ func TestBearerTokenAuthenticationHeaderProviderWithMock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if token != "mock-test-token" {
-		t.Errorf("Expected token to be 'mock-test-token', got '%s'", token)
+	if token != testToken {
+		t.Errorf("Expected token to be %s, got '%s'", testToken, token)
 	}
 
 	// Test SetAuthenticationHeaders
@@ -116,8 +95,8 @@ func TestBearerTokenAuthenticationHeaderProviderWithMock(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if headers.Get("Authorization") != "Bearer mock-test-token" {
-		t.Errorf("Expected Authorization header to be 'Bearer mock-test-token', got '%s'", headers.Get("Authorization"))
+	if headers.Get("Authorization") != "Bearer "+testToken {
+		t.Errorf("Expected Authorization header to be %s, got '%s'", "Bearer "+testToken, headers.Get("Authorization"))
 	}
 }
 
@@ -136,15 +115,13 @@ func (m *MockClientCredentialsConfig) Token(ctx context.Context) (*oauth2.Token,
 }
 
 func TestBearerTokenAuthenticationHeaderProviderWithMockTokenSource(t *testing.T) {
-	// Create a mock token with a specific expiry time
 	expiryTime := time.Now().Add(time.Second * 1)
 	mockToken := &oauth2.Token{
-		AccessToken: "mock-test-token",
+		AccessToken: testToken,
 		TokenType:   "Bearer",
 		Expiry:      expiryTime,
 	}
 
-	// Create a mock token source
 	mockTokenSource := &MockTokenSource{
 		token: mockToken,
 		err:   nil,
@@ -167,18 +144,16 @@ func TestBearerTokenAuthenticationHeaderProviderWithMockTokenSource(t *testing.T
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if token != "mock-test-token" {
-		t.Errorf("Expected token to be 'mock-test-token', got '%s'", token)
+	if token != testToken {
+		t.Errorf("Expected token to be %s, got %s", testToken, token)
 	}
 
 	expectedExpiry := time.Now().Add(time.Duration(float64(time.Until(expiryTime)) * tokenExpiryThreshold))
-	// expectedExpiry := time.Now().Add(time.Duration(float64(time.Until(expiryTime)) * 100))
 	actualExpiry := provider.expiry
 
-	// Allow for a small time difference due to execution time
 	timeDiff := actualExpiry.Sub(expectedExpiry)
 	if timeDiff < -time.Millisecond || timeDiff > time.Millisecond {
-		maybeFail("testBearerTokenAuthenticationHeaderProviderWithMockTokenSource", err, expect(actualExpiry, expectedExpiry))
+		t.Errorf("Expected expiry to be %v, got %v", expectedExpiry, actualExpiry)
 	}
 
 	time.Sleep(time.Second * 1)
