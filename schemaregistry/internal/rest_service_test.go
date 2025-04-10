@@ -251,13 +251,13 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 type CustomHeaderProvider struct {
 	token                        string
 	schemaRegistryLogicalCluster string
-	identityPoolId               string
+	identityPoolID               string
 }
 
 func (p *CustomHeaderProvider) SetAuthenticationHeaders(header *http.Header) error {
 	header.Set("Authorization", "Bearer "+p.token)
 	header.Set("Target-Sr-Cluster", p.schemaRegistryLogicalCluster)
-	header.Set("Confluent-Identity-Pool-Id", p.identityPoolId)
+	header.Set("Confluent-Identity-Pool-Id", p.identityPoolID)
 	return nil
 }
 
@@ -268,7 +268,7 @@ func TestCustomOAuthProvider(t *testing.T) {
 	config.AuthenticationHeaderProvider = &CustomHeaderProvider{
 		token:                        "token",
 		schemaRegistryLogicalCluster: "lsrc-123",
-		identityPoolId:               "pool_id",
+		identityPoolID:               "pool_id",
 	}
 
 	_, err := NewRestService(config)
