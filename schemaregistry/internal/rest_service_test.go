@@ -177,9 +177,10 @@ func TestFullJitter(t *testing.T) {
 	config.MaxRetries = 2
 	config.RetriesWaitMs = 1000
 	config.RetriesMaxWaitMs = 20000
+
 	rs, _ := NewRestService(config)
 	for i := 0; i < 10; i++ {
-		v := rs.fullJitter(i)
+		v := fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs)
 		var d time.Duration
 		if i < 5 {
 			d = time.Duration(
