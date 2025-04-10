@@ -19,6 +19,7 @@ package internal
 import (
 	"crypto/tls"
 	"math"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -177,9 +178,10 @@ func TestFullJitter(t *testing.T) {
 	config.MaxRetries = 2
 	config.RetriesWaitMs = 1000
 	config.RetriesMaxWaitMs = 20000
+
 	rs, _ := NewRestService(config)
 	for i := 0; i < 10; i++ {
-		v := rs.fullJitter(i)
+		v := fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs)
 		var d time.Duration
 		if i < 5 {
 			d = time.Duration(
@@ -190,5 +192,93 @@ func TestFullJitter(t *testing.T) {
 		if v < 0 || v > d {
 			t.Errorf("Value %d should be between 0 and %d ms", v, d)
 		}
+	}
+}
+
+func TestOAuthBearerAuthConfig(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.BearerAuthCredentialsSource = "OAUTHBEARER"
+
+	_, err := NewRestService(config)
+	if !strings.Contains(err.Error(), "bearer.auth.issuer.endpoint.url") {
+		t.Errorf("should have error about bearer.auth.issuer.endpoint.url")
+	}
+
+	config.BearerAuthIssuerEndpointURL = "https://example.com/oauth/token"
+	_, err = NewRestService(config)
+
+	if !strings.Contains(err.Error(), "bearer.auth.client.id") {
+		t.Errorf("should have error about bearer.auth.client.id")
+	}
+
+	config.BearerAuthClientID = "client_id"
+	_, err = NewRestService(config)
+
+	if !strings.Contains(err.Error(), "bearer.auth.client.secret") {
+		t.Errorf("should have error about bearer.auth.client.secret")
+	}
+
+	config.BearerAuthClientSecret = "client_secret"
+	_, err = NewRestService(config)
+
+	if !strings.Contains(err.Error(), "bearer.auth.scopes") {
+		t.Errorf("should have error about bearer.auth.scopes")
+	}
+
+	config.BearerAuthScopes = []string{"scope1", "scope2"}
+	_, err = NewRestService(config)
+
+	if !strings.Contains(err.Error(), "bearer.auth.logical.cluster") {
+		t.Errorf("should have error about bearer.auth.logical.cluster")
+	}
+
+	config.BearerAuthLogicalCluster = "lsrc-123"
+	_, err = NewRestService(config)
+
+	if !strings.Contains(err.Error(), "bearer.auth.identity.pool.id") {
+		t.Errorf("should have error about bearer.auth.identity.pool.id")
+	}
+
+	config.BearerAuthIdentityPoolID = "pool_id"
+	_, err = NewRestService(config)
+
+	if err != nil {
+		t.Errorf("should work with bearer auth config, got %s", err)
+	}
+}
+
+type CustomHeaderProvider struct {
+	token                        string
+	schemaRegistryLogicalCluster string
+	identityPoolID               string
+}
+
+func (p *CustomHeaderProvider) SetAuthenticationHeaders(header *http.Header) error {
+	header.Set("Authorization", "Bearer "+p.token)
+	header.Set("Target-Sr-Cluster", p.schemaRegistryLogicalCluster)
+	header.Set("Confluent-Identity-Pool-Id", p.identityPoolID)
+	return nil
+}
+
+func TestCustomOAuthProvider(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.BearerAuthCredentialsSource = "OAUTHBEARER"
+	config.AuthenticationHeaderProvider = &CustomHeaderProvider{
+		token:                        "token",
+		schemaRegistryLogicalCluster: "lsrc-123",
+		identityPoolID:               "pool_id",
+	}
+
+	_, err := NewRestService(config)
+	if !strings.Contains(err.Error(), "cannot have bearer.auth.credentials.source oauthbearer") {
+		t.Errorf("should have error with custom oauth provider and OAUTHBEARER")
+	}
+
+	config.BearerAuthCredentialsSource = "CUSTOM"
+	_, err = NewRestService(config)
+	if err != nil {
+		t.Errorf("should work with custom oauth provider and CUSTOM")
 	}
 }
