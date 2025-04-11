@@ -326,6 +326,11 @@ func createStaticTokenAuthHeaderProvider(conf *ClientConfig) (AuthenticationHead
 			" specified with STATIC_TOKEN")
 	}
 
+	if conf.AuthenticationHeaderProvider != nil {
+		return nil, fmt.Errorf("cannot have bearer.auth.credentials.source static_token " +
+			"with custom authentication header provider")
+	}
+
 	// TODO: Enable these lines for major version 3 release, since static token does not check for
 	// identity pool id and logical cluster at the moment
 
