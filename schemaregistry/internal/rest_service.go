@@ -136,12 +136,14 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 		urls[i] = u
 	}
 
-	headers, err := NewAuthHeader(urls[0], conf)
+	headers := http.Header{}
+
+	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
+
+	authenticationHeaderProvider, err := NewAuthenticationHeaderProvider(urls[0], conf)
 	if err != nil {
 		return nil, err
 	}
-
-	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
 
 	if conf.HTTPClient == nil {
 		transport, err := configureTransport(conf)
@@ -155,64 +157,6 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 			Transport: transport,
 			Timeout:   time.Duration(timeout) * time.Millisecond,
 		}
-	}
-
-	var authenticationHeaderProvider AuthenticationHeaderProvider = nil
-
-	if conf.BearerAuthCredentialsSource == "OAUTHBEARER" {
-		if conf.AuthenticationHeaderProvider != nil {
-			return nil, fmt.Errorf("cannot have bearer.auth.credentials.source oauthbearer " +
-				"with custom authentication header provider")
-		}
-
-		if conf.BearerAuthIssuerEndpointURL == "" {
-			return nil, fmt.Errorf("bearer.auth.issuer.endpoint.url must be specified when bearer.auth.credentials.source is" +
-				" specified with OAUTHBEARER")
-		}
-
-		if conf.BearerAuthClientID == "" {
-			return nil, fmt.Errorf("bearer.auth.client.id must be specified when bearer.auth.credentials.source is" +
-				" specified with OAUTHBEARER")
-		}
-
-		if conf.BearerAuthClientSecret == "" {
-			return nil, fmt.Errorf("bearer.auth.client.secret must be specified when bearer.auth.credentials.source is" +
-				" specified with OAUTHBEARER")
-		}
-
-		if len(conf.BearerAuthScopes) == 0 {
-			return nil, fmt.Errorf("bearer.auth.scopes must be specified when bearer.auth.credentials.source is" +
-				" specified with OAUTHBEARER")
-		}
-		//TODO: For major version release, lsrc + identity pool id should be required for static token as well
-		if conf.BearerAuthLogicalCluster == "" {
-			return nil, fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
-				" specified with OAUTHBEARER")
-		}
-
-		if conf.BearerAuthIdentityPoolID == "" {
-			return nil, fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
-				" specified with OAUTHBEARER")
-		}
-
-		tokenFetcher := &clientcredentials.Config{
-			ClientID:     conf.BearerAuthClientID,
-			ClientSecret: conf.BearerAuthClientSecret,
-			TokenURL:     conf.BearerAuthIssuerEndpointURL,
-			Scopes:       conf.BearerAuthScopes,
-		}
-		authenticationHeaderProvider = NewBearerTokenAuthenticationHeaderProvider(
-			tokenFetcher,
-			conf.MaxRetries,
-			conf.RetriesWaitMs,
-			conf.RetriesMaxWaitMs,
-		)
-	} else if conf.BearerAuthCredentialsSource == "CUSTOM" {
-		if conf.AuthenticationHeaderProvider == nil {
-			return nil, fmt.Errorf("cannot have bearer.auth.credentials.source custom " +
-				"with no custom authentication header provider")
-		}
-		authenticationHeaderProvider = conf.AuthenticationHeaderProvider
 	}
 
 	return &RestService{
@@ -296,106 +240,181 @@ func configureTransport(conf *ClientConfig) (*http.Transport, error) {
 	}, nil
 }
 
-// configureURLAuth copies the url userinfo into a basic HTTP auth authorization header
-func configureURLAuth(service *url.URL, header http.Header) error {
-	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(service.User.String())))
-	return nil
+// create creates a new BasicAuthenticationHeaderProvider
+// that uses the URL to set the Basic Authentication header
+func createURLAuthHeaderProvider(service *url.URL) (AuthenticationHeaderProvider, error) {
+	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(service.User.String())), nil
 }
 
-// configureSASLAuth copies the sasl username and password into a HTTP basic authorization header
-func configureSASLAuth(conf *ClientConfig, header http.Header) error {
+// createSASLAuthHeaderProvider creates a new BasicAuthenticationHeaderProvider
+// that uses the SASL_INHERIT source to set the Basic Authentication header
+func createSASLAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
 	mech := conf.SaslMechanism
 	if strings.ToUpper(mech) == "GSSAPI" {
-		return fmt.Errorf("SASL_INHERIT support PLAIN and SCRAM SASL mechanisms only")
+		return nil, fmt.Errorf("SASL_INHERIT support PLAIN and SCRAM SASL mechanisms only")
 	}
 
 	user := conf.SaslUsername
 	pass := conf.SaslPassword
 	if user == "" || pass == "" {
-		return fmt.Errorf("SASL_INHERIT requires both sasl.username and sasl.password be set")
+		return nil, fmt.Errorf("SASL_INHERIT requires both sasl.username and sasl.password be set")
 	}
 
-	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(fmt.Sprintf("%s:%s", user, pass))))
-	return nil
+	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(fmt.Sprintf("%s:%s", user, pass))), nil
 }
 
-// configureUSERINFOAuth copies basic.auth.user.info
-func configureUSERINFOAuth(conf *ClientConfig, header http.Header) error {
+// createUSERINFOAuthHeaderProvider creates a new BasicAuthenticationHeaderProvider
+// that uses the userinfo string to set the Basic Authentication header
+func createUSERINFOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
 	auth := conf.BasicAuthUserInfo
 	if auth == "" {
-		return fmt.Errorf("USER_INFO source configured without basic.auth.user.info ")
+		return nil, fmt.Errorf("USER_INFO source configured without basic.auth.user.info ")
 	}
 
-	header.Add("Authorization", fmt.Sprintf("Basic %s", encodeBasicAuth(auth)))
+	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(auth)), nil
+}
+
+// checkIdentityPoolIDAndLogicalCluster checks if identity pool id and logical cluster are set
+func checkIdentityPoolIDAndLogicalCluster(conf *ClientConfig) error {
+	if conf.BearerAuthIdentityPoolID == "" {
+		return fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
+			" specified with STATIC_TOKEN or OAUTHBEARER")
+	}
+	if conf.BearerAuthLogicalCluster == "" {
+		return fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
+			" specified with STATIC_TOKEN or OAUTHBEARER")
+
+	}
 	return nil
 }
 
-func configureStaticTokenAuth(conf *ClientConfig, header http.Header) error {
+// checkBearerOAuthFields checks if the bearer auth fields are set
+func checkBearerOAuthFields(conf *ClientConfig) error {
+	if conf.AuthenticationHeaderProvider != nil {
+		return fmt.Errorf("cannot have bearer.auth.credentials.source oauthbearer " +
+			"with custom authentication header provider")
+	}
+
+	if conf.BearerAuthIssuerEndpointURL == "" {
+		return fmt.Errorf("bearer.auth.issuer.endpoint.url must be specified when bearer.auth.credentials.source is" +
+			" specified with OAUTHBEARER")
+	}
+
+	if conf.BearerAuthClientID == "" {
+		return fmt.Errorf("bearer.auth.client.id must be specified when bearer.auth.credentials.source is" +
+			" specified with OAUTHBEARER")
+	}
+
+	if conf.BearerAuthClientSecret == "" {
+		return fmt.Errorf("bearer.auth.client.secret must be specified when bearer.auth.credentials.source is" +
+			" specified with OAUTHBEARER")
+	}
+
+	err := checkIdentityPoolIDAndLogicalCluster(conf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// createStaticTokenAuthHeaderProvider creates a new StaticTokenAuthenticationHeaderProvider
+func createStaticTokenAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
 	bearerToken := conf.BearerAuthToken
 	if len(bearerToken) == 0 {
-		return fmt.Errorf("config bearer.auth.token must be specified when bearer.auth.credentials.source is" +
+		return nil, fmt.Errorf("config bearer.auth.token must be specified when bearer.auth.credentials.source is" +
 			" specified with STATIC_TOKEN")
 	}
-	header.Add("Authorization", fmt.Sprintf("Bearer %s", bearerToken))
-	setBearerAuthExtraHeaders(conf, header)
-	return nil
+
+	// TODO: Enable these lines for major version 3 release, since static token does not check for
+	// identity pool id and logical cluster at the moment
+
+	// err := checkIdentityPoolIDAndLogicalCluster(conf)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return NewStaticTokenAuthenticationHeaderProvider(bearerToken,
+		conf.BearerAuthIdentityPoolID,
+		conf.BearerAuthLogicalCluster), nil
 }
 
-func setBearerAuthExtraHeaders(conf *ClientConfig, header http.Header) error {
-	targetIdentityPoolID := conf.BearerAuthIdentityPoolID
-	if len(targetIdentityPoolID) > 0 {
-		header.Add(TargetIdentityPoolIDKey, targetIdentityPoolID)
+// createBearerOAuthHeaderProvider creates a new BearerTokenAuthenticationHeaderProvider
+func createBearerOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
+	err := checkBearerOAuthFields(conf)
+	if err != nil {
+		return nil, err
 	}
 
-	targetSr := conf.BearerAuthLogicalCluster
-	if len(targetSr) > 0 {
-		header.Add(TargetSRClusterKey, targetSr)
+	tokenFetcher := &clientcredentials.Config{
+		ClientID:     conf.BearerAuthClientID,
+		ClientSecret: conf.BearerAuthClientSecret,
+		TokenURL:     conf.BearerAuthIssuerEndpointURL,
+		Scopes:       conf.BearerAuthScopes,
 	}
 
-	return nil
+	authenticationHeaderProvider := NewBearerTokenAuthenticationHeaderProvider(
+		conf.BearerAuthIdentityPoolID,
+		conf.BearerAuthLogicalCluster,
+		tokenFetcher,
+		conf.MaxRetries,
+		conf.RetriesWaitMs,
+		conf.RetriesMaxWaitMs,
+	)
+
+	return authenticationHeaderProvider, nil
 }
 
-// NewAuthHeader returns a base64 encoded userinfo string identified on the configured credentials source
-func NewAuthHeader(service *url.URL, conf *ClientConfig) (http.Header, error) {
+// handleCustomAuthenticationHeaderProvider handles custom authentication header provider
+func handleCustomAuthenticationHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
+	if conf.AuthenticationHeaderProvider == nil {
+		return nil, fmt.Errorf("cannot have bearer.auth.credentials.source custom " +
+			"with no custom authentication header provider")
+	}
+
+	return conf.AuthenticationHeaderProvider, nil
+}
+
+// NewAuthenticationHeaderProvider returns a base64 encoded userinfo string identified on the configured credentials source
+func NewAuthenticationHeaderProvider(service *url.URL, conf *ClientConfig) (AuthenticationHeaderProvider, error) {
 	// Remove userinfo from url regardless of source to avoid confusion/conflicts
 	defer func() {
 		service.User = nil
 	}()
 
-	header := http.Header{}
-
 	basicSource := conf.BasicAuthCredentialsSource
 	bearerSource := conf.BearerAuthCredentialsSource
 
 	var err error
+	var provider AuthenticationHeaderProvider
 	if len(basicSource) != 0 && len(bearerSource) != 0 {
-		return header, fmt.Errorf("only one of basic.auth.credentials.source or bearer.auth.credentials.source" +
+		return nil, fmt.Errorf("only one of basic.auth.credentials.source or bearer.auth.credentials.source" +
 			" may be specified")
 	} else if len(basicSource) != 0 {
 		switch strings.ToUpper(basicSource) {
 		case "URL":
-			err = configureURLAuth(service, header)
+			provider, err = createURLAuthHeaderProvider(service)
 		case "SASL_INHERIT":
-			err = configureSASLAuth(conf, header)
+			provider, err = createSASLAuthHeaderProvider(conf)
 		case "USER_INFO":
-			err = configureUSERINFOAuth(conf, header)
+			provider, err = createUSERINFOAuthHeaderProvider(conf)
 		default:
 			err = fmt.Errorf("unrecognized value for basic.auth.credentials.source %s", basicSource)
 		}
 	} else if len(bearerSource) != 0 {
 		switch strings.ToUpper(bearerSource) {
 		case "STATIC_TOKEN":
-			err = configureStaticTokenAuth(conf, header)
+			provider, err = createStaticTokenAuthHeaderProvider(conf)
 		case "OAUTHBEARER":
-			err = setBearerAuthExtraHeaders(conf, header)
+			provider, err = createBearerOAuthHeaderProvider(conf)
 		case "CUSTOM":
-			err = nil
+			provider, err = handleCustomAuthenticationHeaderProvider(conf)
 		default:
 			err = fmt.Errorf("unrecognized value for bearer.auth.credentials.source %s", bearerSource)
 		}
 	}
 
-	return header, err
+	return provider, err
 }
 
 // HandleRequest sends a request to the Schema Registry, iterating over the list of URLs
@@ -430,6 +449,33 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	return &failure
 }
 
+// SetAuthenticationHeaders sets the authentication headers on the request
+func SetAuthenticationHeaders(provider AuthenticationHeaderProvider, headers *http.Header) error {
+	authHeader, err := provider.GetAuthenticationHeader()
+	if err != nil {
+		return err
+	}
+	headers.Set("Authorization", authHeader)
+
+	identityPoolID, err := provider.GetIdentityPoolID()
+	if err != nil {
+		return err
+	}
+	if len(identityPoolID) > 0 {
+		headers.Set("Confluent-Identity-Pool-Id", identityPoolID)
+	}
+
+	logicalCluster, err := provider.GetLogicalCluster()
+	if err != nil {
+		return err
+	}
+	if len(logicalCluster) > 0 {
+		headers.Set("Target-Sr-Cluster", logicalCluster)
+	}
+
+	return nil
+}
+
 // HandleHTTPRequest sends a HTTP(S) request to the Schema Registry, placing results into the response object
 func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Response, error) {
 	urlPath := path.Join(url.Path, fmt.Sprintf(request.endpoint, request.arguments...))
@@ -450,11 +496,10 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 	var req *http.Request
 	var resp *http.Response
 
-	if rs.authenticationHeaderProvider != nil {
-		err = rs.authenticationHeaderProvider.SetAuthenticationHeaders(&rs.headers)
-		if err != nil {
-			return nil, err
-		}
+	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &rs.headers)
+
+	if err != nil {
+		return nil, err
 	}
 
 	for i := 0; i < rs.maxRetries+1; i++ {

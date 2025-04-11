@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -14,13 +13,15 @@ var testTokenURL = "test-url"
 var testClientID = "client-id"
 var testClientSecret = "client-secret"
 var testScopes = []string{"schema_registry"}
+var testIdentityPoolID = "identity-pool-id"
+var testLogicalCluster = "logical-cluster"
 var testToken = "test-token"
 
 var maxRetries = 3
 var retriesWaitMs = 1000
 var retriesMaxWaitMs = 5000
 
-func TestSetAuthenticationHeaders(t *testing.T) {
+func TestGetAuthetnicationHeader(t *testing.T) {
 	client := &clientcredentials.Config{
 		ClientID:     testClientID,
 		ClientSecret: testClientSecret,
@@ -28,6 +29,8 @@ func TestSetAuthenticationHeaders(t *testing.T) {
 		Scopes:       testScopes,
 	}
 	provider := NewBearerTokenAuthenticationHeaderProvider(
+		testIdentityPoolID,
+		testLogicalCluster,
 		client,
 		maxRetries,
 		retriesWaitMs,
@@ -41,14 +44,47 @@ func TestSetAuthenticationHeaders(t *testing.T) {
 	provider.token = &token
 	provider.expiry = time.Now().Add(time.Hour * 1)
 
-	headers := &http.Header{}
-	err := provider.SetAuthenticationHeaders(headers)
+	tokenStr, err := provider.GetAuthenticationHeader()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if headers.Get("Authorization") != "Bearer "+testToken {
-		t.Errorf("Expected Authorization header to be %s, got '%s'", "Bearer "+testToken, headers.Get("Authorization"))
+	if tokenStr != "Bearer "+testToken {
+		t.Errorf("Expected Authorization header to be %s, got '%s'", "Bearer "+testToken, tokenStr)
+	}
+}
+
+func TestGetIdentityPoolIDAndLogicalCluster(t *testing.T) {
+	client := &clientcredentials.Config{
+		ClientID:     testClientID,
+		ClientSecret: testClientSecret,
+		TokenURL:     testTokenURL,
+		Scopes:       testScopes,
+	}
+	provider := NewBearerTokenAuthenticationHeaderProvider(
+		testIdentityPoolID,
+		testLogicalCluster,
+		client,
+		maxRetries,
+		retriesWaitMs,
+		retriesMaxWaitMs,
+	)
+
+	id, err := provider.GetIdentityPoolID()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if id != testIdentityPoolID {
+		t.Errorf("Expected Identity Pool ID to be %s, got '%s'", testIdentityPoolID, id)
+	}
+
+	logicalCluster, err := provider.GetLogicalCluster()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if logicalCluster != testLogicalCluster {
+		t.Errorf("Expected Logical Cluster to be %s, got '%s'", testLogicalCluster, logicalCluster)
 	}
 }
 
@@ -69,6 +105,8 @@ func TestBearerTokenAuthenticationHeaderProviderWithMock(t *testing.T) {
 	}
 
 	provider := NewBearerTokenAuthenticationHeaderProvider(
+		testIdentityPoolID,
+		testLogicalCluster,
 		mockClient,
 		maxRetries,
 		retriesWaitMs,
@@ -89,14 +127,13 @@ func TestBearerTokenAuthenticationHeaderProviderWithMock(t *testing.T) {
 	}
 
 	// Test SetAuthenticationHeaders
-	headers := &http.Header{}
-	err = provider.SetAuthenticationHeaders(headers)
+	tokenStr, err := provider.GetAuthenticationHeader()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if headers.Get("Authorization") != "Bearer "+testToken {
-		t.Errorf("Expected Authorization header to be %s, got '%s'", "Bearer "+testToken, headers.Get("Authorization"))
+	if tokenStr != "Bearer "+testToken {
+		t.Errorf("Expected Authorization header to be %s, got '%s'", "Bearer "+testToken, tokenStr)
 	}
 }
 
@@ -132,6 +169,8 @@ func TestBearerTokenAuthenticationHeaderProviderWithMockTokenSource(t *testing.T
 	}
 
 	provider := NewBearerTokenAuthenticationHeaderProvider(
+		testIdentityPoolID,
+		testLogicalCluster,
 		mockClient,
 		maxRetries,
 		retriesWaitMs,

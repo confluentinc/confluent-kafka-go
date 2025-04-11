@@ -19,7 +19,6 @@ package internal
 import (
 	"crypto/tls"
 	"math"
-	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -88,7 +87,7 @@ func TestConfigureTLS(t *testing.T) {
 	}
 }
 
-func TestNewAuthHeader(t *testing.T) {
+func TestNewAuthenticationHeaderProvider(t *testing.T) {
 	url, err := url.Parse("mock://")
 	if err != nil {
 		t.Errorf("Should work with empty config, got %s", err)
@@ -99,14 +98,16 @@ func TestNewAuthHeader(t *testing.T) {
 	config.BearerAuthCredentialsSource = "STATIC_TOKEN"
 	config.BasicAuthCredentialsSource = "URL"
 
-	_, err = NewAuthHeader(url, config)
+	var provider AuthenticationHeaderProvider
+
+	_, err = NewAuthenticationHeaderProvider(url, config)
 	if err == nil {
 		t.Errorf("Should not work with both basic auth source and bearer auth source")
 	}
 
 	// testing bearer auth
 	config.BasicAuthCredentialsSource = ""
-	_, err = NewAuthHeader(url, config)
+	_, err = NewAuthenticationHeaderProvider(url, config)
 	if err == nil {
 		t.Errorf("Should not work if bearer auth token is empty")
 	}
@@ -114,26 +115,26 @@ func TestNewAuthHeader(t *testing.T) {
 	config.BearerAuthToken = "token"
 	config.BearerAuthLogicalCluster = "lsrc-123"
 	config.BearerAuthIdentityPoolID = "poolID"
-	headers, err := NewAuthHeader(url, config)
+	provider, err = NewAuthenticationHeaderProvider(url, config)
 	if err != nil {
 		t.Errorf("Should work with bearer auth token, got %s", err)
 	} else {
-		if val, exists := headers["Authorization"]; !exists || len(val) == 0 ||
-			!strings.EqualFold(val[0], "Bearer token") {
+		authField, _ := provider.GetAuthenticationHeader()
+		if authField != "Bearer "+config.BearerAuthToken {
 			t.Errorf("Should have header with key Authorization")
 		}
-		if val, exists := headers[TargetIdentityPoolIDKey]; !exists || len(val) == 0 ||
-			!strings.EqualFold(val[0], "poolID") {
-			t.Errorf("Should have header with key Confluent-Identity-Pool-Id")
+		providerIdentityPoolID, _ := provider.GetIdentityPoolID()
+		if providerIdentityPoolID != config.BearerAuthIdentityPoolID {
+			t.Errorf("Should have identity pool id %s", config.BearerAuthIdentityPoolID)
 		}
-		if val, exists := headers[TargetSRClusterKey]; !exists || len(val) == 0 ||
-			!strings.EqualFold(val[0], "lsrc-123") {
-			t.Errorf("Should have header with key Target-Sr-Cluster")
+		providerLogicalCluster, _ := provider.GetLogicalCluster()
+		if providerLogicalCluster != config.BearerAuthLogicalCluster {
+			t.Errorf("Should have logical cluster %s", config.BearerAuthLogicalCluster)
 		}
 	}
 
 	config.BearerAuthCredentialsSource = "other"
-	_, err = NewAuthHeader(url, config)
+	_, err = NewAuthenticationHeaderProvider(url, config)
 	if err == nil {
 		t.Errorf("Should not work if bearer auth source is invalid")
 	}
@@ -142,31 +143,39 @@ func TestNewAuthHeader(t *testing.T) {
 	config.BearerAuthCredentialsSource = ""
 	config.BasicAuthCredentialsSource = "USER_INFO"
 	config.BasicAuthUserInfo = "username:password"
-	_, err = NewAuthHeader(url, config)
+	provider, err = NewAuthenticationHeaderProvider(url, config)
 	if err != nil {
 		t.Errorf("Should work with basic auth token, got %s", err)
+	} else if authField, _ := provider.GetAuthenticationHeader(); authField != "Basic "+encodeBasicAuth(config.BasicAuthUserInfo) {
+		t.Errorf("Should return encoded basic auth token")
+	} else if providerIdentityPoolID, _ := provider.GetIdentityPoolID(); providerIdentityPoolID != "" {
+		t.Errorf("Should not have identity pool id %s", providerIdentityPoolID)
+	} else if providerLogicalCluster, _ := provider.GetLogicalCluster(); providerLogicalCluster != "" {
+		t.Errorf("Should not have logical cluster %s", providerLogicalCluster)
 	}
 
 	config.BasicAuthCredentialsSource = "URL"
-	_, err = NewAuthHeader(url, config)
+	_, err = NewAuthenticationHeaderProvider(url, config)
 	if err != nil {
 		t.Errorf("Should work with basic auth token, got %s", err)
-	} else if val, exists := headers["Authorization"]; !exists || len(val) == 0 {
-		t.Errorf("Should have header with key Authorization")
 	}
 
 	config.BasicAuthCredentialsSource = "SASL_INHERIT"
 	config.SaslUsername = "username"
 	config.SaslPassword = "password"
-	_, err = NewAuthHeader(url, config)
+	_, err = NewAuthenticationHeaderProvider(url, config)
 	if err != nil {
 		t.Errorf("Should work with basic auth token, got %s", err)
-	} else if val, exists := headers["Authorization"]; !exists || len(val) == 0 {
-		t.Errorf("Should have header with key Authorization")
+	} else if authField, _ := provider.GetAuthenticationHeader(); authField != "Basic "+encodeBasicAuth(config.BasicAuthUserInfo) {
+		t.Errorf("Should return encoded basic auth token")
+	} else if providerIdentityPoolID, _ := provider.GetIdentityPoolID(); providerIdentityPoolID != "" {
+		t.Errorf("Should not have identity pool id %s", providerIdentityPoolID)
+	} else if providerLogicalCluster, _ := provider.GetLogicalCluster(); providerLogicalCluster != "" {
+		t.Errorf("Should not have logical cluster %s", providerLogicalCluster)
 	}
 
 	config.BasicAuthCredentialsSource = "other"
-	_, err = NewAuthHeader(url, config)
+	_, err = NewAuthenticationHeaderProvider(url, config)
 	if err == nil {
 		t.Errorf("Should not work if basic auth source is invalid")
 	}
@@ -209,7 +218,7 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 	_, err = NewRestService(config)
 
 	if !strings.Contains(err.Error(), "bearer.auth.client.id") {
-		t.Errorf("should have error about bearer.auth.client.id")
+		t.Errorf("should have error about bearer.auth.client.id, got %s", err)
 	}
 
 	config.BearerAuthClientID = "client_id"
@@ -222,11 +231,10 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 	config.BearerAuthClientSecret = "client_secret"
 	_, err = NewRestService(config)
 
-	if !strings.Contains(err.Error(), "bearer.auth.scopes") {
-		t.Errorf("should have error about bearer.auth.scopes")
+	if !strings.Contains(err.Error(), "bearer.auth.identity.pool.id") {
+		t.Errorf("should have error about bearer.auth.identity.pool.id")
 	}
-
-	config.BearerAuthScopes = []string{"scope1", "scope2"}
+	config.BearerAuthIdentityPoolID = "pool_id"
 	_, err = NewRestService(config)
 
 	if !strings.Contains(err.Error(), "bearer.auth.logical.cluster") {
@@ -235,16 +243,8 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 
 	config.BearerAuthLogicalCluster = "lsrc-123"
 	_, err = NewRestService(config)
-
-	if !strings.Contains(err.Error(), "bearer.auth.identity.pool.id") {
-		t.Errorf("should have error about bearer.auth.identity.pool.id")
-	}
-
-	config.BearerAuthIdentityPoolID = "pool_id"
-	_, err = NewRestService(config)
-
 	if err != nil {
-		t.Errorf("should work with bearer auth config, got %s", err)
+		t.Errorf("should work with oauth bearer auth config, got %s", err)
 	}
 }
 
@@ -254,11 +254,15 @@ type CustomHeaderProvider struct {
 	identityPoolID               string
 }
 
-func (p *CustomHeaderProvider) SetAuthenticationHeaders(header *http.Header) error {
-	header.Set("Authorization", "Bearer "+p.token)
-	header.Set("Target-Sr-Cluster", p.schemaRegistryLogicalCluster)
-	header.Set("Confluent-Identity-Pool-Id", p.identityPoolID)
-	return nil
+func (p *CustomHeaderProvider) GetAuthenticationHeader() (string, error) {
+	return "Bearer " + p.token, nil
+}
+
+func (p *CustomHeaderProvider) GetIdentityPoolID() (string, error) {
+	return p.identityPoolID, nil
+}
+func (p *CustomHeaderProvider) GetLogicalCluster() (string, error) {
+	return p.schemaRegistryLogicalCluster, nil
 }
 
 func TestCustomOAuthProvider(t *testing.T) {
@@ -266,9 +270,9 @@ func TestCustomOAuthProvider(t *testing.T) {
 
 	config.BearerAuthCredentialsSource = "OAUTHBEARER"
 	config.AuthenticationHeaderProvider = &CustomHeaderProvider{
-		token:                        "token",
-		schemaRegistryLogicalCluster: "lsrc-123",
-		identityPoolID:               "pool_id",
+		token:                        testToken,
+		schemaRegistryLogicalCluster: testLogicalCluster,
+		identityPoolID:               testIdentityPoolID,
 	}
 
 	_, err := NewRestService(config)
@@ -280,5 +284,34 @@ func TestCustomOAuthProvider(t *testing.T) {
 	_, err = NewRestService(config)
 	if err != nil {
 		t.Errorf("should work with custom oauth provider and CUSTOM")
+	}
+}
+
+func TestSetAuthenticationHandlers(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.BearerAuthCredentialsSource = "OAUTHBEARER"
+	config.AuthenticationHeaderProvider = &CustomHeaderProvider{
+		token:                        testToken,
+		schemaRegistryLogicalCluster: testLogicalCluster,
+		identityPoolID:               testIdentityPoolID,
+	}
+	config.BearerAuthCredentialsSource = "CUSTOM"
+	rs, err := NewRestService(config)
+
+	if err != nil {
+		t.Errorf("should work with custom oauth provider and CUSTOM")
+	}
+
+	SetAuthenticationHeaders(config.AuthenticationHeaderProvider, &rs.headers)
+
+	if rs.headers.Get("Authorization") != "Bearer "+testToken {
+		t.Errorf("should have Authorization header with value Bearer token")
+	}
+	if rs.headers.Get("Target-Sr-Cluster") != testLogicalCluster {
+		t.Errorf("should have Target-Sr-Cluster header with value lsrc-123")
+	}
+	if rs.headers.Get("Confluent-Identity-Pool-Id") != testIdentityPoolID {
+		t.Errorf("should have Confluent-Identity-Pool-Id header with value pool_id")
 	}
 }

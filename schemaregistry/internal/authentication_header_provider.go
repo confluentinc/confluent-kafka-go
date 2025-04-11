@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net/http"
 	"sync"
 	"time"
 
@@ -31,7 +30,69 @@ const tokenExpiryThreshold = 0.8
 
 // AuthenticationHeaderProvider is an interface that provides a method to set authentication headers.
 type AuthenticationHeaderProvider interface {
-	SetAuthenticationHeaders(header *http.Header) error
+	GetAuthenticationHeader() (string, error)
+	GetIdentityPoolID() (string, error)
+	GetLogicalCluster() (string, error)
+}
+
+// BasicAuthenticationHeaderProvider is a struct that implements the AuthenticationHeaderProvider interface
+// and provides a method to set the Basic Authentication header.
+type BasicAuthenticationHeaderProvider struct {
+	basicAuth string
+}
+
+// GetAuthenticationHeader returns the Basic Authentication header
+func (p *BasicAuthenticationHeaderProvider) GetAuthenticationHeader() (string, error) {
+	return "Basic " + p.basicAuth, nil
+}
+
+// GetIdentityPoolID returns an empty string as Basic Authentication does not use identity pool ID
+func (p *BasicAuthenticationHeaderProvider) GetIdentityPoolID() (string, error) {
+	return "", nil
+}
+
+// GetLogicalCluster returns an empty string as Basic Authentication does not use logical cluster
+func (p *BasicAuthenticationHeaderProvider) GetLogicalCluster() (string, error) {
+	return "", nil
+}
+
+// NewBasicAuthenticationHeaderProvider creates a new BasicAuthenticationHeaderProvider
+func NewBasicAuthenticationHeaderProvider(convertedString string) *BasicAuthenticationHeaderProvider {
+	return &BasicAuthenticationHeaderProvider{
+		basicAuth: convertedString,
+	}
+}
+
+// StaticTokenAuthenticationHeaderProvider is a struct that implements the AuthenticationHeaderProvider interface
+// and provides a method to set the Static Token Authentication header.
+type StaticTokenAuthenticationHeaderProvider struct {
+	token          string
+	identityPoolID string
+	logicalCluster string
+}
+
+// GetAuthenticationHeader returns the Static Token Authentication header
+func (p *StaticTokenAuthenticationHeaderProvider) GetAuthenticationHeader() (string, error) {
+	return "Bearer " + p.token, nil
+}
+
+// GetIdentityPoolID returns the identity pool ID
+func (p *StaticTokenAuthenticationHeaderProvider) GetIdentityPoolID() (string, error) {
+	return p.identityPoolID, nil
+}
+
+// GetLogicalCluster returns the logical cluster
+func (p *StaticTokenAuthenticationHeaderProvider) GetLogicalCluster() (string, error) {
+	return p.logicalCluster, nil
+}
+
+// NewStaticTokenAuthenticationHeaderProvider creates a new StaticTokenAuthenticationHeaderProvider
+func NewStaticTokenAuthenticationHeaderProvider(token string, identityPoolID string, logicalCluster string) *StaticTokenAuthenticationHeaderProvider {
+	return &StaticTokenAuthenticationHeaderProvider{
+		token:          token,
+		identityPoolID: identityPoolID,
+		logicalCluster: logicalCluster,
+	}
 }
 
 // TokenFetcher is an interface that provides a method to fetch a token
@@ -41,6 +102,8 @@ type TokenFetcher interface {
 
 // BearerTokenAuthenticationHeaderProvider is a struct that implements the AuthenticationHeaderProvider interface
 type BearerTokenAuthenticationHeaderProvider struct {
+	identityPoolID   string
+	logicalCluster   string
 	maxRetries       int
 	retriesWaitMs    int
 	retriesMaxWaitMs int
@@ -53,6 +116,8 @@ type BearerTokenAuthenticationHeaderProvider struct {
 
 // NewBearerTokenAuthenticationHeaderProvider creates a new BearerTokenAuthenticationHeaderProvider
 func NewBearerTokenAuthenticationHeaderProvider(
+	identityPoolID string,
+	logicalCluster string,
 	client TokenFetcher,
 	maxRetries int,
 	retriesWaitMs int,
@@ -61,6 +126,8 @@ func NewBearerTokenAuthenticationHeaderProvider(
 	ceilingRetries := int(math.Log2(float64(retriesMaxWaitMs) / float64(retriesWaitMs)))
 
 	return &BearerTokenAuthenticationHeaderProvider{
+		identityPoolID:   identityPoolID,
+		logicalCluster:   logicalCluster,
 		client:           client,
 		maxRetries:       maxRetries,
 		retriesWaitMs:    retriesWaitMs,
@@ -117,14 +184,23 @@ func (p *BearerTokenAuthenticationHeaderProvider) GenerateToken() error {
 	return fmt.Errorf("failed to generate token after %d retries", p.maxRetries)
 }
 
-// SetAuthenticationHeaders sets the Authorization header on the given http.Header using the current token
-// and returns an error if the token cannot be fetched or the header cannot be set.
-func (p *BearerTokenAuthenticationHeaderProvider) SetAuthenticationHeaders(header *http.Header) error {
+// GetAuthenticationHeader returns the Bearer Authentication token and returns an error
+// if the token cannot be fetched
+func (p *BearerTokenAuthenticationHeaderProvider) GetAuthenticationHeader() (string, error) {
 	token, err := p.GetToken()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	header.Set("Authorization", "Bearer "+token)
-	return nil
+	return "Bearer " + token, nil
+}
+
+// GetIdentityPoolID returns the identity pool ID
+func (p *BearerTokenAuthenticationHeaderProvider) GetIdentityPoolID() (string, error) {
+	return p.identityPoolID, nil
+}
+
+// GetLogicalCluster returns the logical cluster
+func (p *BearerTokenAuthenticationHeaderProvider) GetLogicalCluster() (string, error) {
+	return p.logicalCluster, nil
 }
