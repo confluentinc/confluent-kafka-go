@@ -21,7 +21,7 @@ var maxRetries = 3
 var retriesWaitMs = 1000
 var retriesMaxWaitMs = 5000
 
-func TestGetAuthetnicationHeader(t *testing.T) {
+func TestGetAuthenicationHeader(t *testing.T) {
 	client := &clientcredentials.Config{
 		ClientID:     testClientID,
 		ClientSecret: testClientSecret,
