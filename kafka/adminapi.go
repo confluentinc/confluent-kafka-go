@@ -1351,7 +1351,9 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			memberTargetAssignment := &MemberAssignment{}
 			if cMemberTargetAssignment != nil {
 				cTargetToppars := C.rd_kafka_MemberAssignment_partitions(cMemberTargetAssignment)
-				memberTargetAssignment.TopicPartitions = newTopicPartitionsFromCparts(cTargetToppars)
+				if cTargetToppars != nil {
+					memberTargetAssignment.TopicPartitions = newTopicPartitionsFromCparts(cTargetToppars)
+				}
 			} else {
 				memberTargetAssignment = nil
 			}
