@@ -335,8 +335,8 @@ type MemberDescription struct {
 	Host string
 	// Member assignment.
 	Assignment MemberAssignment
-	// Member Target Assignment.
-	TargetAssignment MemberAssignment
+	// Member Target Assignment. Set to `nil` for `Classic` GroupType.
+	TargetAssignment *MemberAssignment
 }
 
 // ConsumerGroupDescription represents the result of DescribeConsumerGroups for
@@ -1346,12 +1346,14 @@ func (a *AdminClient) cToConsumerGroupDescriptions(
 			}
 			cMemberTargetAssignment :=
 				C.rd_kafka_MemberDescription_target_assignment(cMember)
-			cTargetToppars :=
-				C.rd_kafka_MemberAssignment_partitions(cMemberTargetAssignment)
-			memberTargetAssignment := MemberAssignment{}
-			if cTargetToppars != nil {
+			memberTargetAssignment := &MemberAssignment{}
+			if cMemberTargetAssignment != nil {
+				cTargetToppars := C.rd_kafka_MemberAssignment_partitions(cMemberTargetAssignment)
 				memberTargetAssignment.TopicPartitions = newTopicPartitionsFromCparts(cTargetToppars)
+			} else {
+				memberTargetAssignment = nil
 			}
+
 			members[midx] = MemberDescription{
 				ClientID: C.GoString(
 					C.rd_kafka_MemberDescription_client_id(cMember)),
