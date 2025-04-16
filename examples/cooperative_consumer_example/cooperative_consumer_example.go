@@ -59,7 +59,6 @@ func main() {
 		// partition if there are no previously committed offsets
 		// for this group.
 		"auto.offset.reset": "earliest"})
-
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
 		os.Exit(1)
