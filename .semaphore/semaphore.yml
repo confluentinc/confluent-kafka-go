@@ -61,15 +61,33 @@ blocks:
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
           - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
       jobs:
-        - name: "Static Build + Integration tests (CGRP classic)"
+        - name: "Static Build + Integration tests (CGRP classic + ZK)"
           env_vars:
             - name: EXPECT_LINK_INFO
               value: static
+            - name: KRAFT
+              value: false
           commands_file: semaphore_integration_commands.sh
-        - name: "Dynamic Build + Integration tests (CGRP classic)"
+        - name: "Static Build + Integration tests (CGRP classic + KRaft)"
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: static
+            - name: KRAFT
+              value: true
+          commands_file: semaphore_integration_commands.sh
+        - name: "Dynamic Build + Integration tests (CGRP classic + ZK)"
           env_vars:
             - name: EXPECT_LINK_INFO
               value: dynamic
+            - name: KRAFT
+              value: false
+          commands_file: semaphore_integration_commands.sh
+        - name: "Dynamic Build + Integration tests (CGRP classic + KRaft)"
+          env_vars:
+            - name: EXPECT_LINK_INFO
+              value: dynamic
+            - name: KRAFT
+              value: true
           commands_file: semaphore_integration_commands.sh
         - name: "Static Build + Integration tests (CGRP consumer)"
           env_vars:
@@ -77,6 +95,8 @@ blocks:
               value: static
             - name: TEST_CONSUMER_GROUP_PROTOCOL
               value: consumer
+            - name : KRAFT
+              value: true
           commands_file: semaphore_integration_commands.sh
         - name: "Dynamic Build + Integration tests (CGRP consumer)"
           env_vars:
@@ -84,6 +104,8 @@ blocks:
               value: dynamic
             - name: TEST_CONSUMER_GROUP_PROTOCOL
               value: consumer
+            - name : KRAFT
+              value: true
           commands_file: semaphore_integration_commands.sh
   - name: "go 1.21 linux arm64 bundled librdkafka"
     dependencies: [ ]
