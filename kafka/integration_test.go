@@ -1304,11 +1304,14 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 		"Group description should succeed, failed with %v", groupDesc.Error)
 	assert.NotEmpty(groupDesc.AuthorizedOperations,
 		"Authorized operations should not be empty")
-	assert.ElementsMatch(groupDesc.AuthorizedOperations,
-		[]ACLOperation{
-			ACLOperationRead,
-			ACLOperationDelete,
-			ACLOperationDescribe})
+
+	expectedOperations := []ACLOperation{
+		ACLOperationRead, ACLOperationDelete, ACLOperationDescribe}
+	// The default allowed operations depend on the Authorizer, which is
+	// different for KRaft and ZK. Unfortunately, there is no surefire way to
+	// tell if the cluster uses ZK or KRaft unless we have created it, so we just
+	// match the common subset.
+	assert.Subset(groupDesc.AuthorizedOperations, expectedOperations)
 
 	// Change the ACLs on the group
 	newACLs := ACLBindings{
