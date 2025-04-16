@@ -31,6 +31,7 @@ import (
 	"github.com/tink-crypto/tink-go/v2/daead"
 	tinkpb "github.com/tink-crypto/tink-go/v2/proto/tink_go_proto"
 	"github.com/tink-crypto/tink-go/v2/tink"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -403,28 +404,19 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 		if isExpired {
 			newVersion = dek.Version + 1
 		}
-		newDekID := deks.DekID{
-			KekName:   f.KekName,
-			Subject:   ctx.Subject,
-			Version:   newVersion,
-			Algorithm: f.Cryptor.DekFormat,
-			Deleted:   isRead,
-		}
-		// encryptedDek may be passed as null if kek is shared
-		dek, err = f.storeDekToRegistry(newDekID, encryptedDek)
-		if dek == nil {
-			// Handle conflicts (409)
-			// Use the original version, which should be null or LATEST_VERSION
-			dek, err = f.retrieveDekFromRegistry(dekID)
-			if err != nil {
+		var result *deks.Dek
+		result, err = f.createDek(dekID, newVersion, encryptedDek)
+		if err != nil {
+			if dek == nil {
 				return nil, err
 			}
-		}
-		if dek == nil {
-			return nil, fmt.Errorf("no dek found for %s during produce", f.KekName)
+			log.Printf("WARN: failed to create dek for %s, subject %s, version %d, using existing dek\n",
+				f.KekName, ctx.Subject, newVersion)
+		} else {
+			dek = result
 		}
 	}
-	keyBytes, err := dek.GetKeyMaterialBytes()
+	keyBytes, err := f.Executor.Client.GetDekKeyMaterialBytes(dek)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +427,7 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 				return nil, err
 			}
 		}
-		encryptedDek, err := dek.GetEncryptedKeyMaterialBytes()
+		encryptedDek, err := f.Executor.Client.GetDekEncryptedKeyMaterialBytes(dek)
 		if err != nil {
 			return nil, err
 		}
@@ -443,7 +435,31 @@ func (f *FieldEncryptionExecutorTransform) getOrCreateDek(ctx serde.RuleContext,
 		if err != nil {
 			return nil, err
 		}
-		dek.SetKeyMaterial(rawDek)
+		f.Executor.Client.SetDekKeyMaterial(dek, rawDek)
+	}
+	return dek, nil
+}
+
+func (f *FieldEncryptionExecutorTransform) createDek(dekID deks.DekID, newVersion int, encryptedDek []byte) (*deks.Dek, error) {
+	newDekID := deks.DekID{
+		KekName:   dekID.KekName,
+		Subject:   dekID.Subject,
+		Version:   newVersion,
+		Algorithm: dekID.Algorithm,
+		Deleted:   dekID.Deleted,
+	}
+	// encryptedDek may be passed as null if kek is shared
+	dek, err := f.storeDekToRegistry(newDekID, encryptedDek)
+	if dek == nil {
+		// Handle conflicts (409)
+		// Use the original version, which should be null or LATEST_VERSION
+		dek, err = f.retrieveDekFromRegistry(dekID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if dek == nil {
+		return nil, fmt.Errorf("no dek found for %s during produce", dekID.KekName)
 	}
 	return dek, nil
 }
@@ -520,7 +536,7 @@ func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fiel
 		if err != nil {
 			return nil, err
 		}
-		keyMaterialBytes, err := dek.GetKeyMaterialBytes()
+		keyMaterialBytes, err := f.Executor.Client.GetDekKeyMaterialBytes(dek)
 		if err != nil {
 			return nil, err
 		}
@@ -563,7 +579,7 @@ func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fiel
 		if err != nil {
 			return nil, err
 		}
-		keyMaterialBytes, err := dek.GetKeyMaterialBytes()
+		keyMaterialBytes, err := f.Executor.Client.GetDekKeyMaterialBytes(dek)
 		if err != nil {
 			return nil, err
 		}

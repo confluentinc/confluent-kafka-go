@@ -49,6 +49,46 @@ const (
   ]
 }
 `
+	rootSchemaNested = `
+{
+  "name": "NestedTestRecord",
+  "type": "record",
+  "fields": [
+    {
+      "name": "OtherField",
+      "type": 
+		{
+		  "name": "DemoSchema",
+		  "type": "record",
+		  "fields": [
+			{
+			  "name": "IntField",
+			  "type": "int"
+			},
+			{
+			  "name": "DoubleField",
+			  "type": "double"
+			},
+			{
+			  "name": "StringField",
+			  "type": "string",
+			  "confluent:tags": [ "PII" ]
+			},
+			{
+			  "name": "BoolField",
+			  "type": "boolean"
+			},
+			{
+			  "name": "BytesField",
+			  "type": "bytes",
+			  "confluent:tags": [ "PII" ]
+			}
+		  ]
+		} 
+    }
+  ]
+}
+`
 	demoSchema = `
 {
   "name": "DemoSchema",
@@ -442,6 +482,53 @@ func TestAvroSerdeWithNested(t *testing.T) {
 
 	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithNestedMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     rootSchemaNested,
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	nested := make(map[string]interface{})
+	nested["IntField"] = 123
+	nested["DoubleField"] = 45.67
+	nested["StringField"] = "hi"
+	nested["BoolField"] = true
+	nested["BytesField"] = []byte{1, 2}
+	obj := make(map[string]interface{})
+	obj["OtherField"] = nested
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
 func TestAvroSerdeWithReferences(t *testing.T) {

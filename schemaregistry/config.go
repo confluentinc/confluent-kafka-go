@@ -18,6 +18,7 @@ package schemaregistry
 
 import (
 	"fmt"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
 
@@ -40,6 +41,15 @@ func NewConfig(url string) *Config {
 	c.SslKeyLocation = ""
 	c.SslCaLocation = ""
 	c.SslDisableEndpointVerification = false
+
+	c.BearerAuthIssuerEndpointURL = ""
+	c.BearerAuthClientID = ""
+	c.BearerAuthClientSecret = ""
+	c.BearerAuthScopes = []string{}
+	c.BearerAuthCredentialsSource = ""
+	c.BearerAuthLogicalCluster = ""
+	c.BearerAuthIdentityPoolID = ""
+	c.AuthenticationHeaderProvider = nil
 
 	c.ConnectionTimeoutMs = 10000
 	c.RequestTimeoutMs = 10000
