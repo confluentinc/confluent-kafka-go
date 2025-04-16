@@ -119,6 +119,17 @@ func testNewConsumer(conf *ConfigMap) (*Consumer, error) {
 	if found {
 		conf.Set("group.protocol=" + groupProtocol)
 	}
+	// Strip classic-only properties if we are not in classic mode.
+	if !testConsumerGroupProtocolClassic() {
+		forbiddenProperties := []string{
+			"session.timeout.ms",
+			"partition.assignment.strategy",
+			"heartbeat.interval.ms",
+			"group.protocol.type"}
+		for _, prop := range forbiddenProperties {
+			delete(*conf, prop)
+		}
+	}
 	return NewConsumer(conf)
 }
 

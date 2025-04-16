@@ -392,16 +392,13 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		"group.id": testconf.GroupID +
 			fmt.Sprintf("-%d", rand.Intn(1000000)),
 		"api.version.request": "true",
+		"session.timeout.ms":  6000,
 		"enable.auto.commit":  cc.autoCommit,
 		"debug":               ",",
 		"auto.offset.reset":   "earliest"}
 
-	if testConsumerGroupProtocolClassic() {
-		conf["session.timeout.ms"] = 6000
-
-		if assignmentStrategy != "" {
-			conf["partition.assignment.strategy"] = assignmentStrategy
-		}
+	if assignmentStrategy != "" {
+		conf["partition.assignment.strategy"] = assignmentStrategy
 	}
 
 	conf.updateFromTestconf()
@@ -2472,11 +2469,10 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 		"bootstrap.servers":        testconf.Brokers,
 		"group.id":                 testconf.GroupID,
 		"enable.auto.commit":       false,
+		"session.timeout.ms":       6000,
 		"auto.offset.reset":        "earliest",
 	}
-	if testConsumerGroupProtocolClassic() {
-		(*config)["session.timeout.ms"] = 6000
-	}
+
 	_ = config.updateFromTestconf()
 
 	c, err := testNewConsumer(config)
