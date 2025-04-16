@@ -391,8 +391,8 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		"go.events.channel.enable": cc.useChannel,
 		"group.id": testconf.GroupID +
 			fmt.Sprintf("-%d", rand.Intn(1000000)),
-		"api.version.request": "true",
 		"session.timeout.ms":  6000,
+		"api.version.request": "true",
 		"enable.auto.commit":  cc.autoCommit,
 		"debug":               ",",
 		"auto.offset.reset":   "earliest"}
@@ -2468,8 +2468,8 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 		"go.events.channel.enable": true,
 		"bootstrap.servers":        testconf.Brokers,
 		"group.id":                 testconf.GroupID,
-		"enable.auto.commit":       false,
 		"session.timeout.ms":       6000,
+		"enable.auto.commit":       false,
 		"auto.offset.reset":        "earliest",
 	}
 
@@ -3504,7 +3504,7 @@ func TestIntegration(t *testing.T) {
 	}
 	if testconf.DockerNeeded && !testconf.DockerExists {
 		dockerCompose := "./testresources/docker-compose.yaml"
-		if !testConsumerGroupProtocolClassic() || testconf.KraftMode {
+		if !testConsumerGroupProtocolClassic() {
 			dockerCompose = "./testresources/docker-compose-kraft.yaml"
 		}
 		its.compose = compose.NewLocalDockerCompose([]string{dockerCompose}, "test-docker")
