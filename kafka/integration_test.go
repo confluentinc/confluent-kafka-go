@@ -2961,7 +2961,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	drChan := make(chan Event, 1)
 
 	/* Offset the timestamp to avoid comparison with system clock */
-	future, _ := time.ParseDuration("1h") // 10h
+	future, _ := time.ParseDuration("1h") // 1h
 	timestamp := time.Now().Add(future)
 	key := fmt.Sprintf("TS: %v", timestamp)
 	t.Logf("Producing message with timestamp %v", timestamp)
