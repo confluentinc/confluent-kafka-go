@@ -1,13 +1,39 @@
-version: '3'
 services:
-  kafka:
-    build: ./kraft
-    restart: always
-    ports:
-      - 9092:29092
-      - 9093:29093
+  broker-1:
+    image: apache/kafka:4.0.0
+    container_name: broker-1
     volumes:
-      - ./kraft/server.properties:/etc/kafka/server.properties
       - ./kafka_jaas.conf:/etc/kafka/kafka_jaas.conf
+    ports:
+      - 9092:9092
+      - 9093:9093
     environment:
+      KAFKA_BROKER_ID: '1'
+      KAFKA_PORT: '9092'
+      KAFKA_RESERVED_BROKER_MAX_ID: '65536'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,SASL_PLAINTEXT://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094,DOCKER://0.0.0.0:9095'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092,SASL_PLAINTEXT://localhost:9093,DOCKER://localhost:9095,CONTROLLER://localhost:9094'
+      KAFKA_NUM_PARTITIONS: '4'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SECURITY_INTER_BROKER_PROTOCOL: 'SASL_PLAINTEXT'
+      KAFKA_SASL_MECHANISM_CONTROLLER_PROTOCOL: 'PLAIN'
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: 'PLAIN'
+      KAFKA_SUPER_USERS: 'User:admin'
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: 'true'
+
+      KAFKA_BROKER_RACK: 'RACK1'
+      KAFKA_REPLICA_SELECTOR_CLASS: 'org.apache.kafka.common.replica.RackAwareReplicaSelector'
+      KAFKA_CONNECTIONS_MAX_REAUTH_MS: '10000'
+      KAFKA_LOG_RETENTION_BYTES: '1000000000'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'PLAINTEXT:PLAINTEXT,SSL:SSL,SASL_PLAINTEXT:SASL_PLAINTEXT,SASL_SSL:SASL_SSL,DOCKER:PLAINTEXT,CONTROLLER:SASL_PLAINTEXT'
+      KAFKA_AUTHORIZER_CLASS_NAME: 'org.apache.kafka.metadata.authorizer.StandardAuthorizer'
+      KAFKA_SASL_ENABLED_MECHANISMS: 'PLAIN'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9094'
       KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_jaas.conf"
