@@ -7,6 +7,7 @@ This is a feature release:
 confluent-kafka-go is based on librdkafka v2.10.0, see the
 [librdkafka v2.10.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+* [KIP-848] Group Config is now supported in AlterConfigs, IncrementalAlterConfigs and DescribeConfigs. (#1344)
 
 
 There was no v2.9.0 release.
