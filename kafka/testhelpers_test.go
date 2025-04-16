@@ -31,6 +31,7 @@ import (
 var testconf struct {
 	DockerNeeded  bool
 	DockerExists  bool
+	KraftMode     bool
 	Brokers       string
 	BrokersSasl   string
 	SaslUsername  string
@@ -62,6 +63,9 @@ var dockerExists = flag.Bool("docker.exists", false, "Docker cluster already exi
 
 // Docker is needed for these tests
 var dockerNeeded = flag.Bool("docker.needed", false, "Docker is needed for this test")
+
+// Whether we use the Kraft mode (no Zookeeper). Only applicable if we bring up docker.
+var kraftMode = flag.Bool("kraft", false, "Use Kraft mode (no ZK) - set to true automatically if TEST_CONSUMER_GROUP_PROTOCOL is 'consumer'")
 
 // ratepdisp tracks and prints message & byte rates
 type ratedisp struct {
@@ -115,6 +119,17 @@ func testNewConsumer(conf *ConfigMap) (*Consumer, error) {
 	if found {
 		conf.Set("group.protocol=" + groupProtocol)
 	}
+	// Strip classic-only properties if we are not in classic mode.
+	if !testConsumerGroupProtocolClassic() {
+		forbiddenProperties := []string{
+			"session.timeout.ms",
+			"partition.assignment.strategy",
+			"heartbeat.interval.ms",
+			"group.protocol.type"}
+		for _, prop := range forbiddenProperties {
+			delete(*conf, prop)
+		}
+	}
 	return NewConsumer(conf)
 }
 
@@ -145,6 +160,9 @@ func testconfInit() {
 	}
 	if (dockerExists != nil) && (*dockerExists) {
 		testconf.DockerExists = true
+	}
+	if (kraftMode != nil) && (*kraftMode) {
+		testconf.KraftMode = true
 	}
 }
 

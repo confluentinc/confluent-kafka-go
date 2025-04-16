@@ -391,11 +391,12 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		"go.events.channel.enable": cc.useChannel,
 		"group.id": testconf.GroupID +
 			fmt.Sprintf("-%d", rand.Intn(1000000)),
-		"session.timeout.ms":  6000,
 		"api.version.request": "true",
+		"session.timeout.ms":  6000,
 		"enable.auto.commit":  cc.autoCommit,
 		"debug":               ",",
 		"auto.offset.reset":   "earliest"}
+
 	if assignmentStrategy != "" {
 		conf["partition.assignment.strategy"] = assignmentStrategy
 	}
@@ -1296,15 +1297,18 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 	assert.Len(groupDescs, 1, "Describing one group should give exactly one result")
 
 	groupDesc := &groupDescs[0]
-	assert.Equal(groupDesc.Error.Code(), ErrNoError,
-		"Group description should succeed")
+	assert.Equal(ErrNoError, groupDesc.Error.Code(),
+		"Group description should succeed, failed with %v", groupDesc.Error)
 	assert.NotEmpty(groupDesc.AuthorizedOperations,
 		"Authorized operations should not be empty")
-	assert.ElementsMatch(groupDesc.AuthorizedOperations,
-		[]ACLOperation{
-			ACLOperationRead,
-			ACLOperationDelete,
-			ACLOperationDescribe})
+
+	expectedOperations := []ACLOperation{
+		ACLOperationRead, ACLOperationDelete, ACLOperationDescribe}
+	// The default allowed operations depend on the Authorizer, which is
+	// different for KRaft and ZK. Unfortunately, there is no surefire way to
+	// tell if the cluster uses ZK or KRaft unless we have created it, so we just
+	// match the common subset.
+	assert.Subset(groupDesc.AuthorizedOperations, expectedOperations)
 
 	// Change the ACLs on the group
 	newACLs := ACLBindings{
@@ -2106,7 +2110,6 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	topic := testconf.TopicName
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
-	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
 	var expectedCreateACLs []CreateACLResult
 	var expectedDescribeACLs DescribeACLsResult
 	var expectedDeleteACLs []DeleteACLsResult
@@ -2221,14 +2224,21 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
 
-	// FIXME: check why with KRaft this rule isn't broken
-	if testConsumerGroupProtocolClassic() {
-		resultCreateACLs, err := a.CreateACLs(ctx, invalidACLs, SetAdminRequestTimeout(requestTimeout))
-		if err != nil {
-			t.Fatalf("CreateACLs() failed: %s", err)
-		}
-		expectedCreateACLs = []CreateACLResult{{Error: unknownError}}
-		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+	resultCreateACLs, err := a.CreateACLs(ctx, invalidACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	t.Logf("CreateACLs result: %v", resultCreateACLs[0].Error.Code())
+
+	if len(resultCreateACLs) != 1 {
+		t.Fatalf("CreateACLs result should contain one result")
+	}
+
+	// Depending on Kraft/ZK, the error may be ErrUnknown or ErrInvalidRequest.
+	if resultCreateACLs[0].Error.Code() != ErrUnknown &&
+		resultCreateACLs[0].Error.Code() != ErrInvalidRequest {
+		t.Fatalf("CreateACLs result should have an error of either ErrUnknown or ErrInvalidRequest, is %v",
+			resultCreateACLs[0].Error.Code())
 	}
 
 	// DescribeACLs must return the three ACLs
@@ -2458,10 +2468,11 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 		"go.events.channel.enable": true,
 		"bootstrap.servers":        testconf.Brokers,
 		"group.id":                 testconf.GroupID,
-		"session.timeout.ms":       6000,
 		"enable.auto.commit":       false,
+		"session.timeout.ms":       6000,
 		"auto.offset.reset":        "earliest",
 	}
+
 	_ = config.updateFromTestconf()
 
 	c, err := testNewConsumer(config)
@@ -2898,9 +2909,12 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
 	}
 
+	// Create topic if it doesn't exist
+	topic := createTestTopic(t, "TestProducerConsumerTimestamps", 1, 1)
+
 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
-		"group.id":                 testconf.TopicName,
+		"group.id":                 topic,
 		"enable.partition.eof":     true,
 	}
 
@@ -2915,8 +2929,8 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	t.Logf("Assign %s [0]", testconf.TopicName)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.TopicName, Partition: 0,
+	t.Logf("Assign %s [0]", topic)
+	err = c.Assign([]TopicPartition{{Topic: &topic, Partition: 0,
 		Offset: OffsetEnd}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
@@ -2946,12 +2960,12 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	drChan := make(chan Event, 1)
 
 	/* Offset the timestamp to avoid comparison with system clock */
-	future, _ := time.ParseDuration("87658h") // 10y
+	future, _ := time.ParseDuration("1h") // 1h
 	timestamp := time.Now().Add(future)
 	key := fmt.Sprintf("TS: %v", timestamp)
 	t.Logf("Producing message with timestamp %v", timestamp)
 	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Key:            []byte(key),
 		Timestamp:      timestamp},
 		drChan)
@@ -3490,7 +3504,7 @@ func TestIntegration(t *testing.T) {
 	}
 	if testconf.DockerNeeded && !testconf.DockerExists {
 		dockerCompose := "./testresources/docker-compose.yaml"
-		if !testConsumerGroupProtocolClassic() {
+		if !testConsumerGroupProtocolClassic() || testconf.KraftMode {
 			dockerCompose = "./testresources/docker-compose-kraft.yaml"
 		}
 		its.compose = compose.NewLocalDockerCompose([]string{dockerCompose}, "test-docker")
