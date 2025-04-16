@@ -1,13 +1,13 @@
-version: '3'
 services:
-  kafka:
-    build: ./kraft
-    restart: always
-    ports:
-      - 9092:29092
-      - 9093:29093
+  broker-1:
+    image: apache/kafka:4.0.0
+    container_name: broker-1
     volumes:
-      - ./kraft/server.properties:/etc/kafka/server.properties
       - ./kafka_jaas.conf:/etc/kafka/kafka_jaas.conf
+      - ./kraft/server.properties:/mnt/shared/config/server.properties
+    ports:
+      - 9092:9092
+      - 9093:9093
     environment:
       KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_jaas.conf"
+
