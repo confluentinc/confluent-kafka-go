@@ -31,7 +31,6 @@ import (
 var testconf struct {
 	DockerNeeded  bool
 	DockerExists  bool
-	KraftMode     bool
 	Brokers       string
 	BrokersSasl   string
 	SaslUsername  string
@@ -63,9 +62,6 @@ var dockerExists = flag.Bool("docker.exists", false, "Docker cluster already exi
 
 // Docker is needed for these tests
 var dockerNeeded = flag.Bool("docker.needed", false, "Docker is needed for this test")
-
-// Whether we use the Kraft mode (no Zookeeper). Only applicable if we bring up docker.
-var kraftMode = flag.Bool("kraft", false, "Use Kraft mode (no ZK) - set to true automatically if TEST_CONSUMER_GROUP_PROTOCOL is 'consumer'")
 
 // ratepdisp tracks and prints message & byte rates
 type ratedisp struct {
@@ -160,9 +156,6 @@ func testconfInit() {
 	}
 	if (dockerExists != nil) && (*dockerExists) {
 		testconf.DockerExists = true
-	}
-	if (kraftMode != nil) && (*kraftMode) {
-		testconf.KraftMode = true
 	}
 }
 
