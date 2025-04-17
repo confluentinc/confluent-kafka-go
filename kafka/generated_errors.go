@@ -1,7 +1,7 @@
 package kafka
 
 // Copyright 2016-2025 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2025-01-07 20:54:22.73098977 +0530 IST m=+0.000126658 USING librdkafka 2.8.0
+// AUTOMATICALLY GENERATED ON 2025-04-17 12:15:52.772889558 +0200 CEST m=+0.000212744 USING librdkafka 2.10.0-RC3
 
 /*
 #include "select_rdkafka.h"
@@ -21,7 +21,7 @@ const (
 	ErrBadMsg ErrorCode = C.RD_KAFKA_RESP_ERR__BAD_MSG
 	// ErrBadCompression Local: Invalid compressed data
 	ErrBadCompression ErrorCode = C.RD_KAFKA_RESP_ERR__BAD_COMPRESSION
-	// ErrDestroy Local: Broker handle destroyed
+	// ErrDestroy Local: Broker handle destroyed for termination
 	ErrDestroy ErrorCode = C.RD_KAFKA_RESP_ERR__DESTROY
 	// ErrFail Local: Communication failure with broker
 	ErrFail ErrorCode = C.RD_KAFKA_RESP_ERR__FAIL
@@ -139,8 +139,10 @@ const (
 	ErrAutoOffsetReset ErrorCode = C.RD_KAFKA_RESP_ERR__AUTO_OFFSET_RESET
 	// ErrLogTruncation Local: Partition log truncation detected
 	ErrLogTruncation ErrorCode = C.RD_KAFKA_RESP_ERR__LOG_TRUNCATION
-	// ErrInvalidDifferentRecord Local: an invalid record in the same batch caused the failure of this message too.
+	// ErrInvalidDifferentRecord Local: an invalid record in the same batch caused the failure of this message too
 	ErrInvalidDifferentRecord ErrorCode = C.RD_KAFKA_RESP_ERR__INVALID_DIFFERENT_RECORD
+	// ErrDestroyBroker Local: Broker handle destroyed without termination
+	ErrDestroyBroker ErrorCode = C.RD_KAFKA_RESP_ERR__DESTROY_BROKER
 	// ErrUnknown Unknown broker error
 	ErrUnknown ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN
 	// ErrNoError Success
@@ -353,4 +355,6 @@ const (
 	ErrUnknownSubscriptionID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID
 	// ErrTelemetryTooLarge Broker: Client sent a push telemetry request larger than the maximum size the broker will accept
 	ErrTelemetryTooLarge ErrorCode = C.RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE
+	// ErrRebootstrapRequired Broker: Client metadata is stale, client should rebootstrap to obtain new metadata.
+	ErrRebootstrapRequired ErrorCode = C.RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED
 )
