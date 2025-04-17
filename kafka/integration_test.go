@@ -842,10 +842,6 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 //     all returned groups should be of type opposite of T and G must not be included.
 func (its *IntegrationTestSuite) TestAdminClient_ListConsumerGroups() {
 	t := its.T()
-	if testConsumerGroupProtocolClassic() {
-		// TODO: Remove this check once the image used for testing Classic protocol supports ListConsumerGroups type filter.
-		t.Skipf("Image used for testing Classic protocol doesn't support ListConsumerGroups type filter still")
-	}
 
 	usedType := ConsumerGroupTypeClassic
 	oppositeType := ConsumerGroupTypeConsumer
