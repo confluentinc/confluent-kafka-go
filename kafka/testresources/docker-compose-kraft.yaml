@@ -1,8 +1,8 @@
 services:
-  broker-1:
+  kafka:
     image: apache/kafka:4.0.0
     restart: unless-stopped
-    container_name: broker-1
+    container_name: kafka
     ports:
       - 9092:29092
       - 9093:29093

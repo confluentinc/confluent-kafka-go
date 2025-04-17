@@ -110,7 +110,7 @@ func (rd *ratedisp) tick(cnt, size int64) {
 
 // testNewConsumer creates a new consumer with passed conf
 // and global test configuration applied.
-func testNewConsumer(conf *ConfigMap) (*Consumer, error) {
+func testNewConsumer(t *testing.T, conf *ConfigMap) (*Consumer, error) {
 	groupProtocol, found := testConsumerGroupProtocol()
 	if found {
 		conf.Set("group.protocol=" + groupProtocol)
@@ -123,6 +123,12 @@ func testNewConsumer(conf *ConfigMap) (*Consumer, error) {
 			"heartbeat.interval.ms",
 			"group.protocol.type"}
 		for _, prop := range forbiddenProperties {
+			if _, ok := (*conf)[prop]; !ok {
+				continue
+			}
+			t.Logf(
+				"Skipping setting forbidden configuration property \"%s\" for CONSUMER protocol",
+				prop)
 			delete(*conf, prop)
 		}
 	}
