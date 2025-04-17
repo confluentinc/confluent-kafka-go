@@ -120,8 +120,11 @@ func TestConsumerMethodCallsWhileClosing(t *testing.T) {
 	assert.NoError(err, "Consumer creation should succeed")
 
 	partitionsRevoked := false
+	partitionsAssigned := false
 	err = consumer.SubscribeTopics([]string{topic}, func(c *Consumer, e Event) error {
 		switch e.(type) {
+		case AssignedPartitions:
+			partitionsAssigned = true
 		case RevokedPartitions:
 			partitionsRevoked = true
 			_, err := c.Commit()
@@ -133,7 +136,9 @@ func TestConsumerMethodCallsWhileClosing(t *testing.T) {
 	})
 
 	// Poll for enough time that we do the rebalance.
-	consumer.Poll(10 * 1000)
+	for !partitionsAssigned {
+		consumer.Poll(1 * 1000)
+	}
 
 	err = consumer.Close()
 	assert.NoError(err, "Consumer closure should succeed")
