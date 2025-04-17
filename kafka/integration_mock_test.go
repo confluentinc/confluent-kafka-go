@@ -136,7 +136,8 @@ func TestConsumerMethodCallsWhileClosing(t *testing.T) {
 	})
 
 	// Poll for enough time that we do the rebalance.
-	for !partitionsAssigned {
+	until := time.Now().Add(60 * time.Second)
+	for !partitionsAssigned && time.Now().Before(until) {
 		consumer.Poll(1 * 1000)
 	}
 
