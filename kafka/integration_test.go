@@ -24,6 +24,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -402,7 +403,7 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 
 	conf.updateFromTestconf()
 
-	c, err := testNewConsumer(&conf)
+	c, err := testNewConsumer(t, &conf)
 
 	if err != nil {
 		panic(err)
@@ -641,7 +642,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 	}
 	conf.updateFromTestconf()
 
-	consumer, err := testNewConsumer(&conf)
+	consumer, err := testNewConsumer(t, &conf)
 	if err != nil {
 		t.Fatalf("Failed to create consumer: %s", err)
 	}
@@ -731,7 +732,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		"enable.auto.offset.store": false,
 	}
 	config.updateFromTestconf()
-	consumer, err := testNewConsumer(config)
+	consumer, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
 		return
@@ -891,7 +892,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListConsumerGroups() {
 		"client.id":         clientID,
 	}
 	config.updateFromTestconf()
-	consumer, err := testNewConsumer(config)
+	consumer, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
 		return
@@ -1029,7 +1030,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 		"partition.assignment.strategy": "range",
 	}
 	config.updateFromTestconf()
-	consumer1, err := testNewConsumer(config)
+	consumer1, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
 		return
@@ -1099,7 +1100,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 		"partition.assignment.strategy": "range",
 	}
 	config.updateFromTestconf()
-	consumer2, err := testNewConsumer(config)
+	consumer2, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
 		return
@@ -1273,7 +1274,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 		"security.protocol": "SASL_PLAINTEXT",
 	}
 	config.updateFromTestconf()
-	consumer, err := testNewConsumer(config)
+	consumer, err := testNewConsumer(t, config)
 	assert.Nil(err, "NewConsumer should succeed")
 
 	// Close the consumer after the test is done
@@ -1296,15 +1297,26 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 	assert.Len(groupDescs, 1, "Describing one group should give exactly one result")
 
 	groupDesc := &groupDescs[0]
-	assert.Equal(groupDesc.Error.Code(), ErrNoError,
-		"Group description should succeed")
+	assert.Equal(ErrNoError, groupDesc.Error.Code(),
+		"Group description should succeed, failed with %v", groupDesc.Error)
 	assert.NotEmpty(groupDesc.AuthorizedOperations,
 		"Authorized operations should not be empty")
-	assert.ElementsMatch(groupDesc.AuthorizedOperations,
-		[]ACLOperation{
-			ACLOperationRead,
-			ACLOperationDelete,
-			ACLOperationDescribe})
+
+	expectedOperations := []ACLOperation{
+		ACLOperationRead, ACLOperationDelete, ACLOperationDescribe}
+	// The default allowed operations depend on the Authorizer, which is
+	// different for KRaft and ZK. Unfortunately, there is no surefire way to
+	// tell if the cluster uses ZK or KRaft unless we have created it, so we just
+	// match the common subset, and then do conditional matching.
+	// FIXME: add test parameter to identify KRaft being used.
+	assert.Subset(groupDesc.AuthorizedOperations, expectedOperations)
+
+	// Check if the authorized operations contain ACLOperationDescribeConfigs, if
+	// so it must contain ACLOperationAlterConfigs, as those are the two extra
+	// ones in KRaft.
+	if slices.Contains(groupDesc.AuthorizedOperations, ACLOperationDescribeConfigs) {
+		assert.Contains(groupDesc.AuthorizedOperations, ACLOperationAlterConfigs)
+	}
 
 	// Change the ACLs on the group
 	newACLs := ACLBindings{
@@ -2106,7 +2118,6 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	topic := testconf.TopicName
 	group := testconf.GroupID
 	noError := NewError(ErrNoError, "", false)
-	unknownError := NewError(ErrUnknown, "Unknown broker error", false)
 	var expectedCreateACLs []CreateACLResult
 	var expectedDescribeACLs DescribeACLsResult
 	var expectedDeleteACLs []DeleteACLsResult
@@ -2221,14 +2232,21 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
 
-	// FIXME: check why with KRaft this rule isn't broken
-	if testConsumerGroupProtocolClassic() {
-		resultCreateACLs, err := a.CreateACLs(ctx, invalidACLs, SetAdminRequestTimeout(requestTimeout))
-		if err != nil {
-			t.Fatalf("CreateACLs() failed: %s", err)
-		}
-		expectedCreateACLs = []CreateACLResult{{Error: unknownError}}
-		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
+	resultCreateACLs, err := a.CreateACLs(ctx, invalidACLs, SetAdminRequestTimeout(requestTimeout))
+	if err != nil {
+		t.Fatalf("CreateACLs() failed: %s", err)
+	}
+	t.Logf("CreateACLs result: %v", resultCreateACLs[0].Error.Code())
+
+	if len(resultCreateACLs) != 1 {
+		t.Fatalf("CreateACLs result should contain one result")
+	}
+
+	// Depending on Kraft/ZK, the error may be ErrUnknown or ErrInvalidRequest.
+	if resultCreateACLs[0].Error.Code() != ErrUnknown &&
+		resultCreateACLs[0].Error.Code() != ErrInvalidRequest {
+		t.Fatalf("CreateACLs result should have an error of either ErrUnknown or ErrInvalidRequest, is %v",
+			resultCreateACLs[0].Error.Code())
 	}
 
 	// DescribeACLs must return the three ACLs
@@ -2346,7 +2364,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 	}
 	conf.updateFromTestconf()
 
-	consumer, err := testNewConsumer(conf)
+	consumer, err := testNewConsumer(t, conf)
 	if err != nil {
 		t.Fatalf("Failed to create consumer: %s\n", err)
 	}
@@ -2464,7 +2482,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 	}
 	_ = config.updateFromTestconf()
 
-	c, err := testNewConsumer(config)
+	c, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Fatalf("Unable to create consumer: %s", err)
 	}
@@ -2514,7 +2532,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 
 	conf.updateFromTestconf()
 
-	c, err := testNewConsumer(&conf)
+	c, err := testNewConsumer(t, &conf)
 
 	if err != nil {
 		panic(err)
@@ -2577,7 +2595,7 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 	config.updateFromTestconf()
 
 	// Create consumer
-	c, err := testNewConsumer(config)
+	c, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
 		return
@@ -2898,9 +2916,12 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		t.Skipf("Requires librdkafka >=0.9.4 (currently on %s)", strver)
 	}
 
+	// Create topic if it doesn't exist
+	topic := createTestTopic(t, "TestProducerConsumerTimestamps", 1, 1)
+
 	consumerConf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": true,
-		"group.id":                 testconf.TopicName,
+		"group.id":                 topic,
 		"enable.partition.eof":     true,
 	}
 
@@ -2910,13 +2931,13 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	 * The consumer is started before the producer to make sure
 	 * the message isn't missed. */
 	t.Logf("Creating consumer")
-	c, err := testNewConsumer(&consumerConf)
+	c, err := testNewConsumer(t, &consumerConf)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}
 
-	t.Logf("Assign %s [0]", testconf.TopicName)
-	err = c.Assign([]TopicPartition{{Topic: &testconf.TopicName, Partition: 0,
+	t.Logf("Assign %s [0]", topic)
+	err = c.Assign([]TopicPartition{{Topic: &topic, Partition: 0,
 		Offset: OffsetEnd}})
 	if err != nil {
 		t.Fatalf("Assign: %v", err)
@@ -2946,12 +2967,12 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	drChan := make(chan Event, 1)
 
 	/* Offset the timestamp to avoid comparison with system clock */
-	future, _ := time.ParseDuration("87658h") // 10y
+	future, _ := time.ParseDuration("1h") // 1h
 	timestamp := time.Now().Add(future)
 	key := fmt.Sprintf("TS: %v", timestamp)
 	t.Logf("Producing message with timestamp %v", timestamp)
 	err = p.Produce(&Message{
-		TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: 0},
+		TopicPartition: TopicPartition{Topic: &topic, Partition: 0},
 		Key:            []byte(key),
 		Timestamp:      timestamp},
 		drChan)
@@ -3110,7 +3131,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 	/* Now consume the produced messages and verify the headers */
 	t.Logf("Creating consumer starting at offset %v", firstOffset)
-	c, err := testNewConsumer(&conf)
+	c, err := testNewConsumer(t, &conf)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}
