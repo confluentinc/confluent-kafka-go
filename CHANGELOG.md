@@ -8,8 +8,11 @@ confluent-kafka-go is based on librdkafka v2.10.0, see the
 [librdkafka v2.10.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-
 There was no v2.9.0 release.
+
+### Enhancements
+
+* [KIP-848] `DescribeConsumerGroups()` now supports KIP-848 introduced `consumer` groups. Two new fields for consumer group type and target assignment have also been added. Type defines whether this group is a `classic` or `consumer` group. Target assignment is only valid for the `consumer` protocol and its defaults to NULL. (#1357).
 
 
 ## v2.8.0
