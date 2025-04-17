@@ -2016,6 +2016,8 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 		t.Fatalf("Failed to delete topic %s: %s", topic, topicResult[0].Error)
 	}
 
+	// TODO: enable this test for the classic run too, when
+	// Confluent Platform test cluster is upgraded to 8.0.0
 	if !testConsumerGroupProtocolClassic() {
 		// Test configs that are configured for a specific group.
 		groupID := fmt.Sprintf("test-group-%d", rand.Intn(100000))
