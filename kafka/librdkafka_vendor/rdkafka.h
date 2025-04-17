@@ -167,7 +167,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020800ff
+#define RD_KAFKA_VERSION 0x020a00ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -288,7 +288,7 @@ typedef enum {
         RD_KAFKA_RESP_ERR__BAD_MSG = -199,
         /** Bad/unknown compression */
         RD_KAFKA_RESP_ERR__BAD_COMPRESSION = -198,
-        /** Broker is going away */
+        /** Broker is going away, together with client instance */
         RD_KAFKA_RESP_ERR__DESTROY = -197,
         /** Generic failure */
         RD_KAFKA_RESP_ERR__FAIL = -196,
@@ -412,6 +412,8 @@ typedef enum {
         /** A different record in the batch was invalid
          *  and this message failed persisting. */
         RD_KAFKA_RESP_ERR__INVALID_DIFFERENT_RECORD = -138,
+        /** Broker is going away but client isn't terminating */
+        RD_KAFKA_RESP_ERR__DESTROY_BROKER = -137,
 
         /** End internal error codes */
         RD_KAFKA_RESP_ERR__END = -100,
@@ -654,6 +656,9 @@ typedef enum {
         /** Client sent a push telemetry request larger than the maximum size
          *  the broker will accept. */
         RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE = 118,
+        /** Client metadata is stale,
+         *  client should rebootstrap to obtain new metadata. */
+        RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED = 129,
         RD_KAFKA_RESP_ERR_END_ALL,
 } rd_kafka_resp_err_t;
 
@@ -5371,6 +5376,18 @@ void rd_kafka_group_list_destroy(const struct rd_kafka_group_list *grplist);
 RD_EXPORT
 int rd_kafka_brokers_add(rd_kafka_t *rk, const char *brokerlist);
 
+/**
+ * @brief Retrieve and return the learned broker ids.
+ *
+ * @param rk Instance to use.
+ * @param cntp Will be updated to the number of brokers returned.
+ *
+ * @returns a malloc:ed list of int32_t broker ids.
+ *
+ * @remark The returned pointer must be freed.
+ */
+RD_EXPORT
+int32_t *rd_kafka_brokers_learned_ids(rd_kafka_t *rk, size_t *cntp);
 
 
 /**
@@ -7770,6 +7787,8 @@ typedef enum rd_kafka_ConfigSource_t {
         /** Built-in default configuration for configs that have a
          *  default value */
         RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG = 5,
+        /** Group config that is configured for a specific group */
+        RD_KAFKA_CONFIG_SOURCE_GROUP_CONFIG = 8,
 
         /** Number of source types defined */
         RD_KAFKA_CONFIG_SOURCE__CNT,
@@ -8882,6 +8901,17 @@ const rd_kafka_Node_t *rd_kafka_ConsumerGroupDescription_coordinator(
     const rd_kafka_ConsumerGroupDescription_t *grpdesc);
 
 /**
+ * @brief Gets type for the \p grpdesc group.
+ *
+ * @param grpdesc The group description.
+ *
+ * @return A group type.
+ */
+RD_EXPORT
+rd_kafka_consumer_group_type_t rd_kafka_ConsumerGroupDescription_type(
+    const rd_kafka_ConsumerGroupDescription_t *grpdesc);
+
+/**
  * @brief Gets the members count of \p grpdesc group.
  *
  * @param grpdesc The group description.
@@ -8992,6 +9022,21 @@ const rd_kafka_MemberAssignment_t *rd_kafka_MemberDescription_assignment(
 RD_EXPORT
 const rd_kafka_topic_partition_list_t *rd_kafka_MemberAssignment_partitions(
     const rd_kafka_MemberAssignment_t *assignment);
+
+/**
+ * @brief Gets target assignment of \p member.
+ *
+ * @param member The group member.
+ *
+ * @return The target assignment for `consumer` group types.
+ *         Returns NULL for the `classic` group types.
+ *
+ * @remark The lifetime of the returned memory is the same
+ *         as the lifetime of the \p member object.
+ */
+RD_EXPORT
+const rd_kafka_MemberAssignment_t *rd_kafka_MemberDescription_target_assignment(
+    const rd_kafka_MemberDescription_t *member);
 
 /**@}*/
 
