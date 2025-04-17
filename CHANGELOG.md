@@ -1,5 +1,14 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.10.0
+
+This is a feature release:
+
+### Enhancements
+
+* [KIP-848] Group Config is now supported in AlterConfigs, IncrementalAlterConfigs and DescribeConfigs. (#1344)
+
+
 ## v2.8.0
 
 This is a feature release:
