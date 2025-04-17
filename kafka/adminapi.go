@@ -539,6 +539,8 @@ const (
 	ConfigSourceStaticBroker ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG
 	// ConfigSourceDefault is built-in default configuration for configs that have a default value
 	ConfigSourceDefault ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG
+	// ConfigSourceGroup is group config that is configured for a specific group
+	ConfigSourceGroup ConfigSource = C.RD_KAFKA_CONFIG_SOURCE_GROUP_CONFIG
 )
 
 // String returns the human-readable representation of a ConfigSource type
