@@ -2009,7 +2009,7 @@ func (its *IntegrationTestSuite) TestAdminConfig() {
 	}
 
 	if !testConsumerGroupProtocolClassic() {
-		// New test case for ResourceType.Group (ResourceGroup)
+		// Test configs that are configured for a specific group.
 		groupID := fmt.Sprintf("test-group-%d", rand.Intn(100000))
 
 		// Incremental Alter Configs for group
