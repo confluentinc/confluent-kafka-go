@@ -61,7 +61,6 @@ func main() {
 	fmt.Println("Static token subjects:", subjects)
 
 	//OAuthBearer
-
 	ClientCredentialsConf := schemaRegistry.NewConfig(srUrl)
 	ClientCredentialsConf.BearerAuthCredentialsSource = "OAUTHBEARER"
 	ClientCredentialsConf.BearerAuthToken = "token"
@@ -81,9 +80,9 @@ func main() {
 	fmt.Println("OAuthBearer subjects:", subjects)
 
 	// Custom
-	conf := schemaregistry.NewConfig(srUrl)
-	conf.BearerAuthCredentialsSource = "CUSTOM"
-	conf.AuthenticationHeaderProvider = &CustomHeaderProvider{
+	customConf := schemaregistry.NewConfig(srUrl)
+	customConf.BearerAuthCredentialsSource = "CUSTOM"
+	customConf.AuthenticationHeaderProvider = &CustomHeaderProvider{
 		token:                        "customToken",
 		schemaRegistryLogicalCluster: schemaRegistryLogicalCluster,
 		identityPoolId:               identityPoolId,
