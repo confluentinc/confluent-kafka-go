@@ -61,10 +61,10 @@ func main() {
 	fmt.Println("Static token subjects:", subjects)
 
 	//OAuthBearer
-	ClientCredentialsConf := schemaRegistry.NewConfig(srUrl)
+	ClientCredentialsConf := schemaregistry.NewConfig(srUrl)
 	ClientCredentialsConf.BearerAuthCredentialsSource = "OAUTHBEARER"
 	ClientCredentialsConf.BearerAuthToken = "token"
-	ClientCredentialsConf.BearerAuthIdentityPoolID = identityPoolId
+	ClientCredentialsConf.BearerAuthIdentityPoolID = identityPoolID
 	ClientCredentialsConf.BearerAuthLogicalCluster = schemaRegistryLogicalCluster
 	ClientCredentialsConf.BearerAuthIssuerEndpointURL = tokenUrl
 	ClientCredentialsConf.BearerAuthClientID = clientId
@@ -85,9 +85,9 @@ func main() {
 	customConf.AuthenticationHeaderProvider = &CustomHeaderProvider{
 		token:                        "customToken",
 		schemaRegistryLogicalCluster: schemaRegistryLogicalCluster,
-		identityPoolId:               identityPoolId,
+		identityPoolID:               identityPoolID,
 	}
-	schemaRegistryClient, err := schemaregistry.NewClient(conf)
+	schemaRegistryClient, err := schemaregistry.NewClient(customConf)
 
 	if err != nil {
 		fmt.Println("Error creating schema registry client:", err)
