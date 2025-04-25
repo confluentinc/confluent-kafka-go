@@ -456,6 +456,9 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 
 // SetAuthenticationHeaders sets the authentication headers on the request
 func SetAuthenticationHeaders(provider AuthenticationHeaderProvider, headers *http.Header) error {
+	if provider == nil {
+		return nil
+	}
 	authHeader, err := provider.GetAuthenticationHeader()
 	if err != nil {
 		return err
