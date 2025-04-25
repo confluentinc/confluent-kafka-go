@@ -16,3 +16,6 @@ sonarqube:
     - "**/mk-include/**/*"
   coverage_reports:
     - "**/*coverage.txt"
+make:
+  enable: true
+  enable_updates: true
