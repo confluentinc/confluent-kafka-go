@@ -52,15 +52,15 @@ type ConfigMap map[ConfigKey]ConfigValue
 //
 // For user convenience a key prefixed with {topic}. will be
 // set on the "default.topic.config" sub-map, this use is deprecated.
-func (m ConfigMap) SetKey(key ConfigKey, value ConfigValue) error {
-	if strings.HasPrefix(string(key), "{topic}.") {
+func (m ConfigMap) SetKey(key string, value ConfigValue) error {
+	if strings.HasPrefix(key, "{topic}.") {
 		_, found := m["default.topic.config"]
 		if !found {
 			m["default.topic.config"] = ConfigMap{}
 		}
-		m["default.topic.config"].(ConfigMap)[ConfigKey(strings.TrimPrefix(string(key), "{topic}."))] = value
+		m["default.topic.config"].(ConfigMap)[ConfigKey(strings.TrimPrefix(key, "{topic}."))] = value
 	} else {
-		m[key] = value
+		m[ConfigKey(key)] = value
 	}
 
 	return nil
@@ -77,7 +77,7 @@ func (m ConfigMap) Set(kv string) error {
 	k := kv[:i]
 	v := kv[i+1:]
 
-	return m.SetKey(ConfigKey(k), v)
+	return m.SetKey(k, v)
 }
 
 func value2string(v ConfigValue) (ret string, errstr string) {
