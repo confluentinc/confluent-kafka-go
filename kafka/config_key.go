@@ -5,7 +5,7 @@ const (
 	Acks                                         ConfigKey = "acks"
 	AutoIncludeJmxReporter                       ConfigKey = "auto.include.jmx.reporter"
 	BatchSize                                    ConfigKey = "batch.size"
-	BoostrapServers                              ConfigKey = "bootstrap.servers"
+	BootstrapServers                             ConfigKey = "bootstrap.servers"
 	BufferMemory                                 ConfigKey = "buffer.memory"
 	ClientDnsLookup                              ConfigKey = "client.dns.lookup"
 	ClientId                                     ConfigKey = "client.id"

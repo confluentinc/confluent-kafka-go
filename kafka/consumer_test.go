@@ -621,7 +621,7 @@ func TestConsumerCloseForStaticMember(t *testing.T) {
 	var revokedEvents4 int32
 
 	conf1 := ConfigMap{
-		BoostrapServers:        broker,
+		BootstrapServers:       broker,
 		GroupId:                "rebalance",
 		SessionTimeoutMs:       "6000",
 		"max.poll.interval.ms": "10000",

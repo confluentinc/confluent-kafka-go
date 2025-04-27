@@ -34,6 +34,8 @@ import "C"
 //
 //	bool, int, string, any type with the standard String() interface
 type ConfigValue interface{}
+
+// ConfigKey is type content all the possible of configuration keys
 type ConfigKey string
 
 // ConfigMap is a map containing standard librdkafka configuration properties as documented in:
