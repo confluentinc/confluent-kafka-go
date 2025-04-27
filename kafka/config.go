@@ -34,6 +34,7 @@ import "C"
 //
 //	bool, int, string, any type with the standard String() interface
 type ConfigValue interface{}
+type ConfigKey string
 
 // ConfigMap is a map containing standard librdkafka configuration properties as documented in:
 // https://github.com/confluentinc/librdkafka/tree/master/CONFIGURATION.md
@@ -45,19 +46,19 @@ type ConfigValue interface{}
 // topic configuration properties shall be specified in the standard ConfigMap.
 // For backwards compatibility, "default.topic.config" (if supplied)
 // takes precedence.
-type ConfigMap map[string]ConfigValue
+type ConfigMap map[ConfigKey]ConfigValue
 
 // SetKey sets configuration property key to value.
 //
 // For user convenience a key prefixed with {topic}. will be
 // set on the "default.topic.config" sub-map, this use is deprecated.
-func (m ConfigMap) SetKey(key string, value ConfigValue) error {
-	if strings.HasPrefix(key, "{topic}.") {
+func (m ConfigMap) SetKey(key ConfigKey, value ConfigValue) error {
+	if strings.HasPrefix(string(key), "{topic}.") {
 		_, found := m["default.topic.config"]
 		if !found {
 			m["default.topic.config"] = ConfigMap{}
 		}
-		m["default.topic.config"].(ConfigMap)[strings.TrimPrefix(key, "{topic}.")] = value
+		m["default.topic.config"].(ConfigMap)[ConfigKey(strings.TrimPrefix(string(key), "{topic}."))] = value
 	} else {
 		m[key] = value
 	}
@@ -76,7 +77,7 @@ func (m ConfigMap) Set(kv string) error {
 	k := kv[:i]
 	v := kv[i+1:]
 
-	return m.SetKey(k, v)
+	return m.SetKey(ConfigKey(k), v)
 }
 
 func value2string(v ConfigValue) (ret string, errstr string) {
@@ -192,7 +193,7 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 				(*C.rd_kafka_topic_conf_t)((*rdkTopicConf)(cTopicConf)))
 
 		default:
-			err = anyconfSet(anyconf, k, v)
+			err = anyconfSet(anyconf, string(k), v)
 			if err != nil {
 				return err
 			}
@@ -231,7 +232,7 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 		return defconfCv.(ConfigMap).get(strings.TrimPrefix(key, "{topic}."), defval)
 	}
 
-	v, ok := m[key]
+	v, ok := m[ConfigKey(key)]
 	if !ok {
 		return defval, nil
 	}
@@ -251,7 +252,7 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 		return nil, err
 	}
 
-	delete(m, key)
+	delete(m, ConfigKey(key))
 
 	return v, nil
 }
