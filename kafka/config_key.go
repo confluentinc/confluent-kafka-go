@@ -1,7 +1,7 @@
 package kafka
 
 const (
-	AutoOffSetReset                              ConfigKey = "auto.offset.reset"
+	AutoOffsetReset                              ConfigKey = "auto.offset.reset"
 	Acks                                         ConfigKey = "acks"
 	AutoIncludeJmxReporter                       ConfigKey = "auto.include.jmx.reporter"
 	BatchSize                                    ConfigKey = "batch.size"
