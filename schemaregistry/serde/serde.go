@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"reflect"
 	"strings"
@@ -44,8 +45,130 @@ const (
 	DisableValidation = false
 )
 
-// MagicByte is prepended to the serialized payload
+// MagicByte is prepended to a schema ID
 const MagicByte byte = 0x0
+
+// MagicByteV0 is prepended to a schema ID
+const MagicByteV0 = MagicByte
+
+// MagicByteV1 is prepended to a schema GUID
+const MagicByteV1 byte = 0x1
+
+// SchemaID represents a schema ID or GUID
+type SchemaID struct {
+	SchemaType     string
+	ID             int
+	GUID           uuid.UUID
+	MessageIndexes []int
+}
+
+// FromBytes converts the bytes to the SchemaID
+func (s *SchemaID) FromBytes(payload []byte) (int, error) {
+	var totalBytesRead int
+	magicByte := payload[0]
+	if magicByte == MagicByteV0 {
+		s.ID = int(binary.BigEndian.Uint32(payload[1:5]))
+		totalBytesRead = 5
+	} else if magicByte == MagicByteV1 {
+		guid, err := uuid.FromBytes(payload[1:17])
+		if err != nil {
+			return 0, err
+		}
+		s.GUID = guid
+		totalBytesRead = 17
+	} else {
+		return 0, fmt.Errorf("unknown magic byte %d", magicByte)
+	}
+	if s.SchemaType == "PROTOBUF" {
+		bytesRead, msgIndexes, err := readMessageIndexes(payload[5:])
+		if err != nil {
+			return 0, err
+		}
+		s.MessageIndexes = msgIndexes
+		totalBytesRead += bytesRead
+	}
+	return totalBytesRead, nil
+}
+
+// IDToBytes converts the schema ID to bytes
+func (s *SchemaID) IDToBytes() ([]byte, error) {
+	if s.ID == 0 {
+		return nil, fmt.Errorf("schema ID is not set")
+	}
+	var buf bytes.Buffer
+	err := buf.WriteByte(MagicByteV0)
+	if err != nil {
+		return nil, err
+	}
+	idBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(idBytes, uint32(s.ID))
+	_, err = buf.Write(idBytes)
+	if err != nil {
+		return nil, err
+	}
+	if len(s.MessageIndexes) > 0 {
+		buf.Write(writeMessageIndexes(s.MessageIndexes))
+	}
+	return buf.Bytes(), nil
+}
+
+// GUIDToBytes converts the schema GUID to bytes
+func (s *SchemaID) GUIDToBytes() ([]byte, error) {
+	if s.GUID == uuid.Nil {
+		return nil, fmt.Errorf("schema GUID is not set")
+	}
+	var buf bytes.Buffer
+	err := buf.WriteByte(MagicByteV1)
+	if err != nil {
+		return nil, err
+	}
+	guidBytes, err := s.GUID.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	_, err = buf.Write(guidBytes)
+	if err != nil {
+		return nil, err
+	}
+	if len(s.MessageIndexes) > 0 {
+		buf.Write(writeMessageIndexes(s.MessageIndexes))
+	}
+	return buf.Bytes(), nil
+}
+
+func readMessageIndexes(payload []byte) (int, []int, error) {
+	arrayLen, bytesRead := binary.Varint(payload)
+	if bytesRead <= 0 {
+		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
+	}
+	if arrayLen < 0 {
+		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
+	}
+	if arrayLen == 0 {
+		// Handle the optimization for the first message in the schema
+		return bytesRead, []int{0}, nil
+	}
+	msgIndexes := make([]int, arrayLen)
+	for i := 0; i < int(arrayLen); i++ {
+		idx, read := binary.Varint(payload[bytesRead:])
+		if read <= 0 {
+			return bytesRead, nil, fmt.Errorf("unable to read message indexes")
+		}
+		bytesRead += read
+		msgIndexes[i] = int(idx)
+	}
+	return bytesRead, msgIndexes, nil
+}
+
+func writeMessageIndexes(msgIndexes []int) []byte {
+	buf := make([]byte, (1+len(msgIndexes))*binary.MaxVarintLen64)
+	length := binary.PutVarint(buf, int64(len(msgIndexes)))
+
+	for _, element := range msgIndexes {
+		length += binary.PutVarint(buf[length:], int64(element))
+	}
+	return buf[0:length]
+}
 
 // MessageFactory is a factory function, which should return a pointer to
 // an instance into which we will unmarshal wire data.
@@ -750,10 +873,10 @@ func (s *Serde) getRuleAction(_ RuleContext, actionName string) RuleAction {
 	}
 }
 
-// WriteBytes writes the serialized payload prepended by the MagicByte
+// WriteBytes writes the serialized payload prepended by the MagicByteV0
 func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	err := buf.WriteByte(MagicByte)
+	err := buf.WriteByte(MagicByteV0)
 	if err != nil {
 		return nil, err
 	}
@@ -773,7 +896,7 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 // GetSchema returns a schema for a payload
 func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
-	if payload[0] != MagicByte {
+	if payload[0] != MagicByteV0 {
 		return info, fmt.Errorf("unknown magic byte")
 	}
 	id := binary.BigEndian.Uint32(payload[1:5])
