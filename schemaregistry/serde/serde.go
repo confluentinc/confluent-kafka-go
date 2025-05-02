@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/uuid"
 	"log"
 	"reflect"
@@ -54,12 +55,36 @@ const MagicByteV0 = MagicByte
 // MagicByteV1 is prepended to a schema GUID
 const MagicByteV1 byte = 0x1
 
+// KeySchemaIDHeader is the key schema ID header
+const KeySchemaIDHeader = "__key_schema_id"
+
+// ValueSchemaIDHeader is the value schema ID header
+const ValueSchemaIDHeader = "__value_schema_id"
+
 // SchemaID represents a schema ID or GUID
 type SchemaID struct {
 	SchemaType     string
 	ID             int
 	GUID           uuid.UUID
 	MessageIndexes []int
+}
+
+// NewSchemaID creates a new SchemaID
+func NewSchemaID(schemaType string, id int, guid string) (*SchemaID, error) {
+	var err error
+	u := uuid.Nil
+	if len(guid) > 0 {
+		u, err = uuid.Parse(guid)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &SchemaID{
+		SchemaType:     schemaType,
+		ID:             id,
+		GUID:           u,
+		MessageIndexes: nil,
+	}, nil
 }
 
 // FromBytes converts the bytes to the SchemaID
@@ -80,7 +105,7 @@ func (s *SchemaID) FromBytes(payload []byte) (int, error) {
 		return 0, fmt.Errorf("unknown magic byte %d", magicByte)
 	}
 	if s.SchemaType == "PROTOBUF" {
-		bytesRead, msgIndexes, err := readMessageIndexes(payload[5:])
+		bytesRead, msgIndexes, err := readMessageIndexes(payload[totalBytesRead:])
 		if err != nil {
 			return 0, err
 		}
@@ -161,6 +186,10 @@ func readMessageIndexes(payload []byte) (int, []int, error) {
 }
 
 func writeMessageIndexes(msgIndexes []int) []byte {
+	if len(msgIndexes) == 1 && msgIndexes[0] == 0 {
+		// Handle the optimization for the first message in the schema
+		return []byte{0}
+	}
 	buf := make([]byte, (1+len(msgIndexes))*binary.MaxVarintLen64)
 	length := binary.PutVarint(buf, int64(len(msgIndexes)))
 
@@ -184,6 +213,7 @@ type Serializer interface {
 	// Serialize will serialize the given message, which should be a pointer.
 	// For example, in Protobuf, messages are always a pointer to a struct and never just a struct.
 	Serialize(topic string, msg interface{}) ([]byte, error)
+	SerializeWithHeaders(topic string, msg interface{}) ([]kafka.Header, []byte, error)
 	Close() error
 }
 
@@ -194,8 +224,10 @@ type Deserializer interface {
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
 	Deserialize(topic string, payload []byte) (interface{}, error)
+	DeserializeWithHeaders(topic string, headers []kafka.Header, payload []byte) (interface{}, error)
 	// DeserializeInto will unmarshal data into the given object.
 	DeserializeInto(topic string, payload []byte, msg interface{}) error
+	DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error
 	Close() error
 }
 
@@ -212,13 +244,15 @@ type Serde struct {
 // BaseSerializer represents basic serializer info
 type BaseSerializer struct {
 	Serde
-	Conf *SerializerConfig
+	SchemaIDSerializer SchemaIDSerializerFunc
+	Conf               *SerializerConfig
 }
 
 // BaseDeserializer represents basic deserializer info
 type BaseDeserializer struct {
 	Serde
-	Conf *DeserializerConfig
+	SchemaIDDeserializer SchemaIDDeserializerFunc
+	Conf                 *DeserializerConfig
 }
 
 // RuleContext represents a rule context
@@ -499,6 +533,7 @@ func (s *BaseSerializer) ConfigureSerializer(client schemaregistry.Client, serde
 	s.Conf = conf
 	s.SerdeType = serdeType
 	s.SubjectNameStrategy = TopicNameStrategy
+	s.SchemaIDSerializer = PrefixSchemaIDSerializer
 	return nil
 }
 
@@ -512,6 +547,7 @@ func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, s
 	s.Conf = conf
 	s.SerdeType = serdeType
 	s.SubjectNameStrategy = TopicNameStrategy
+	s.SchemaIDDeserializer = DualSchemaIDDeserializer
 	return nil
 }
 
@@ -527,51 +563,154 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 	return topic + suffix, nil
 }
 
+// SchemaIDSerializerFunc determines how to serialize a schema ID/GUID
+type SchemaIDSerializerFunc func(topic string, serdeType Type,
+	payload []byte, schemaID SchemaID) ([]kafka.Header, []byte, error)
+
+// HeaderSchemaIDSerializer serializes a schema GUID to the header
+func HeaderSchemaIDSerializer(topic string, serdeType Type,
+	payload []byte, schemaID SchemaID) ([]kafka.Header, []byte, error) {
+	headerKey := ValueSchemaIDHeader
+	if serdeType == KeySerde {
+		headerKey = KeySchemaIDHeader
+	}
+	headerValue, err := schemaID.GUIDToBytes()
+	if err != nil {
+		return nil, nil, err
+	}
+	headers := []kafka.Header{{Key: headerKey, Value: headerValue}}
+	return headers, payload, nil
+}
+
+// PrefixSchemaIDSerializer serializes a schema ID to the payload prefix
+func PrefixSchemaIDSerializer(topic string, serdeType Type,
+	payload []byte, schemaID SchemaID) ([]kafka.Header, []byte, error) {
+	var buf bytes.Buffer
+	idBytes, err := schemaID.IDToBytes()
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = buf.Write(idBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = buf.Write(payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, buf.Bytes(), nil
+}
+
+// SchemaIDDeserializerFunc determines how to deserialize a schema ID/GUID
+// and returns the number of bytes read from the payload
+type SchemaIDDeserializerFunc func(topic string, serdeType Type, headers []kafka.Header,
+	payload []byte, schemaID *SchemaID) (int, error)
+
+// DualSchemaIDDeserializer either deserializes a schema GUID from the header or
+// a schema ID from the payload prefix and returns the number of bytes read from the payload
+func DualSchemaIDDeserializer(topic string, serdeType Type, headers []kafka.Header,
+	payload []byte, schemaID *SchemaID) (int, error) {
+	headerKey := ValueSchemaIDHeader
+	if serdeType == KeySerde {
+		headerKey = KeySchemaIDHeader
+	}
+	// find the schema ID in the headers
+	for _, header := range headers {
+		if header.Key == headerKey {
+			if len(header.Value) != 0 {
+				_, err := schemaID.FromBytes(header.Value)
+				if err == nil {
+					return 0, nil
+				}
+			}
+		}
+	}
+	return schemaID.FromBytes(payload)
+}
+
+// PrefixSchemaIDDeserializer deserializes a schema ID from the payload prefix
+// and returns the number of bytes read from the payload
+func PrefixSchemaIDDeserializer(topic string, serdeType Type, headers []kafka.Header,
+	payload []byte, schemaID SchemaID) (int, error) {
+	return schemaID.FromBytes(payload)
+}
+
 // GetID returns a schema ID for the given schema
+// Deprecated: Use GetSchemaID instead
 func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregistry.SchemaInfo) (int, error) {
+	schemaID, err := s.GetSchemaID(topic, "", msg, info)
+	if err != nil {
+		return -1, err
+	}
+	return schemaID.ID, nil
+}
+
+// GetSchemaID returns a schema ID for the given schema
+func (s *BaseSerializer) GetSchemaID(topic string, schemaType string, msg interface{}, info *schemaregistry.SchemaInfo) (SchemaID, error) {
 	autoRegister := s.Conf.AutoRegisterSchemas
 	useSchemaID := s.Conf.UseSchemaID
 	useLatestWithMetadata := s.Conf.UseLatestWithMetadata
 	useLatest := s.Conf.UseLatestVersion
 	normalizeSchema := s.Conf.NormalizeSchemas
 
-	var id = -1
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, *info)
 	if err != nil {
-		return -1, err
+		return SchemaID{
+			ID: -1,
+		}, err
 	}
+	var metadata schemaregistry.SchemaMetadata
 	if autoRegister {
-		id, err = s.Client.Register(subject, *info, normalizeSchema)
+		metadata, err = s.Client.RegisterFullResponse(subject, *info, normalizeSchema)
 		if err != nil {
-			return -1, err
+			return SchemaID{
+				ID: -1,
+			}, err
 		}
 	} else if useSchemaID >= 0 {
 		*info, err = s.Client.GetBySubjectAndID(subject, useSchemaID)
 		if err != nil {
-			return -1, err
+			return SchemaID{
+				ID: -1,
+			}, err
 		}
-		id = useSchemaID
+		metadata, err = s.Client.GetIDFullResponse(subject, *info, normalizeSchema)
+		if err != nil {
+			return SchemaID{
+				ID: -1,
+			}, err
+		}
 	} else if len(useLatestWithMetadata) != 0 {
-		metadata, err := s.Client.GetLatestWithMetadata(subject, useLatestWithMetadata, true)
+		metadata, err = s.Client.GetLatestWithMetadata(subject, useLatestWithMetadata, true)
 		if err != nil {
-			return -1, err
+			return SchemaID{
+				ID: -1,
+			}, err
 		}
 		*info = metadata.SchemaInfo
-		id = metadata.ID
 	} else if useLatest {
-		metadata, err := s.Client.GetLatestSchemaMetadata(subject)
+		metadata, err = s.Client.GetLatestSchemaMetadata(subject)
 		if err != nil {
-			return -1, err
+			return SchemaID{
+				ID: -1,
+			}, err
 		}
 		*info = metadata.SchemaInfo
-		id = metadata.ID
 	} else {
-		id, err = s.Client.GetID(subject, *info, normalizeSchema)
+		metadata, err = s.Client.GetIDFullResponse(subject, *info, normalizeSchema)
 		if err != nil {
-			return -1, err
+			return SchemaID{
+				ID: -1,
+			}, err
 		}
 	}
-	return id, nil
+	schemaID, err := NewSchemaID(schemaType, metadata.ID, metadata.GUID)
+	if err != nil {
+		return SchemaID{
+			ID: -1,
+		}, err
+	}
+	return *schemaID, nil
 }
 
 // SetRuleRegistry sets the rule registry
@@ -874,6 +1013,7 @@ func (s *Serde) getRuleAction(_ RuleContext, actionName string) RuleAction {
 }
 
 // WriteBytes writes the serialized payload prepended by the MagicByteV0
+// Deprecated: Use SchemaIdSerializer instead
 func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	err := buf.WriteByte(MagicByteV0)
@@ -894,6 +1034,7 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 }
 
 // GetSchema returns a schema for a payload
+// Deprecated: Use GetSchemaBySchemaID instead
 func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
 	if payload[0] != MagicByteV0 {
@@ -905,6 +1046,36 @@ func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregist
 		return info, err
 	}
 	return s.Client.GetBySubjectAndID(subject, int(id))
+}
+
+// GetSchemaBySchemaID returns a schema for the given headers and payload
+func (s *BaseDeserializer) GetSchemaBySchemaID(topic string, headers []kafka.Header,
+	payload []byte, schemaID *SchemaID) (schemaregistry.SchemaInfo, int, error) {
+	info := schemaregistry.SchemaInfo{}
+	bytesRead, err := s.SchemaIDDeserializer(topic, s.SerdeType, headers, payload, schemaID)
+	if err != nil {
+		return info, 0, err
+	}
+	var subject string
+	if schemaID.ID > 0 {
+		subject, err = s.SubjectNameStrategy(topic, s.SerdeType, info)
+		if err != nil {
+			return info, 0, err
+		}
+		info, err = s.Client.GetBySubjectAndID(subject, int(schemaID.ID))
+		if err != nil {
+			return info, 0, err
+		}
+		return info, bytesRead, nil
+	} else if schemaID.GUID != uuid.Nil {
+		info, err = s.Client.GetByGUID(schemaID.GUID.String())
+		if err != nil {
+			return info, 0, err
+		}
+		return info, bytesRead, nil
+	} else {
+		return info, 0, fmt.Errorf("unknown schema ID")
+	}
 }
 
 // GetReaderSchema returns a schema for reading

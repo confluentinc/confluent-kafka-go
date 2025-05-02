@@ -19,6 +19,7 @@ package avro
 import (
 	"bytes"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"io"
 
 	"github.com/actgardner/gogen-avro/v10/compiler"
@@ -62,15 +63,21 @@ func NewSpecificSerializer(client schemaregistry.Client, serdeType serde.Type, c
 
 // Serialize implements serialization of specific Avro data
 func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+	_, payload, err := s.SerializeWithHeaders(topic, msg)
+	return payload, err
+}
+
+// SerializeWithHeaders implements serialization of specific Avro data
+func (s *SpecificSerializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafka.Header, []byte, error) {
 	if msg == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var avroMsg SpecificAvroMessage
 	switch t := msg.(type) {
 	case SpecificAvroMessage:
 		avroMsg = t
 	default:
-		return nil, fmt.Errorf("serialization target must be an avro message. Got '%v'", t)
+		return nil, nil, fmt.Errorf("serialization target must be an avro message. Got '%v'", t)
 	}
 	var id int
 	info := schemaregistry.SchemaInfo{
@@ -78,18 +85,18 @@ func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	}
 	id, err := s.GetID(topic, avroMsg, &info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var buf bytes.Buffer
 	err = avroMsg.Serialize(&buf)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	payload, err := s.WriteBytes(id, buf.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return payload, nil
+	return nil, payload, nil
 }
 
 // NewSpecificDeserializer creates an Avro deserializer for Avro-generated objects
@@ -104,6 +111,11 @@ func NewSpecificDeserializer(client schemaregistry.Client, serdeType serde.Type,
 
 // Deserialize implements deserialization of specific Avro data
 func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+	return s.DeserializeWithHeaders(topic, nil, payload)
+}
+
+// DeserializeWithHeaders implements deserialization of specific Avro data
+func (s *SpecificDeserializer) DeserializeWithHeaders(topic string, headers []kafka.Header, payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -148,6 +160,11 @@ func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interf
 
 // DeserializeInto implements deserialization of specific Avro data to the given object
 func (s *SpecificDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+	return s.DeserializeWithHeadersInto(topic, nil, payload, msg)
+}
+
+// DeserializeWithHeadersInto implements deserialization of specific Avro data to the given object
+func (s *SpecificDeserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
 	if payload == nil {
 		return nil
 	}
