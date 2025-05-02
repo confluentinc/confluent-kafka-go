@@ -226,7 +226,7 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 		}
 		info = *schemaInfo
 	}
-	schemaID, err := s.GetSchemaID(topic, SchemaType, protoMsg, &info)
+	schemaID, err := s.GetSchemaID(SchemaType, topic, protoMsg, &info)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -638,7 +638,7 @@ func PrefixSchemaIDDeserializer(topic string, serdeType Type, headers []kafka.He
 // GetID returns a schema ID for the given schema
 // Deprecated: Use GetSchemaID instead
 func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregistry.SchemaInfo) (int, error) {
-	schemaID, err := s.GetSchemaID(topic, "", msg, info)
+	schemaID, err := s.GetSchemaID("", topic, msg, info)
 	if err != nil {
 		return -1, err
 	}
@@ -646,7 +646,7 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 }
 
 // GetSchemaID returns a schema ID for the given schema
-func (s *BaseSerializer) GetSchemaID(topic string, schemaType string, msg interface{}, info *schemaregistry.SchemaInfo) (SchemaID, error) {
+func (s *BaseSerializer) GetSchemaID(schemaType string, topic string, msg interface{}, info *schemaregistry.SchemaInfo) (SchemaID, error) {
 	autoRegister := s.Conf.AutoRegisterSchemas
 	useSchemaID := s.Conf.UseSchemaID
 	useLatestWithMetadata := s.Conf.UseLatestWithMetadata
