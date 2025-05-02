@@ -19,6 +19,7 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"io"
 	"reflect"
 	"strings"
@@ -33,6 +34,8 @@ import (
 )
 
 const (
+	// SchemaType is the JSON Schema type
+	SchemaType     = "JSON"
 	defaultBaseURL = "mem://input/"
 )
 
@@ -88,8 +91,14 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 
 // Serialize implements serialization of generic data to JSON
 func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+	_, payload, err := s.SerializeWithHeaders(topic, msg)
+	return payload, err
+}
+
+// SerializeWithHeaders implements serialization of generic data to JSON
+func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafka.Header, []byte, error) {
 	if msg == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var info schemaregistry.SchemaInfo
 	var err error
@@ -100,50 +109,46 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		jschema := jsonschema.Reflect(msg)
 		raw, err := json.Marshal(jschema)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		info = schemaregistry.SchemaInfo{
 			Schema:     string(raw),
 			SchemaType: "JSON",
 		}
 	}
-	id, err := s.GetID(topic, msg, &info)
+	schemaID, err := s.GetSchemaID(topic, SchemaType, msg, &info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, msg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	raw, err := json.Marshal(msg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if s.validate {
 		// Need to unmarshal to pure interface
 		var obj interface{}
 		err = json.Unmarshal(raw, &obj)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		jschema, err := s.toJSONSchema(s.Client, info)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		err = jschema.Validate(obj)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	payload, err := s.WriteBytes(id, raw)
-	if err != nil {
-		return nil, err
-	}
-	return payload, nil
+	return s.SchemaIDSerializer(topic, s.SerdeType, raw, schemaID)
 }
 
 // NewDeserializer creates a JSON deserializer for generic objects
@@ -176,23 +181,35 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize implements deserialization of generic data from JSON
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	return s.deserialize(topic, payload, nil)
+	return s.DeserializeWithHeaders(topic, nil, payload)
+}
+
+// DeserializeWithHeaders implements deserialization of generic data from JSON
+func (s *Deserializer) DeserializeWithHeaders(topic string, headers []kafka.Header, payload []byte) (interface{}, error) {
+	return s.deserialize(topic, headers, payload, nil)
 }
 
 // DeserializeInto implements deserialization of generic data from JSON to the given object
 func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	_, err := s.deserialize(topic, payload, msg)
+	return s.DeserializeWithHeadersInto(topic, nil, payload, msg)
+}
+
+// DeserializeWithHeadersInto implements deserialization of generic data from JSON to the given object
+func (s *Deserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
+	_, err := s.deserialize(topic, headers, payload, msg)
 	return err
 }
 
-func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
+func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload []byte, result interface{}) (interface{}, error) {
 	if len(payload) == 0 {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	schemaID := serde.SchemaID{SchemaType: SchemaType}
+	info, bytesRead, err := s.GetSchemaBySchemaID(topic, headers, payload, &schemaID)
 	if err != nil {
 		return nil, err
 	}
+	payload = payload[bytesRead:]
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
@@ -209,7 +226,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		}
 	}
 	var msg interface{}
-	bytes := payload[5:]
+	bytes := payload
 	if len(migrations) > 0 {
 		err = json.Unmarshal(bytes, &msg)
 		if err != nil {
