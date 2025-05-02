@@ -17,7 +17,6 @@
 package protobuf
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -244,8 +243,7 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	default:
 		return nil, nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	msgIndexes := toMessageIndexArray(protoMsg.ProtoReflect().Descriptor())
-	schemaID.MessageIndexes = msgIndexes
+	schemaID.MessageIndexes = toMessageIndexArray(protoMsg.ProtoReflect().Descriptor())
 	msgBytes, err := proto.Marshal(protoMsg)
 	if err != nil {
 		return nil, nil, err
@@ -386,24 +384,6 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		Version:    version,
 	}
 	return metadata, nil
-}
-
-func toMessageIndexBytes(descriptor protoreflect.Descriptor) []byte {
-	if descriptor.Index() == 0 {
-		switch descriptor.Parent().(type) {
-		case protoreflect.FileDescriptor:
-			// This is an optimization for the first message in the schema
-			return []byte{0}
-		}
-	}
-	msgIndexes := toMessageIndexes(descriptor, 0)
-	buf := make([]byte, (1+len(msgIndexes))*binary.MaxVarintLen64)
-	length := binary.PutVarint(buf, int64(len(msgIndexes)))
-
-	for _, element := range msgIndexes {
-		length += binary.PutVarint(buf[length:], int64(element))
-	}
-	return buf[0:length]
 }
 
 func toMessageIndexArray(descriptor protoreflect.Descriptor) []int {
@@ -682,30 +662,6 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
 	}
 	return protoMsg, err
-}
-
-func readMessageIndexes(payload []byte) (int, []int, error) {
-	arrayLen, bytesRead := binary.Varint(payload)
-	if bytesRead <= 0 {
-		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
-	}
-	if arrayLen < 0 {
-		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
-	}
-	if arrayLen == 0 {
-		// Handle the optimization for the first message in the schema
-		return bytesRead, []int{0}, nil
-	}
-	msgIndexes := make([]int, arrayLen)
-	for i := 0; i < int(arrayLen); i++ {
-		idx, read := binary.Varint(payload[bytesRead:])
-		if read <= 0 {
-			return bytesRead, nil, fmt.Errorf("unable to read message indexes")
-		}
-		bytesRead += read
-		msgIndexes[i] = int(idx)
-	}
-	return bytesRead, msgIndexes, nil
 }
 
 func toMessageDesc(descriptor desc.Descriptor, msgIndexes []int) (*desc.MessageDescriptor, error) {
