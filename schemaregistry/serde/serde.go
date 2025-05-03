@@ -1034,7 +1034,7 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 }
 
 // GetSchema returns a schema for a payload
-// Deprecated: Use GetSchemaBySchemaID instead
+// Deprecated: Use GetWriterSchema instead
 func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
 	if payload[0] != MagicByteV0 {
@@ -1048,8 +1048,8 @@ func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregist
 	return s.Client.GetBySubjectAndID(subject, int(id))
 }
 
-// GetSchemaBySchemaID returns a schema for the given headers and payload
-func (s *BaseDeserializer) GetSchemaBySchemaID(topic string, headers []kafka.Header,
+// GetWriterSchema returns a schema for the given headers and payload
+func (s *BaseDeserializer) GetWriterSchema(topic string, headers []kafka.Header,
 	payload []byte, schemaID *SchemaID) (schemaregistry.SchemaInfo, int, error) {
 	info := schemaregistry.SchemaInfo{}
 	bytesRead, err := s.SchemaIDDeserializer(topic, s.SerdeType, headers, payload, schemaID)
