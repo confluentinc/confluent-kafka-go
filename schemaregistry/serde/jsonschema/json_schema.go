@@ -205,7 +205,7 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		return nil, nil
 	}
 	schemaID := serde.SchemaID{SchemaType: SchemaType}
-	info, bytesRead, err := s.GetSchemaBySchemaID(topic, headers, payload, &schemaID)
+	info, bytesRead, err := s.GetWriterSchema(topic, headers, payload, &schemaID)
 	if err != nil {
 		return nil, err
 	}
