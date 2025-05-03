@@ -32,10 +32,10 @@ func TestGUID(t *testing.T) {
 	}
 	schemaID.FromBytes(input)
 	guid := schemaID.GUID.String()
-	MaybeFail("same guids", Expect("89791762-2336-4186-9674-299b90a802e2", guid))
+	MaybeFail("same guids", Expect(guid, "89791762-2336-4186-9674-299b90a802e2"))
 
 	output, err := schemaID.GUIDToBytes()
-	MaybeFail("same bytes", err, Expect(input, output))
+	MaybeFail("same bytes", err, Expect(output, input))
 }
 
 func TestID(t *testing.T) {
@@ -49,13 +49,34 @@ func TestID(t *testing.T) {
 	}
 	schemaID.FromBytes(input)
 	id := schemaID.ID
-	MaybeFail("same ids", Expect(1, id))
+	MaybeFail("same ids", Expect(id, 1))
 
 	output, err := schemaID.IDToBytes()
-	MaybeFail("same bytes", err, Expect(input, output))
+	MaybeFail("same bytes", err, Expect(output, input))
 }
 
-func TestMessageIndexes(t *testing.T) {
+func TestGUIDWithMessageIndex(t *testing.T) {
+	MaybeFail = InitFailFunc(t)
+
+	schemaID := SchemaID{
+		SchemaType: "PROTOBUF",
+	}
+	input := []byte{
+		0x01, 0x89, 0x79, 0x17, 0x62, 0x23, 0x36, 0x41, 0x86, 0x96, 0x74, 0x29, 0x9b, 0x90,
+		0xa8, 0x02, 0xe2, 0x06, 0x02, 0x04, 0x06,
+	}
+	schemaID.FromBytes(input)
+	guid := schemaID.GUID.String()
+	MaybeFail("same guids", Expect(guid, "89791762-2336-4186-9674-299b90a802e2"))
+
+	msgIndexes := schemaID.MessageIndexes
+	MaybeFail("same message indexes", Expect(msgIndexes, []int{1, 2, 3}))
+
+	output, err := schemaID.GUIDToBytes()
+	MaybeFail("same bytes", err, Expect(output, input))
+}
+
+func TestIdWithMessageIndexes(t *testing.T) {
 	MaybeFail = InitFailFunc(t)
 
 	schemaID := SchemaID{
@@ -66,11 +87,11 @@ func TestMessageIndexes(t *testing.T) {
 	}
 	schemaID.FromBytes(input)
 	id := schemaID.ID
-	MaybeFail("same ids", Expect(1, id))
+	MaybeFail("same ids", Expect(id, 1))
 
 	msgIndexes := schemaID.MessageIndexes
-	MaybeFail("same message indexes", Expect([]int{1, 2, 3}, msgIndexes))
+	MaybeFail("same message indexes", Expect(msgIndexes, []int{1, 2, 3}))
 
 	output, err := schemaID.IDToBytes()
-	MaybeFail("same bytes", err, Expect(input, output))
+	MaybeFail("same bytes", err, Expect(output, input))
 }
