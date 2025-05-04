@@ -19,6 +19,7 @@ package schemaregistry
 import (
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"net/url"
 	"reflect"
 	"sort"
@@ -67,6 +68,8 @@ type mockclient struct {
 	infoToSchemaCacheLock    sync.RWMutex
 	idToSchemaCache          map[subjectID]infoCacheEntry
 	idToSchemaCacheLock      sync.RWMutex
+	guidToSchemaCache        map[string]infoCacheEntry
+	guidToSchemaCacheLock    sync.RWMutex
 	schemaToVersionCache     map[subjectJSON]versionCacheEntry
 	schemaToVersionCacheLock sync.RWMutex
 	configCache              map[string]ServerConfig
@@ -118,7 +121,7 @@ func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, nor
 		return *cacheEntryVal.metadata, nil
 	}
 
-	id, err := c.getIDFromRegistry(subject, schema)
+	id, guid, err := c.getIDFromRegistry(subject, schema)
 	if err != nil {
 		return SchemaMetadata{
 			ID: -1,
@@ -127,6 +130,7 @@ func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, nor
 	result = SchemaMetadata{
 		SchemaInfo: schema,
 		ID:         id,
+		GUID:       guid,
 	}
 	c.infoToSchemaCacheLock.Lock()
 	c.infoToSchemaCache[cacheKey] = metadataCacheEntry{&result, false}
@@ -134,7 +138,7 @@ func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, nor
 	return result, nil
 }
 
-func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, error) {
+func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, string, error) {
 	var id = -1
 	c.idToSchemaCacheLock.RLock()
 	for key, value := range c.idToSchemaCache {
@@ -144,9 +148,18 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, 
 		}
 	}
 	c.idToSchemaCacheLock.RUnlock()
+	var guid string
+	c.guidToSchemaCacheLock.RLock()
+	for key, value := range c.guidToSchemaCache {
+		if schemasEqual(*value.info, schema) {
+			guid = key
+			break
+		}
+	}
+	c.guidToSchemaCacheLock.RUnlock()
 	err := c.generateVersion(subject, schema)
 	if err != nil {
-		return -1, err
+		return -1, "", err
 	}
 	if id < 0 {
 		id = c.counter.increment()
@@ -157,8 +170,13 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, 
 		c.idToSchemaCacheLock.Lock()
 		c.idToSchemaCache[idCacheKey] = infoCacheEntry{&schema, false}
 		c.idToSchemaCacheLock.Unlock()
+
+		guid = uuid.New().String()
+		c.guidToSchemaCacheLock.Lock()
+		c.guidToSchemaCache[guid] = infoCacheEntry{&schema, false}
+		c.guidToSchemaCacheLock.Unlock()
 	}
-	return id, nil
+	return id, guid, nil
 }
 
 func (c *mockclient) generateVersion(subject string, schema SchemaInfo) error {
@@ -200,6 +218,23 @@ func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInf
 		Op:  "GET",
 		URL: c.url.String() + fmt.Sprintf(internal.SchemasBySubject, id, url.QueryEscape(subject)),
 		Err: errors.New("Subject Not Found"),
+	}
+	return SchemaInfo{}, &posErr
+}
+
+// GetByGUID returns the schema identified by guid
+// Returns Schema object on success
+func (c *mockclient) GetByGUID(guid string) (schema SchemaInfo, err error) {
+	c.guidToSchemaCacheLock.RLock()
+	cacheEntryValue, ok := c.guidToSchemaCache[guid]
+	c.guidToSchemaCacheLock.RUnlock()
+	if ok {
+		return *cacheEntryValue.info, nil
+	}
+	posErr := url.Error{
+		Op:  "GET",
+		URL: c.url.String() + fmt.Sprintf(internal.SchemasByGUID, guid),
+		Err: errors.New("Schema Not Found"),
 	}
 	return SchemaInfo{}, &posErr
 }
@@ -255,9 +290,20 @@ func (c *mockclient) GetSubjectsAndVersionsByID(id int) (subjectsAndVersions []S
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found
 func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
-	schemaJSON, err := schema.MarshalJSON()
+	metadata, err := c.GetIDFullResponse(subject, schema, normalize)
 	if err != nil {
 		return -1, err
+	}
+	return metadata.ID, err
+}
+
+// GetIDFullResponse checks if a schema has been registered with the subject. Returns ID if the registration can be found
+func (c *mockclient) GetIDFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error) {
+	schemaJSON, err := schema.MarshalJSON()
+	if err != nil {
+		return SchemaMetadata{
+			ID: -1,
+		}, err
 	}
 	cacheKey := subjectJSON{
 		subject: subject,
@@ -270,7 +316,7 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 	}
 	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
-		return cacheEntryVal.metadata.ID, nil
+		return *cacheEntryVal.metadata, nil
 	}
 
 	posErr := url.Error{
@@ -278,7 +324,9 @@ func (c *mockclient) GetID(subject string, schema SchemaInfo, normalize bool) (i
 		URL: c.url.String() + fmt.Sprintf(internal.Subjects, url.PathEscape(subject)),
 		Err: errors.New("Subject Not found"),
 	}
-	return -1, &posErr
+	return SchemaMetadata{
+		ID: -1,
+	}, &posErr
 }
 
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
@@ -345,10 +393,28 @@ func (c *mockclient) GetSchemaMetadataIncludeDeleted(subject string, version int
 		}
 		return SchemaMetadata{}, &posErr
 	}
+	var guid string
+	c.guidToSchemaCacheLock.RLock()
+	for key, value := range c.guidToSchemaCache {
+		if schemasEqual(*value.info, info) && (!value.softDeleted || deleted) {
+			guid = key
+			break
+		}
+	}
+	c.guidToSchemaCacheLock.RUnlock()
+	if guid == "" {
+		posErr := url.Error{
+			Op:  "GET",
+			URL: c.url.String() + fmt.Sprintf(internal.Versions, url.PathEscape(subject), version),
+			Err: errors.New("Subject Not found"),
+		}
+		return SchemaMetadata{}, &posErr
+	}
 	return SchemaMetadata{
 		SchemaInfo: info,
 
 		ID:      id,
+		GUID:    guid,
 		Subject: subject,
 		Version: version,
 	}, nil

@@ -245,6 +245,7 @@ func (sd *SchemaInfo) UnmarshalJSON(b []byte) error {
 type SchemaMetadata struct {
 	SchemaInfo
 	ID      int    `json:"id,omitempty"`
+	GUID    string `json:"guid,omitempty"`
 	Subject string `json:"subject,omitempty"`
 	Version int    `json:"version,omitempty"`
 }
@@ -258,6 +259,7 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		Metadata   *Metadata   `json:"metadata,omitempty"`
 		RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 		ID         int         `json:"id,omitempty"`
+		GUID       string      `json:"guid,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
 	}{
@@ -267,6 +269,7 @@ func (sd *SchemaMetadata) MarshalJSON() ([]byte, error) {
 		sd.Metadata,
 		sd.RuleSet,
 		sd.ID,
+		sd.GUID,
 		sd.Subject,
 		sd.Version,
 	})
@@ -282,6 +285,7 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 		Metadata   *Metadata   `json:"metadata,omitempty"`
 		RuleSet    *RuleSet    `json:"ruleSet,omitempty"`
 		ID         int         `json:"id,omitempty"`
+		GUID       string      `json:"guid,omitempty"`
 		Subject    string      `json:"subject,omitempty"`
 		Version    int         `json:"version,omitempty"`
 	}
@@ -294,6 +298,7 @@ func (sd *SchemaMetadata) UnmarshalJSON(b []byte) error {
 	sd.Metadata = tmp.Metadata
 	sd.RuleSet = tmp.RuleSet
 	sd.ID = tmp.ID
+	sd.GUID = tmp.GUID
 	sd.Subject = tmp.Subject
 	sd.Version = tmp.Version
 
@@ -346,6 +351,8 @@ type client struct {
 	infoToSchemaCacheLock     sync.RWMutex
 	idToSchemaInfoCache       cache.Cache
 	idToSchemaInfoCacheLock   sync.RWMutex
+	guidToSchemaInfoCache     cache.Cache
+	guidToSchemaInfoCacheLock sync.RWMutex
 	schemaToVersionCache      cache.Cache
 	schemaToVersionCacheLock  sync.RWMutex
 	versionToSchemaCache      cache.Cache
@@ -368,8 +375,10 @@ type Client interface {
 	Register(subject string, schema SchemaInfo, normalize bool) (id int, err error)
 	RegisterFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error)
 	GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error)
+	GetByGUID(guid string) (schema SchemaInfo, err error)
 	GetSubjectsAndVersionsByID(id int) (subjectAndVersion []SubjectAndVersion, err error)
 	GetID(subject string, schema SchemaInfo, normalize bool) (id int, err error)
+	GetIDFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error)
 	GetLatestSchemaMetadata(subject string) (SchemaMetadata, error)
 	GetSchemaMetadata(subject string, version int) (SchemaMetadata, error)
 	GetSchemaMetadataIncludeDeleted(subject string, version int, deleted bool) (SchemaMetadata, error)
@@ -410,6 +419,7 @@ func NewClient(conf *Config) (Client, error) {
 			url:                  url,
 			infoToSchemaCache:    make(map[subjectJSON]metadataCacheEntry),
 			idToSchemaCache:      make(map[subjectID]infoCacheEntry),
+			guidToSchemaCache:    make(map[string]infoCacheEntry),
 			schemaToVersionCache: make(map[subjectJSON]versionCacheEntry),
 			configCache:          make(map[string]ServerConfig),
 		}
@@ -423,6 +433,7 @@ func NewClient(conf *Config) (Client, error) {
 
 	var schemaToIDCache cache.Cache
 	var idToSchemaCache cache.Cache
+	var guidToSchemaCache cache.Cache
 	var schemaToVersionCache cache.Cache
 	var versionToSchemaCache cache.Cache
 	var latestToSchemaCache cache.Cache
@@ -433,6 +444,10 @@ func NewClient(conf *Config) (Client, error) {
 			return nil, err
 		}
 		idToSchemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
+		if err != nil {
+			return nil, err
+		}
+		guidToSchemaCache, err = cache.NewLRUCache(conf.CacheCapacity)
 		if err != nil {
 			return nil, err
 		}
@@ -455,6 +470,7 @@ func NewClient(conf *Config) (Client, error) {
 	} else {
 		schemaToIDCache = cache.NewMapCache()
 		idToSchemaCache = cache.NewMapCache()
+		guidToSchemaCache = cache.NewMapCache()
 		schemaToVersionCache = cache.NewMapCache()
 		versionToSchemaCache = cache.NewMapCache()
 		latestToSchemaCache = cache.NewMapCache()
@@ -465,6 +481,7 @@ func NewClient(conf *Config) (Client, error) {
 		restService:           restService,
 		infoToSchemaCache:     schemaToIDCache,
 		idToSchemaInfoCache:   idToSchemaCache,
+		guidToSchemaInfoCache: guidToSchemaCache,
 		schemaToVersionCache:  schemaToVersionCache,
 		versionToSchemaCache:  versionToSchemaCache,
 		latestToSchemaCache:   latestToSchemaCache,
@@ -576,19 +593,59 @@ func (c *client) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, e
 	return *newInfo, err
 }
 
+// GetByGUID returns the schema identified by guid
+// Returns Schema object on success
+func (c *client) GetByGUID(guid string) (schema SchemaInfo, err error) {
+	c.guidToSchemaInfoCacheLock.RLock()
+	infoValue, ok := c.guidToSchemaInfoCache.Get(guid)
+	c.guidToSchemaInfoCacheLock.RUnlock()
+	if ok {
+		return *infoValue.(*SchemaInfo), nil
+	}
+
+	metadata := SchemaMetadata{}
+	newInfo := &SchemaInfo{}
+	c.guidToSchemaInfoCacheLock.Lock()
+	// another goroutine could have already put it in cache
+	infoValue, ok = c.guidToSchemaInfoCache.Get(guid)
+	if !ok {
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SchemasByGUID, nil, guid), &metadata)
+		if err == nil {
+			newInfo = &metadata.SchemaInfo
+			c.guidToSchemaInfoCache.Put(guid, newInfo)
+		}
+	} else {
+		newInfo = infoValue.(*SchemaInfo)
+	}
+	c.guidToSchemaInfoCacheLock.Unlock()
+	return *newInfo, err
+}
+
 // GetSubjectsAndVersionsByID returns the subject-version pairs for a given ID.
 // Returns SubjectAndVersion object on success.
 // This method cannot not use caching to increase performance.
-func (c *client) GetSubjectsAndVersionsByID(id int) (subbjectsAndVersions []SubjectAndVersion, err error) {
-	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SubjectsAndVersionsByID, nil, id), &subbjectsAndVersions)
+func (c *client) GetSubjectsAndVersionsByID(id int) (subjectsAndVersions []SubjectAndVersion, err error) {
+	err = c.restService.HandleRequest(internal.NewRequest("GET", internal.SubjectsAndVersionsByID, nil, id), &subjectsAndVersions)
 	return
 }
 
 // GetID checks if a schema has been registered with the subject. Returns ID if the registration can be found
 func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id int, err error) {
-	schemaJSON, err := schema.MarshalJSON()
+	metadata, err := c.GetIDFullResponse(subject, schema, normalize)
 	if err != nil {
 		return -1, err
+	}
+	return metadata.ID, err
+}
+
+// GetIDFullResponse checks if a schema has been registered with the subject.
+// Returns SchemaMetadata if the registration can be found
+func (c *client) GetIDFullResponse(subject string, schema SchemaInfo, normalize bool) (result SchemaMetadata, err error) {
+	schemaJSON, err := schema.MarshalJSON()
+	if err != nil {
+		return SchemaMetadata{
+			ID: -1,
+		}, err
 	}
 	cacheKey := subjectJSON{
 		subject: subject,
@@ -599,28 +656,38 @@ func (c *client) GetID(subject string, schema SchemaInfo, normalize bool) (id in
 	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
 		md := *metadataValue.(*SchemaMetadata)
-		return md.ID, nil
+		// Allow the schema to be looked up again if version is not valid
+		// This is for backward compatibility with versions before CP 8.0
+		if md.Version > 0 {
+			return md, nil
+		}
 	}
 
-	metadata := SchemaMetadata{
+	input := SchemaMetadata{
 		SchemaInfo: schema,
 	}
 	c.infoToSchemaCacheLock.Lock()
+	defer c.infoToSchemaCacheLock.Unlock()
 	// another goroutine could have already put it in cache
 	metadataValue, ok = c.infoToSchemaCache.Get(cacheKey)
-	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
-		if err == nil {
-			c.infoToSchemaCache.Put(cacheKey, &metadata)
-		} else {
-			metadata.ID = -1
-		}
-	} else {
+	if ok {
 		md := *metadataValue.(*SchemaMetadata)
-		metadata.ID = md.ID
+		// Allow the schema to be looked up again if version is not valid
+		// This is for backward compatibility with versions before CP 8.0
+		if md.Version > 0 {
+			return md, nil
+		}
 	}
-	c.infoToSchemaCacheLock.Unlock()
-	return metadata.ID, err
+
+	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &input, url.PathEscape(subject), normalize), &result)
+	if err == nil {
+		c.infoToSchemaCache.Put(cacheKey, &result)
+	} else {
+		result = SchemaMetadata{
+			ID: -1,
+		}
+	}
+	return result, err
 }
 
 // GetLatestSchemaMetadata fetches latest version registered with the provided subject
@@ -1057,6 +1124,9 @@ func (c *client) ClearCaches() error {
 	c.idToSchemaInfoCacheLock.Lock()
 	c.idToSchemaInfoCache.Clear()
 	c.idToSchemaInfoCacheLock.Unlock()
+	c.guidToSchemaInfoCacheLock.Lock()
+	c.guidToSchemaInfoCache.Clear()
+	c.guidToSchemaInfoCacheLock.Unlock()
 	c.schemaToVersionCacheLock.Lock()
 	c.schemaToVersionCache.Clear()
 	c.schemaToVersionCacheLock.Unlock()

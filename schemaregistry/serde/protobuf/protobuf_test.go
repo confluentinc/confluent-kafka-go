@@ -148,6 +148,55 @@ func TestProtobufSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
 }
 
+func TestProtobufSerdeWithGuidInHeader(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	ser.SchemaIDSerializer = serde.HeaderSchemaIDSerializer
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	headers, bytes, err := ser.SerializeWithHeaders("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	newobj, err := deser.DeserializeWithHeaders("topic1", headers, bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+
+	// serialize second object
+	obj = test.Author{
+		Name:     "Kierkegaard",
+		Id:       123,
+		Works:    []string{"Fear And Trembling"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	headers, bytes, err = ser.SerializeWithHeaders("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	newobj, err = deser.DeserializeWithHeaders("topic1", headers, bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+
+	err = deser.DeserializeWithHeadersInto("topic1", headers, bytes, newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
 func TestProtobufSerdeWithSecondMessage(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
