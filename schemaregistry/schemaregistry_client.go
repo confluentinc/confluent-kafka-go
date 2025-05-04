@@ -656,28 +656,37 @@ func (c *client) GetIDFullResponse(subject string, schema SchemaInfo, normalize 
 	c.infoToSchemaCacheLock.RUnlock()
 	if ok {
 		md := *metadataValue.(*SchemaMetadata)
-		return md, nil
+		// Allow the schema to be looked up again if version is not valid
+		// This is for backward compatibility with versions before CP 8.0
+		if md.Version > 0 {
+			return md, nil
+		}
 	}
 
-	metadata := SchemaMetadata{
+	input := SchemaMetadata{
 		SchemaInfo: schema,
 	}
 	c.infoToSchemaCacheLock.Lock()
+	defer c.infoToSchemaCacheLock.Unlock()
 	// another goroutine could have already put it in cache
 	metadataValue, ok = c.infoToSchemaCache.Get(cacheKey)
-	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &metadata, url.PathEscape(subject), normalize), &metadata)
-		if err == nil {
-			c.infoToSchemaCache.Put(cacheKey, &metadata)
-		} else {
-			result = SchemaMetadata{
-				ID: -1,
-			}
+	if ok {
+		md := *metadataValue.(*SchemaMetadata)
+		// Allow the schema to be looked up again if version is not valid
+		// This is for backward compatibility with versions before CP 8.0
+		if md.Version > 0 {
+			return md, nil
 		}
-	} else {
-		result = *metadataValue.(*SchemaMetadata)
 	}
-	c.infoToSchemaCacheLock.Unlock()
+
+	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.SubjectsNormalize, &input, url.PathEscape(subject), normalize), &result)
+	if err == nil {
+		c.infoToSchemaCache.Put(cacheKey, &result)
+	} else {
+		result = SchemaMetadata{
+			ID: -1,
+		}
+	}
 	return result, err
 }
 
