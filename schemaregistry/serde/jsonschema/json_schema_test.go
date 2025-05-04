@@ -272,6 +272,50 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
 }
 
+func TestJSONSchemaSerdeWithGuidInHeader(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	ser.SchemaIDSerializer = serde.HeaderSchemaIDSerializer
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	headers, bytes, err := ser.SerializeWithHeaders("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	var newobj JSONDemoSchema
+	err = deser.DeserializeWithHeadersInto("topic1", headers, bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+
+	// serialize second object
+	obj = JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "bye"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	headers, bytes, err = ser.SerializeWithHeaders("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	err = deser.DeserializeWithHeadersInto("topic1", headers, bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, obj))
+}
+
 func TestJSONSchemaSerdeWithSimpleMap(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error

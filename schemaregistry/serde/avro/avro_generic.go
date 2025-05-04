@@ -17,6 +17,7 @@
 package avro
 
 import (
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"reflect"
 	"unsafe"
 
@@ -52,8 +53,14 @@ func NewGenericSerializer(client schemaregistry.Client, serdeType serde.Type, co
 
 // Serialize implements serialization of generic Avro data
 func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+	_, payload, err := s.SerializeWithHeaders(topic, msg)
+	return payload, err
+}
+
+// SerializeWithHeaders implements serialization of generic Avro data
+func (s *GenericSerializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafka.Header, []byte, error) {
 	if msg == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	val := reflect.ValueOf(msg)
 	if val.Kind() == reflect.Pointer {
@@ -62,24 +69,24 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 	}
 	avroType, err := avro.TypeOf(msg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	info := schemaregistry.SchemaInfo{
 		Schema: avroType.String(),
 	}
 	id, err := s.GetID(topic, msg, &info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	msgBytes, _, err := avro.Marshal(msg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	payload, err := s.WriteBytes(id, msgBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return payload, nil
+	return nil, payload, nil
 }
 
 // NewGenericDeserializer creates an Avro deserializer for generic objects
@@ -94,6 +101,11 @@ func NewGenericDeserializer(client schemaregistry.Client, serdeType serde.Type, 
 
 // Deserialize implements deserialization of generic Avro data
 func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+	return s.DeserializeWithHeaders(topic, nil, payload)
+}
+
+// DeserializeWithHeaders implements deserialization of generic Avro data
+func (s *GenericDeserializer) DeserializeWithHeaders(topic string, headers []kafka.Header, payload []byte) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -119,6 +131,11 @@ func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interfa
 
 // DeserializeInto implements deserialization of generic Avro data to the given object
 func (s *GenericDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+	return s.DeserializeWithHeadersInto(topic, nil, payload, msg)
+}
+
+// DeserializeWithHeadersInto implements deserialization of generic Avro data to the given object
+func (s *GenericDeserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
 	if payload == nil {
 		return nil
 	}
