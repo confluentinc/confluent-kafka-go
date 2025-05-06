@@ -315,3 +315,19 @@ func TestSetAuthenticationHandlers(t *testing.T) {
 		t.Errorf("should have Confluent-Identity-Pool-Id header with value pool_id")
 	}
 }
+
+func TestNoAuthProviderSetAuthenticationHeaders(t *testing.T) {
+	config := &ClientConfig{}
+
+	rs, err := NewRestService(config)
+
+	if err != nil {
+		t.Errorf("should work with no auth provider")
+	}
+
+	err = SetAuthenticationHeaders(config.AuthenticationHeaderProvider, &rs.headers)
+
+	if err != nil {
+		t.Errorf("should work with no auth provider, got err %s", err)
+	}
+}

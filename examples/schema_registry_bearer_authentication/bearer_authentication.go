@@ -23,34 +23,39 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
 
-var srUrl = "https://psrc-1234.us-east-1.aws.confluent.cloud"
-var tokenUrl = "your-token-url"
-var clientId = "your-client-id"
+var srURL = "https://psrc-1234.us-east-1.aws.confluent.cloud"
+var tokenURL = "your-token-url"
+var clientID = "your-client-id"
 var clientSecret = "your-client-secret"
 var scopes = []string{"schema_registry"}
 var identityPoolID = "pool-1234"
 var schemaRegistryLogicalCluster = "lsrc-abcd"
 
+// CustomHeaderProvider is a custom header provider that implements the AuthenticationHeaderProvider interface
 type CustomHeaderProvider struct {
 	token                        string
 	schemaRegistryLogicalCluster string
 	identityPoolID               string
 }
 
+// GetAuthenticationHeader returns the authentication header for the custom header provider
 func (p *CustomHeaderProvider) GetAuthenticationHeader() (string, error) {
 	return "Bearer " + p.token, nil
 }
 
+// GetLogicalCluster returns the logical cluster for the custom header provider
 func (p *CustomHeaderProvider) GetLogicalCluster() (string, error) {
 	return p.schemaRegistryLogicalCluster, nil
 }
+
+// GetIdentityPoolID returns the identity pool ID for the custom header provider
 func (p *CustomHeaderProvider) GetIdentityPoolID() (string, error) {
 	return p.identityPoolID, nil
 }
 
 func main() {
 	// Static token
-	staticConf := schemaregistry.NewConfigWithBearerAuthentication(srUrl, "token", schemaRegistryLogicalCluster, identityPoolID)
+	staticConf := schemaregistry.NewConfigWithBearerAuthentication(srURL, "token", schemaRegistryLogicalCluster, identityPoolID)
 	staticClient, _ := schemaregistry.NewClient(staticConf)
 
 	subjects, err := staticClient.GetAllSubjects()
@@ -61,13 +66,13 @@ func main() {
 	fmt.Println("Static token subjects:", subjects)
 
 	//OAuthBearer
-	ClientCredentialsConf := schemaRegistry.NewConfig(srUrl)
+	ClientCredentialsConf := schemaregistry.NewConfig(srURL)
 	ClientCredentialsConf.BearerAuthCredentialsSource = "OAUTHBEARER"
 	ClientCredentialsConf.BearerAuthToken = "token"
-	ClientCredentialsConf.BearerAuthIdentityPoolID = identityPoolId
+	ClientCredentialsConf.BearerAuthIdentityPoolID = identityPoolID
 	ClientCredentialsConf.BearerAuthLogicalCluster = schemaRegistryLogicalCluster
-	ClientCredentialsConf.BearerAuthIssuerEndpointURL = tokenUrl
-	ClientCredentialsConf.BearerAuthClientID = clientId
+	ClientCredentialsConf.BearerAuthIssuerEndpointURL = tokenURL
+	ClientCredentialsConf.BearerAuthClientID = clientID
 	ClientCredentialsConf.BearerAuthClientSecret = clientSecret
 	ClientCredentialsConf.BearerAuthScopes = scopes
 
@@ -80,14 +85,14 @@ func main() {
 	fmt.Println("OAuthBearer subjects:", subjects)
 
 	// Custom
-	customConf := schemaregistry.NewConfig(srUrl)
+	customConf := schemaregistry.NewConfig(srURL)
 	customConf.BearerAuthCredentialsSource = "CUSTOM"
 	customConf.AuthenticationHeaderProvider = &CustomHeaderProvider{
 		token:                        "customToken",
 		schemaRegistryLogicalCluster: schemaRegistryLogicalCluster,
-		identityPoolId:               identityPoolId,
+		identityPoolID:               identityPoolID,
 	}
-	schemaRegistryClient, err := schemaregistry.NewClient(conf)
+	schemaRegistryClient, err := schemaregistry.NewClient(customConf)
 
 	if err != nil {
 		fmt.Println("Error creating schema registry client:", err)
