@@ -134,8 +134,10 @@ func (f *FieldEncryptionExecutor) Configure(clientConfig *schemaregistry.Config,
 				f.Config[key] = value
 			}
 		}
-	} else {
+	} else if config != nil {
 		f.Config = config
+	} else {
+		f.Config = make(map[string]string)
 	}
 	return nil
 }
