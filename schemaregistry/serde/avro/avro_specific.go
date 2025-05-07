@@ -61,7 +61,7 @@ func NewSpecificSerializer(client schemaregistry.Client, serdeType serde.Type, c
 }
 
 // Serialize implements serialization of specific Avro data
-func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+func (s *SpecificSerializer) Serialize(topic string, msg interface{}, hint *serde.SerializeHint) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
@@ -76,7 +76,7 @@ func (s *SpecificSerializer) Serialize(topic string, msg interface{}) ([]byte, e
 	info := schemaregistry.SchemaInfo{
 		Schema: avroMsg.Schema(),
 	}
-	id, err := s.GetID(topic, avroMsg, &info)
+	id, err := s.GetID(topic, avroMsg, &info, hint)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func NewSpecificDeserializer(client schemaregistry.Client, serdeType serde.Type,
 }
 
 // Deserialize implements deserialization of specific Avro data
-func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+func (s *SpecificDeserializer) Deserialize(topic string, payload []byte, _ *serde.DeserializeHint) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -147,7 +147,7 @@ func (s *SpecificDeserializer) Deserialize(topic string, payload []byte) (interf
 }
 
 // DeserializeInto implements deserialization of specific Avro data to the given object
-func (s *SpecificDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+func (s *SpecificDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}, _ *serde.DeserializeHint) error {
 	if payload == nil {
 		return nil
 	}

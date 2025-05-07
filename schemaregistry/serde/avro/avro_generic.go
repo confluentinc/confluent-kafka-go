@@ -51,7 +51,7 @@ func NewGenericSerializer(client schemaregistry.Client, serdeType serde.Type, co
 }
 
 // Serialize implements serialization of generic Avro data
-func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+func (s *GenericSerializer) Serialize(topic string, msg interface{}, hint *serde.SerializeHint) ([]byte, error) {
 	if msg == nil {
 		return nil, nil
 	}
@@ -67,7 +67,7 @@ func (s *GenericSerializer) Serialize(topic string, msg interface{}) ([]byte, er
 	info := schemaregistry.SchemaInfo{
 		Schema: avroType.String(),
 	}
-	id, err := s.GetID(topic, msg, &info)
+	id, err := s.GetID(topic, msg, &info, hint)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func NewGenericDeserializer(client schemaregistry.Client, serdeType serde.Type, 
 }
 
 // Deserialize implements deserialization of generic Avro data
-func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
+func (s *GenericDeserializer) Deserialize(topic string, payload []byte, _ *serde.DeserializeHint) (interface{}, error) {
 	if payload == nil {
 		return nil, nil
 	}
@@ -118,7 +118,7 @@ func (s *GenericDeserializer) Deserialize(topic string, payload []byte) (interfa
 }
 
 // DeserializeInto implements deserialization of generic Avro data to the given object
-func (s *GenericDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
+func (s *GenericDeserializer) DeserializeInto(topic string, payload []byte, msg interface{}, _ *serde.DeserializeHint) error {
 	if payload == nil {
 		return nil
 	}

@@ -71,12 +71,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	deserConfig := avrov2.NewDeserializerConfig()
-	deserConfig.UseLatestWithMetadata = map[string]string{
+	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
+
+	deserializeHint := serde.NewDeserializeHint()
+	deserializeHint.UseLatestWithMetadata = map[string]string{
 		"application.major.version": "2",
 	}
-
-	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, deserConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)
@@ -106,7 +106,7 @@ func main() {
 			switch e := ev.(type) {
 			case *kafka.Message:
 				value := User{}
-				err := deser.DeserializeInto(*e.TopicPartition.Topic, e.Value, &value)
+				err := deser.DeserializeInto(*e.TopicPartition.Topic, e.Value, &value, deserializeHint)
 				if err != nil {
 					fmt.Printf("Failed to deserialize payload: %s\n", err)
 				} else {

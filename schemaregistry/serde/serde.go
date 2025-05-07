@@ -60,7 +60,7 @@ type Serializer interface {
 		conf *SerializerConfig) error
 	// Serialize will serialize the given message, which should be a pointer.
 	// For example, in Protobuf, messages are always a pointer to a struct and never just a struct.
-	Serialize(topic string, msg interface{}) ([]byte, error)
+	Serialize(topic string, msg interface{}, hint *SerializeHint) ([]byte, error)
 	Close() error
 }
 
@@ -70,9 +70,9 @@ type Deserializer interface {
 		conf *DeserializerConfig) error
 	// Deserialize will call the MessageFactory to create an object
 	// into which we will unmarshal data.
-	Deserialize(topic string, payload []byte) (interface{}, error)
+	Deserialize(topic string, payload []byte, hint *DeserializeHint) (interface{}, error)
 	// DeserializeInto will unmarshal data into the given object.
-	DeserializeInto(topic string, payload []byte, msg interface{}) error
+	DeserializeInto(topic string, payload []byte, msg interface{}, hint *DeserializeHint) error
 	Close() error
 }
 
@@ -405,11 +405,12 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 }
 
 // GetID returns a schema ID for the given schema
-func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregistry.SchemaInfo) (int, error) {
+func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregistry.SchemaInfo, hint *SerializeHint) (int, error) {
 	autoRegister := s.Conf.AutoRegisterSchemas
-	useSchemaID := s.Conf.UseSchemaID
-	useLatestWithMetadata := s.Conf.UseLatestWithMetadata
-	useLatest := s.Conf.UseLatestVersion
+	useSchemaID := hint.UseSchemaID
+	useSpecificVersion := hint.UseSpecificVersion
+	useLatestWithMetadata := hint.UseLatestWithMetadata
+	useLatest := hint.UseLatestVersion
 	normalizeSchema := s.Conf.NormalizeSchemas
 
 	var id = -1
@@ -428,6 +429,13 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 			return -1, err
 		}
 		id = useSchemaID
+	} else if useSpecificVersion >= 0 {
+		metadata, err := s.Client.GetSchemaMetadata(subject, useSpecificVersion)
+		if err != nil {
+			return -1, err
+		}
+		*info = metadata.SchemaInfo
+		id = metadata.ID
 	} else if len(useLatestWithMetadata) != 0 {
 		metadata, err := s.Client.GetLatestWithMetadata(subject, useLatestWithMetadata, true)
 		if err != nil {
@@ -785,9 +793,10 @@ func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregist
 }
 
 // GetReaderSchema returns a schema for reading
-func (s *BaseDeserializer) GetReaderSchema(subject string) (*schemaregistry.SchemaMetadata, error) {
-	useLatestWithMetadata := s.Conf.UseLatestWithMetadata
-	useLatest := s.Conf.UseLatestVersion
+func (s *BaseDeserializer) GetReaderSchema(subject string, hint *DeserializeHint) (*schemaregistry.SchemaMetadata, error) {
+	useLatestWithMetadata := hint.UseLatestWithMetadata
+	useLatest := hint.UseLatestVersion
+
 	if len(useLatestWithMetadata) != 0 {
 		meta, err := s.Client.GetLatestWithMetadata(subject, useLatestWithMetadata, true)
 		if err != nil {

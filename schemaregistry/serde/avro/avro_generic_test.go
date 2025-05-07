@@ -59,7 +59,7 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	obj.StringField = "hi"
 	obj.BoolField = true
 	obj.BytesField = []byte{1, 2}
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -67,11 +67,13 @@ func TestGenericAvroSerdeWithSimple(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactoryGeneric
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj GenericDemoSchema
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -96,7 +98,7 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 		OtherField: nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -104,11 +106,13 @@ func TestGenericAvroSerdeWithNested(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactoryGeneric
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj GenericNestedTestRecord
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -131,7 +135,7 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 		Next:  &nested,
 	}
 
-	bytes, err := ser.Serialize("topic1", &obj)
+	bytes, err := ser.Serialize("topic1", &obj, serde.NewSerializeHint())
 	serde.MaybeFail("serialization", err)
 
 	deser, err := NewGenericDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
@@ -139,11 +143,13 @@ func TestGenericAvroSerdeWithCycle(t *testing.T) {
 	deser.Client = ser.Client
 	deser.MessageFactory = testMessageFactoryGeneric
 
+	deserializeHint := serde.NewDeserializeHint()
+
 	var newobj GenericLinkedList
-	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	err = deser.DeserializeInto("topic1", bytes, &newobj, deserializeHint)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 
-	msg, err := deser.Deserialize("topic1", bytes)
+	msg, err := deser.Deserialize("topic1", bytes, deserializeHint)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
