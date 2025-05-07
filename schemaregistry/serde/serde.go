@@ -408,6 +408,7 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregistry.SchemaInfo) (int, error) {
 	autoRegister := s.Conf.AutoRegisterSchemas
 	useSchemaID := s.Conf.UseSchemaID
+	useSpecificVersion := s.Conf.UseSpecificVersion
 	useLatestWithMetadata := s.Conf.UseLatestWithMetadata
 	useLatest := s.Conf.UseLatestVersion
 	normalizeSchema := s.Conf.NormalizeSchemas
@@ -428,6 +429,13 @@ func (s *BaseSerializer) GetID(topic string, msg interface{}, info *schemaregist
 			return -1, err
 		}
 		id = useSchemaID
+	} else if useSpecificVersion >= 0 {
+		metadata, err := s.Client.GetSchemaMetadata(subject, useSpecificVersion)
+		if err != nil {
+			return -1, err
+		}
+		*info = metadata.SchemaInfo
+		id = metadata.ID
 	} else if len(useLatestWithMetadata) != 0 {
 		metadata, err := s.Client.GetLatestWithMetadata(subject, useLatestWithMetadata, true)
 		if err != nil {

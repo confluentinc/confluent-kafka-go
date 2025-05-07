@@ -208,6 +208,7 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 	var err error
 	// Don't derive the schema if it is being looked up in the following ways
 	if s.Conf.UseSchemaID == -1 &&
+		s.Conf.UseSpecificVersion == -1 &&
 		!s.Conf.UseLatestVersion &&
 		len(s.Conf.UseLatestWithMetadata) == 0 {
 		schemaInfo, err := s.getSchemaInfo(protoMsg)
