@@ -369,6 +369,54 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
+func TestAvroSerdeWithGuidInHeader(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	ser.SchemaIDSerializer = serde.HeaderSchemaIDSerializer
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	headers, bytes, err := ser.SerializeWithHeaders("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj DemoSchema
+	err = deser.DeserializeWithHeadersInto("topic1", headers, bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.DeserializeWithHeaders("topic1", headers, bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	// serialize second object
+	obj = DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "bye"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	msg, err = deser.DeserializeWithHeaders("topic1", headers, bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
 func TestAvroSerdeWithSimpleMap(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
