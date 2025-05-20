@@ -17,9 +17,9 @@
 package protobuf
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"io"
 	"log"
 	"reflect"
@@ -67,6 +67,9 @@ import (
 	"google.golang.org/protobuf/types/known/typepb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+// SchemaType is the schema type for Protobuf
+const SchemaType = "PROTOBUF"
 
 // Serializer represents a Protobuf serializer
 type Serializer struct {
@@ -194,15 +197,21 @@ func (s *Deserializer) ConfigureDeserializer(client schemaregistry.Client, serde
 
 // Serialize implements serialization of Protobuf data
 func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+	_, payload, err := s.SerializeWithHeaders(topic, msg)
+	return payload, err
+}
+
+// SerializeWithHeaders implements serialization of Protobuf data
+func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafka.Header, []byte, error) {
 	if msg == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var protoMsg proto.Message
 	switch t := msg.(type) {
 	case proto.Message:
 		protoMsg = t
 	default:
-		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
+		return nil, nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
 	var info schemaregistry.SchemaInfo
 	var err error
@@ -212,38 +221,34 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		len(s.Conf.UseLatestWithMetadata) == 0 {
 		schemaInfo, err := s.getSchemaInfo(protoMsg)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		info = *schemaInfo
 	}
-	id, err := s.GetID(topic, protoMsg, &info)
+	schemaID, err := s.GetSchemaID(SchemaType, topic, protoMsg, &info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, protoMsg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	switch t := msg.(type) {
 	case proto.Message:
 		protoMsg = t
 	default:
-		return nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
+		return nil, nil, fmt.Errorf("serialization target must be a protobuf message. Got '%v'", t)
 	}
-	msgIndexBytes := toMessageIndexBytes(protoMsg.ProtoReflect().Descriptor())
+	schemaID.MessageIndexes = toMessageIndexArray(protoMsg.ProtoReflect().Descriptor())
 	msgBytes, err := proto.Marshal(protoMsg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	payload, err := s.WriteBytes(id, append(msgIndexBytes, msgBytes...))
-	if err != nil {
-		return nil, err
-	}
-	return payload, nil
+	return s.SchemaIDSerializer(topic, s.SerdeType, msgBytes, schemaID)
 }
 
 func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.SchemaInfo, error) {
@@ -349,7 +354,7 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 	}
 	info := schemaregistry.SchemaInfo{
 		Schema:     deps[fileDesc.GetName()],
-		SchemaType: "PROTOBUF",
+		SchemaType: SchemaType,
 		References: refs,
 	}
 	var id = -1
@@ -381,22 +386,15 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 	return metadata, nil
 }
 
-func toMessageIndexBytes(descriptor protoreflect.Descriptor) []byte {
+func toMessageIndexArray(descriptor protoreflect.Descriptor) []int {
 	if descriptor.Index() == 0 {
 		switch descriptor.Parent().(type) {
 		case protoreflect.FileDescriptor:
 			// This is an optimization for the first message in the schema
-			return []byte{0}
+			return []int{0}
 		}
 	}
-	msgIndexes := toMessageIndexes(descriptor, 0)
-	buf := make([]byte, (1+len(msgIndexes))*binary.MaxVarintLen64)
-	length := binary.PutVarint(buf, int64(len(msgIndexes)))
-
-	for _, element := range msgIndexes {
-		length += binary.PutVarint(buf[length:], int64(element))
-	}
-	return buf[0:length]
+	return toMessageIndexes(descriptor, 0)
 }
 
 // Adapted from ideasculptor, see https://github.com/riferrei/srclient/issues/17
@@ -514,12 +512,22 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize implements deserialization of Protobuf data
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	return s.deserialize(topic, payload, nil)
+	return s.DeserializeWithHeaders(topic, nil, payload)
+}
+
+// DeserializeWithHeaders implements deserialization of Protobuf data
+func (s *Deserializer) DeserializeWithHeaders(topic string, headers []kafka.Header, payload []byte) (interface{}, error) {
+	return s.deserialize(topic, headers, payload, nil)
 }
 
 // DeserializeInto implements deserialization of Protobuf data to the given object
 func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	result, err := s.deserialize(topic, payload, msg)
+	return s.DeserializeWithHeadersInto(topic, nil, payload, msg)
+}
+
+// DeserializeWithHeadersInto implements deserialization of Protobuf data to the given object
+func (s *Deserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
+	result, err := s.deserialize(topic, headers, payload, msg)
 	if err != nil {
 		return err
 	}
@@ -532,23 +540,21 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 	return nil
 }
 
-func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
+func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload []byte, result interface{}) (interface{}, error) {
 	if len(payload) == 0 {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	schemaID := serde.SchemaID{SchemaType: SchemaType}
+	info, bytesRead, err := s.GetWriterSchema(topic, headers, payload, &schemaID)
 	if err != nil {
 		return nil, err
 	}
+	payload = payload[bytesRead:]
 	fd, err := s.toFileDesc(s.Client, info)
 	if err != nil {
 		return nil, err
 	}
-	bytesRead, msgIndexes, err := readMessageIndexes(payload[5:])
-	if err != nil {
-		return nil, err
-	}
-	messageDesc, err := toMessageDesc(fd, msgIndexes)
+	messageDesc, err := toMessageDesc(fd, schemaID.MessageIndexes)
 	if err != nil {
 		return nil, err
 	}
@@ -572,7 +578,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	var protoMsg proto.Message
 	if len(migrations) > 0 {
 		dynamicMsg := dynamicpb.NewMessage(messageDesc.UnwrapMessage())
-		err = proto.Unmarshal(payload[5+bytesRead:], dynamicMsg)
+		err = proto.Unmarshal(payload, dynamicMsg)
 		if err != nil {
 			return nil, err
 		}
@@ -634,7 +640,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		default:
 			return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
 		}
-		err = proto.Unmarshal(payload[5+bytesRead:], protoMsg)
+		err = proto.Unmarshal(payload, protoMsg)
 		if err != nil {
 			return nil, err
 		}
@@ -656,30 +662,6 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 		return nil, fmt.Errorf("deserialization target must be a protobuf message. Got '%v'", t)
 	}
 	return protoMsg, err
-}
-
-func readMessageIndexes(payload []byte) (int, []int, error) {
-	arrayLen, bytesRead := binary.Varint(payload)
-	if bytesRead <= 0 {
-		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
-	}
-	if arrayLen < 0 {
-		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
-	}
-	if arrayLen == 0 {
-		// Handle the optimization for the first message in the schema
-		return bytesRead, []int{0}, nil
-	}
-	msgIndexes := make([]int, arrayLen)
-	for i := 0; i < int(arrayLen); i++ {
-		idx, read := binary.Varint(payload[bytesRead:])
-		if read <= 0 {
-			return bytesRead, nil, fmt.Errorf("unable to read message indexes")
-		}
-		bytesRead += read
-		msgIndexes[i] = int(idx)
-	}
-	return bytesRead, msgIndexes, nil
 }
 
 func toMessageDesc(descriptor desc.Descriptor, msgIndexes []int) (*desc.MessageDescriptor, error) {

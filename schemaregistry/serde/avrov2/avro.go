@@ -20,6 +20,7 @@ import (
 	"encoding"
 	"errors"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -29,6 +30,9 @@ import (
 	"sync"
 	"time"
 )
+
+// SchemaType is the type of the Avro schema
+const SchemaType = "AVRO"
 
 // Serializer represents a generic Avro serializer
 type Serializer struct {
@@ -85,8 +89,14 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 
 // Serialize implements serialization of generic Avro data
 func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
+	_, payload, err := s.SerializeWithHeaders(topic, msg)
+	return payload, err
+}
+
+// SerializeWithHeaders implements serialization of generic Avro data
+func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafka.Header, []byte, error) {
 	if msg == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var avroSchema avro.Schema
 	var info schemaregistry.SchemaInfo
@@ -97,43 +107,39 @@ func (s *Serializer) Serialize(topic string, msg interface{}) ([]byte, error) {
 		len(s.Conf.UseLatestWithMetadata) == 0 {
 		msgType := reflect.TypeOf(msg)
 		if msgType.Kind() != reflect.Pointer {
-			return nil, errors.New("input message must be a pointer")
+			return nil, nil, errors.New("input message must be a pointer")
 		}
 		avroSchema, err = StructToSchema(msgType.Elem())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		info = schemaregistry.SchemaInfo{
 			Schema: avroSchema.String(),
 		}
 	}
-	id, err := s.GetID(topic, msg, &info)
+	schemaID, err := s.GetSchemaID(SchemaType, topic, msg, &info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	avroSchema, _, err = s.toType(s.Client, info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, msg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Convert pointer to non-pointer
 	msg = reflect.ValueOf(msg).Elem().Interface()
 	msgBytes, err := s.api.Marshal(avroSchema, msg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	payload, err := s.WriteBytes(id, msgBytes)
-	if err != nil {
-		return nil, err
-	}
-	return payload, nil
+	return s.SchemaIDSerializer(topic, s.SerdeType, msgBytes, schemaID)
 }
 
 // NewDeserializer creates an Avro deserializer for generic objects
@@ -167,23 +173,35 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 
 // Deserialize implements deserialization of generic Avro data
 func (s *Deserializer) Deserialize(topic string, payload []byte) (interface{}, error) {
-	return s.deserialize(topic, payload, nil)
+	return s.DeserializeWithHeaders(topic, nil, payload)
+}
+
+// DeserializeWithHeaders implements deserialization of generic Avro data
+func (s *Deserializer) DeserializeWithHeaders(topic string, headers []kafka.Header, payload []byte) (interface{}, error) {
+	return s.deserialize(topic, headers, payload, nil)
 }
 
 // DeserializeInto implements deserialization of generic Avro data to the given object
 func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interface{}) error {
-	_, err := s.deserialize(topic, payload, msg)
+	return s.DeserializeWithHeadersInto(topic, nil, payload, msg)
+}
+
+// DeserializeWithHeadersInto implements deserialization of generic Avro data to the given object
+func (s *Deserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
+	_, err := s.deserialize(topic, headers, payload, msg)
 	return err
 }
 
-func (s *Deserializer) deserialize(topic string, payload []byte, result interface{}) (interface{}, error) {
+func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload []byte, result interface{}) (interface{}, error) {
 	if len(payload) == 0 {
 		return nil, nil
 	}
-	info, err := s.GetSchema(topic, payload)
+	schemaID := serde.SchemaID{SchemaType: SchemaType}
+	info, bytesRead, err := s.GetWriterSchema(topic, headers, payload, &schemaID)
 	if err != nil {
 		return nil, err
 	}
+	payload = payload[bytesRead:]
 	subject, err := s.SubjectNameStrategy(topic, s.SerdeType, info)
 	if err != nil {
 		return nil, err
@@ -205,7 +223,7 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 	}
 	var msg interface{}
 	if len(migrations) > 0 {
-		err = s.api.Unmarshal(writer, payload[5:], &msg)
+		err = s.api.Unmarshal(writer, payload, &msg)
 		if err != nil {
 			return nil, err
 		}
@@ -258,12 +276,12 @@ func (s *Deserializer) deserialize(topic string, payload []byte, result interfac
 					return nil, err
 				}
 			}
-			err = s.api.Unmarshal(reader, payload[5:], msg)
+			err = s.api.Unmarshal(reader, payload, msg)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			err = s.api.Unmarshal(writer, payload[5:], msg)
+			err = s.api.Unmarshal(writer, payload, msg)
 			if err != nil {
 				return nil, err
 			}
