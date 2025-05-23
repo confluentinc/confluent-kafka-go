@@ -32,7 +32,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avro"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
 // In order to set the constants below, you are going to need
@@ -99,13 +99,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := avro.NewGenericSerializer(client, serde.ValueSerde, avro.NewSerializerConfig())
+	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, avrov2.NewSerializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
 		os.Exit(1)
 	}
-	deser, err := avro.NewGenericDeserializer(client, serde.ValueSerde, avro.NewDeserializerConfig())
+	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)
@@ -237,11 +237,4 @@ func createTopic(topic string) {
 
 	adminClient.Close()
 
-}
-
-// User is a simple record example
-type User struct {
-	Name           string `json:"name"`
-	FavoriteNumber int64  `json:"favorite_number"`
-	FavoriteColor  string `json:"favorite_color"`
 }
