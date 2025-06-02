@@ -105,13 +105,17 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if s.Conf.UseSchemaID == -1 &&
 		!s.Conf.UseLatestVersion &&
 		len(s.Conf.UseLatestWithMetadata) == 0 {
-		msgType := reflect.TypeOf(msg)
-		if msgType.Kind() != reflect.Pointer {
-			return nil, nil, errors.New("input message must be a pointer")
-		}
-		avroSchema, err = StructToSchema(msgType.Elem())
-		if err != nil {
-			return nil, nil, err
+		if st, ok := msg.(interface{ Schema() avro.Schema }); ok {
+			avroSchema = st.Schema()
+		} else {
+			msgType := reflect.TypeOf(msg)
+			if msgType.Kind() != reflect.Pointer {
+				return nil, nil, errors.New("input message must be a pointer")
+			}
+			avroSchema, err = StructToSchema(msgType.Elem())
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 		info = schemaregistry.SchemaInfo{
 			Schema: avroSchema.String(),
