@@ -36,10 +36,10 @@ func TestConsumerAPIs(t *testing.T) {
 	}
 
 	c, err = NewConsumer(&ConfigMap{
-		"group.id":                 "gotest",
-		"socket.timeout.ms":        10,
-		"session.timeout.ms":       10,
-		"enable.auto.offset.store": false, // permit StoreOffsets()
+		GroupId:               "gotest",
+		SocketTimeoutMs:       10,
+		SessionTimeoutMs:      10,
+		EnableAutoOffsetStore: false, // permit StoreOffsets()
 	})
 	if err != nil {
 		t.Fatalf("%s", err)
@@ -621,9 +621,9 @@ func TestConsumerCloseForStaticMember(t *testing.T) {
 	var revokedEvents4 int32
 
 	conf1 := ConfigMap{
-		"bootstrap.servers":    broker,
-		"group.id":             "rebalance",
-		"session.timeout.ms":   "6000",
+		BootstrapServers:       broker,
+		GroupId:                "rebalance",
+		SessionTimeoutMs:       "6000",
 		"max.poll.interval.ms": "10000",
 		"group.instance.id":    "staticmember1",
 	}
