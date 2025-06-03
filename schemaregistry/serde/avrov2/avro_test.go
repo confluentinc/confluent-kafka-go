@@ -18,10 +18,12 @@ package avrov2
 
 import (
 	"errors"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
+	"github.com/hamba/avro/v2"
 
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
@@ -286,7 +288,62 @@ const (
       "confluent:tags": [ "PII" ]
     }
   ]
-} 
+}
+`
+	demoWithSchemaFuncSchema = `
+{
+  "name": "DemoWithSchemaFunc",
+  "type": "record",
+  "fields": [
+    {
+      "name": "IntField",
+      "type": "int"
+    },
+    {
+      "name": "BoolField",
+      "type": "boolean"
+    },
+    {
+      "name": "ArrayField",
+      "type": {
+        "type": "array",
+        "items": "string"
+      }
+    },
+    {
+      "name": "MapField",
+      "type": {
+        "type": "map",
+        "values": "string"
+      }
+    },
+    {
+      "name": "StringField",
+      "type": ["null", "string"]
+    },
+    {
+      "name": "EnumField",
+      "type": {
+        "name": "GreetingsEnum",
+        "type": "enum",
+        "symbols": ["hey", "bye"]
+      }
+    },
+    {
+      "name": "RecordField",
+      "type": {
+        "name": "GreetingsObj",
+        "type": "record",
+        "fields": [
+          {
+            "name": "Hey",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}
 `
 )
 
@@ -302,6 +359,8 @@ func testMessageFactory(subject string, name string) (interface{}, error) {
 		return &DemoSchemaSingleTag{}, nil
 	case "DemoSchemaWithUnion":
 		return &DemoSchemaWithUnion{}, nil
+	case "DemoWithSchemaFunc":
+		return &DemoWithSchemaFunc{}, nil
 	case "ComplexSchema":
 		return &ComplexSchema{}, nil
 	case "SchemaEvolution":
@@ -366,6 +425,54 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 	serde.MaybeFail("serialization", err)
 
 	msg, err = deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithGuidInHeader(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	ser.SchemaIDSerializer = serde.HeaderSchemaIDSerializer
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	headers, bytes, err := ser.SerializeWithHeaders("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj DemoSchema
+	err = deser.DeserializeWithHeadersInto("topic1", headers, bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.DeserializeWithHeaders("topic1", headers, bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	// serialize second object
+	obj = DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "bye"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err = ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	msg, err = deser.DeserializeWithHeaders("topic1", headers, bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
@@ -754,6 +861,46 @@ func TestAvroSchemaEvolution(t *testing.T) {
 
 	msg, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj2))
+}
+
+func TestAvroSerdeWithEncodingSchemaFunc(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoWithSchemaFunc{
+		IntField:    123,
+		StringField: nil,
+		BoolField:   true,
+		ArrayField:  []string{"hello", "world"},
+		MapField: map[string]string{
+			"hello": "world",
+		},
+		EnumField: "hey",
+		RecordField: struct {
+			Hey string `json:"Hey"`
+		}{Hey: "bye"},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj DemoWithSchemaFunc
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 }
 
 func TestAvroSerdeWithCELCondition(t *testing.T) {
@@ -2639,4 +2786,20 @@ type SchemaEvolution1 struct {
 
 type SchemaEvolution2 struct {
 	NewOptionalField string `json:"NewOptionalField"`
+}
+
+type DemoWithSchemaFunc struct {
+	IntField    int32             `json:"IntField"`
+	BoolField   bool              `json:"BoolField"`
+	StringField *string           `json:"StringField"`
+	ArrayField  []string          `json:"ArrayField"`
+	MapField    map[string]string `json:"MapField"`
+	EnumField   string            `json:"EnumField"`
+	RecordField struct {
+		Hey string `json:"Hey"`
+	} `json:"RecordField"`
+}
+
+func (d *DemoWithSchemaFunc) Schema() avro.Schema {
+	return avro.MustParse(demoWithSchemaFuncSchema)
 }

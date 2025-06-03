@@ -397,7 +397,7 @@ func (c *client) GetDekVersion(kekName string, subject string, version int, algo
 	return dek, err
 }
 
-// GetEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
+// GetDekEncryptedKeyMaterialBytes returns the EncryptedKeyMaterialBytes
 func (c *client) GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	if dek.EncryptedKeyMaterial == "" {
 		return nil, nil
@@ -416,7 +416,7 @@ func (c *client) GetDekEncryptedKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	return dek.EncryptedKeyMaterialBytes, nil
 }
 
-// GetKeyMaterialBytes returns the KeyMaterialBytes
+// GetDekKeyMaterialBytes returns the KeyMaterialBytes
 func (c *client) GetDekKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	if dek.KeyMaterial == "" {
 		return nil, nil
@@ -435,7 +435,7 @@ func (c *client) GetDekKeyMaterialBytes(dek *Dek) ([]byte, error) {
 	return dek.KeyMaterialBytes, nil
 }
 
-// SetKeyMaterial sets the KeyMaterial using the given bytes
+// SetDekKeyMaterial sets the KeyMaterial using the given bytes
 func (c *client) SetDekKeyMaterial(dek *Dek, keyMaterialBytes []byte) {
 	c.dekCacheLock.Lock()
 	defer c.dekCacheLock.Unlock()

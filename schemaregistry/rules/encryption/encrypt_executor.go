@@ -134,8 +134,10 @@ func (f *FieldEncryptionExecutor) Configure(clientConfig *schemaregistry.Config,
 				f.Config[key] = value
 			}
 		}
-	} else {
+	} else if config != nil {
 		f.Config = config
+	} else {
+		f.Config = make(map[string]string)
 	}
 	return nil
 }
@@ -595,7 +597,7 @@ func (f *FieldEncryptionExecutorTransform) Transform(ctx serde.RuleContext, fiel
 
 func prefixVersion(version int, ciphertext []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	err := buf.WriteByte(serde.MagicByte)
+	err := buf.WriteByte(serde.MagicByteV0)
 	if err != nil {
 		return nil, err
 	}
@@ -613,7 +615,7 @@ func prefixVersion(version int, ciphertext []byte) ([]byte, error) {
 }
 
 func extractVersion(ciphertext []byte) (int, error) {
-	if ciphertext[0] != serde.MagicByte {
+	if ciphertext[0] != serde.MagicByteV0 {
 		return -1, fmt.Errorf("unknown magic byte")
 	}
 	version := binary.BigEndian.Uint32(ciphertext[1:5])
