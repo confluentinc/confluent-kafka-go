@@ -1,5 +1,14 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.10.1
+
+This is a maintenance release:
+
+confluent-kafka-go is based on librdkafka v2.10.1, see the
+[librdkafka v2.10.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.10.0
 
 This is a feature release:
