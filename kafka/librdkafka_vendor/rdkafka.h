@@ -3231,7 +3231,7 @@ void *rd_kafka_topic_opaque(const rd_kafka_topic_t *rkt);
  * The unassigned partition is used by the producer API for messages
  * that should be partitioned using the configured or default partitioner.
  */
-#define RD_KAFKA_PARTITION_UA ((int32_t)-1)
+#define RD_KAFKA_PARTITION_UA ((int32_t) - 1)
 
 
 /**
