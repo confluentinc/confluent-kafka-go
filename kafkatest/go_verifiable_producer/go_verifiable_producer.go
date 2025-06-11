@@ -207,7 +207,7 @@ func main() {
 			if len(x) != 2 {
 				panic("-X expects a ,-separated list of confprop=val pairs")
 			}
-			conf[x[0]] = x[1]
+			conf[kafka.ConfigKey(x[0])] = x[1]
 		}
 	}
 	fmt.Println("SerializerConfig: ", conf)
