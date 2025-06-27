@@ -1336,3 +1336,63 @@ func TestAdminAPIs(t *testing.T) {
 
 	a.Close()
 }
+
+func TestAdminClientLog(t *testing.T) {
+	logsChan := make(chan LogEvent, 100)
+
+	admin, err := NewAdminClient(&ConfigMap{
+		"debug": "all",
+		"bootstrap.servers": "localhost:65533", // Unreachable to generate logs
+		"go.logs.channel.enable": true,
+		"go.logs.channel": logsChan,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create AdminClient: %v", err)
+	}
+
+	defer admin.Close()
+
+	expectedLogs := map[struct {
+		tag     string
+		message string
+	}]bool{
+		{"INIT", "librdkafka"}: false,
+	}
+
+	go func() {
+		for {
+			select {
+			case log, ok := <-logsChan:
+				if !ok {
+					return
+				}
+
+				t.Log(log.String())
+
+				for expectedLog, found := range expectedLogs {
+					if found {
+						continue
+					}
+					if log.Tag != expectedLog.tag {
+						continue
+					}
+					if strings.Contains(log.Message, expectedLog.message) {
+						expectedLogs[expectedLog] = true
+					}
+				}
+			}
+		}
+	}()
+
+	<-time.After(time.Second * 5)
+
+	for expectedLog, found := range expectedLogs {
+		if !found {
+			t.Errorf(
+				"Expected to find log with tag `%s' and message containing `%s',"+
+					" but didn't find any.",
+				expectedLog.tag,
+				expectedLog.message)
+		}
+	}
+}
