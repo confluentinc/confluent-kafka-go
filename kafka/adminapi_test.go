@@ -1350,7 +1350,10 @@ func TestAdminClientLog(t *testing.T) {
 		t.Fatalf("Failed to create AdminClient: %v", err)
 	}
 
-	defer admin.Close()
+	defer func() {
+		admin.Close()
+		close(logsChan)
+	}()
 
 	expectedLogs := map[struct {
 		tag     string
