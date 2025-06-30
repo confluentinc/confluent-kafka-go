@@ -102,11 +102,11 @@ func findConsumerGroupDescription(groups []ConsumerGroupDescription, group strin
 // We can't directly use DeepEqual because some fields/slice orders change with every run.
 func checkGroupDesc(
 	groupDesc *ConsumerGroupDescription, state ConsumerGroupState,
-	group_type ConsumerGroupType, group string,
+	groupType ConsumerGroupType, group string,
 	protocol string, clientIDToPartitions map[string][]TopicPartition) bool {
 	if groupDesc.GroupID != group ||
 		groupDesc.State != state ||
-		groupDesc.Type != group_type ||
+		groupDesc.Type != groupType ||
 		groupDesc.Error.Code() != ErrNoError ||
 		groupDesc.PartitionAssignor != protocol ||
 		// We can't check exactly the Broker information, but we add a check for the zero-value of the Host.
