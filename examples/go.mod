@@ -9,7 +9,7 @@ replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 require (
 	github.com/actgardner/gogen-avro/v10 v10.2.1
 	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.10.1
+	github.com/confluentinc/confluent-kafka-go/v2 v2.11.0-RC3
 	github.com/gdamore/tcell v1.4.0
 	google.golang.org/protobuf v1.33.0
 )
