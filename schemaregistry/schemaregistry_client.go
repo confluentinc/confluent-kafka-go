@@ -101,6 +101,18 @@ type Rule struct {
 	Disabled bool `json:"disabled,omitempty"`
 }
 
+// RulePhase represents the rule phase
+type RulePhase = int
+
+const (
+	// MigrationPhase denotes migration phase
+	MigrationPhase = 1
+	// DomainPhase denotes domain phase
+	DomainPhase = 2
+	// EncodingPhase denotes encoding phase
+	EncodingPhase = 3
+)
+
 // RuleMode represents the rule mode
 type RuleMode = int
 
@@ -133,18 +145,6 @@ func ParseMode(mode string) (RuleMode, bool) {
 	c, ok := modes[strings.ToUpper(mode)]
 	return c, ok
 }
-
-// RulPhase represents the rule phase
-type RulePhase = int
-
-const (
-	// Migration denotes migration phase
-	MigrationPhase = 1
-	// Domain denotes domain phase
-	DomainPhase = 2
-	// Encoding denotes encoding phase
-	EncodingPhase = 3
-)
 
 // RuleSet represents a data contract rule set
 type RuleSet struct {
