@@ -143,7 +143,12 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
-	return s.SchemaIDSerializer(topic, s.SerdeType, msgBytes, schemaID)
+	msg, err = s.ExecuteRulesWithPhase(subject, topic,
+		schemaregistry.EncodingPhase, schemaregistry.Write, nil, &info, msgBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.SchemaIDSerializer(topic, s.SerdeType, msg.([]byte), schemaID)
 }
 
 // NewDeserializer creates an Avro deserializer for generic objects
@@ -214,6 +219,13 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 	if err != nil {
 		return nil, err
 	}
+	var msg interface{}
+	msg, err = s.ExecuteRulesWithPhase(subject, topic,
+		schemaregistry.EncodingPhase, schemaregistry.Read, nil, &info, payload)
+	if err != nil {
+		return nil, err
+	}
+	payload = msg.([]byte)
 	var migrations []serde.Migration
 	if readerMeta != nil {
 		migrations, err = s.GetMigrations(subject, topic, &info, readerMeta, payload)
@@ -225,7 +237,6 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 	if err != nil {
 		return nil, err
 	}
-	var msg interface{}
 	if len(migrations) > 0 {
 		err = s.api.Unmarshal(writer, payload, &msg)
 		if err != nil {

@@ -718,6 +718,81 @@ func TestProtobufSerdeEncryption(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
 }
 
+func TestProtobufSerdePayloadEncryption(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT_PAYLOAD",
+		Params: map[string]string{
+			"encrypt.kek.name":   "kek1",
+			"encrypt.kms.type":   "local-kms",
+			"encrypt.kms.key.id": "mykey",
+		},
+		OnFailure: "ERROR,NONE",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		EncodingRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Picture:  []byte{1, 2},
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
+
+	err = deser.DeserializeInto("topic1", bytes, newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*test.Author).Name, obj.Name))
+}
+
 func TestProtobufSerdeJSONataFullyCompatible(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error

@@ -148,7 +148,12 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 			return nil, nil, err
 		}
 	}
-	return s.SchemaIDSerializer(topic, s.SerdeType, raw, schemaID)
+	msg, err = s.ExecuteRulesWithPhase(subject, topic,
+		schemaregistry.EncodingPhase, schemaregistry.Write, nil, &info, raw)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.SchemaIDSerializer(topic, s.SerdeType, msg.([]byte), schemaID)
 }
 
 // NewDeserializer creates a JSON deserializer for generic objects
@@ -218,6 +223,13 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 	if err != nil {
 		return nil, err
 	}
+	var msg interface{}
+	msg, err = s.ExecuteRulesWithPhase(subject, topic,
+		schemaregistry.EncodingPhase, schemaregistry.Read, nil, &info, payload)
+	if err != nil {
+		return nil, err
+	}
+	payload = msg.([]byte)
 	var migrations []serde.Migration
 	if readerMeta != nil {
 		migrations, err = s.GetMigrations(subject, topic, &info, readerMeta, payload)
@@ -225,7 +237,6 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 			return nil, err
 		}
 	}
-	var msg interface{}
 	bytes := payload
 	if len(migrations) > 0 {
 		err = json.Unmarshal(bytes, &msg)
