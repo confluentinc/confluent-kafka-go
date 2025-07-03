@@ -1302,10 +1302,6 @@ func TestJSONSchemaSerdePayloadEncryption(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	// Reset encrypted field
-	obj.StringField = "hi"
-	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
-
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
