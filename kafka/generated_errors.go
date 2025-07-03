@@ -1,7 +1,7 @@
 package kafka
 
 // Copyright 2016-2025 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2025-06-11 13:18:52.925768387 +0200 CEST m=+0.000209107 USING librdkafka 2.10.1
+// AUTOMATICALLY GENERATED ON 2025-07-02 22:34:14.005939795 +0200 CEST m=+0.000223402 USING librdkafka 2.11.0-RC3
 
 /*
 #include "select_rdkafka.h"
@@ -355,6 +355,6 @@ const (
 	ErrUnknownSubscriptionID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID
 	// ErrTelemetryTooLarge Broker: Client sent a push telemetry request larger than the maximum size the broker will accept
 	ErrTelemetryTooLarge ErrorCode = C.RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE
-	// ErrRebootstrapRequired Broker: Client metadata is stale, client should rebootstrap to obtain new metadata.
+	// ErrRebootstrapRequired Broker: Client metadata is stale, client should rebootstrap to obtain new metadata
 	ErrRebootstrapRequired ErrorCode = C.RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED
 )
