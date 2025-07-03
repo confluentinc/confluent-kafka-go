@@ -761,7 +761,7 @@ func (s *Serde) GetMigrations(subject string, topic string, sourceInfo *schemare
 			previous = version
 			continue
 		}
-		if version.RuleSet != nil && version.RuleSet.HasRules(migrationMode) {
+		if version.RuleSet != nil && version.RuleSet.HasRules(schemaregistry.MigrationPhase, migrationMode) {
 			var m Migration
 			if migrationMode == schemaregistry.Upgrade {
 				m = Migration{
@@ -819,7 +819,8 @@ type Migration struct {
 func (s *Serde) ExecuteMigrations(migrations []Migration, subject string, topic string, msg interface{}) (interface{}, error) {
 	var err error
 	for _, migration := range migrations {
-		msg, err = s.ExecuteRules(subject, topic, migration.RuleMode,
+		msg, err = s.ExecuteRulesWithPhase(subject, topic,
+			schemaregistry.MigrationPhase, migration.RuleMode,
 			&migration.Source.SchemaInfo, &migration.Target.SchemaInfo, msg)
 		if err != nil {
 			return nil, err
@@ -830,6 +831,13 @@ func (s *Serde) ExecuteMigrations(migrations []Migration, subject string, topic 
 
 // ExecuteRules executes the given rules
 func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregistry.RuleMode,
+	source *schemaregistry.SchemaInfo, target *schemaregistry.SchemaInfo, msg interface{}) (interface{}, error) {
+	return s.ExecuteRulesWithPhase(subject, topic, schemaregistry.DomainPhase, ruleMode, source, target, msg)
+}
+
+// ExecuteRulesWithPhase executes the given rules
+func (s *Serde) ExecuteRulesWithPhase(subject string, topic string,
+	rulePhase schemaregistry.RulePhase, ruleMode schemaregistry.RuleMode,
 	source *schemaregistry.SchemaInfo, target *schemaregistry.SchemaInfo, msg interface{}) (interface{}, error) {
 	if msg == nil || target == nil {
 		return msg, nil
@@ -847,7 +855,11 @@ func (s *Serde) ExecuteRules(subject string, topic string, ruleMode schemaregist
 		}
 	default:
 		if target.RuleSet != nil {
-			rules = target.RuleSet.DomainRules
+			if rulePhase == schemaregistry.EncodingPhase {
+				rules = target.RuleSet.EncodingRules
+			} else {
+				rules = target.RuleSet.DomainRules
+			}
 			if ruleMode == schemaregistry.Read {
 				// Execute read rules in reverse order for symmetry
 				rules = reverseRules(rules)

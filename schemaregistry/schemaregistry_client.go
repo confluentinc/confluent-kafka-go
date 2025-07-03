@@ -134,29 +134,51 @@ func ParseMode(mode string) (RuleMode, bool) {
 	return c, ok
 }
 
+// RulPhase represents the rule phase
+type RulePhase = int
+
+const (
+	// Migration denotes migration phase
+	MigrationPhase = 1
+	// Domain denotes domain phase
+	DomainPhase = 2
+	// Encoding denotes encoding phase
+	EncodingPhase = 3
+)
+
 // RuleSet represents a data contract rule set
 type RuleSet struct {
 	MigrationRules []Rule `json:"migrationRules,omitempty"`
 	DomainRules    []Rule `json:"domainRules,omitempty"`
+	EncodingRules  []Rule `json:"encodingRules,omitempty"`
 }
 
 // HasRules checks if the ruleset has rules for the given mode
-func (r *RuleSet) HasRules(mode RuleMode) bool {
+func (r *RuleSet) HasRules(phase RulePhase, mode RuleMode) bool {
+	var rules []Rule
+	switch phase {
+	case MigrationPhase:
+		rules = r.MigrationRules
+	case DomainPhase:
+		rules = r.DomainRules
+	case EncodingPhase:
+		rules = r.EncodingRules
+	}
 	switch mode {
 	case Upgrade, Downgrade:
-		return r.hasRules(r.MigrationRules, func(ruleMode RuleMode) bool {
+		return r.hasRules(rules, func(ruleMode RuleMode) bool {
 			return ruleMode == mode || ruleMode == UpDown
 		})
 	case UpDown:
-		return r.hasRules(r.MigrationRules, func(ruleMode RuleMode) bool {
+		return r.hasRules(rules, func(ruleMode RuleMode) bool {
 			return ruleMode == mode
 		})
 	case Write, Read:
-		return r.hasRules(r.DomainRules, func(ruleMode RuleMode) bool {
+		return r.hasRules(rules, func(ruleMode RuleMode) bool {
 			return ruleMode == mode || ruleMode == WriteRead
 		})
 	case WriteRead:
-		return r.hasRules(r.DomainRules, func(ruleMode RuleMode) bool {
+		return r.hasRules(rules, func(ruleMode RuleMode) bool {
 			return ruleMode == mode
 		})
 	}
