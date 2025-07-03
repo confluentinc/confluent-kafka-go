@@ -568,10 +568,6 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 	if err != nil {
 		return nil, err
 	}
-	readerMeta, err := s.GetReaderSchema(subject)
-	if err != nil {
-		return nil, err
-	}
 	var msg interface{}
 	msg, err = s.ExecuteRulesWithPhase(subject, topic,
 		schemaregistry.EncodingPhase, schemaregistry.Read, nil, &info, payload)
@@ -579,6 +575,10 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		return nil, err
 	}
 	payload = msg.([]byte)
+	readerMeta, err := s.GetReaderSchema(subject)
+	if err != nil {
+		return nil, err
+	}
 	var migrations []serde.Migration
 	if readerMeta != nil {
 		migrations, err = s.GetMigrations(subject, topic, &info, readerMeta, payload)
