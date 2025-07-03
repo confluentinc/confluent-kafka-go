@@ -1737,7 +1737,7 @@ func TestAvroSerdeEncryptionWithSimpleMap(t *testing.T) {
 
 func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	f := fakeClock{now: time.Now().UnixMilli()}
-	executor := encryption.RegisterWithClock(&f)
+	executor := encryption.RegisterFieldExecutorWithClock(&f)
 
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -1811,7 +1811,7 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
-	dek, err := executor.Client.GetDekVersion(
+	dek, err := executor.Executor.Client.GetDekVersion(
 		"kek1", "topic1-value", -1, "AES256_GCM", false)
 	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 1))
 
@@ -1834,7 +1834,7 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	newobj, err = deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
-	dek, err = executor.Client.GetDekVersion(
+	dek, err = executor.Executor.Client.GetDekVersion(
 		"kek1", "topic1-value", -1, "AES256_GCM", false)
 	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 2))
 
@@ -1857,16 +1857,16 @@ func TestAvroSerdeEncryptionDekRotation(t *testing.T) {
 	newobj, err = deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
-	dek, err = executor.Client.GetDekVersion(
+	dek, err = executor.Executor.Client.GetDekVersion(
 		"kek1", "topic1-value", -1, "AES256_GCM", false)
 	serde.MaybeFail("DEK retrieval", err, serde.Expect(dek.Version, 3))
 
-	executor.Client.Close()
+	executor.Executor.Client.Close()
 }
 
 func TestAvroSerdeEncryptionF1Preserialized(t *testing.T) {
 	c := clock{}
-	executor := encryption.RegisterWithClock(&c)
+	executor := encryption.RegisterFieldExecutorWithClock(&c)
 
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -1916,23 +1916,23 @@ func TestAvroSerdeEncryptionF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "07V2ndh02DA73p+dTybwZFm7DKQSZN1tEwQh+FoX1DZLk4Yj2LLu4omYjp/84tAg3BYlkfGSz+zZacJHIE4="
-	executor.Client.RegisterDek("kek1", "topic1-value", "AES256_GCM", encryptedDek)
+	executor.Executor.Client.RegisterDek("kek1", "topic1-value", "AES256_GCM", encryptedDek)
 	serde.MaybeFail("Dek registration", err)
 
 	bytes := []byte{0, 0, 0, 0, 1, 104, 122, 103, 121, 47, 106, 70, 78, 77, 86, 47, 101, 70, 105, 108, 97, 72, 114, 77, 121, 101, 66, 103, 100, 97, 86, 122, 114, 82, 48, 117, 100, 71, 101, 111, 116, 87, 56, 99, 65, 47, 74, 97, 108, 55, 117, 107, 114, 43, 77, 47, 121, 122}
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
-	executor.Client.Close()
+	executor.Executor.Client.Close()
 }
 
 func TestAvroSerdeEncryptionDeterministicF1Preserialized(t *testing.T) {
 	c := clock{}
-	executor := encryption.RegisterWithClock(&c)
+	executor := encryption.RegisterFieldExecutorWithClock(&c)
 
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -1983,23 +1983,23 @@ func TestAvroSerdeEncryptionDeterministicF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "YSx3DTlAHrmpoDChquJMifmPntBzxgRVdMzgYL82rgWBKn7aUSnG+WIu9ozBNS3y2vXd++mBtK07w4/W/G6w0da39X9hfOVZsGnkSvry/QRht84V8yz3dqKxGMOK5A=="
-	executor.Client.RegisterDek("kek1", "topic1-value", "AES256_SIV", encryptedDek)
+	executor.Executor.Client.RegisterDek("kek1", "topic1-value", "AES256_SIV", encryptedDek)
 	serde.MaybeFail("Dek registration", err)
 
 	bytes := []byte{0, 0, 0, 0, 1, 72, 68, 54, 89, 116, 120, 114, 108, 66, 110, 107, 84, 87, 87, 57, 78, 54, 86, 98, 107, 51, 73, 73, 110, 106, 87, 72, 56, 49, 120, 109, 89, 104, 51, 107, 52, 100}
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
-	executor.Client.Close()
+	executor.Executor.Client.Close()
 }
 
 func TestAvroSerdeEncryptionDekRotationF1Preserialized(t *testing.T) {
 	c := clock{}
-	executor := encryption.RegisterWithClock(&c)
+	executor := encryption.RegisterFieldExecutorWithClock(&c)
 
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -2050,18 +2050,18 @@ func TestAvroSerdeEncryptionDekRotationF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "W/v6hOQYq1idVAcs1pPWz9UUONMVZW4IrglTnG88TsWjeCjxmtRQ4VaNe/I5dCfm2zyY9Cu0nqdvqImtUk4="
-	executor.Client.RegisterDek("kek1", "topic1-value", "AES256_GCM", encryptedDek)
+	executor.Executor.Client.RegisterDek("kek1", "topic1-value", "AES256_GCM", encryptedDek)
 	serde.MaybeFail("Dek registration", err)
 
 	bytes := []byte{0, 0, 0, 0, 1, 120, 65, 65, 65, 65, 65, 65, 71, 52, 72, 73, 54, 98, 49, 110, 88, 80, 88, 113, 76, 121, 71, 56, 99, 73, 73, 51, 53, 78, 72, 81, 115, 101, 113, 113, 85, 67, 100, 43, 73, 101, 76, 101, 70, 86, 65, 101, 78, 112, 83, 83, 51, 102, 120, 80, 110, 74, 51, 50, 65, 61}
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 
-	executor.Client.Close()
+	executor.Executor.Client.Close()
 }
 
 func TestAvroSerdeEncryptionWithReferences(t *testing.T) {

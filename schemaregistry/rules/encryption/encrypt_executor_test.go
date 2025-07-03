@@ -25,7 +25,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
 
-func TestFieldEncryptionExecutor_Configure(t *testing.T) {
+func TestEncryptionExecutor_Configure(t *testing.T) {
 	maybeFail = initFailFunc(t)
 
 	executor := NewExecutor()
