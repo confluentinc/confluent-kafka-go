@@ -160,6 +160,7 @@ type AdminClient struct {
 	handle    *handle
 	isDerived bool   // Derived from existing client handle
 	isClosed  uint32 // to check if Admin Client is closed or not.
+	adminTermChan chan bool // For log channel termination
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -2737,6 +2738,9 @@ func (a *AdminClient) Close() {
 		return
 	}
 
+	if a.adminTermChan != nil {
+		close(a.adminTermChan)
+	}
 	a.handle.cleanup()
 
 	C.rd_kafka_destroy(a.handle.rk)
@@ -3724,9 +3728,19 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 
 	a := &AdminClient{}
 	a.handle = &handle{}
+	a.isClosed = 0
+
+	// before we do anything with the configuration, create a copy such that
+	// the original is not mutated.
+	confCopy := conf.clone()
+
+	logsChanEnable, logsChan, err := confCopy.extractLogConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	// Convert ConfigMap to librdkafka conf_t
-	cConf, err := conf.convert()
+	cConf, err := confCopy.convert()
 	if err != nil {
 		return nil, err
 	}
@@ -3746,7 +3760,11 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 	a.isDerived = false
 	a.handle.setup()
 
-	a.isClosed = 0
+	// Setup log channel if enabled
+	if logsChanEnable {
+		a.adminTermChan = make(chan bool)
+		a.handle.setupLogQueue(logsChan, a.adminTermChan)
+	}
 
 	return a, nil
 }
