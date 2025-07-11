@@ -3796,3 +3796,8 @@ func NewAdminClientFromConsumer(c *Consumer) (a *AdminClient, err error) {
 	a.isClosed = 0
 	return a, nil
 }
+
+// Logs returns the log channel if enabled, or nil otherwise.
+func (a *AdminClient) Logs() chan LogEvent {
+	return a.handle.logs
+}

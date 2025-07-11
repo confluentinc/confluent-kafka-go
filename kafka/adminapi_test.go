@@ -1355,6 +1355,75 @@ func TestAdminClientLog(t *testing.T) {
 		close(logsChan)
 	}()
 
+	// Verify that Logs() method returns the correct channel
+	if admin.Logs() != logsChan {
+		t.Fatalf("Expected admin.Logs() %v == logsChan %v", admin.Logs(), logsChan)
+	}
+
+	expectedLogs := map[struct {
+		tag     string
+		message string
+	}]bool{
+		{"INIT", "librdkafka"}: false,
+	}
+
+	go func() {
+		for {
+			select {
+			case log, ok := <-logsChan:
+				if !ok {
+					return
+				}
+
+				t.Log(log.String())
+
+				for expectedLog, found := range expectedLogs {
+					if found {
+						continue
+					}
+					if log.Tag != expectedLog.tag {
+						continue
+					}
+					if strings.Contains(log.Message, expectedLog.message) {
+						expectedLogs[expectedLog] = true
+					}
+				}
+			}
+		}
+	}()
+
+	<-time.After(time.Second * 5)
+
+	for expectedLog, found := range expectedLogs {
+		if !found {
+			t.Errorf(
+				"Expected to find log with tag `%s' and message containing `%s',"+
+				" but didn't find any.",
+				expectedLog.tag,
+				expectedLog.message)
+		}
+	}
+}
+
+func TestAdminClientLogWithoutChannel(t *testing.T) {
+	admin, err := NewAdminClient(&ConfigMap{
+		"debug":                  "all",
+		"bootstrap.servers":      "localhost:65533", // Unreachable to generate logs
+		"go.logs.channel.enable": true,
+		// Note: no "go.logs.channel" specified
+	})
+	if err != nil {
+		t.Fatalf("Failed to create AdminClient: %v", err)
+	}
+
+	defer admin.Close()
+
+	// Verify that Logs() method returns a channel when enabled but no channel provided
+	logsChan := admin.Logs()
+	if logsChan == nil {
+		t.Fatalf("Expected admin.Logs() to return a channel, got nil")
+	}
+
 	expectedLogs := map[struct {
 		tag     string
 		message string
