@@ -44,7 +44,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-nonprod-ubuntu24-04-amd64-2
+          type: s1-nonprod-ubuntu24-04-amd64-1
       prologue:
         commands:
           - sem-version go 1.21
