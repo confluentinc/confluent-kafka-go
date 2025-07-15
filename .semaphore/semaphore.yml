@@ -2,7 +2,7 @@ version: v1.0
 name: 'confluent-kafka-go build pipeline'
 agent:
   machine:
-    type: s1-prod-ubuntu24-04-amd64-1
+    type: s1-nonprod-ubuntu24-04-amd64-1
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
@@ -16,7 +16,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-13-5-amd64
+          type: s1-nonprod-macos-13-5-amd64
       prologue:
         commands:
           - sem-version go 1.21
@@ -44,7 +44,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu24-04-amd64-2
+          type: s1-nonprod-ubuntu24-04-amd64-1
       prologue:
         commands:
           - sem-version go 1.21
@@ -90,7 +90,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu24-04-arm64-1
+          type: s1-nonprod-ubuntu24-04-arm64-1
       prologue:
         commands:
           - sem-version go 1.21
@@ -122,7 +122,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-windows
+          type: s1-nonprod-windows
       prologue:
         commands:
           # Install Go
@@ -146,7 +146,7 @@ after_pipeline:
   task:
     agent:
       machine:
-        type: s1-prod-ubuntu24-04-amd64-1
+        type: s1-nonprod-ubuntu24-04-amd64-1
     jobs:
       - name: SonarQube
         commands:
