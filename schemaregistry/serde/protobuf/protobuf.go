@@ -248,7 +248,12 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
-	return s.SchemaIDSerializer(topic, s.SerdeType, msgBytes, schemaID)
+	msg, err = s.ExecuteRulesWithPhase(subject, topic,
+		schemaregistry.EncodingPhase, schemaregistry.Write, nil, &info, msgBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.SchemaIDSerializer(topic, s.SerdeType, msg.([]byte), schemaID)
 }
 
 func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.SchemaInfo, error) {
@@ -563,6 +568,13 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 	if err != nil {
 		return nil, err
 	}
+	var msg interface{}
+	msg, err = s.ExecuteRulesWithPhase(subject, topic,
+		schemaregistry.EncodingPhase, schemaregistry.Read, nil, &info, payload)
+	if err != nil {
+		return nil, err
+	}
+	payload = msg.([]byte)
 	readerMeta, err := s.GetReaderSchema(subject)
 	if err != nil {
 		return nil, err
@@ -574,7 +586,6 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 			return nil, err
 		}
 	}
-	var msg interface{}
 	var protoMsg proto.Message
 	if len(migrations) > 0 {
 		dynamicMsg := dynamicpb.NewMessage(messageDesc.UnwrapMessage())
