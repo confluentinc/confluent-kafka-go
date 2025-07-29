@@ -50,9 +50,9 @@ import (
 func main() {
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": "localhost",
-		"group.id":          "myGroup",
-		"auto.offset.reset": "earliest",
+		kafka.BootstrapServers: "localhost",
+		kafka.GroupId:          "myGroup",
+		kafka.AutoOffSetReset: "earliest",
 	})
 
 	if err != nil {
@@ -94,7 +94,7 @@ import (
 
 func main() {
 
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost"})
+	p, err := kafka.NewProducer(&kafka.ConfigMap{kafka.BootstrapServers: "localhost"})
 	if err != nil {
 		panic(err)
 	}
