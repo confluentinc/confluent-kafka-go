@@ -627,19 +627,19 @@ func extractVersion(ciphertext []byte) (int, error) {
 
 func getKmsKeyIDs(config map[string]string, kek deks.Kek) []string {
 	kmsKeyIDs := []string{kek.KmsKeyID}
-	var ids []string
+	var alternateKmsKeyIDs []string
 	if kek.KmsProps != nil {
-		if alternateKmsKeyIDs, ok := kek.KmsProps[EncryptAlternateKmsKeyIDs]; ok {
-			ids = strings.Split(alternateKmsKeyIDs, ",")
+		if ids, ok := kek.KmsProps[EncryptAlternateKmsKeyIDs]; ok {
+			alternateKmsKeyIDs = strings.Split(ids, ",")
 		}
 	}
-	if ids == nil {
-		if alternateKmsKeyIDs, ok := config[EncryptAlternateKmsKeyIDs]; ok {
-			ids = strings.Split(alternateKmsKeyIDs, ",")
+	if alternateKmsKeyIDs == nil {
+		if ids, ok := config[EncryptAlternateKmsKeyIDs]; ok {
+			alternateKmsKeyIDs = strings.Split(ids, ",")
 		}
 	}
-	if ids != nil {
-		for _, id := range ids {
+	if alternateKmsKeyIDs != nil {
+		for _, id := range alternateKmsKeyIDs {
 			id = strings.TrimSpace(id)
 			if len(id) > 0 {
 				kmsKeyIDs = append(kmsKeyIDs, id)
