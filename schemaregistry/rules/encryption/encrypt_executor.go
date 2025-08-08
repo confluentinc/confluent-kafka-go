@@ -396,7 +396,7 @@ func (f *ExecutorTransform) getOrCreateDek(ctx serde.RuleContext, version *int) 
 		}
 		var encryptedDek []byte
 		if !f.Kek.Shared {
-			primitive = &AeadWrapper{f.Executor.Config, f.Kek, getKmsKeyIDs(f.Kek)}
+			primitive = &AeadWrapper{f.Executor.Config, f.Kek, getKmsKeyIDs(f.Executor.Config, f.Kek)}
 			// Generate new dek
 			keyData, err := registry.NewKeyData(f.Cryptor.KeyTemplate)
 			if err != nil {
@@ -430,7 +430,7 @@ func (f *ExecutorTransform) getOrCreateDek(ctx serde.RuleContext, version *int) 
 	}
 	if keyBytes == nil {
 		if primitive == nil {
-			primitive = &AeadWrapper{f.Executor.Config, f.Kek, getKmsKeyIDs(f.Kek)}
+			primitive = &AeadWrapper{f.Executor.Config, f.Kek, getKmsKeyIDs(f.Executor.Config, f.Kek)}
 		}
 		encryptedDek, err := f.Executor.Client.GetDekEncryptedKeyMaterialBytes(dek)
 		if err != nil {
@@ -625,16 +625,24 @@ func extractVersion(ciphertext []byte) (int, error) {
 	return int(version), nil
 }
 
-func getKmsKeyIDs(kek deks.Kek) []string {
+func getKmsKeyIDs(config map[string]string, kek deks.Kek) []string {
 	kmsKeyIDs := []string{kek.KmsKeyID}
+	var ids []string
 	if kek.KmsProps != nil {
 		if alternateKmsKeyIDs, ok := kek.KmsProps[EncryptAlternateKmsKeyIDs]; ok {
-			ids := strings.Split(alternateKmsKeyIDs, ",")
-			for _, id := range ids {
-				id = strings.TrimSpace(id)
-				if len(id) > 0 {
-					kmsKeyIDs = append(kmsKeyIDs, id)
-				}
+			ids = strings.Split(alternateKmsKeyIDs, ",")
+		}
+	}
+	if ids == nil {
+		if alternateKmsKeyIDs, ok := config[EncryptAlternateKmsKeyIDs]; ok {
+			ids = strings.Split(alternateKmsKeyIDs, ",")
+		}
+	}
+	if ids != nil {
+		for _, id := range ids {
+			id = strings.TrimSpace(id)
+			if len(id) > 0 {
+				kmsKeyIDs = append(kmsKeyIDs, id)
 			}
 		}
 	}
