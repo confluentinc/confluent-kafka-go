@@ -1,5 +1,33 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.11.0
+
+This is a feature release:
+
+confluent-kafka-go is based on librdkafka v2.11.0, see the
+[librdkafka v2.11.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.10.1
+
+This is a maintenance release:
+
+confluent-kafka-go is based on librdkafka v2.10.1, see the
+[librdkafka v2.10.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+### Enhancements
+
+* Support for schema id in header (#1431)
+* Use hamba encoder schema function if available (#1440)
+ 
+### Fixes
+
+* Prevent panic when schemaregistry is configured without an auth provider (#1424)
+* Fix NPE in CSFLE executor (#1432)
+
+
 ## v2.10.0
 
 This is a feature release:

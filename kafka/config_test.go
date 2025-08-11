@@ -127,6 +127,14 @@ func TestConfigMapAPIs(t *testing.T) {
 
 // Test that plugins will always be configured before their config options
 func TestConfigPluginPaths(t *testing.T) {
+	if LibrdkafkaLinkInfo != "dynamically linked to librdkafka" {
+		// Best practice is to use dynamic linking if
+		// librdkafka plugins are used,
+		// as otherwise the statically linked version of librdkafka
+		// needs to correspond to the dynamically linked one.
+		t.Skip("Skipping test when statically linked")
+	}
+
 	config := &ConfigMap{
 		"plugin.library.paths": "monitoring-interceptor",
 	}

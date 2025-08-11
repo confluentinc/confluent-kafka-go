@@ -167,7 +167,7 @@ typedef SSIZE_T ssize_t;
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use rd_kafka_version()
  */
-#define RD_KAFKA_VERSION 0x020a00ff
+#define RD_KAFKA_VERSION 0x020b00ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -3231,7 +3231,7 @@ void *rd_kafka_topic_opaque(const rd_kafka_topic_t *rkt);
  * The unassigned partition is used by the producer API for messages
  * that should be partitioned using the configured or default partitioner.
  */
-#define RD_KAFKA_PARTITION_UA ((int32_t)-1)
+#define RD_KAFKA_PARTITION_UA ((int32_t) - 1)
 
 
 /**
@@ -5315,9 +5315,9 @@ rd_kafka_consumer_group_type_name(rd_kafka_consumer_group_type_t type);
  *
  * @param name The group type name.
  *
- * @remark The comparison is case-insensitive.
- *
  * @return The group type value corresponding to the provided group type name.
+ *
+ * @remark The comparison is case-insensitive.
  */
 RD_EXPORT
 rd_kafka_consumer_group_type_t
