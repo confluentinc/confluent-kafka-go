@@ -24,7 +24,7 @@ if __name__ == '__main__':
         sys.exit(1)
     package = sys.argv[1]
 
-    tag = "v2.11.1-RC2"
+    tag = "v2.11.1"
     major = tag.split(".")[0] # e.g. v2
     base_css = "https://go.dev/css"
     base_js = "https://go.dev/js"
