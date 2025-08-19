@@ -123,13 +123,13 @@ func testNewConsumer(t *testing.T, conf *ConfigMap) (*Consumer, error) {
 			"heartbeat.interval.ms",
 			"group.protocol.type"}
 		for _, prop := range forbiddenProperties {
-			if _, ok := (*conf)[prop]; !ok {
+			if _, ok := (*conf)[ConfigKey(prop)]; !ok {
 				continue
 			}
 			t.Logf(
 				"Skipping setting forbidden configuration property \"%s\" for CONSUMER protocol",
 				prop)
-			delete(*conf, prop)
+			delete(*conf, ConfigKey(prop))
 		}
 	}
 	return NewConsumer(conf)

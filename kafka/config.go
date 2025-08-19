@@ -35,6 +35,9 @@ import "C"
 //	bool, int, string, any type with the standard String() interface
 type ConfigValue interface{}
 
+// ConfigKey is type content all the possible of configuration keys
+type ConfigKey string
+
 // ConfigMap is a map containing standard librdkafka configuration properties as documented in:
 // https://github.com/confluentinc/librdkafka/tree/master/CONFIGURATION.md
 //
@@ -45,7 +48,7 @@ type ConfigValue interface{}
 // topic configuration properties shall be specified in the standard ConfigMap.
 // For backwards compatibility, "default.topic.config" (if supplied)
 // takes precedence.
-type ConfigMap map[string]ConfigValue
+type ConfigMap map[ConfigKey]ConfigValue
 
 // SetKey sets configuration property key to value.
 //
@@ -57,9 +60,9 @@ func (m ConfigMap) SetKey(key string, value ConfigValue) error {
 		if !found {
 			m["default.topic.config"] = ConfigMap{}
 		}
-		m["default.topic.config"].(ConfigMap)[strings.TrimPrefix(key, "{topic}.")] = value
+		m["default.topic.config"].(ConfigMap)[ConfigKey(strings.TrimPrefix(key, "{topic}."))] = value
 	} else {
-		m[key] = value
+		m[ConfigKey(key)] = value
 	}
 
 	return nil
@@ -192,7 +195,7 @@ func configConvertAnyconf(m ConfigMap, anyconf rdkAnyconf) (err error) {
 				(*C.rd_kafka_topic_conf_t)((*rdkTopicConf)(cTopicConf)))
 
 		default:
-			err = anyconfSet(anyconf, k, v)
+			err = anyconfSet(anyconf, string(k), v)
 			if err != nil {
 				return err
 			}
@@ -231,7 +234,7 @@ func (m ConfigMap) get(key string, defval ConfigValue) (ConfigValue, error) {
 		return defconfCv.(ConfigMap).get(strings.TrimPrefix(key, "{topic}."), defval)
 	}
 
-	v, ok := m[key]
+	v, ok := m[ConfigKey(key)]
 	if !ok {
 		return defval, nil
 	}
@@ -251,7 +254,7 @@ func (m ConfigMap) extract(key string, defval ConfigValue) (ConfigValue, error) 
 		return nil, err
 	}
 
-	delete(m, key)
+	delete(m, ConfigKey(key))
 
 	return v, nil
 }
