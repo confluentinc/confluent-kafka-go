@@ -275,11 +275,21 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		return nil, err
 	}
 	if s.validate {
+		raw, err := json.Marshal(msg)
+		if err != nil {
+			return nil, err
+		}
+		// Need to unmarshal to pure interface
+		var obj interface{}
+		err = json.Unmarshal(raw, &obj)
+		if err != nil {
+			return nil, err
+		}
 		jschema, err := s.toJSONSchema(s.Client, info)
 		if err != nil {
 			return nil, err
 		}
-		err = jschema.Validate(msg)
+		err = jschema.Validate(obj)
 		if err != nil {
 			return nil, err
 		}

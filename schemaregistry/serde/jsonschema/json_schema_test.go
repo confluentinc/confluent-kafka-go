@@ -238,7 +238,9 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serConfig := NewSerializerConfig()
+	serConfig.EnableValidation = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
 	obj := JSONDemoSchema{}
@@ -250,7 +252,9 @@ func TestJSONSchemaSerdeWithSimple(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	deserConfig := NewDeserializerConfig()
+	deserConfig.EnableValidation = true
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -324,7 +328,9 @@ func TestJSONSchemaSerdeWithSimpleMap(t *testing.T) {
 	client, err := schemaregistry.NewClient(conf)
 	serde.MaybeFail("Schema Registry configuration", err)
 
-	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serConfig := NewSerializerConfig()
+	serConfig.EnableValidation = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
 	obj := make(map[string]interface{})
@@ -336,7 +342,9 @@ func TestJSONSchemaSerdeWithSimpleMap(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	deserConfig := NewDeserializerConfig()
+	deserConfig.EnableValidation = true
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -742,6 +750,7 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
 	serConfig := NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
+	serConfig.EnableValidation = true
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -777,7 +786,9 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithSimpleMap(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	deserConfig := NewDeserializerConfig()
+	deserConfig.EnableValidation = true
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
 
@@ -1110,6 +1121,7 @@ func TestJSONSchemaSerdeEncryptionWithSimpleMap(t *testing.T) {
 	serConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
+	serConfig.EnableValidation = true
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
 
@@ -1163,6 +1175,7 @@ func TestJSONSchemaSerdeEncryptionWithSimpleMap(t *testing.T) {
 	deserConfig.RuleConfig = map[string]string{
 		"secret": "mysecret",
 	}
+	deserConfig.EnableValidation = true
 	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.Client = ser.Client
