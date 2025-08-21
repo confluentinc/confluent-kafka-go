@@ -533,7 +533,7 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 // DeserializeWithHeadersInto implements deserialization of Protobuf data to the given object
 func (s *Deserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
 	result, err := s.deserialize(topic, headers, payload, msg)
-	if err != nil {
+	if result == nil || err != nil {
 		return err
 	}
 	// Copy the result into the target since we may have created a clone during transformations
