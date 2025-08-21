@@ -77,6 +77,8 @@ const (
 	EncryptDekAlgorithm = "encrypt.dek.algorithm"
 	// EncryptDekExpiryDays represents dek expiry days
 	EncryptDekExpiryDays = "encrypt.dek.expiry.days"
+	// EncryptAlternateKmsKeyIDs represents alternate kms key ids
+	EncryptAlternateKmsKeyIDs = "encrypt.alternate.kms.key.ids"
 
 	// Aes128Gcm represents AES128_GCM algorithm
 	Aes128Gcm = "AES128_GCM"
@@ -394,10 +396,7 @@ func (f *ExecutorTransform) getOrCreateDek(ctx serde.RuleContext, version *int) 
 		}
 		var encryptedDek []byte
 		if !f.Kek.Shared {
-			primitive, err = getAead(f.Executor.Config, f.Kek)
-			if err != nil {
-				return nil, err
-			}
+			primitive = &AeadWrapper{f.Executor.Config, f.Kek, getKmsKeyIDs(f.Executor.Config, f.Kek)}
 			// Generate new dek
 			keyData, err := registry.NewKeyData(f.Cryptor.KeyTemplate)
 			if err != nil {
@@ -431,10 +430,7 @@ func (f *ExecutorTransform) getOrCreateDek(ctx serde.RuleContext, version *int) 
 	}
 	if keyBytes == nil {
 		if primitive == nil {
-			primitive, err = getAead(f.Executor.Config, f.Kek)
-			if err != nil {
-				return nil, err
-			}
+			primitive = &AeadWrapper{f.Executor.Config, f.Kek, getKmsKeyIDs(f.Executor.Config, f.Kek)}
 		}
 		encryptedDek, err := f.Executor.Client.GetDekEncryptedKeyMaterialBytes(dek)
 		if err != nil {
@@ -629,8 +625,79 @@ func extractVersion(ciphertext []byte) (int, error) {
 	return int(version), nil
 }
 
-func getAead(config map[string]string, kek deks.Kek) (tink.AEAD, error) {
-	kekURL := kek.KmsType + "://" + kek.KmsKeyID
+func getKmsKeyIDs(config map[string]string, kek deks.Kek) []string {
+	kmsKeyIDs := []string{kek.KmsKeyID}
+	var alternateKmsKeyIDs []string
+	if kek.KmsProps != nil {
+		if ids, ok := kek.KmsProps[EncryptAlternateKmsKeyIDs]; ok {
+			alternateKmsKeyIDs = strings.Split(ids, ",")
+		}
+	}
+	if alternateKmsKeyIDs == nil {
+		if ids, ok := config[EncryptAlternateKmsKeyIDs]; ok {
+			alternateKmsKeyIDs = strings.Split(ids, ",")
+		}
+	}
+	if alternateKmsKeyIDs != nil {
+		for _, id := range alternateKmsKeyIDs {
+			id = strings.TrimSpace(id)
+			if len(id) > 0 {
+				kmsKeyIDs = append(kmsKeyIDs, id)
+			}
+		}
+	}
+	return kmsKeyIDs
+}
+
+// AeadWrapper is a wrapper for AEAD
+type AeadWrapper struct {
+	Config    map[string]string
+	Kek       deks.Kek
+	KmsKeyIds []string
+}
+
+// Encrypt encrypts plaintext with associatedData as associated data.
+func (a *AeadWrapper) Encrypt(plaintext, associatedData []byte) ([]byte, error) {
+	var aead tink.AEAD
+	var err error
+	var ciphertext []byte
+	for _, kmsKeyID := range a.KmsKeyIds {
+		aead, err = getAead(a.Config, a.Kek.KmsType, kmsKeyID)
+		if err != nil {
+			log.Printf("WARN: failed to get AEAD with %s: %v\n", kmsKeyID, err)
+			continue
+		}
+		ciphertext, err = aead.Encrypt(plaintext, associatedData)
+		if err == nil {
+			return ciphertext, nil
+		}
+		log.Printf("WARN: failed to encrypt with %s: %v\n", kmsKeyID, err)
+	}
+	return nil, err
+}
+
+// Decrypt decrypts ciphertext with associatedData as associated data.
+func (a *AeadWrapper) Decrypt(ciphertext, associatedData []byte) ([]byte, error) {
+	var aead tink.AEAD
+	var err error
+	var plaintext []byte
+	for _, kmsKeyID := range a.KmsKeyIds {
+		aead, err = getAead(a.Config, a.Kek.KmsType, kmsKeyID)
+		if err != nil {
+			log.Printf("WARN: failed to get AEAD with %s: %v\n", kmsKeyID, err)
+			continue
+		}
+		plaintext, err = aead.Decrypt(ciphertext, associatedData)
+		if err == nil {
+			return plaintext, nil
+		}
+		log.Printf("WARN: failed to decrypt with %s: %v\n", kmsKeyID, err)
+	}
+	return nil, err
+}
+
+func getAead(config map[string]string, kmsType string, kmsKeyID string) (tink.AEAD, error) {
+	kekURL := kmsType + "://" + kmsKeyID
 	kmsClient, err := getKMSClient(config, kekURL)
 	if err != nil {
 		return nil, err
