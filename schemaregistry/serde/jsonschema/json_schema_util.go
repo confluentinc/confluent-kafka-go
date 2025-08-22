@@ -33,6 +33,19 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 	if fieldCtx != nil {
 		fieldCtx.Type = getType(schema)
 	}
+	if len(schema.Types) > 1 {
+		originalTypes := schema.Types
+		subschema, err := validateSubtypes(schema, msg)
+		if err != nil {
+			return nil, err
+		}
+		if subschema != nil {
+			result, err := transform(ctx, subschema, path, msg, fieldTransform)
+			schema.Types = originalTypes // restore original types
+			return result, err
+		}
+		schema.Types = originalTypes // restore original types
+	}
 	if len(schema.AllOf) > 0 {
 		subschema, err := validateSubschemas(schema.AllOf, msg)
 		if err != nil {
@@ -180,6 +193,21 @@ func transformArray(ctx serde.RuleContext, msg *reflect.Value, sch *jsonschema2.
 		item.Set(*newVal)
 	}
 	return msg, nil
+}
+
+func validateSubtypes(schema *jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
+	val := deref(msg)
+	for _, typ := range schema.Types {
+		schema.Types = []string{typ}
+		valid, err := validate(schema, val)
+		if err != nil {
+			return nil, err
+		}
+		if valid {
+			return schema, nil
+		}
+	}
+	return nil, nil
 }
 
 func validateSubschemas(subschemas []*jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
