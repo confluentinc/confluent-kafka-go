@@ -65,6 +65,25 @@ const (
   }
 }
 `
+	demoSchemaWithNullable = `
+{
+  "type": "object",
+  "properties": {
+    "IntField": { "type": "integer" },
+    "DoubleField": { "type": "number" },
+    "StringField": { 
+       "type": ["string", "null"],
+       "confluent:tags": [ "PII" ]
+    },
+    "BoolField": { "type": "boolean" },
+    "BytesField": { 
+       "type": "string",
+       "contentEncoding": "base64",
+       "confluent:tags": [ "PII" ]
+    }
+  }
+}
+`
 	demoSchemaWithUnion = `
 {
   "type": "object",
@@ -635,6 +654,71 @@ func TestJSONSchemaSerdeWithCELFieldTransform(t *testing.T) {
 
 	info := schemaregistry.SchemaInfo{
 		Schema:     demoSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	obj2 := JSONDemoSchema{}
+	obj2.IntField = 123
+	obj2.DoubleField = 45.67
+	obj2.StringField = "hi-suffix"
+	obj2.BoolField = true
+	obj2.BytesField = base64.StdEncoding.EncodeToString([]byte{1, 2})
+
+	var newobj JSONDemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformWithNullable(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchemaWithNullable,
 		SchemaType: "JSON",
 		RuleSet:    &ruleSet,
 	}
