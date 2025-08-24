@@ -1424,11 +1424,13 @@ func TestAdminClientLogWithoutChannel(t *testing.T) {
 		t.Fatalf("Expected admin.Logs() to return a channel, got nil")
 	}
 
-	expectedLogs := map[struct {
+	// Define expected logs to validate
+	expectedLogs := []struct {
 		tag     string
 		message string
-	}]bool{
-		{"INIT", "librdkafka"}: false,
+		found   bool
+	}{
+		{"INIT", "librdkafka", false},
 	}
 
 	go func() {
@@ -1441,15 +1443,11 @@ func TestAdminClientLogWithoutChannel(t *testing.T) {
 
 				t.Log(log.String())
 
-				for expectedLog, found := range expectedLogs {
-					if found {
-						continue
-					}
-					if log.Tag != expectedLog.tag {
-						continue
-					}
-					if strings.Contains(log.Message, expectedLog.message) {
-						expectedLogs[expectedLog] = true
+				// Check each expected log
+				for i := range expectedLogs {
+					if !expectedLogs[i].found && log.Tag == expectedLogs[i].tag &&
+						strings.Contains(log.Message, expectedLogs[i].message) {
+						expectedLogs[i].found = true
 					}
 				}
 			}
@@ -1458,13 +1456,11 @@ func TestAdminClientLogWithoutChannel(t *testing.T) {
 
 	<-time.After(time.Second * 5)
 
-	for expectedLog, found := range expectedLogs {
-		if !found {
-			t.Errorf(
-				"Expected to find log with tag `%s' and message containing `%s',"+
-				" but didn't find any.",
-				expectedLog.tag,
-				expectedLog.message)
+	// Validate all expected logs were found
+	for _, expected := range expectedLogs {
+		if !expected.found {
+			t.Errorf("Expected to find log with tag `%s' and message containing `%s', but didn't find any.",
+				expected.tag, expected.message)
 		}
 	}
 }
