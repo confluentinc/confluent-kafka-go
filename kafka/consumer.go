@@ -1015,7 +1015,7 @@ func cEventToRebalanceEvent(rkev *C.rd_kafka_event_t) Event {
 // In the polling case (not channel based consumer) the rebalance event
 // is returned in retval, else nil is returned.
 
-func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_event_t) (retval Event) {
+func (c *Consumer) handleRebalanceEvent(channel chan<- Event, rkev *C.rd_kafka_event_t) (retval Event) {
 
 	var ev Event
 

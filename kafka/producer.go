@@ -172,7 +172,7 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
+func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan<- Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")
 	}
