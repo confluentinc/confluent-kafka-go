@@ -4,6 +4,7 @@ if [ "$EXPECT_LINK_INFO" = "dynamic" ]; then export GO_TAGS="-tags dynamic" && c
 for dir in kafka examples ; do (cd $dir && go install $GO_TAGS ./...) ; done
 if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
 for dir in kafka schemaregistry ; do (cd $dir && go test -coverprofile="$coverage_profile" -timeout 180s -v $GO_TAGS ./...) ; done
+if [[ $(command codesign) ]]; then codesign -f -s - $(which go-kafkacat); fi
 go-kafkacat --help
 library-version
 (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
