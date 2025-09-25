@@ -8,15 +8,7 @@ for dir in kafka schemaregistry ; do (cd $dir && go test -coverprofile="$coverag
 
 # If we're on newer macOS, avoid running binaries that are not code-signed, rather, use go run. 
 # Running go-kafkacat with `go run` needs some `go get` commands, so just check existence instead.
-if [[ $(command codesign) ]]; then
-    command go-kafkacat
-    go run examples/library-version/library-version.go
-    (go run examples/library-version/library-version.go | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
-else
-    go-kafkacat --help
-    library-version
-    (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
-fi
+if [[ $(command codesign) ]]; then command go-kafkacat; go run examples/library-version/library-version.go; (go run examples/library-version/library-version.go | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false); else go-kafkacat --help; library-version; (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false); fi
 
 (gocovmerge $(find . -type f -iname "*coverage.txt") > ${coverage_profile}) || (echo "Failed to merge coverage files" && exit 0)
 artifact push workflow ${coverage_profile} || true
