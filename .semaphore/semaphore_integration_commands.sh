@@ -5,6 +5,7 @@ for dir in kafka examples ; do (cd $dir && go install $GO_TAGS ./...) ; done
 if [[ -f .do_lint ]]; then golint -set_exit_status ./examples/... ./kafka/... ./kafkatest/... ./soaktest/... ./schemaregistry/...; fi
 for dir in kafka schemaregistry ; do (cd $dir && go test -coverprofile="$coverage_profile" -timeout 180s -v $GO_TAGS ./...) ; done
 (cd kafka && go test -v $GO_TAGS -timeout 3600s -run  ^TestIntegration$ -docker.needed=true ; cd ..)
+if [[ $(command codesign) ]]; then codesign --sign - --force --preserve-metadata=entitlements,requirements,flags,runtime $(which go-kafkacat); fi
 go-kafkacat --help
 library-version
 (library-version | grep "$EXPECT_LINK_INFO") || (echo "Incorrect linkage, expected $EXPECT_LINK_INFO" ; false)
