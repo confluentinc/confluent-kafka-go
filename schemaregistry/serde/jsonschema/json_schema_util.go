@@ -96,7 +96,7 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 			for propName, propSchema := range schema.Properties {
 				structField, ok := fieldByNames[propName]
 				if !ok {
-					return nil, fmt.Errorf("json: missing field %s", propName)
+					continue
 				}
 				err := transformField(ctx, path, propName, structField, val, propSchema, fieldTransform)
 				if err != nil {
@@ -233,6 +233,9 @@ func isModernJSONSchema(draft *jsonschema2.Draft) bool {
 func getType(schema *jsonschema2.Schema) serde.FieldType {
 	types := schema.Types
 	if len(types) == 0 {
+		if len(schema.Properties) > 0 {
+			return serde.TypeRecord
+		}
 		return serde.TypeNull
 	}
 	if len(types) > 1 || len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
