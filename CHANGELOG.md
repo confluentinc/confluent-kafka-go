@@ -1,5 +1,17 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.12.0
+
+This is a feature release:
+
+confluent-kafka-go is based on librdkafka v2.12.0, see the
+[librdkafka v2.12.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+### Enhancements
+
+* Add support for forwarding librdkafka log events to a Go channel in AdminClient (#1448)
+
 ## v2.11.1
 
 This is a maintenance release:
@@ -8,7 +20,6 @@ confluent-kafka-go is based on librdkafka v2.11.1, see the
 [librdkafka v2.11.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-
 ## v2.11.0
 
 This is a feature release:
@@ -16,7 +27,6 @@ This is a feature release:
 confluent-kafka-go is based on librdkafka v2.11.0, see the
 [librdkafka v2.11.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-
 
 ## v2.10.1
 
