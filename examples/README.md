@@ -74,6 +74,8 @@ Examples
 
   [oauthbearer_oidc_example](oauthbearer_oidc_example) - SASL/OAUTHBEARER with OIDC method example
 
+  [oauthbearer_oidc_azure_imds_example](oauthbearer_oidc_azure_imds_example) - SASL/OAUTHBEARER with OIDC Azure IMDS method example
+
   [oauthbearer_producer_example](oauthbearer_producer_example) - Unsecured SASL/OAUTHBEARER producer example
 
   [producer_custom_channel_example](producer_custom_channel_example) - Function based producer with a custom delivery channel
