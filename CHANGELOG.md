@@ -1,5 +1,17 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.12.0
+
+This is a feature release:
+
+* OAuth OIDC method example for Kafka metadata based authentication with
+  an Azure IMDS endpoint using an attached managed identity as principal (#1477).
+
+confluent-kafka-go is based on librdkafka v2.12.0, see the
+[librdkafka v2.12.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.11.1
 
 This is a maintenance release:
