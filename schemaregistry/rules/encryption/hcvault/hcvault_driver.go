@@ -77,10 +77,10 @@ func (l *hcvaultDriver) NewKMSClient(config map[string]string, keyURL *string) (
 		secretID = os.Getenv("VAULT_APPROLE_SECRET_ID")
 	}
 	if roleID != "" && secretID != "" {
-		secretID := &auth.SecretID{FromString: secretID}
+		roleSecretID := &auth.SecretID{FromString: secretID}
 		appRoleAuth, err := auth.NewAppRoleAuth(
 			roleID,
-			secretID,
+			roleSecretID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize AppRole auth method: %w", err)
