@@ -34,7 +34,7 @@ import (
 // vaultClient represents a client that connects to the HashiCorp Vault backend.
 type vaultClient struct {
 	keyURIPrefix string
-	client       *api.Logical
+	client       *api.Client
 }
 
 var _ registry.KMSClient = (*vaultClient)(nil)
@@ -86,8 +86,13 @@ func NewClient(uriPrefix string, tlsCfg *tls.Config, namespace string, token str
 	client.SetToken(token)
 	return &vaultClient{
 		keyURIPrefix: uriPrefix,
-		client:       client.Logical(),
+		client:       client,
 	}, nil
+}
+
+// Client returns the underlying Vault client.
+func (c *vaultClient) Client() *api.Client {
+    return c.client
 }
 
 // Supported returns true if this client does support keyURI.
@@ -106,5 +111,5 @@ func (c *vaultClient) GetAEAD(keyURI string) (tink.AEAD, error) {
 		return nil, errors.New("malformed keyURI")
 	}
 	keyPath := u.EscapedPath()
-	return vault.NewAEAD(keyPath, c.client)
+	return vault.NewAEAD(keyPath, c.client.Logical())
 }

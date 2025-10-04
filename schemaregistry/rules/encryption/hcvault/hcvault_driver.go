@@ -17,15 +17,21 @@
 package hcvault
 
 import (
+	"context"
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
 	"github.com/tink-crypto/tink-go/v2/core/registry"
 	"os"
+
+	auth "github.com/hashicorp/vault/api/auth/approle"
 )
 
 const (
-	prefix    = "hcvault://"
-	tokenID   = "token.id"
-	namespace = "namespace"
+	prefix          = "hcvault://"
+	tokenID         = "token.id"
+	namespace       = "namespace"
+	approleRoleID   = "approle.role.id"
+	approleSecretID = "approle.secret.id"
 )
 
 func init() {
@@ -50,11 +56,44 @@ func (l *hcvaultDriver) NewKMSClient(config map[string]string, keyURL *string) (
 	if keyURL != nil {
 		uriPrefix = *keyURL
 	}
-	ns := config[namespace]
 	token := config[tokenID]
 	if token == "" {
-		ns = os.Getenv("VAULT_NAMESPACE")
 		token = os.Getenv("VAULT_TOKEN")
 	}
-	return NewClient(uriPrefix, nil, ns, token)
+	ns := config[namespace]
+	if ns == "" {
+		ns = os.Getenv("VAULT_NAMESPACE")
+	}
+	client, err := NewClient(uriPrefix, nil, ns, token)
+	if err != nil {
+		return nil, err
+	}
+	roleID := config[approleRoleID]
+	if roleID == "" {
+		roleID = os.Getenv("VAULT_APPROLE_ROLE_ID")
+	}
+	secretID := config[approleSecretID]
+	if secretID == "" {
+		secretID = os.Getenv("VAULT_APPROLE_SECRET_ID")
+	}
+	if roleID != "" && secretID != "" {
+		roleSecretID := &auth.SecretID{FromString: secretID}
+		appRoleAuth, err := auth.NewAppRoleAuth(
+			roleID,
+			roleSecretID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize AppRole auth method: %w", err)
+		}
+
+		vaultClient := client.(*vaultClient).Client()
+		authInfo, err := vaultClient.Auth().Login(context.Background(), appRoleAuth)
+		if err != nil {
+			return nil, fmt.Errorf("unable to login to AppRole auth method: %w", err)
+		}
+		if authInfo == nil {
+			return nil, fmt.Errorf("no auth info was returned after login")
+		}
+	}
+	return client, nil
 }
