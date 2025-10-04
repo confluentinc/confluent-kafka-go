@@ -30,8 +30,8 @@ const (
 	prefix          = "hcvault://"
 	tokenID         = "token.id"
 	namespace       = "namespace"
-	appRoleID       = "app.role.id"
-	appRoleSecretID = "app.role.secret.id"
+	approleRoleID   = "approle.role.id"
+	approleSecretID = "approle.secret.id"
 )
 
 func init() {
@@ -68,16 +68,16 @@ func (l *hcvaultDriver) NewKMSClient(config map[string]string, keyURL *string) (
 	if err != nil {
 		return nil, err
 	}
-	roleID := config[appRoleID]
+	roleID := config[approleRoleID]
 	if roleID == "" {
-		roleID = os.Getenv("VAULT_APP_ROLE_ID")
+		roleID = os.Getenv("VAULT_APPROLE_ROLE_ID")
 	}
-	roleSecretID := config[appRoleSecretID]
-	if roleSecretID == "" {
-		roleSecretID = os.Getenv("VAULT_APP_ROLE_SECRET_ID")
+	secretID := config[approleSecretID]
+	if secretID == "" {
+		secretID = os.Getenv("VAULT_APPROLE_SECRET_ID")
 	}
-	if roleID != "" && roleSecretID != "" {
-		secretID := &auth.SecretID{FromString: roleSecretID}
+	if roleID != "" && secretID != "" {
+		secretID := &auth.SecretID{FromString: secretID}
 		appRoleAuth, err := auth.NewAppRoleAuth(
 			roleID,
 			secretID,
