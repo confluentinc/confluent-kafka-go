@@ -13,11 +13,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.10
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.10
 	github.com/aws/aws-sdk-go-v2/service/kms v1.30.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6
 	github.com/golang/protobuf v1.5.4
 	github.com/google/cel-go v0.20.1
 	github.com/google/uuid v1.6.0
 	github.com/hamba/avro/v2 v2.24.0
 	github.com/hashicorp/vault/api v1.15.0
+	github.com/hashicorp/vault/api/auth/approle v0.8.0
 	github.com/heetch/avro v0.4.5
 	github.com/invopop/jsonschema v0.12.0
 	github.com/jhump/protoreflect v1.15.6
@@ -29,6 +31,7 @@ require (
 	github.com/tink-crypto/tink-go-hcvault/v2 v2.1.0
 	github.com/tink-crypto/tink-go/v2 v2.1.0
 	github.com/xiatechs/jsonata-go v1.8.5
+	golang.org/x/oauth2 v0.18.0
 	google.golang.org/api v0.169.0
 	google.golang.org/genproto v0.0.0-20240325203815-454cdb8f5daa
 	google.golang.org/protobuf v1.33.0
@@ -57,7 +60,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6 // indirect
 	github.com/aws/smithy-go v1.20.2 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -221,7 +223,6 @@ require (
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240112132812-db7319d0e0e3 // indirect
 	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
