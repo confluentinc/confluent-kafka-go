@@ -74,6 +74,8 @@ type mockclient struct {
 	schemaToVersionCacheLock sync.RWMutex
 	configCache              map[string]ServerConfig
 	configCacheLock          sync.RWMutex
+	associationsCache        []Association
+	associationsCacheLock    sync.RWMutex
 	counter                  counter
 }
 
@@ -807,6 +809,196 @@ func (c *mockclient) ClearCaches() error {
 
 // Close closes the client
 func (c *mockclient) Close() error {
+	return nil
+}
+
+// CreateAssociation creates associations between a resource and subjects
+func (c *mockclient) CreateAssociation(association AssociationCreateRequest) (result AssociationResponse, err error) {
+	c.associationsCacheLock.Lock()
+	defer c.associationsCacheLock.Unlock()
+
+	associationInfos := make([]AssociationInfo, 0, len(association.Associations))
+	for _, assocCreate := range association.Associations {
+		// Create the association
+		assoc := Association{
+			Subject:           assocCreate.Subject,
+			GUID:              uuid.New().String(),
+			ResourceName:      association.ResourceName,
+			ResourceNamespace: association.ResourceNamespace,
+			ResourceID:        association.ResourceID,
+			ResourceType:      association.ResourceType,
+			AssociationType:   assocCreate.AssociationType,
+			Lifecycle:         assocCreate.Lifecycle,
+			Frozen:            assocCreate.Frozen,
+		}
+
+		// Add to cache
+		c.associationsCache = append(c.associationsCache, assoc)
+
+		// Create association info for response
+		assocInfo := AssociationInfo{
+			Subject:         assocCreate.Subject,
+			AssociationType: assocCreate.AssociationType,
+			Lifecycle:       assocCreate.Lifecycle,
+			Frozen:          assocCreate.Frozen,
+			Schema:          assocCreate.Schema,
+		}
+		associationInfos = append(associationInfos, assocInfo)
+	}
+
+	result = AssociationResponse{
+		ResourceName:      association.ResourceName,
+		ResourceNamespace: association.ResourceNamespace,
+		ResourceID:        association.ResourceID,
+		ResourceType:      association.ResourceType,
+		Associations:      associationInfos,
+	}
+
+	return result, nil
+}
+
+// GetAssociationsBySubject retrieves associations by subject
+func (c *mockclient) GetAssociationsBySubject(subject string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	c.associationsCacheLock.RLock()
+	defer c.associationsCacheLock.RUnlock()
+
+	filtered := make([]Association, 0)
+	for _, assoc := range c.associationsCache {
+		// Filter by subject
+		if assoc.Subject != subject {
+			continue
+		}
+
+		// Filter by resource type if provided
+		if resourceType != "" && assoc.ResourceType != resourceType {
+			continue
+		}
+
+		// Filter by association types if provided
+		if len(associationTypes) > 0 {
+			found := false
+			for _, at := range associationTypes {
+				if assoc.AssociationType == at {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		// Filter by lifecycle if provided
+		if lifecycle != "" && string(assoc.Lifecycle) != lifecycle {
+			continue
+		}
+
+		filtered = append(filtered, assoc)
+	}
+
+	// Apply pagination
+	start := offset
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	end := start + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+
+	return filtered[start:end], nil
+}
+
+// GetAssociationsByResourceID retrieves associations by resource ID
+func (c *mockclient) GetAssociationsByResourceID(resourceID string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	c.associationsCacheLock.RLock()
+	defer c.associationsCacheLock.RUnlock()
+
+	filtered := make([]Association, 0)
+	for _, assoc := range c.associationsCache {
+		// Filter by resource ID
+		if assoc.ResourceID != resourceID {
+			continue
+		}
+
+		// Filter by resource type if provided
+		if resourceType != "" && assoc.ResourceType != resourceType {
+			continue
+		}
+
+		// Filter by association types if provided
+		if len(associationTypes) > 0 {
+			found := false
+			for _, at := range associationTypes {
+				if assoc.AssociationType == at {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		// Filter by lifecycle if provided
+		if lifecycle != "" && string(assoc.Lifecycle) != lifecycle {
+			continue
+		}
+
+		filtered = append(filtered, assoc)
+	}
+
+	// Apply pagination
+	start := offset
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	end := start + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+
+	return filtered[start:end], nil
+}
+
+// DeleteAssociations deletes associations for a resource
+func (c *mockclient) DeleteAssociations(resourceID string, resourceType string, associationTypes []string,
+	cascadeLifecycle bool) error {
+	c.associationsCacheLock.Lock()
+	defer c.associationsCacheLock.Unlock()
+
+	// Filter out associations to delete
+	remaining := make([]Association, 0)
+	for _, assoc := range c.associationsCache {
+		// Check if this association should be deleted
+		shouldDelete := false
+
+		if assoc.ResourceID == resourceID {
+			// Match resource type if provided
+			if resourceType == "" || assoc.ResourceType == resourceType {
+				// Match association types if provided
+				if len(associationTypes) == 0 {
+					shouldDelete = true
+				} else {
+					for _, at := range associationTypes {
+						if assoc.AssociationType == at {
+							shouldDelete = true
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Keep associations that should not be deleted
+		if !shouldDelete {
+			remaining = append(remaining, assoc)
+		}
+	}
+
+	c.associationsCache = remaining
 	return nil
 }
 

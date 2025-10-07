@@ -303,6 +303,109 @@ func TestClient(t *testing.T) {
 	}
 }
 
+func TestAssociations(t *testing.T) {
+	maybeFail = initFailFunc(t)
+
+	// Use mock client for testing
+	conf := NewConfig("mock://")
+	client, err := NewClient(conf)
+	maybeFail("schema registry client instantiation", err)
+
+	// Test CreateAssociation
+	createReq := AssociationCreateRequest{
+		ResourceName:      "test-resource",
+		ResourceNamespace: "test-namespace",
+		ResourceID:        "resource-123",
+		ResourceType:      "STREAM",
+		Associations: []AssociationCreateInfo{
+			{
+				Subject:         "test-subject-1",
+				AssociationType: "IS_PRODUCED_BY",
+				Lifecycle:       "ACTIVE",
+				Frozen:          false,
+			},
+			{
+				Subject:         "test-subject-2",
+				AssociationType: "IS_CONSUMED_BY",
+				Lifecycle:       "ACTIVE",
+				Frozen:          true,
+			},
+		},
+	}
+
+	resp, err := client.CreateAssociation(createReq)
+	maybeFail("CreateAssociation", err)
+
+	if resp.ResourceID != "resource-123" {
+		t.Errorf("Expected ResourceID to be 'resource-123', got '%s'", resp.ResourceID)
+	}
+	if len(resp.Associations) != 2 {
+		t.Errorf("Expected 2 associations, got %d", len(resp.Associations))
+	}
+
+	// Test GetAssociationsBySubject
+	associations, err := client.GetAssociationsBySubject("test-subject-1", "", nil, "", 0, 10)
+	maybeFail("GetAssociationsBySubject", err)
+
+	if len(associations) != 1 {
+		t.Errorf("Expected 1 association for test-subject-1, got %d", len(associations))
+	}
+	if len(associations) > 0 && associations[0].Subject != "test-subject-1" {
+		t.Errorf("Expected subject 'test-subject-1', got '%s'", associations[0].Subject)
+	}
+
+	// Test GetAssociationsByResourceID
+	associations, err = client.GetAssociationsByResourceID("resource-123", "", nil, "", 0, 10)
+	maybeFail("GetAssociationsByResourceID", err)
+
+	if len(associations) != 2 {
+		t.Errorf("Expected 2 associations for resource-123, got %d", len(associations))
+	}
+
+	// Test filtering by association type
+	associations, err = client.GetAssociationsByResourceID("resource-123", "", []string{"IS_PRODUCED_BY"}, "", 0, 10)
+	maybeFail("GetAssociationsByResourceID with filter", err)
+
+	if len(associations) != 1 {
+		t.Errorf("Expected 1 association with type IS_PRODUCED_BY, got %d", len(associations))
+	}
+
+	// Test pagination
+	associations, err = client.GetAssociationsByResourceID("resource-123", "", nil, "", 0, 1)
+	maybeFail("GetAssociationsByResourceID with limit", err)
+
+	if len(associations) != 1 {
+		t.Errorf("Expected 1 association with limit=1, got %d", len(associations))
+	}
+
+	// Test DeleteAssociations
+	err = client.DeleteAssociations("resource-123", "", []string{"IS_CONSUMED_BY"}, false)
+	maybeFail("DeleteAssociations", err)
+
+	// Verify deletion
+	associations, err = client.GetAssociationsByResourceID("resource-123", "", nil, "", 0, 10)
+	maybeFail("GetAssociationsByResourceID after delete", err)
+
+	if len(associations) != 1 {
+		t.Errorf("Expected 1 association after deletion, got %d", len(associations))
+	}
+	if len(associations) > 0 && associations[0].AssociationType != "IS_PRODUCED_BY" {
+		t.Errorf("Expected remaining association to be IS_PRODUCED_BY, got '%s'", associations[0].AssociationType)
+	}
+
+	// Test DeleteAssociations for all types
+	err = client.DeleteAssociations("resource-123", "", nil, false)
+	maybeFail("DeleteAssociations all", err)
+
+	// Verify all deleted
+	associations, err = client.GetAssociationsByResourceID("resource-123", "", nil, "", 0, 10)
+	maybeFail("GetAssociationsByResourceID after delete all", err)
+
+	if len(associations) != 0 {
+		t.Errorf("Expected 0 associations after deleting all, got %d", len(associations))
+	}
+}
+
 func init() {
 	if !testconfRead() {
 		log.Print("WARN: Missing testconf.json, using mock client")
