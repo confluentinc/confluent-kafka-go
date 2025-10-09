@@ -2,7 +2,7 @@
 
 Starting with **confluent-kafka-go 2.12.0** (GA release), the next generation consumer group rebalance protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is **production-ready**.
 
-**Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
+**Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are a few contract changes associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
 
 # Overview
 
@@ -51,15 +51,15 @@ All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+N
 - In the **rebalance callbacks**, you **must only use** (optional - if not used, client will handle it internally):
   - `consumer.IncrementalAssign(e.Partitions)` to assign new partitions
   - `consumer.IncrementalUnassign(e.Partitions)` to revoke partitions
-- **Do not** use `consumer.Assign()` or `consumer.Unassign()` when using `group.protocol='consumer'` (KIP-848).
-- If you don't provide \*Assign/\*Unassign inside rebalance callbacks, the client will automatically use \*Assign/\*Unassign internally.
+- **Do not** use `consumer.Assign()` or `consumer.Unassign()` after subscribing with `group.protocol='consumer'` (KIP-848).
+- If you don't call `IncrementalAssign()`/`IncrementalUnassign()` inside rebalance callbacks, the client will automatically use `IncrementalAssign()`/`IncrementalUnassign()` internally.
 - ⚠️ The `e.Partitions` list passed to `IncrementalAssign()` and `IncrementalUnassign()` contains only the **incremental changes** — partitions being **added** or **revoked** — **not the full assignment**, as was the case with `Assign()` in the classic protocol.
 - All assignors under KIP-848 are now **sticky**, including `range`, which was **not sticky** in the classic protocol.
 
 ## Static Group Membership
 
 - Duplicate `group.instance.id` handling:
-  - **Newly joining member** is fenced with **UNRELEASED_INSTANCE_ID (fatal)**.
+  - **Newly joining member** is fenced with **ErrUnreleasedInstanceID (fatal)**.
   - (Classic protocol fenced the **existing** member instead.)
 - Implications:
   - Ensure only **one active instance per** `group.instance.id`.
@@ -74,7 +74,7 @@ All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+N
 
 ## Closing / Auto-Commit
 
-- On `close()` or unsubscribe with auto-commit enabled:
+- On `Close()` or `Unsubscribe()` with auto-commit enabled:
   - Member retries committing offsets until a timeout expires.
   - Currently uses the **default remote session timeout**.
   - Future **KIP-1092** will allow custom commit timeouts.
@@ -92,9 +92,9 @@ All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+N
 - **Assignors:** Classic range assignor was **not sticky**; KIP-848 assignors are **sticky**, including range
 - **Deprecated configs:** Classic client configs are replaced by `group.remote.assignor` and broker-controlled session/heartbeat configs
 - **Static membership fencing:** KIP-848 fences **new member** on duplicate `group.instance.id`
-- **Session timeout:** Classic enforced on client; KIP-848 enforced on broker
-- **Auto-commit on close:** Classic stops at client session timeout; KIP-848 retries until remote timeout
-- **Unknown topics:** KIP-848 does not return error on subscription if topic missing
+- **Session timeout:** Classic: enforced on client; KIP-848: enforced on broker
+- **Auto-commit on close:** Classic: stops at client session timeout; KIP-848: retries until remote timeout
+- **Unknown topics:** KIP-848 does not return error on subscription if topic is missing
 - **Upgrade/Downgrade:** KIP-848 supports upgrade/downgrade from/to `classic` and `consumer` protocols
 
 # Minimal Example Config
