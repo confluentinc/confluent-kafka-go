@@ -2741,6 +2741,10 @@ func (a *AdminClient) Close() {
 	if a.adminTermChan != nil {
 		close(a.adminTermChan)
 	}
+
+	// Wait for the log polling goroutine to terminate before cleanup
+	a.handle.waitGroup.Wait()
+
 	a.handle.cleanup()
 
 	C.rd_kafka_destroy(a.handle.rk)
