@@ -1,5 +1,9 @@
 # Confluent's Golang client for Apache Kafka
 
+### Enhancements
+* Add support for forwarding librdkafka log events to a Go channel in AdminClient (#1448)
+
+
 ## v2.12.0
 
 This is a feature release:
