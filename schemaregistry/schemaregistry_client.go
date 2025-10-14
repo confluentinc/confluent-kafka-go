@@ -453,7 +453,7 @@ func NewClient(conf *Config) (Client, error) {
 			configCache:                      make(map[string]ServerConfig),
 			subjectToAssocCache:              make(map[string][]*Association),
 			resourceAndAssocTypeToAssocCache: make(map[resourceAndAssociationType]*Association),
-			resourceIdToAssocCache:           make(map[string][]*Association),
+			resourceIDToAssocCache:           make(map[string][]*Association),
 		}
 		return mock, nil
 	}
@@ -1043,10 +1043,13 @@ func (c *Compatibility) ParseString(val string) error {
 type LifecyclePolicy string
 
 const (
+	// STRONG LifecyclePolicy
 	STRONG LifecyclePolicy = "strong"
-	WEAK   LifecyclePolicy = "weak"
+	// WEAK LifecyclePolicy
+	WEAK LifecyclePolicy = "weak"
 )
 
+// IsValid check if lifecyclePolicy is valid
 func (lifecycle LifecyclePolicy) IsValid() bool {
 	switch lifecycle {
 	case STRONG, WEAK:
