@@ -3,7 +3,7 @@
 ### Enhancements
 * Add support for forwarding librdkafka log events to a Go channel in AdminClient (#1448)
 
- 
+
 ## v2.12.0
 
 This is a feature release:
@@ -12,6 +12,10 @@ This is a feature release:
 Starting with __confluent-kafka-go 2.12.0__, the next generation consumer group rebalance protocol defined in **[KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)** is **production-ready**. Please refer to the following [migration guide](kafka/kip-848-migration-guide.md) for moving from `classic` to `consumer` protocol.
 
 **Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
+
+### Enhancements
+* OAuth OIDC method example for Kafka metadata based authentication with
+  an Azure IMDS endpoint using an attached managed identity as principal (#1477).
 
 confluent-kafka-go is based on librdkafka v2.12.0, see the
 [librdkafka v2.12.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
