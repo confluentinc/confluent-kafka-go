@@ -357,14 +357,16 @@ func TestAssociations(t *testing.T) {
 		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic"})
 		// No subject name in AssociationCreateInfo
 		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
-			Associations: []AssociationCreateInfo{AssociationCreateInfo{AssociationType: "value"}}})
+			Associations: []AssociationCreateInfo{{AssociationType: "value"}}})
 		// Unsupported ResourceType
 		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic2", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
 		// Unsupported AssociationType
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: "testValue", AssociationType: "value2"}}})
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", AssociationType: "value2"}}})
 		// Duplicate AssociationType in the request
 		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
-			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: "testKey", AssociationType: "value"}, AssociationCreateInfo{Subject: "testValue", AssociationType: "value"}}})
+			Associations: []AssociationCreateInfo{{Subject: "testKey", AssociationType: "value"}, {Subject: "testValue", AssociationType: "value"}}})
+		// Weak association with frozen to be true
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", Lifecycle: "weak", Frozen: true}}})
 
 		for _, invalidRequest := range invalidRequests {
 			_, err := client.CreateAssociation(invalidRequest)
@@ -372,7 +374,7 @@ func TestAssociations(t *testing.T) {
 		}
 
 		// Minimum valid request
-		createRequest := AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: "testValue"}}}
+		createRequest := AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", Associations: []AssociationCreateInfo{{Subject: "testValue"}}}
 		createResponse, err := client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation with invalid response", err,
 			expect(createResponse.ResourceName, createResponse.ResourceName),

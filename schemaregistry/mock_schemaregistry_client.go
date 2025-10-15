@@ -889,6 +889,10 @@ func (c *mockclient) validateAssociationCreateRequest(request *AssociationCreate
 		if !request.Associations[i].Lifecycle.IsValid() {
 			return fmt.Errorf("invalid lifecycle %s. Valid lifecycle inputs are: %s, %s", request.Associations[i].Lifecycle, STRONG, WEAK)
 		}
+		// strong lifecycle can be either frozen or not; weak lifecycle can't be frozen
+		if request.Associations[i].Lifecycle == WEAK && request.Associations[i].Frozen {
+			return errors.New("weak lifecycle must have frozen to be false")
+		}
 	}
 	return nil
 }
@@ -921,6 +925,7 @@ func (c *mockclient) CreateAssociation(request AssociationCreateRequest) (result
 		2. For associations:
 		Required: Subject.
 		Optional: AssociationType(default value), LifecyclePolicy (default strong), Frozen (default false)
+		strong lifecycle can be either frozen or not; weak lifecycle can't be frozen.
 	*/
 	posErr := url.Error{
 		Op:  "POST",
