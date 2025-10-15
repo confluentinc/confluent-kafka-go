@@ -1285,7 +1285,6 @@ type AssociationInfo struct {
 	Lifecycle       LifecyclePolicy `json:"lifecycle,omitempty"`
 	Frozen          bool            `json:"frozen,omitempty"`
 	Schema          *SchemaInfo     `json:"schema,omitempty"`
-	Normalize       bool            `json:"normalize,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface

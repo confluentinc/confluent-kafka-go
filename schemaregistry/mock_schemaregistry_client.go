@@ -1068,7 +1068,6 @@ func (c *mockclient) CreateAssociation(request AssociationCreateRequest) (result
 			Lifecycle:       associationInRequest.Lifecycle,
 			Frozen:          associationInRequest.Frozen,
 			Schema:          associationInRequest.Schema,
-			Normalize:       associationInRequest.Normalize,
 		}
 		associationsInResponse = append(associationsInResponse, associationInfo)
 	}

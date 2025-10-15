@@ -386,9 +386,7 @@ func TestAssociations(t *testing.T) {
 			expect(createResponse.Associations[0].AssociationType, "value"),
 			expect(createResponse.Associations[0].Lifecycle, STRONG),
 			expect(createResponse.Associations[0].Frozen, false),
-			expect(createResponse.Associations[0].Schema == nil, true),
-			expect(createResponse.Associations[0].Normalize, false))
-
+			expect(createResponse.Associations[0].Schema == nil, true))
 	})
 
 	t.Run("TestCreateOneAssociationInCreateRequest", func(t *testing.T) {
