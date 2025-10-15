@@ -22,6 +22,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -301,6 +302,353 @@ func TestClient(t *testing.T) {
 			testDeleteSubject(remainingSubjects[i], true, versions[i], ids[i], schemas[i])
 		}
 	}
+}
+
+type resource struct {
+	ResourceName      string
+	ResourceNamespace string
+	ResourceID        string
+	ResourceType      string
+}
+
+func generateAssociationCreateRequest(resource resource, associationCreateInfo ...AssociationCreateInfo) (result AssociationCreateRequest) {
+	associationCreateRequest := AssociationCreateRequest{
+		ResourceName:      resource.ResourceName,
+		ResourceNamespace: resource.ResourceNamespace,
+		ResourceID:        resource.ResourceID,
+		ResourceType:      resource.ResourceType,
+	}
+	var associations []AssociationCreateInfo
+	for _, associationCreateInfo := range associationCreateInfo {
+		associations = append(associations, associationCreateInfo)
+	}
+	associationCreateRequest.Associations = associations
+	return associationCreateRequest
+}
+
+func TestAssociations(t *testing.T) {
+	maybeFail = initFailFunc(t)
+
+	// Use mock client for testing
+	conf := NewConfig("mock://")
+
+	t.Run("TestAssociationCreateRequestValidationLogic", func(t *testing.T) {
+		client, err := NewClient(conf)
+		maybeFail("schema registry client instantiation", err)
+
+		// Pre-create subjects used for testing
+		_, err = client.Register("testKey", SchemaInfo{Schema: "{\"type\": \"string\"}"}, true)
+		maybeFail("Register schema", err)
+		_, err = client.Register("testValue", SchemaInfo{Schema: "{\"type\": \"string\"}"}, true)
+		maybeFail("Register schema", err)
+
+		createInfo1 := AssociationCreateInfo{Subject: "testKey", AssociationType: "key"}
+		createInfo2 := AssociationCreateInfo{Subject: "testValue", AssociationType: "value"}
+
+		// Invalid requests
+		invalidRequests := []AssociationCreateRequest{}
+		// No resource name
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		// No resource namespace
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		// No resource id
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		// No associations
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic"})
+		// No subject name in AssociationCreateInfo
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
+			Associations: []AssociationCreateInfo{{AssociationType: "value"}}})
+		// Unsupported ResourceType
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic2", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		// Unsupported AssociationType
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", AssociationType: "value2"}}})
+		// Duplicate AssociationType in the request
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
+			Associations: []AssociationCreateInfo{{Subject: "testKey", AssociationType: "value"}, {Subject: "testValue", AssociationType: "value"}}})
+		// Weak association with frozen to be true
+		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", Lifecycle: "weak", Frozen: true}}})
+
+		for _, invalidRequest := range invalidRequests {
+			_, err := client.CreateAssociation(invalidRequest)
+			maybeFail("CreateAssociation with invalid request", expect(err != nil, true))
+		}
+
+		// Minimum valid request
+		createRequest := AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", Associations: []AssociationCreateInfo{{Subject: "testValue"}}}
+		createResponse, err := client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with invalid response", err,
+			expect(createResponse.ResourceName, createResponse.ResourceName),
+			expect(createResponse.ResourceNamespace, createResponse.ResourceNamespace),
+			expect(createResponse.ResourceID, createResponse.ResourceID),
+			expect(createResponse.ResourceType, "topic"),
+			expect(len(createResponse.Associations), 1),
+			expect(createResponse.Associations[0].Subject, createResponse.Associations[0].Subject),
+			expect(createResponse.Associations[0].AssociationType, "value"),
+			expect(createResponse.Associations[0].Lifecycle, STRONG),
+			expect(createResponse.Associations[0].Frozen, false),
+			expect(createResponse.Associations[0].Schema == nil, true))
+	})
+
+	t.Run("TestCreateOneAssociationInCreateRequest", func(t *testing.T) {
+		client, err := NewClient(conf)
+		maybeFail("schema registry client instantiation", err)
+
+		// Pre-create subjects used for testing
+		testValueSubject := "testValue"
+		schemaInfo := SchemaInfo{
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+		}
+		_, err = client.Register(testValueSubject, schemaInfo, true)
+		maybeFail("Register schema", err)
+
+		// Make an association with an existing subject without new schema
+		createRequest := AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation", err)
+
+		// Create association request is idempotent. Re-issue the same create request should succeed.
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation for idempotency", err)
+
+		// Re-issue the same request with different association property (except schema) will error out.
+		createRequest = AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Lifecycle: WEAK}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("Existing association gets modified ", expect(err != nil, true))
+
+		// Make an association with an existing subject with new schema
+		updatedSchemaInfo := SchemaInfo{
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}, {\"type\":\"string\",\"name\":\"id2\"}]}",
+		}
+		createRequest = AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Schema: &updatedSchemaInfo}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with updated schema", err)
+
+		// Make an association with a new subject without new schema. Test should fail.
+		testValueSubject = "testValue2"
+		createRequest = AssociationCreateRequest{ResourceName: "test2", ResourceNamespace: "lkc1", ResourceID: "test-id2",
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with new subject and schema", expect(err != nil, true))
+
+		// Make an association with a new subject with new schema
+		testValueSubject = "testValue2"
+		createRequest = AssociationCreateRequest{ResourceName: "test2", ResourceNamespace: "lkc1", ResourceID: "test-id2",
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Schema: &updatedSchemaInfo}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with new subject and schema", err)
+	})
+
+	t.Run("TestCreateMultipleAssociationsInCreateRequest", func(t *testing.T) {
+		client, err := NewClient(conf)
+		maybeFail("schema registry client instantiation", err)
+
+		// Both associations using existing subjects
+		keySubject, valueSubject := "test1Key", "test1Value"
+		resourceName, resourceID := "test1", "test1-id"
+		schemaInfo := SchemaInfo{
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+		}
+		// Pre-create subjects
+		_, err = client.Register(keySubject, schemaInfo, true)
+		maybeFail("Register schema for keySubject", err)
+		_, err = client.Register(valueSubject, schemaInfo, true)
+		maybeFail("Register schema for valueSubject", err)
+
+		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, AssociationType: "key"}, AssociationCreateInfo{Subject: valueSubject, AssociationType: "value"}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation", err)
+
+		// One using existing subject, one creating new subject
+		keySubject, valueSubject = "test2Key", "test2Value"
+		resourceName, resourceID = "test2", "test2-id"
+		_, err = client.Register(keySubject, schemaInfo, true)
+		maybeFail("Register schema for keySubject", err)
+
+		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, AssociationType: "key"},
+				AssociationCreateInfo{Subject: valueSubject, AssociationType: "value", Schema: &schemaInfo}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation", err)
+
+		// Both creating new subjects
+		keySubject, valueSubject = "test3Key", "test3Value"
+		resourceName, resourceID = "test3", "test3-id"
+		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, AssociationType: "key", Schema: &schemaInfo},
+				AssociationCreateInfo{Subject: valueSubject, AssociationType: "value", Schema: &schemaInfo}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation", err)
+	})
+
+	// Successful case, subject exists, one association without schema info
+	t.Run("TestCreateStrongAndWeakAssociationsForTheSameSubject", func(t *testing.T) {
+		client, err := NewClient(conf)
+		maybeFail("schema registry client instantiation", err)
+
+		// resources for testing
+		resourceFoo := resource{ResourceName: "foo", ResourceNamespace: "lkc1", ResourceID: "id-foo", ResourceType: "topic"}
+		resourceBar := resource{ResourceName: "bar", ResourceNamespace: "lkc1", ResourceID: "id-bar", ResourceType: "topic"}
+		var fooValueSubject = "fooValue"
+		value := "value"
+
+		// Pre-create subject used by testing
+		schemaInfo := SchemaInfo{
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+		}
+		_, err = client.Register(fooValueSubject, schemaInfo, true)
+		maybeFail("Failed to register subject", err)
+
+		// Same subject. Foo association is strong, Bar is strong. The second should fail.
+		fooValueAssociationRequest := generateAssociationCreateRequest(resourceFoo, AssociationCreateInfo{Subject: fooValueSubject, AssociationType: value, Lifecycle: STRONG, Frozen: false})
+		_, err = client.CreateAssociation(fooValueAssociationRequest)
+		maybeFail("CreateAssociation", err)
+		result, err := client.GetAssociationsByResourceID(resourceFoo.ResourceID, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsByResourceID", err, expect(len(result), 1), expect(result[0].GUID != "", true))
+
+		barValueAssociationRequest := generateAssociationCreateRequest(resourceBar, AssociationCreateInfo{Subject: fooValueSubject, AssociationType: value, Lifecycle: STRONG})
+		_, err = client.CreateAssociation(barValueAssociationRequest)
+		maybeFail("CreateAssociation", expect(err != nil, true))
+
+		// Foo association is strong, Bar is weak. The second should fail.
+		barValueAssociationRequest = generateAssociationCreateRequest(resourceBar, AssociationCreateInfo{Subject: fooValueSubject, AssociationType: value, Lifecycle: WEAK})
+		_, err = client.CreateAssociation(barValueAssociationRequest)
+		maybeFail("CreateAssociation", expect(err != nil, true))
+
+		// Foo association is weak, Bar is strong. The second should fail.
+		// Delete Bar association without deleting the subject.
+		err = client.DeleteAssociations(fooValueAssociationRequest.ResourceID, "", nil, false)
+		maybeFail("DeleteAssociations without cascade", err)
+		associations, err := client.GetAssociationsByResourceID(resourceFoo.ResourceID, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsByResourceID", err, expect(len(associations), 0))
+		metadata, err := client.GetLatestSchemaMetadata(fooValueSubject)
+		maybeFail("GetLatestSchemaMetadata ", err, expect(metadata.ID > 0, true))
+		// Foo weak association
+		fooValueAssociationRequest = generateAssociationCreateRequest(resourceFoo, AssociationCreateInfo{Subject: fooValueSubject, AssociationType: value, Lifecycle: WEAK, Frozen: false})
+		_, err = client.CreateAssociation(fooValueAssociationRequest)
+		maybeFail("CreateAssociation", err)
+		result, err = client.GetAssociationsByResourceID(resourceFoo.ResourceID, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsByResourceID", err, expect(len(result), 1), expect(result[0].GUID != "", true))
+
+		barValueAssociationRequest = generateAssociationCreateRequest(resourceBar, AssociationCreateInfo{Subject: fooValueSubject, AssociationType: value, Lifecycle: STRONG})
+		_, err = client.CreateAssociation(barValueAssociationRequest)
+		maybeFail("CreateAssociation", expect(err != nil, true))
+
+		// Foo association is weak, Bar is weak. The second should succeed.
+		barValueAssociationRequest = generateAssociationCreateRequest(resourceBar, AssociationCreateInfo{Subject: fooValueSubject, AssociationType: value, Lifecycle: WEAK})
+		_, err = client.CreateAssociation(barValueAssociationRequest)
+		maybeFail("CreateAssociation", err)
+		result, err = client.GetAssociationsByResourceID(resourceBar.ResourceID, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsByResourceID", err, expect(len(result), 1), expect(result[0].GUID != "", true))
+		result, err = client.GetAssociationsBySubject(fooValueSubject, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsBySubject", err, expect(len(result), 2))
+	})
+
+	// Successful case, subjects exist, two associations without schema info
+	// Successful case, new subjects, one association with schema info
+	// Successful case, new subjects, two associations with schema info
+	// Failed case, new subjects, one association without schema info
+	// Failed case, subject exists, one association with schema info, update failed
+	// Failed case, one new subject, one existing subject. two associations. update failed but new subject was created.
+
+	t.Run("TestGetAssociationsWithFilters", func(t *testing.T) {
+		client, err := NewClient(conf)
+		maybeFail("schema registry client instantiation", err)
+
+		// Both associations using existing subjects
+		keySubject, valueSubject := "test1Key", "test1Value"
+		resourceName, resourceID := "test1", "test1-id"
+		schemaInfo := SchemaInfo{
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+		}
+
+		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key"},
+				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
+
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with new subject and schema", err)
+
+		associations, err := client.GetAssociationsBySubject(keySubject, "", []string{"key", "value"}, "weak", 0, -1)
+		maybeFail("GetAssociationsBySubject", err, expect(len(associations), 0))
+
+		associations, err = client.GetAssociationsBySubject(keySubject, "", []string{"key", "value"}, "strong", 0, -1)
+		maybeFail("GetAssociationsBySubject", err, expect(len(associations), 1))
+
+		associations, err = client.GetAssociationsByResourceID(resourceID, "", []string{"key", "value"}, "", 0, -1)
+		maybeFail("GetAssociationsBySubject", err, expect(len(associations), 2))
+	})
+
+	t.Run("TestDeleteAssociation", func(t *testing.T) {
+		client, err := NewClient(conf)
+		maybeFail("schema registry client instantiation", err)
+
+		// Create one strong key association, and one weak value association
+		keySubject, valueSubject := "test1Key", "test1Value"
+		resourceName, resourceID := "test1", "test1-id"
+		schemaInfo := SchemaInfo{
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+		}
+
+		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key"},
+				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with new subject and schema", err)
+
+		// With cascade delete
+		err = client.DeleteAssociations(resourceID, "", nil, true)
+		maybeFail("DeleteAssociation", err)
+		keySchemaMetadata, err := client.GetLatestSchemaMetadata(keySubject)
+		maybeFail("GetLatestSchemaMetadata for key", expect(err != nil, true), expect(strings.Contains(strings.ToLower(err.Error()), "not found"), true))
+		valueSchemaMetadata, err := client.GetLatestSchemaMetadata(valueSubject)
+		maybeFail("GetLatestSchemaMetadata for value", err, expect(valueSchemaMetadata.ID > 0, true))
+		associations, err := client.GetAssociationsByResourceID(resourceID, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsByResourceID", err, expect(associations == nil || len(associations) == 0, true))
+
+		// Without cascade delete
+		keySubject, valueSubject = "test2Key", "test2Value"
+		resourceName, resourceID = "test2", "test2-id"
+		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key"},
+				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with new subject and schema", err)
+
+		err = client.DeleteAssociations(resourceID, "", nil, false)
+		maybeFail("DeleteAssociation", err)
+		keySchemaMetadata, err = client.GetLatestSchemaMetadata(keySubject)
+		maybeFail("GetLatestSchemaMetadata for key", err, expect(keySchemaMetadata.ID > 0, true))
+		valueSchemaMetadata, err = client.GetLatestSchemaMetadata(valueSubject)
+		maybeFail("GetLatestSchemaMetadata for value", err, expect(valueSchemaMetadata.ID > 0, true))
+		_, err = client.GetAssociationsByResourceID(resourceID, "", nil, "", 0, -1)
+		maybeFail("GetAssociationsByResourceID", err, expect(associations == nil || len(associations) == 0, true))
+
+		// Delete a non-existing association. Should return nothing.
+		err = client.DeleteAssociations(resourceID, "", nil, false)
+		maybeFail("DeleteAssociation for non-existing association", err)
+
+		// Delete a frozen association with cascade = false. Should return error.
+		keySubject, valueSubject = "test3Key", "test3Value"
+		resourceName, resourceID = "test3", "test3-id"
+		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key", Frozen: true},
+				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
+		_, err = client.CreateAssociation(createRequest)
+		maybeFail("CreateAssociation with new subject and schema", err)
+		err = client.DeleteAssociations(resourceID, "", nil, false)
+		maybeFail("DeleteAssociation", expect(err != nil, true))
+		// Setting cascade = true will only delete subject with strong association; subject with weak association will not be deleted.
+		err = client.DeleteAssociations(resourceID, "", nil, true)
+		maybeFail("DeleteAssociation", err)
+		_, err = client.GetAllVersions(keySubject) // keySubject should not exist
+		maybeFail("GetAllVersions for keySubject", expect(err != nil, true))
+		_, err = client.GetAllVersions(valueSubject) // valueSubject should exist
+		maybeFail("GetAllVersions for valueSubject", err)
+	})
 }
 
 func init() {
