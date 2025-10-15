@@ -444,16 +444,16 @@ func NewClient(conf *Config) (Client, error) {
 			return nil, err
 		}
 		mock := &mockclient{
-			config:                           conf,
-			url:                              url,
-			infoToSchemaCache:                make(map[subjectJSON]metadataCacheEntry),
-			idToSchemaCache:                  make(map[subjectID]infoCacheEntry),
-			guidToSchemaCache:                make(map[string]infoCacheEntry),
-			schemaToVersionCache:             make(map[subjectJSON]versionCacheEntry),
-			configCache:                      make(map[string]ServerConfig),
-			subjectToAssocCache:              make(map[string][]*Association),
-			resourceAndAssocTypeToAssocCache: make(map[resourceAndAssociationType]*Association),
-			resourceIDToAssocCache:           make(map[string][]*Association),
+			config:                                  conf,
+			url:                                     url,
+			infoToSchemaCache:                       make(map[subjectJSON]metadataCacheEntry),
+			idToSchemaCache:                         make(map[subjectID]infoCacheEntry),
+			guidToSchemaCache:                       make(map[string]infoCacheEntry),
+			schemaToVersionCache:                    make(map[subjectJSON]versionCacheEntry),
+			configCache:                             make(map[string]ServerConfig),
+			subjectToAssocCache:                     make(map[string][]*Association),
+			resourceIdentityAndAssociationTypeCache: make(map[resourceIdentityAndAssociationType]*Association),
+			resourceIDToAssocCache:                  make(map[string][]*Association),
 		}
 		return mock, nil
 	}
@@ -1124,7 +1124,7 @@ func (a *Association) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-func (a *Association) equalsWithoutGUID(b *Association) bool {
+func (a *Association) equalsWithoutGUID(b Association) bool {
 	if a.Subject != b.Subject || a.ResourceName != b.ResourceName || a.ResourceNamespace != b.ResourceNamespace ||
 		a.ResourceID != b.ResourceID || a.ResourceType != b.ResourceType || a.AssociationType != b.AssociationType ||
 		a.Lifecycle != b.Lifecycle || a.Frozen != b.Frozen {
@@ -1135,21 +1135,21 @@ func (a *Association) equalsWithoutGUID(b *Association) bool {
 
 // AssociationCreateRequest represents a request to create associations
 type AssociationCreateRequest struct {
-	ResourceName      string                   `json:"resourceName,omitempty"`
-	ResourceNamespace string                   `json:"resourceNamespace,omitempty"`
-	ResourceID        string                   `json:"resourceId,omitempty"`
-	ResourceType      string                   `json:"resourceType,omitempty"`
-	Associations      []*AssociationCreateInfo `json:"associations,omitempty"`
+	ResourceName      string                  `json:"resourceName,omitempty"`
+	ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
+	ResourceID        string                  `json:"resourceId,omitempty"`
+	ResourceType      string                  `json:"resourceType,omitempty"`
+	Associations      []AssociationCreateInfo `json:"associations,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
 func (a *AssociationCreateRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		ResourceName      string                   `json:"resourceName,omitempty"`
-		ResourceNamespace string                   `json:"resourceNamespace,omitempty"`
-		ResourceID        string                   `json:"resourceId,omitempty"`
-		ResourceType      string                   `json:"resourceType,omitempty"`
-		Associations      []*AssociationCreateInfo `json:"associations,omitempty"`
+		ResourceName      string                  `json:"resourceName,omitempty"`
+		ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
+		ResourceID        string                  `json:"resourceId,omitempty"`
+		ResourceType      string                  `json:"resourceType,omitempty"`
+		Associations      []AssociationCreateInfo `json:"associations,omitempty"`
 	}{
 		a.ResourceName,
 		a.ResourceNamespace,
@@ -1163,11 +1163,11 @@ func (a *AssociationCreateRequest) MarshalJSON() ([]byte, error) {
 func (a *AssociationCreateRequest) UnmarshalJSON(b []byte) error {
 	var err error
 	var tmp struct {
-		ResourceName      string                   `json:"resourceName,omitempty"`
-		ResourceNamespace string                   `json:"resourceNamespace,omitempty"`
-		ResourceID        string                   `json:"resourceId,omitempty"`
-		ResourceType      string                   `json:"resourceType,omitempty"`
-		Associations      []*AssociationCreateInfo `json:"associations,omitempty"`
+		ResourceName      string                  `json:"resourceName,omitempty"`
+		ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
+		ResourceID        string                  `json:"resourceId,omitempty"`
+		ResourceType      string                  `json:"resourceType,omitempty"`
+		Associations      []AssociationCreateInfo `json:"associations,omitempty"`
 	}
 
 	err = json.Unmarshal(b, &tmp)
