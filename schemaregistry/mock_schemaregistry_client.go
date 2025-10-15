@@ -19,17 +19,25 @@ package schemaregistry
 import (
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"net/url"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
 
 const noSubject = ""
+const defaultResourceType = "topic"
+const defaultAssociationType = "value"
+const defaultLifecyclePolicy = STRONG
+
+var validResourceTypesAndAssociationTypesMap = map[string][]string{
+	defaultResourceType: {"key", defaultAssociationType},
+}
 
 type counter struct {
 	count int
@@ -59,22 +67,34 @@ type metadataCacheEntry struct {
 	softDeleted bool
 }
 
+type resourceIdentityAndAssociationType struct {
+	resourceID      string
+	resourceType    string
+	associationType string
+}
+
 /* HTTP(S) Schema Registry Client and schema caches */
 type mockclient struct {
 	sync.Mutex
-	config                   *Config
-	url                      *url.URL
-	infoToSchemaCache        map[subjectJSON]metadataCacheEntry
-	infoToSchemaCacheLock    sync.RWMutex
-	idToSchemaCache          map[subjectID]infoCacheEntry
-	idToSchemaCacheLock      sync.RWMutex
-	guidToSchemaCache        map[string]infoCacheEntry
-	guidToSchemaCacheLock    sync.RWMutex
-	schemaToVersionCache     map[subjectJSON]versionCacheEntry
-	schemaToVersionCacheLock sync.RWMutex
-	configCache              map[string]ServerConfig
-	configCacheLock          sync.RWMutex
-	counter                  counter
+	config                                      *Config
+	url                                         *url.URL
+	infoToSchemaCache                           map[subjectJSON]metadataCacheEntry
+	infoToSchemaCacheLock                       sync.RWMutex
+	idToSchemaCache                             map[subjectID]infoCacheEntry
+	idToSchemaCacheLock                         sync.RWMutex
+	guidToSchemaCache                           map[string]infoCacheEntry
+	guidToSchemaCacheLock                       sync.RWMutex
+	schemaToVersionCache                        map[subjectJSON]versionCacheEntry
+	schemaToVersionCacheLock                    sync.RWMutex
+	configCache                                 map[string]ServerConfig
+	configCacheLock                             sync.RWMutex
+	subjectToAssocCache                         map[string][]*Association
+	subjectToAssocCacheLock                     sync.RWMutex
+	resourceIdentityAndAssociationTypeCache     map[resourceIdentityAndAssociationType]*Association
+	resourceIdentityAndAssociationTypeCacheLock sync.RWMutex
+	resourceIDToAssocCache                      map[string][]*Association
+	resourceIDToAssocCacheLock                  sync.RWMutex
+	counter                                     counter
 }
 
 var _ Client = new(mockclient)
@@ -606,6 +626,25 @@ func (c *mockclient) GetAllSubjects() ([]string, error) {
 // Deletes provided Subject from registry
 // Returns integer slice of versions removed by delete
 func (c *mockclient) DeleteSubject(subject string, permanent bool) (deleted []int, err error) {
+	// Check if subject has associations. If so, abort the deletion operation.
+	associations, err := c.GetAssociationsBySubject(subject, "", nil, "", 0, -1)
+	if err != nil {
+		return nil, err
+	}
+	if len(associations) != 0 {
+		posErr := url.Error{
+			Op:  "DELETE",
+			URL: c.url.String() + fmt.Sprintf(internal.SubjectsDelete, subject, permanent),
+			Err: errors.New("subject has associations. Deletion aborted"),
+		}
+		return nil, &posErr
+	}
+
+	return c.deleteSubject(subject, permanent)
+}
+
+func (c *mockclient) deleteSubject(subject string, permanent bool) (deleted []int, err error) {
+	// Check if subject has associations. If so, abort the deletion operation.
 	c.infoToSchemaCacheLock.Lock()
 	for key, value := range c.infoToSchemaCache {
 		if key.subject == subject && (!value.softDeleted || permanent) {
@@ -807,6 +846,383 @@ func (c *mockclient) ClearCaches() error {
 
 // Close closes the client
 func (c *mockclient) Close() error {
+	return nil
+}
+
+func validateResourceTypeAndAssociationType(resourceType string, associationType string) error {
+	// Look up in the map to see if the resource type is supported,
+	// and if the association type is supported for that resource type.
+	validAssociationTypes, exists := validResourceTypesAndAssociationTypesMap[resourceType]
+	if !exists {
+		return fmt.Errorf("unsupported resource type %s", resourceType)
+	}
+	for _, validAssociationType := range validAssociationTypes {
+		if validAssociationType == associationType {
+			return nil
+		}
+	}
+	return fmt.Errorf("unsupported association type %s for resource type %s", associationType, resourceType)
+}
+
+func (c *mockclient) validateAssociationCreateRequest(request *AssociationCreateRequest) error {
+
+	if request.ResourceName == "" || request.ResourceNamespace == "" || request.ResourceID == "" || request.Associations == nil {
+		return errors.New("resourceName, resourceNamespace, resourceID and associations cannot be null or empty")
+	}
+	if request.ResourceType == "" {
+		request.ResourceType = defaultResourceType
+	}
+	for i := range request.Associations {
+		if request.Associations[i].Subject == "" {
+			return errors.New("subject must not be empty")
+		}
+		if request.Associations[i].AssociationType == "" {
+			request.Associations[i].AssociationType = defaultAssociationType
+		}
+		err := validateResourceTypeAndAssociationType(request.ResourceType, request.Associations[i].AssociationType)
+		if err != nil {
+			return err
+		}
+		if request.Associations[i].Lifecycle == "" {
+			request.Associations[i].Lifecycle = defaultLifecyclePolicy
+		}
+		if !request.Associations[i].Lifecycle.IsValid() {
+			return fmt.Errorf("invalid lifecycle %s. Valid lifecycle inputs are: %s, %s", request.Associations[i].Lifecycle, STRONG, WEAK)
+		}
+	}
+	return nil
+}
+
+func (c *mockclient) removeAssociationFromSlice(associationSlice []*Association, associationToRemove *Association) []*Association {
+	for i, association := range associationSlice {
+		if *association == *associationToRemove {
+			return append(associationSlice[:i], associationSlice[i+1:]...)
+		}
+	}
+	return associationSlice
+}
+
+func (c *mockclient) removeAssociationFromMap(associationsMap map[string][]*Association, key string, associationToRemove *Association) {
+	slice := associationsMap[key]
+	newSlice := c.removeAssociationFromSlice(slice, associationToRemove)
+	if len(newSlice) == 0 {
+		delete(associationsMap, key)
+	} else {
+		associationsMap[key] = newSlice
+	}
+}
+
+func (c *mockclient) CreateAssociation(request AssociationCreateRequest) (result AssociationResponse, err error) {
+	// Input format validations
+	/*
+		1. For resource:
+		Required: ResourceName, ResourceNamespace, ResourceID.
+		Optional: ResourceType (default topic).
+		2. For associations:
+		Required: Subject.
+		Optional: AssociationType(default value), LifecyclePolicy (default strong), Frozen (default false)
+	*/
+	posErr := url.Error{
+		Op:  "POST",
+		URL: c.url.String() + fmt.Sprintf(internal.Associations),
+	}
+
+	err = c.validateAssociationCreateRequest(&request)
+	if err != nil {
+		posErr.Err = err
+		return result, &posErr
+	}
+
+	// Check that association types are unique
+	associationTypesInRequest := make(map[string]bool)
+	for _, association := range request.Associations {
+		associationType := association.AssociationType
+		_, exists := associationTypesInRequest[associationType]
+		if exists {
+			err = fmt.Errorf("duplicate association type: %s", associationType)
+			posErr.Err = err
+			return result, &posErr
+		}
+		associationTypesInRequest[associationType] = true
+	}
+
+	c.subjectToAssocCacheLock.Lock()
+	defer c.subjectToAssocCacheLock.Unlock()
+	c.resourceIDToAssocCacheLock.Lock()
+	defer c.resourceIDToAssocCacheLock.Unlock()
+	c.resourceIdentityAndAssociationTypeCacheLock.Lock()
+	defer c.resourceIdentityAndAssociationTypeCacheLock.Unlock()
+
+	// make sure subject exists
+	for _, associationInRequest := range request.Associations {
+		subject := associationInRequest.Subject
+		latestVersion := c.latestVersion(subject)
+		if associationInRequest.Schema == nil && latestVersion < 0 {
+			// subject doesn't exist
+			err = fmt.Errorf("no active subject version exists, subject %s", subject)
+			posErr.Err = err
+			return result, &posErr
+		}
+	}
+
+	// find existing associations for this resourceID, resourceType and associationTypes.
+	// If exists, new association must be equal to the existing one.
+	for _, associationInRequest := range request.Associations {
+		resourceIdentityAndAssociationType := resourceIdentityAndAssociationType{
+			resourceID:      request.ResourceID,
+			resourceType:    request.ResourceType,
+			associationType: associationInRequest.AssociationType,
+		}
+		exisitingAssociation, exists := c.resourceIdentityAndAssociationTypeCache[resourceIdentityAndAssociationType]
+		if exists {
+			newAssociation := Association{
+				Subject:           associationInRequest.Subject,
+				ResourceName:      request.ResourceName,
+				ResourceNamespace: request.ResourceNamespace,
+				ResourceID:        request.ResourceID,
+				ResourceType:      request.ResourceType,
+				AssociationType:   associationInRequest.AssociationType,
+				Lifecycle:         associationInRequest.Lifecycle,
+				Frozen:            associationInRequest.Frozen,
+			}
+			if !exisitingAssociation.equalsWithoutGUID(newAssociation) {
+				err = fmt.Errorf("association for resource exists, subject: %s; resource id: %s",
+					associationInRequest.Subject, request.ResourceID)
+				posErr.Err = err
+				return result, &posErr
+			}
+		} else {
+			// make sure subject can accept new association.
+			// If this association is strong, check no other associations exist
+			// If this association is weak, check no strong associations exist
+			subject := associationInRequest.Subject
+			existingAssociations, exists := c.subjectToAssocCache[subject]
+			if exists {
+				if associationInRequest.Lifecycle == STRONG {
+					err = fmt.Errorf("association for subject exists, subject %s", subject)
+					posErr.Err = err
+					return result, &posErr
+				}
+				if existingAssociations[0].Lifecycle == STRONG {
+					err = fmt.Errorf("strong association for subject exists, subject %s", subject)
+					posErr.Err = err
+					return result, &posErr
+				}
+			}
+		}
+	}
+
+	// Post all schemas. Skip compatibility check as no compatibility check method found in this mock client
+	for _, associationInRequest := range request.Associations {
+		subject := associationInRequest.Subject
+		schema := associationInRequest.Schema
+		normalize := associationInRequest.Normalize
+		if schema != nil {
+			_, err := c.Register(subject, *schema, normalize)
+			if err != nil {
+				posErr.Err = err
+				return result, &posErr
+			}
+		}
+	}
+
+	// Write association to caches
+	for _, associationInRequest := range request.Associations {
+		resourceIdentityAndAssociationType := resourceIdentityAndAssociationType{
+			resourceID:      request.ResourceID,
+			resourceType:    request.ResourceType,
+			associationType: associationInRequest.AssociationType,
+		}
+		newAssociation := Association{
+			Subject:           associationInRequest.Subject,
+			GUID:              uuid.New().String(),
+			ResourceName:      request.ResourceName,
+			ResourceNamespace: request.ResourceNamespace,
+			ResourceID:        request.ResourceID,
+			ResourceType:      request.ResourceType,
+			AssociationType:   associationInRequest.AssociationType,
+			Lifecycle:         associationInRequest.Lifecycle,
+			Frozen:            associationInRequest.Frozen,
+		}
+		c.resourceIdentityAndAssociationTypeCache[resourceIdentityAndAssociationType] = &newAssociation
+		c.subjectToAssocCache[associationInRequest.Subject] = append(c.subjectToAssocCache[associationInRequest.Subject], &newAssociation)
+		c.resourceIDToAssocCache[request.ResourceID] = append(c.resourceIDToAssocCache[request.ResourceID], &newAssociation)
+	}
+
+	result = AssociationResponse{
+		ResourceName:      request.ResourceName,
+		ResourceNamespace: request.ResourceNamespace,
+		ResourceID:        request.ResourceID,
+		ResourceType:      request.ResourceType,
+	}
+	var associationsInResponse []AssociationInfo
+	for _, associationInRequest := range request.Associations {
+		associationInfo := AssociationInfo{
+			Subject:         associationInRequest.Subject,
+			AssociationType: associationInRequest.AssociationType,
+			Lifecycle:       associationInRequest.Lifecycle,
+			Frozen:          associationInRequest.Frozen,
+			Schema:          associationInRequest.Schema,
+			Normalize:       associationInRequest.Normalize,
+		}
+		associationsInResponse = append(associationsInResponse, associationInfo)
+	}
+	result.Associations = associationsInResponse
+	return result, nil
+}
+
+func (c *mockclient) applyFilter(associations []*Association, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	filtered := make([]Association, 0)
+	for _, association := range associations {
+		// Filter by resource type if provided
+		if resourceType != "" && association.ResourceType != resourceType {
+			continue
+		}
+		// Filter by association types if provided
+		if len(associationTypes) > 0 {
+			found := false
+			for _, at := range associationTypes {
+				if association.AssociationType == at {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		// Filter by lifecycle if provided
+		if lifecycle != "" && string(association.Lifecycle) != lifecycle {
+			continue
+		}
+		filtered = append(filtered, *association)
+	}
+
+	// Apply pagination
+	start := offset
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	end := start + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[start:end], nil
+}
+
+func (c *mockclient) getAssociationsBySubject(subject string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	associations, exists := c.subjectToAssocCache[subject]
+	if !exists || len(associations) == 0 {
+		return result, nil
+	}
+	return c.applyFilter(associations, resourceType, associationTypes, lifecycle, offset, limit)
+}
+
+// GetAssociationsBySubject retrieves associations by subject
+func (c *mockclient) GetAssociationsBySubject(subject string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	if subject == "" {
+		return result, errors.New("subject is required")
+	}
+	c.subjectToAssocCacheLock.RLock()
+	defer c.subjectToAssocCacheLock.RUnlock()
+	result, err = c.getAssociationsBySubject(subject, resourceType, associationTypes,
+		lifecycle, offset, limit)
+	return result, err
+}
+
+func (c *mockclient) getAssociationsByResourceID(resourceID string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	associations, exists := c.resourceIDToAssocCache[resourceID]
+	if !exists || len(associations) == 0 {
+		return result, nil
+	}
+	return c.applyFilter(associations, resourceType, associationTypes, lifecycle, offset, limit)
+}
+
+// GetAssociationsByResourceID retrieves associations by resource ID
+func (c *mockclient) GetAssociationsByResourceID(resourceID string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	if resourceID == "" {
+		return result, errors.New("resourceID is required")
+	}
+	c.resourceIDToAssocCacheLock.RLock()
+	defer c.resourceIDToAssocCacheLock.RUnlock()
+	result, err = c.getAssociationsByResourceID(resourceID, resourceType, associationTypes,
+		lifecycle, offset, limit)
+	return result, err
+}
+
+func (c *mockclient) checkDeleteAssociation(association *Association, cascadeLifecycle bool) error {
+	if !cascadeLifecycle && association.Lifecycle == STRONG && association.Frozen {
+		return fmt.Errorf("cascade lifecycle must be true for frozen association, association type %s; subject: %s",
+			association.AssociationType, association.Subject)
+	}
+	return nil
+}
+
+func (c *mockclient) deleteAssociation(association *Association, cascadeLifecycle bool) error {
+	if cascadeLifecycle && association.Lifecycle == STRONG {
+		subject := association.Subject
+		_, err := c.deleteSubject(subject, false)
+		if err != nil {
+			return err
+		}
+		_, err = c.deleteSubject(subject, true)
+		if err != nil {
+			return err
+		}
+	}
+	c.removeAssociationFromMap(c.subjectToAssocCache, association.Subject, association)
+	c.removeAssociationFromMap(c.resourceIDToAssocCache, association.ResourceID, association)
+	resourceIdentityAndAssociationType := resourceIdentityAndAssociationType{
+		resourceID:      association.ResourceID,
+		resourceType:    association.ResourceType,
+		associationType: association.AssociationType,
+	}
+	delete(c.resourceIdentityAndAssociationTypeCache, resourceIdentityAndAssociationType)
+	return nil
+}
+
+// DeleteAssociations deletes associations for a resource
+func (c *mockclient) DeleteAssociations(resourceID string, resourceType string, associationTypes []string,
+	cascadeLifecycle bool) error {
+	posErr := url.Error{
+		Op:  "DELETE",
+		URL: c.url.String() + fmt.Sprintf(internal.AssociationsDeleteByResource, resourceID),
+	}
+
+	c.subjectToAssocCacheLock.Lock()
+	defer c.subjectToAssocCacheLock.Unlock()
+	c.resourceIDToAssocCacheLock.Lock()
+	defer c.resourceIDToAssocCacheLock.Unlock()
+	c.resourceIdentityAndAssociationTypeCacheLock.Lock()
+	defer c.resourceIdentityAndAssociationTypeCacheLock.Unlock()
+
+	// If no associations found, return resource not found
+	associationsToDelete, err := c.getAssociationsByResourceID(resourceID, resourceType, associationTypes, "", 0, -1)
+	if err != nil {
+		posErr.Err = err
+		return &posErr
+	}
+
+	for _, associationToDelete := range associationsToDelete {
+		err = c.checkDeleteAssociation(&associationToDelete, cascadeLifecycle)
+		if err != nil {
+			posErr.Err = err
+			return &posErr
+		}
+	}
+
+	for _, associationToDelete := range associationsToDelete {
+		err = c.deleteAssociation(&associationToDelete, cascadeLifecycle)
+		if err != nil {
+			posErr.Err = err
+			return &posErr
+		}
+	}
 	return nil
 }
 
