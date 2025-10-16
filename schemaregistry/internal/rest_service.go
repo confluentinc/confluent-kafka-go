@@ -74,6 +74,11 @@ const (
 	DeksBySubject = Deks + "/%s?algorithm=%s&deleted=%t"
 	DeksByVersion = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
 
+	Associations                 = "/associations"
+	AssociationsBySubject        = Associations + "/subjects/%s"
+	AssociationsByResourceID     = Associations + "/resources/%s"
+	AssociationsDeleteByResource = AssociationsByResourceID
+
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
 )
