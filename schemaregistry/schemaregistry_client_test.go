@@ -396,7 +396,7 @@ func TestAssociations(t *testing.T) {
 		// Pre-create subjects used for testing
 		testValueSubject := "testValue"
 		schemaInfo := SchemaInfo{
-			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 		_, err = client.Register(testValueSubject, schemaInfo, true)
 		maybeFail("Register schema", err)
@@ -419,7 +419,7 @@ func TestAssociations(t *testing.T) {
 
 		// Make an association with an existing subject with new schema
 		updatedSchemaInfo := SchemaInfo{
-			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}, {\"type\":\"string\",\"name\":\"id2\"}]}",
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}, {\"type\":\"string\",\"name\":\"id2\"}]}",
 		}
 		createRequest = AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Schema: &updatedSchemaInfo}}}
@@ -449,7 +449,7 @@ func TestAssociations(t *testing.T) {
 		keySubject, valueSubject := "test1Key", "test1Value"
 		resourceName, resourceID := "test1", "test1-id"
 		schemaInfo := SchemaInfo{
-			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 		// Pre-create subjects
 		_, err = client.Register(keySubject, schemaInfo, true)
@@ -497,7 +497,7 @@ func TestAssociations(t *testing.T) {
 
 		// Pre-create subject used by testing
 		schemaInfo := SchemaInfo{
-			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 		_, err = client.Register(fooValueSubject, schemaInfo, true)
 		maybeFail("Failed to register subject", err)
@@ -562,7 +562,7 @@ func TestAssociations(t *testing.T) {
 		keySubject, valueSubject := "test1Key", "test1Value"
 		resourceName, resourceID := "test1", "test1-id"
 		schemaInfo := SchemaInfo{
-			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 
 		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
@@ -594,7 +594,7 @@ func TestAssociations(t *testing.T) {
 		keySubject, valueSubject := "test1Key", "test1Value"
 		resourceName, resourceID := "test1", "test1-id"
 		schemaInfo := SchemaInfo{
-			Schema: "{\"namespace\":\"basicavro\",\"type\":\"struct\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
+			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 
 		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
