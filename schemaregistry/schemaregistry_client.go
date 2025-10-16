@@ -444,16 +444,16 @@ func NewClient(conf *Config) (Client, error) {
 			return nil, err
 		}
 		mock := &mockclient{
-			config:                                  conf,
-			url:                                     url,
-			infoToSchemaCache:                       make(map[subjectJSON]metadataCacheEntry),
-			idToSchemaCache:                         make(map[subjectID]infoCacheEntry),
-			guidToSchemaCache:                       make(map[string]infoCacheEntry),
-			schemaToVersionCache:                    make(map[subjectJSON]versionCacheEntry),
-			configCache:                             make(map[string]ServerConfig),
-			subjectToAssocCache:                     make(map[string][]*Association),
-			resourceIdentityAndAssociationTypeCache: make(map[resourceIdentityAndAssociationType]*Association),
-			resourceIDToAssocCache:                  make(map[string][]*Association),
+			config:                    conf,
+			url:                       url,
+			infoToSchemaCache:         make(map[subjectJSON]metadataCacheEntry),
+			idToSchemaCache:           make(map[subjectID]infoCacheEntry),
+			guidToSchemaCache:         make(map[string]infoCacheEntry),
+			schemaToVersionCache:      make(map[subjectJSON]versionCacheEntry),
+			configCache:               make(map[string]ServerConfig),
+			subjectToAssocCache:       make(map[string][]*Association),
+			resourceAndAssocTypeCache: make(map[resourceAndAssocType]*Association),
+			resourceIDToAssocCache:    make(map[string][]*Association),
 		}
 		return mock, nil
 	}
@@ -1044,9 +1044,9 @@ type LifecyclePolicy string
 
 const (
 	// STRONG LifecyclePolicy
-	STRONG LifecyclePolicy = "strong"
+	STRONG LifecyclePolicy = "STRONG"
 	// WEAK LifecyclePolicy
-	WEAK LifecyclePolicy = "weak"
+	WEAK LifecyclePolicy = "WEAK"
 )
 
 // IsValid check if lifecyclePolicy is valid

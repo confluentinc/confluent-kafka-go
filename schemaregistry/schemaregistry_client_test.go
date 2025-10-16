@@ -572,10 +572,14 @@ func TestAssociations(t *testing.T) {
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation with new subject and schema", err)
 
+		// lifecycle should be upper case WEAK or STRONG
 		associations, err := client.GetAssociationsBySubject(keySubject, "", []string{"key", "value"}, "weak", 0, -1)
+		maybeFail("GetAssociationsBySubject", expect(err != nil, true))
+
+		associations, err = client.GetAssociationsBySubject(keySubject, "", []string{"key", "value"}, "WEAK", 0, -1)
 		maybeFail("GetAssociationsBySubject", err, expect(len(associations), 0))
 
-		associations, err = client.GetAssociationsBySubject(keySubject, "", []string{"key", "value"}, "strong", 0, -1)
+		associations, err = client.GetAssociationsBySubject(keySubject, "", []string{"key", "value"}, "STRONG", 0, -1)
 		maybeFail("GetAssociationsBySubject", err, expect(len(associations), 1))
 
 		associations, err = client.GetAssociationsByResourceID(resourceID, "", []string{"key", "value"}, "", 0, -1)
