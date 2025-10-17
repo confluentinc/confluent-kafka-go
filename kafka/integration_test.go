@@ -2210,6 +2210,15 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 			PermissionType:      ACLPermissionTypeAllow,
 		},
 		{
+			Type:                ResourceTransactionalID,
+			Name:                group,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Principal:           "User:test-user-2",
+			Host:                "*",
+			Operation:           ACLOperationAll,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
+		{
 			Type:                ResourceTopic,
 			Name:                topic,
 			ResourcePatternType: ResourcePatternTypePrefixed,
@@ -2279,7 +2288,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 		if err != nil {
 			t.Fatalf("CreateACLs() failed: %s", err)
 		}
-		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}}
+		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}, {Error: noError}}
 		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 	}
 
