@@ -260,6 +260,30 @@ Static compilation command, meant to be used alongside the prebuilt librdkafka b
 CC=/path/to/musl-gcc go build --ldflags '-linkmode external -extldflags "-static"' -tags musl
 ```
 
+Windows Requirements
+----------------------
+
+Since Go needs to link with librdkafka, you need to have a native Windows version of `gcc` installed on your machine.
+If you don't have `gcc` installed, you'll get a bunch of "undefined" messages, such as `undefined: kafka.NewProducer`, 
+even though you've properly imported the Confluent Kafka module. 
+
+Windows `gcc` setup using MSYS2:
+
+1. Install MSYS2 from https://www.msys2.org/
+2. Open the "MSYS2 UCRT64" application. Enter the following commands into the $ prompt:
+3. `pacman -Syu`
+   (You will likely need to run this multiple times)
+4. `pacman -S base-devel`
+5. `pacman -S mingw-w64-x86_64-toolchain`
+6. `pacman -Q -e`
+7. `pacman -S mingw-w64-ucrt-x86_64-gcc`
+8. Add the full path to `msys64\mingw64\bin` to your PATH environment variable. For example, 
+if you installed MSYS2 to "C:\Program Files\msys64", then add "C:\Program Files\msys64\mingw64\bin" to your
+system PATH environment variable.
+9. Close then reopen any command line windows or your IDE so that they pick up the new PATH.
+10. Now if you do `go build ./...` on your project, it will take a few minutes to compile, but should work.
+
+
 API Strands
 ===========
 
