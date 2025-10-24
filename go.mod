@@ -1,8 +1,6 @@
 module github.com/confluentinc/confluent-kafka-go/v2
 
-go 1.21
-
-toolchain go1.21.0
+go 1.24.3
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
