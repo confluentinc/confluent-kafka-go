@@ -155,5 +155,5 @@ after_pipeline:
           - artifact pull workflow dynamic_coverage.txt
           - artifact pull workflow static_integration_coverage.txt
           - artifact pull workflow dynamic_integration_coverage.txt
-          - sem-version java 11
-          - emit-sonarqube-data --run_only_sonar_scan
+          - sem-version java 17
+          - emit-sonarqube-data --enable_sonarqube_enterprise --run_only_sonar_scan
