@@ -1,8 +1,8 @@
 module github.com/confluentinc/confluent-kafka-go/examples/v2
 
-go 1.21
+go 1.24.3
 
-toolchain go1.21.0
+toolchain go1.24.9
 
 replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 

@@ -260,6 +260,33 @@ Static compilation command, meant to be used alongside the prebuilt librdkafka b
 CC=/path/to/musl-gcc go build --ldflags '-linkmode external -extldflags "-static"' -tags musl
 ```
 
+FIPS 140-3 Compliance
+=====================
+
+This client supports FIPS 140-3 compliance for Schema Registry operations when using Go 1.24.3 or newer.
+
+## Schema Registry Client
+
+The Schema Registry Go client can operate in FIPS 140-3 compliant mode using Go's native FIPS support:
+
+**Build with FIPS support:**
+```bash
+GOFIPS140=inprocess go build -o myapp
+```
+
+**Run in FIPS mode:**
+```bash
+GODEBUG=fips140=only ./myapp
+```
+
+When running with `GODEBUG=fips140=only`, the application will use only FIPS 140-3 validated cryptographic implementations for all TLS connections to Schema Registry. The application will panic immediately if any non-FIPS-approved cryptographic operation is attempted.
+
+See [schemaregistry/FIPS.md](schemaregistry/FIPS.md) for detailed documentation and [examples/fips_schema_registry_example](examples/fips_schema_registry_example) for a complete working example.
+
+## Kafka Client
+
+The Kafka client (Producer/Consumer/AdminClient) uses librdkafka, which requires FIPS-compliant OpenSSL for FIPS 140-3 compliance. See the librdkafka documentation for details on building with FIPS-enabled OpenSSL.
+
 API Strands
 ===========
 
