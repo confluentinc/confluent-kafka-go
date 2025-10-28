@@ -325,21 +325,6 @@ func (c *client) GetDek(kekName string, subject string, algorithm string, delete
 	return dek, err
 }
 
-// createDek attempts to create a DEK using the newer API endpoint with subject in the path.
-// If that fails with a 405 error, it falls back to the older API endpoint without subject in the path.
-func (c *client) createDek(kekName string, input *CreateDekRequest) (dek Dek, err error) {
-	// Try the newer API endpoint with subject in the path
-	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.DeksBySubject, input, url.QueryEscape(kekName), url.QueryEscape(input.Subject)), &dek)
-	if err != nil {
-		// Check if it's a 405 error (Method Not Allowed)
-		if restErr, ok := err.(*rest.Error); ok && restErr.Code == 405 {
-			// Fallback to the older API endpoint without subject in the path
-			err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Deks, input, url.QueryEscape(kekName)), &dek)
-		}
-	}
-	return dek, err
-}
-
 // RegisterDekVersion registers versioned dek
 func (c *client) RegisterDekVersion(kekName string, subject string, version int, algorithm string, encryptedKeyMaterial string) (dek Dek, err error) {
 	cacheKey := DekID{
@@ -379,6 +364,21 @@ func (c *client) RegisterDekVersion(kekName string, subject string, version int,
 		dek = *cacheValue.(*Dek)
 	}
 	c.dekCacheLock.Unlock()
+	return dek, err
+}
+
+// createDek attempts to create a DEK using the newer API endpoint with subject in the path.
+// If that fails with a 405 error, it falls back to the older API endpoint without subject in the path.
+func (c *client) createDek(kekName string, input *CreateDekRequest) (dek Dek, err error) {
+	// Try the newer API endpoint with subject in the path
+	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.DeksBySubject, input, url.QueryEscape(kekName), url.QueryEscape(input.Subject)), &dek)
+	if err != nil {
+		// Check if it's a 405 error (Method Not Allowed)
+		if restErr, ok := err.(*rest.Error); ok && restErr.Code == 405 {
+			// Fallback to the older API endpoint without subject in the path
+			err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Deks, input, url.QueryEscape(kekName)), &dek)
+		}
+	}
 	return dek, err
 }
 
