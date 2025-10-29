@@ -545,6 +545,32 @@ func TestAvroSerdeWithPrimitive(t *testing.T) {
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
+func TestAvroSerdeWithBytes(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := []byte{0x02, 0x03, 0x04}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+	serde.MaybeFail("serialization", serde.Expect(bytes, []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04}))
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj []byte
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+}
+
 func TestAvroSerdeWithNested(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error

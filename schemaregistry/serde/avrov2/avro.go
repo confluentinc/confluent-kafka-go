@@ -20,15 +20,16 @@ import (
 	"encoding"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/hamba/avro/v2"
-	"reflect"
-	"strings"
-	"sync"
-	"time"
 )
 
 // SchemaType is the type of the Avro schema
@@ -139,9 +140,15 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	}
 	// Convert pointer to non-pointer
 	msg = reflect.ValueOf(msg).Elem().Interface()
-	msgBytes, err := s.api.Marshal(avroSchema, msg)
-	if err != nil {
-		return nil, nil, err
+	var msgBytes []byte
+	// Check if the schema is bytes type
+	if avroSchema.Type() == avro.Bytes {
+		msgBytes = msg.([]byte)
+	} else {
+		msgBytes, err = s.api.Marshal(avroSchema, msg)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	msg, err = s.ExecuteRulesWithPhase(subject, topic,
 		schemaregistry.EncodingPhase, schemaregistry.Write, nil, &info, msgBytes)
@@ -238,9 +245,14 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		return nil, err
 	}
 	if len(migrations) > 0 {
-		err = s.api.Unmarshal(writer, payload, &msg)
-		if err != nil {
-			return nil, err
+		// Check if the schema is bytes type
+		if writer.Type() == avro.Bytes {
+			msg = payload
+		} else {
+			err = s.api.Unmarshal(writer, payload, &msg)
+			if err != nil {
+				return nil, err
+			}
 		}
 		msg, err = s.ExecuteMigrations(migrations, subject, topic, msg)
 		if err != nil {
@@ -269,36 +281,47 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 			return nil, err
 		}
 	} else {
-		if result == nil {
-			msg, err = s.MessageFactory(subject, name)
-			if err != nil {
-				return nil, err
+		// Check if the schema is bytes type
+		if writer.Type() == avro.Bytes {
+			if result == nil {
+				msg = payload
+			} else {
+				// Set the value into result (which is a pointer to a byte slice)
+				reflect.ValueOf(result).Elem().Set(reflect.ValueOf(payload))
+				msg = result
 			}
 		} else {
-			msg = result
-		}
-		if readerMeta != nil {
-			var reader avro.Schema
-			reader, name, err = s.toType(s.Client, readerMeta.SchemaInfo)
-			if err != nil {
-				return nil, err
-			}
-			if reader.CacheFingerprint() != writer.CacheFingerprint() {
-				// reader and writer are different, perform schema resolution
-				sc := avro.NewSchemaCompatibility()
-				reader, err = sc.Resolve(reader, writer)
+			if result == nil {
+				msg, err = s.MessageFactory(subject, name)
 				if err != nil {
 					return nil, err
 				}
+			} else {
+				msg = result
 			}
-			err = s.api.Unmarshal(reader, payload, msg)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			err = s.api.Unmarshal(writer, payload, msg)
-			if err != nil {
-				return nil, err
+			if readerMeta != nil {
+				var reader avro.Schema
+				reader, name, err = s.toType(s.Client, readerMeta.SchemaInfo)
+				if err != nil {
+					return nil, err
+				}
+				if reader.CacheFingerprint() != writer.CacheFingerprint() {
+					// reader and writer are different, perform schema resolution
+					sc := avro.NewSchemaCompatibility()
+					reader, err = sc.Resolve(reader, writer)
+					if err != nil {
+						return nil, err
+					}
+				}
+				err = s.api.Unmarshal(reader, payload, msg)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				err = s.api.Unmarshal(writer, payload, msg)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
