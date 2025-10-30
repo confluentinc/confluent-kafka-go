@@ -143,7 +143,11 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	var msgBytes []byte
 	// Check if the schema is bytes type
 	if avroSchema.Type() == avro.Bytes {
-		msgBytes = msg.([]byte)
+		var ok bool
+		msgBytes, ok = msg.([]byte)
+		if !ok {
+			return nil, nil, fmt.Errorf("expected []byte for avro.Bytes schema, got %T", msg)
+		}
 	} else {
 		msgBytes, err = s.api.Marshal(avroSchema, msg)
 		if err != nil {
@@ -287,7 +291,15 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 				msg = payload
 			} else {
 				// Set the value into result (which is a pointer to a byte slice)
-				reflect.ValueOf(result).Elem().Set(reflect.ValueOf(payload))
+				resultVal := reflect.ValueOf(result)
+				if resultVal.Kind() != reflect.Pointer || resultVal.IsNil() {
+					return nil, fmt.Errorf("result must be a non-nil pointer, got %T", result)
+				}
+				resultElem := resultVal.Elem()
+				if !resultElem.CanSet() {
+					return nil, fmt.Errorf("result value is not settable")
+				}
+				resultElem.Set(reflect.ValueOf(payload))
 				msg = result
 			}
 		} else {
