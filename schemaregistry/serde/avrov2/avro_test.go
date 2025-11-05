@@ -121,6 +121,41 @@ const (
   ]
 } 
 `
+	demoSchemaWithMissing = `
+{
+  "name": "DemoSchema",
+  "type": "record",
+  "fields": [
+    {
+      "name": "IntField",
+      "type": "int"
+    },
+    {
+      "name": "DoubleField",
+      "type": "double"
+    },
+    {
+      "name": "StringField",
+      "type": "string",
+      "confluent:tags": [ "PII" ]
+    },
+    {
+      "name": "BoolField",
+      "type": "boolean"
+    },
+    {
+      "name": "BytesField",
+      "type": "bytes",
+      "confluent:tags": [ "PII" ]
+    },
+    {
+      "name": "Missing",
+      "type": ["null", "string"],
+      "default": null
+    }
+  ]
+} 
+`
 	demoSchemaWithLogicalType = `
 {
   "name": "DemoSchema",
@@ -1223,6 +1258,71 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*DemoSchema).StringField, "hi"))
+}
+
+func TestAvroSerdeWithCELFieldTransformMissingProp(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchemaWithMissing,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	obj2 := DemoSchema{}
+	obj2.IntField = 123
+	obj2.DoubleField = 45.67
+	obj2.StringField = "hi-suffix-suffix"
+	obj2.BoolField = true
+	obj2.BytesField = []byte{1, 2}
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj2))
 }
 
 func TestAvroSerdeWithCELFieldTransform(t *testing.T) {

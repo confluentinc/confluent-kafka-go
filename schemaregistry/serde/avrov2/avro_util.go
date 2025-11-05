@@ -82,7 +82,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			for _, avroField := range recordSchema.Fields() {
 				structField, ok := fieldByNames[avroField.Name()]
 				if !ok {
-					return nil, fmt.Errorf("avro: missing field %s", avroField.Name())
+					continue
 				}
 				err := transformField(ctx, resolver, recordSchema, avroField, structField, val, fieldTransform)
 				if err != nil {

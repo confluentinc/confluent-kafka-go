@@ -146,7 +146,7 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 	headers := http.Header{}
 
 	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
-	headers.Set("Accept-Version", "8.0")
+	headers.Set("Confluent-Accept-Unknown-Properties", "true")
 
 	authenticationHeaderProvider, err := NewAuthenticationHeaderProvider(urls[0], conf)
 	if err != nil {
