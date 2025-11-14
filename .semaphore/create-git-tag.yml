@@ -1,0 +1,23 @@
+version: v1.0
+name: tasks/create-git-tag
+agent:
+  machine:
+    type: s1-prod-ubuntu24-04-arm64-1
+fail_fast:
+  cancel:
+    when: "true"
+execution_time_limit:
+  minutes: 30
+global_job_config:
+  prologue:
+    commands:
+      - checkout
+blocks:
+  - name: Create Git Tag
+    dependencies: []
+    task:
+      jobs:
+        - name: Create Git Tag
+          commands:
+            - git tag ${TAG_NAME}
+            - git push origin ${TAG_NAME}

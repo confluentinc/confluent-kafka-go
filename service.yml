@@ -9,6 +9,15 @@ github:
 semaphore:
   enable: true
   pipeline_enable: false
+  tasks:
+    - name: create-git-tag
+      branch: main
+      pipeline_file: .semaphore/create-git-tag.yml
+      parameters:
+        - name: TAG_NAME
+          required: true
+          description: The name of the tag to be created.
+          default_value: "X.Y.Z"
 sonarqube:
   enable: true
   coverage_exclusions:
