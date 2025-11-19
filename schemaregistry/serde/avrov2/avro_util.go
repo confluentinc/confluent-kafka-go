@@ -51,8 +51,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			// Check if the value is a map[string]interface{} with a single entry
 			if m, ok := val.(map[string]interface{}); ok && len(m) == 1 {
 				for k := range m {
-					newMap := make(map[string]interface{})
-					newMap[k] = submsg.Interface()
+					newMap := map[string]interface{}{k: submsg.Interface()}
 					newVal := reflect.ValueOf(newMap)
 					return &newVal, nil
 				}
@@ -271,7 +270,6 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 				names = []string{k}
 				newMsg := reflect.ValueOf(v)
 				msg = &newMsg
-				break
 			}
 		} else {
 			typ := reflect2.TypeOf(val)
