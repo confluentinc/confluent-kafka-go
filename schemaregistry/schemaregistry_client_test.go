@@ -311,8 +311,8 @@ type resource struct {
 	ResourceType      string
 }
 
-func generateAssociationCreateRequest(resource resource, associationCreateInfo ...AssociationCreateInfo) (result AssociationCreateRequest) {
-	associationCreateRequest := AssociationCreateRequest{
+func generateAssociationCreateRequest(resource resource, associationCreateInfo ...AssociationCreateInfo) (result AssociationCreateOrUpdateRequest) {
+	AssociationCreateOrUpdateRequest := AssociationCreateOrUpdateRequest{
 		ResourceName:      resource.ResourceName,
 		ResourceNamespace: resource.ResourceNamespace,
 		ResourceID:        resource.ResourceID,
@@ -322,8 +322,8 @@ func generateAssociationCreateRequest(resource resource, associationCreateInfo .
 	for _, associationCreateInfo := range associationCreateInfo {
 		associations = append(associations, associationCreateInfo)
 	}
-	associationCreateRequest.Associations = associations
-	return associationCreateRequest
+	AssociationCreateOrUpdateRequest.Associations = associations
+	return AssociationCreateOrUpdateRequest
 }
 
 func TestAssociations(t *testing.T) {
@@ -346,27 +346,27 @@ func TestAssociations(t *testing.T) {
 		createInfo2 := AssociationCreateInfo{Subject: "testValue", AssociationType: "value"}
 
 		// Invalid requests
-		invalidRequests := []AssociationCreateRequest{}
+		invalidRequests := []AssociationCreateOrUpdateRequest{}
 		// No resource name
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
 		// No resource namespace
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
 		// No resource id
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceType: "topic", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
 		// No associations
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic"})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic"})
 		// No subject name in AssociationCreateInfo
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
 			Associations: []AssociationCreateInfo{{AssociationType: "value"}}})
 		// Unsupported ResourceType
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic2", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic2", Associations: []AssociationCreateInfo{createInfo1, createInfo2}})
 		// Unsupported AssociationType
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", AssociationType: "value2"}}})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", AssociationType: "value2"}}})
 		// Duplicate AssociationType in the request
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic",
 			Associations: []AssociationCreateInfo{{Subject: "testKey", AssociationType: "value"}, {Subject: "testValue", AssociationType: "value"}}})
 		// Weak association with frozen to be true
-		invalidRequests = append(invalidRequests, AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", Lifecycle: "weak", Frozen: true}}})
+		invalidRequests = append(invalidRequests, AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", ResourceType: "topic", Associations: []AssociationCreateInfo{{Subject: "testValue", Lifecycle: "weak", Frozen: true}}})
 
 		for _, invalidRequest := range invalidRequests {
 			_, err := client.CreateAssociation(invalidRequest)
@@ -374,7 +374,7 @@ func TestAssociations(t *testing.T) {
 		}
 
 		// Minimum valid request
-		createRequest := AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", Associations: []AssociationCreateInfo{{Subject: "testValue"}}}
+		createRequest := AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id", Associations: []AssociationCreateInfo{{Subject: "testValue"}}}
 		createResponse, err := client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation with invalid response", err,
 			expect(createResponse.ResourceName, createResponse.ResourceName),
@@ -402,7 +402,7 @@ func TestAssociations(t *testing.T) {
 		maybeFail("Register schema", err)
 
 		// Make an association with an existing subject without new schema
-		createRequest := AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
+		createRequest := AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject}}}
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation", err)
@@ -412,7 +412,7 @@ func TestAssociations(t *testing.T) {
 		maybeFail("CreateAssociation for idempotency", err)
 
 		// Re-issue the same request with different association property (except schema) will error out.
-		createRequest = AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Lifecycle: WEAK}}}
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("Existing association gets modified ", expect(err != nil, true))
@@ -421,21 +421,21 @@ func TestAssociations(t *testing.T) {
 		updatedSchemaInfo := SchemaInfo{
 			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}, {\"type\":\"string\",\"name\":\"id2\"}]}",
 		}
-		createRequest = AssociationCreateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: "test", ResourceNamespace: "lkc1", ResourceID: "test-id",
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Schema: &updatedSchemaInfo}}}
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation with updated schema", err)
 
 		// Make an association with a new subject without new schema. Test should fail.
 		testValueSubject = "testValue2"
-		createRequest = AssociationCreateRequest{ResourceName: "test2", ResourceNamespace: "lkc1", ResourceID: "test-id2",
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: "test2", ResourceNamespace: "lkc1", ResourceID: "test-id2",
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject}}}
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation with new subject and schema", expect(err != nil, true))
 
 		// Make an association with a new subject with new schema
 		testValueSubject = "testValue2"
-		createRequest = AssociationCreateRequest{ResourceName: "test2", ResourceNamespace: "lkc1", ResourceID: "test-id2",
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: "test2", ResourceNamespace: "lkc1", ResourceID: "test-id2",
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: testValueSubject, Schema: &updatedSchemaInfo}}}
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation with new subject and schema", err)
@@ -457,7 +457,7 @@ func TestAssociations(t *testing.T) {
 		_, err = client.Register(valueSubject, schemaInfo, true)
 		maybeFail("Register schema for valueSubject", err)
 
-		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest := AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, AssociationType: "key"}, AssociationCreateInfo{Subject: valueSubject, AssociationType: "value"}}}
 		_, err = client.CreateAssociation(createRequest)
 		maybeFail("CreateAssociation", err)
@@ -468,7 +468,7 @@ func TestAssociations(t *testing.T) {
 		_, err = client.Register(keySubject, schemaInfo, true)
 		maybeFail("Register schema for keySubject", err)
 
-		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, AssociationType: "key"},
 				AssociationCreateInfo{Subject: valueSubject, AssociationType: "value", Schema: &schemaInfo}}}
 		_, err = client.CreateAssociation(createRequest)
@@ -477,7 +477,7 @@ func TestAssociations(t *testing.T) {
 		// Both creating new subjects
 		keySubject, valueSubject = "test3Key", "test3Value"
 		resourceName, resourceID = "test3", "test3-id"
-		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, AssociationType: "key", Schema: &schemaInfo},
 				AssociationCreateInfo{Subject: valueSubject, AssociationType: "value", Schema: &schemaInfo}}}
 		_, err = client.CreateAssociation(createRequest)
@@ -565,7 +565,7 @@ func TestAssociations(t *testing.T) {
 			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 
-		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest := AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key"},
 				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
 
@@ -597,7 +597,7 @@ func TestAssociations(t *testing.T) {
 			Schema: "{\"namespace\":\"basicavro\",\"type\":\"record\",\"name\":\"Payment\",\"fields\":[{\"type\":\"string\",\"name\":\"id\"}]}",
 		}
 
-		createRequest := AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest := AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key"},
 				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
 		_, err = client.CreateAssociation(createRequest)
@@ -616,7 +616,7 @@ func TestAssociations(t *testing.T) {
 		// Without cascade delete
 		keySubject, valueSubject = "test2Key", "test2Value"
 		resourceName, resourceID = "test2", "test2-id"
-		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key"},
 				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
 		_, err = client.CreateAssociation(createRequest)
@@ -638,7 +638,7 @@ func TestAssociations(t *testing.T) {
 		// Delete a frozen association with cascade = false. Should return error.
 		keySubject, valueSubject = "test3Key", "test3Value"
 		resourceName, resourceID = "test3", "test3-id"
-		createRequest = AssociationCreateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
+		createRequest = AssociationCreateOrUpdateRequest{ResourceName: resourceName, ResourceNamespace: "lkc1", ResourceID: resourceID,
 			Associations: []AssociationCreateInfo{AssociationCreateInfo{Subject: keySubject, Schema: &schemaInfo, Lifecycle: STRONG, AssociationType: "key", Frozen: true},
 				AssociationCreateInfo{Subject: valueSubject, Schema: &schemaInfo, Lifecycle: WEAK, AssociationType: "value"}}}
 		_, err = client.CreateAssociation(createRequest)
