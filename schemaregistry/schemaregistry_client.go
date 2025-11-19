@@ -421,7 +421,7 @@ type Client interface {
 	UpdateConfig(subject string, update ServerConfig) (result ServerConfig, err error)
 	GetDefaultConfig() (result ServerConfig, err error)
 	UpdateDefaultConfig(update ServerConfig) (result ServerConfig, err error)
-	CreateAssociation(association AssociationCreateRequest) (result AssociationResponse, err error)
+	CreateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error)
 	GetAssociationsBySubject(subject string, resourceType string, associationTypes []string,
 		lifecycle string, offset int, limit int) (result []Association, err error)
 	GetAssociationsByResourceID(resourceID string, resourceType string, associationTypes []string,
@@ -1133,8 +1133,8 @@ func (a *Association) equalsWithoutGUID(b Association) bool {
 	return true
 }
 
-// AssociationCreateRequest represents a request to create associations
-type AssociationCreateRequest struct {
+// AssociationCreateOrUpdateRequest represents a request to create associations
+type AssociationCreateOrUpdateRequest struct {
 	ResourceName      string                  `json:"resourceName,omitempty"`
 	ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
 	ResourceID        string                  `json:"resourceId,omitempty"`
@@ -1143,7 +1143,7 @@ type AssociationCreateRequest struct {
 }
 
 // MarshalJSON implements the json.Marshaler interface
-func (a *AssociationCreateRequest) MarshalJSON() ([]byte, error) {
+func (a *AssociationCreateOrUpdateRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		ResourceName      string                  `json:"resourceName,omitempty"`
 		ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
@@ -1160,7 +1160,7 @@ func (a *AssociationCreateRequest) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements the json.Unmarshaller interface
-func (a *AssociationCreateRequest) UnmarshalJSON(b []byte) error {
+func (a *AssociationCreateOrUpdateRequest) UnmarshalJSON(b []byte) error {
 	var err error
 	var tmp struct {
 		ResourceName      string                  `json:"resourceName,omitempty"`
@@ -1425,7 +1425,7 @@ func (c *client) UpdateDefaultConfig(update ServerConfig) (result ServerConfig, 
 }
 
 // CreateAssociation creates associations between a resource and subjects
-func (c *client) CreateAssociation(association AssociationCreateRequest) (result AssociationResponse, err error) {
+func (c *client) CreateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error) {
 	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Associations, &association), &result)
 	return result, err
 }

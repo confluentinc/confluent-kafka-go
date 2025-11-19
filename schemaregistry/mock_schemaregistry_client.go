@@ -864,7 +864,7 @@ func validateResourceTypeAndAssociationType(resourceType string, associationType
 	return fmt.Errorf("unsupported association type %s for resource type %s", associationType, resourceType)
 }
 
-func (c *mockclient) validateAssociationCreateRequest(request *AssociationCreateRequest) error {
+func (c *mockclient) validateAssociationCreateRequest(request *AssociationCreateOrUpdateRequest) error {
 
 	if request.ResourceName == "" || request.ResourceNamespace == "" || request.ResourceID == "" || request.Associations == nil {
 		return errors.New("resourceName, resourceNamespace, resourceID and associations cannot be null or empty")
@@ -916,7 +916,7 @@ func (c *mockclient) removeAssociationFromMap(associationsMap map[string][]*Asso
 	}
 }
 
-func (c *mockclient) CreateAssociation(request AssociationCreateRequest) (result AssociationResponse, err error) {
+func (c *mockclient) CreateAssociation(request AssociationCreateOrUpdateRequest) (result AssociationResponse, err error) {
 	// Input format validations
 	/*
 		1. For resource:
