@@ -18,11 +18,12 @@ package avrov2
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/hamba/avro/v2"
 	"github.com/modern-go/reflect2"
-	"reflect"
-	"strings"
 )
 
 func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value,
@@ -37,11 +38,26 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 	switch schema.(type) {
 	case *avro.UnionSchema:
 		val := deref(msg)
-		subschema, err := resolveUnion(resolver, schema, val)
+		subschema, submsg, err := resolveUnion(resolver, schema, val)
 		if err != nil {
 			return nil, err
 		}
-		return transform(ctx, resolver, subschema, msg, fieldTransform)
+		submsg, err = transform(ctx, resolver, subschema, submsg, fieldTransform)
+		if err != nil {
+			return nil, err
+		}
+		if msg.IsValid() && msg.CanInterface() {
+			val := msg.Interface()
+			// Check if the value is a map[string]interface{} with a single entry
+			if m, ok := val.(map[string]interface{}); ok && len(m) == 1 {
+				for k := range m {
+					newMap := map[string]interface{}{k: submsg.Interface()}
+					newVal := reflect.ValueOf(newMap)
+					return &newVal, nil
+				}
+			}
+		}
+		return submsg, nil
 	case *avro.ArraySchema:
 		val := deref(msg)
 		if val.Kind() != reflect.Slice {
@@ -242,16 +258,25 @@ func setField(field *reflect.Value, value *reflect.Value) error {
 	return nil
 }
 
-func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value) (avro.Schema, error) {
+func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value) (avro.Schema, *reflect.Value, error) {
 	union := schema.(*avro.UnionSchema)
 	var names []string
 	var err error
 	if msg.IsValid() && msg.CanInterface() {
 		val := msg.Interface()
-		typ := reflect2.TypeOf(val)
-		names, err = resolver.Name(typ)
-		if err != nil {
-			return nil, err
+		// Check if the value is a map[string]interface{} with a single entry
+		if m, ok := val.(map[string]interface{}); ok && len(m) == 1 {
+			for k, v := range m {
+				names = []string{k}
+				newMsg := reflect.ValueOf(v)
+				msg = &newMsg
+			}
+		} else {
+			typ := reflect2.TypeOf(val)
+			names, err = resolver.Name(typ)
+			if err != nil {
+				return nil, msg, err
+			}
 		}
 	} else {
 		names = []string{"null"}
@@ -263,10 +288,10 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 
 		schema, _ = union.Types().Get(name)
 		if schema != nil {
-			return schema, nil
+			return schema, msg, nil
 		}
 	}
-	return nil, fmt.Errorf("avro: unknown union type %s", names[0])
+	return nil, nil, fmt.Errorf("avro: unknown union type %s", names[0])
 }
 
 func deref(val *reflect.Value) *reflect.Value {
