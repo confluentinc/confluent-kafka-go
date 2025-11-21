@@ -1099,9 +1099,9 @@ func TestGetAssociationsWithFilters(t *testing.T) {
 	_, err = client.CreateOrUpdateAssociation(createRequest)
 	maybeFail("CreateOrUpdateAssociation should succeed", err)
 
-	// Query by subject with a non-existent subject - should return empty result
+	// Query by subject with a non-existent subject - should return empty result instead of nil
 	associations, err := client.GetAssociationsBySubject(
-		"wrongSubjectName", "", []string{key, value}, "WEAK", 0, -1)
+		"nonExistentSubjectName", "", []string{key, value}, "", 0, -1)
 	maybeFail("GetAssociationsBySubject should succeed", err)
 	maybeFail("Should return 0 associations", expect(len(associations), 0))
 

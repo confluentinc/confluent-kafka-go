@@ -944,24 +944,24 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 			}
 		} else {
 			if isCreateOnly {
-				return fmt.Errorf("An association of type '%s' already exists for resource '%s",
+				return fmt.Errorf("an association of type '%s' already exists for resource '%s",
 					associationType, resourceID)
 			}
 			// Only lifecycle and frozen can be updated
 			// frozen can only be changed from weak to strong, not the other way around
 			// subject must stay the same
 			if existingAssociation.Subject != subject {
-				return fmt.Errorf("The association specified an invalid value for property: '%s', detail: %s",
+				return fmt.Errorf("the association specified an invalid value for property: '%s', detail: %s",
 					"subject", "subject of association cannot be changed")
 			}
 			// If existing association is frozen but request is not frozen, return false
 			if existingAssociation.Frozen && !associationInRequest.Frozen {
-				return fmt.Errorf("The association of type  '%s' is frozen for subject '%s'",
+				return fmt.Errorf("the association of type  '%s' is frozen for subject '%s'",
 					associationType, subject)
 			}
 			// If existing association is weak but request is frozen, return false
 			if existingAssociation.Lifecycle == WEAK && associationInRequest.Frozen {
-				return fmt.Errorf("The association specified an invalid value for property: '%s', detail: %s",
+				return fmt.Errorf("the association specified an invalid value for property: '%s', detail: %s",
 					"frozen", "association with lifecycle of WEAK cannot be frozen")
 			}
 		}
@@ -1238,7 +1238,7 @@ func (c *mockclient) CreateAssociation(request AssociationCreateOrUpdateRequest)
 		Optional: ResourceType (default topic).
 		2. For associations:
 		Required: Subject.
-		Optional: AssociationType(default value), LifecyclePolicy (default strong), Frozen (default false)
+		Optional: AssociationType(default value), LifecyclePolicy (default weak), Frozen (default false)
 		STRONG lifecycle can be either frozen or not; WEAK lifecycle can't be frozen.
 	*/
 	posErr := url.Error{
@@ -1267,7 +1267,7 @@ func (c *mockclient) CreateOrUpdateAssociation(request AssociationCreateOrUpdate
 		STRONG lifecycle can be either frozen or not; WEAK lifecycle can't be frozen.
 	*/
 	posErr := url.Error{
-		Op:  "POST",
+		Op:  "PUT",
 		URL: c.url.String() + fmt.Sprintf(internal.Associations),
 	}
 
@@ -1417,7 +1417,7 @@ func (c *mockclient) getAssociationsByResourceName(resourceName string, resource
 	return c.applyFilter(associations, resourceType, associationTypes, lifecycle, offset, limit)
 }
 
-// GetAssociationsByResourceID retrieves associations by resource name
+// GetAssociationsByResourceName retrieves associations by resource name
 func (c *mockclient) GetAssociationsByResourceName(resourceName string, resourceNamespace string, resourceType string,
 	associationTypes []string, lifecycle string, offset int, limit int) (result []Association, err error) {
 	posErr := url.Error{
