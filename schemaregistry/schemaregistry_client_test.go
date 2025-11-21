@@ -1099,6 +1099,12 @@ func TestGetAssociationsWithFilters(t *testing.T) {
 	_, err = client.CreateOrUpdateAssociation(createRequest)
 	maybeFail("CreateOrUpdateAssociation should succeed", err)
 
+	// Query by subject with a non-existent subject - should return empty result
+	associations, err := client.GetAssociationsBySubject(
+		"wrongSubjectName", "", []string{key, value}, "WEAK", 0, -1)
+	maybeFail("GetAssociationsBySubject should succeed", err)
+	maybeFail("Should return 0 associations", expect(len(associations), 0))
+
 	// Query by subject with lifecycle filter "weak" - should return error
 	_, err = client.GetAssociationsBySubject(
 		defaultKeySubject, "", []string{key, value}, "weak", 0, -1)
@@ -1106,7 +1112,7 @@ func TestGetAssociationsWithFilters(t *testing.T) {
 		expect(err != nil, true))
 
 	// Query by subject with lifecycle filter "WEAK" - should return 0
-	associations, err := client.GetAssociationsBySubject(
+	associations, err = client.GetAssociationsBySubject(
 		defaultKeySubject, "", []string{key, value}, "WEAK", 0, -1)
 	maybeFail("GetAssociationsBySubject should succeed", err)
 	maybeFail("Should return 0 associations",

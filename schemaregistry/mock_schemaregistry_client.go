@@ -1351,6 +1351,9 @@ func (c *mockclient) GetAssociationsBySubject(subject string, resourceType strin
 		posErr.Err = err
 		return result, &posErr
 	}
+	if result == nil {
+		result = []Association{}
+	}
 	return result, nil
 }
 
@@ -1385,6 +1388,9 @@ func (c *mockclient) GetAssociationsByResourceID(resourceID string, resourceType
 	if err != nil {
 		posErr.Err = err
 		return result, &posErr
+	}
+	if result == nil {
+		result = []Association{}
 	}
 	return result, nil
 }
@@ -1433,6 +1439,9 @@ func (c *mockclient) GetAssociationsByResourceName(resourceName string, resource
 	if err != nil {
 		posErr.Err = err
 		return result, &posErr
+	}
+	if result == nil {
+		result = []Association{}
 	}
 	return result, nil
 }
