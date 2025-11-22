@@ -142,7 +142,7 @@ func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, nor
 		return *cacheEntryVal.metadata, nil
 	}
 
-	id, guid, err := c.getIDFromRegistry(subject, schema)
+	id, guid, err := c.getIDFromRegistry(subject, schema, true)
 	if err != nil {
 		return SchemaMetadata{
 			ID: -1,
@@ -159,7 +159,7 @@ func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, nor
 	return result, nil
 }
 
-func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, string, error) {
+func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo, registerRequest bool) (int, string, error) {
 	var id = -1
 	c.idToSchemaCacheLock.RLock()
 	for key, value := range c.idToSchemaCache {
@@ -178,6 +178,9 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo) (int, 
 		}
 	}
 	c.guidToSchemaCacheLock.RUnlock()
+	if !registerRequest {
+		return id, guid, fmt.Errorf("subject Not Found")
+	}
 	err := c.generateVersion(subject, schema)
 	if err != nil {
 		return -1, "", err
@@ -945,7 +948,7 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 			continue
 		}
 		if existingAssociation.isEquivalent(associationInRequest) {
-			if isCreateOnly && schema != nil && c.schemaExistsInRegistry(subject, schema) {
+			if isCreateOnly && schema != nil && !c.schemaExistsInRegistry(subject, schema) {
 				return fmt.Errorf("an association of type '%s' already exists for resource '%s'",
 					associationType, resourceID)
 			}
@@ -980,7 +983,7 @@ func (c *mockclient) schemaExistsInRegistry(subject string, schema *SchemaInfo) 
 	if schema == nil {
 		return false
 	}
-	_, _, err := c.getIDFromRegistry(subject, *schema)
+	_, _, err := c.getIDFromRegistry(subject, *schema, false)
 	if err != nil {
 		return false
 	}

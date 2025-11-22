@@ -999,7 +999,7 @@ func testCreateAssociationsForOneSubjectHelper(resourceFoo resource, resourceFoo
 		valueLifecycle(string(resourceBarLifecycle)).
 		build()
 
-	_, err = client.CreateOrUpdateAssociation(barRequest)
+	_, err = associationCreator(barRequest)
 
 	if resourceFooLifecycle == WEAK && resourceBarLifecycle == WEAK {
 		// The only case where the bar creation will succeed.
