@@ -1546,13 +1546,6 @@ func (c *client) GetAssociationsByResourceName(resourceName string, resourceName
 			queryParams += fmt.Sprintf("&limit=%d", limit)
 		}
 	}
-	if resourceNamespace != "" {
-		if queryParams == "" {
-			queryParams = "?resourceNamespace=" + url.QueryEscape(resourceNamespace)
-		} else {
-			queryParams += "&resourceNamespace=" + url.QueryEscape(resourceNamespace)
-		}
-	}
 	if resourceType != "" {
 		if queryParams == "" {
 			queryParams = "?resourceType=" + url.QueryEscape(resourceType)
@@ -1575,7 +1568,7 @@ func (c *client) GetAssociationsByResourceName(resourceName string, resourceName
 		}
 	}
 
-	endpoint := fmt.Sprintf(internal.AssociationsByResourceName, url.PathEscape(resourceName)) + queryParams
+	endpoint := fmt.Sprintf(internal.AssociationsByResourceName, url.PathEscape(resourceNamespace), url.PathEscape(resourceName)) + queryParams
 	err = c.restService.HandleRequest(internal.NewRequest("GET", endpoint, nil), &result)
 	return result, err
 }

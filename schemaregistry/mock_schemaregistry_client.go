@@ -970,6 +970,9 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 }
 
 func (c *mockclient) schemaExistsInRegistry(subject string, schema *SchemaInfo) bool {
+	if schema == nil {
+		return false
+	}
 	_, _, err := c.getIDFromRegistry(subject, *schema)
 	if err != nil {
 		return false
@@ -1422,7 +1425,7 @@ func (c *mockclient) GetAssociationsByResourceName(resourceName string, resource
 	associationTypes []string, lifecycle string, offset int, limit int) (result []Association, err error) {
 	posErr := url.Error{
 		Op:  "GET",
-		URL: c.url.String() + fmt.Sprintf(internal.AssociationsByResourceName, resourceName),
+		URL: c.url.String() + fmt.Sprintf(internal.AssociationsByResourceName, resourceNamespace, resourceName),
 	}
 	if resourceName == "" {
 		posErr.Err = errors.New("association parameters are invalid")
