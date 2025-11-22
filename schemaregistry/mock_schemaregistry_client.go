@@ -1488,10 +1488,12 @@ func (c *mockclient) deleteAssociation(association *Association, cascadeLifecycl
 		associationType: association.AssociationType,
 	}
 	delete(c.resourceAndAssocTypeCache, resourceAndAssocType)
-	associationsByNamespace, _ := c.resourceNameToAssocCache[association.ResourceName]
-	c.removeAssociationFromMap(associationsByNamespace, association.ResourceNamespace, association)
-	if associationsByNamespace == nil || len(associationsByNamespace) == 0 {
-		delete(c.resourceNameToAssocCache, association.ResourceName)
+	associationsByNamespace, exists := c.resourceNameToAssocCache[association.ResourceName]
+	if exists {
+		c.removeAssociationFromMap(associationsByNamespace, association.ResourceNamespace, association)
+		if associationsByNamespace == nil || len(associationsByNamespace) == 0 {
+			delete(c.resourceNameToAssocCache, association.ResourceName)
+		}
 	}
 	return nil
 }
