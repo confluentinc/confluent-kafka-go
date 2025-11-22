@@ -961,7 +961,7 @@ func TestCreateMultipleAssociations(t *testing.T) {
 		client, err := NewClient(conf)
 		maybeFail("schema registry client instantiation", err)
 
-		testCreateAssociationsHelperBothExistingSubjects(client, client.CreateOrUpdateAssociation)
+		testCreateAssociationsHelperOneExistingOneNewSubject(client, client.CreateOrUpdateAssociation)
 	})
 	t.Run("upsertEndpointBothNew", func(t *testing.T) {
 		maybeFail = initFailFunc(t)

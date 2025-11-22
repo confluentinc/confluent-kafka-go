@@ -939,12 +939,12 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 		}
 		if existingAssociation.isEquivalent(associationInRequest) {
 			if isCreateOnly && schema != nil && c.schemaExistsInRegistry(subject, schema) {
-				return fmt.Errorf("An association of type '%s' already exists for resource '%s",
+				return fmt.Errorf("an association of type '%s' already exists for resource '%s'",
 					associationType, resourceID)
 			}
 		} else {
 			if isCreateOnly {
-				return fmt.Errorf("an association of type '%s' already exists for resource '%s",
+				return fmt.Errorf("an association of type '%s' already exists for resource '%s'",
 					associationType, resourceID)
 			}
 			// Only lifecycle and frozen can be updated
@@ -1006,7 +1006,7 @@ func (c *mockclient) checkExistingAssociationsBySubject(request AssociationCreat
 				}
 				if existingAssociations[0].Lifecycle == STRONG {
 					return fmt.Errorf("a strong association of type '%s' already exists for subject '%s'",
-						associationInRequest.AssociationType, subject)
+						associationType, subject)
 				}
 			}
 		}
