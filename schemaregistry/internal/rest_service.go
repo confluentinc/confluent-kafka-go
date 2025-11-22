@@ -78,6 +78,7 @@ const (
 	Associations                 = "/associations"
 	AssociationsBySubject        = Associations + "/subjects/%s"
 	AssociationsByResourceID     = Associations + "/resources/%s"
+	AssociationsByResourceName   = Associations + "/resources/%s/%s"
 	AssociationsDeleteByResource = AssociationsByResourceID
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
