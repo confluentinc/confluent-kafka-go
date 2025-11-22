@@ -865,6 +865,13 @@ func (c *mockclient) validateResourceTypeAndAssociationType(resourceType string,
 	return fmt.Errorf("unsupported association type %s for resource type %s", associationType, resourceType)
 }
 
+// validateAssociationCreateOrUpdateRequest validates the AssociationCreateOrUpdateRequest.
+/*
+	1. resourceName, resourceNamespace, resourceID and associations cannot be null or empty
+	2. resourceType is optional, if not specified, defaultResourceType (topic) is used
+	3. associationType is optional, if not specified, defaultAssociationType (value) is used
+	4. An association can't be both weak and frozen.
+*/
 func (c *mockclient) validateAssociationCreateOrUpdateRequest(request *AssociationCreateOrUpdateRequest) error {
 	if request.ResourceName == "" || request.ResourceNamespace == "" || request.ResourceID == "" || request.Associations == nil {
 		return errors.New("resourceName, resourceNamespace, resourceID and associations cannot be null or empty")
@@ -1264,10 +1271,13 @@ func (c *mockclient) CreateOrUpdateAssociation(request AssociationCreateOrUpdate
 		1. For resource:
 		Required: ResourceName, ResourceNamespace, ResourceID.
 		Optional: ResourceType (default topic).
-		2. For associations:
+		2.1 For association creation:
 		Required: Subject.
-		Optional: AssociationType(default value), LifecyclePolicy (default strong), Frozen (default false)
+		Optional: AssociationType(default value), LifecyclePolicy (default weak), Frozen (default false)
 		STRONG lifecycle can be either frozen or not; WEAK lifecycle can't be frozen.
+		2.2 For association update:
+		Required: Subject.
+		Optional: AssociationType, LifecyclePolicy, Frozen. If not specified, the existing value is kept.
 	*/
 	posErr := url.Error{
 		Op:  "PUT",
