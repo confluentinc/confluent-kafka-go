@@ -421,11 +421,14 @@ type Client interface {
 	UpdateConfig(subject string, update ServerConfig) (result ServerConfig, err error)
 	GetDefaultConfig() (result ServerConfig, err error)
 	UpdateDefaultConfig(update ServerConfig) (result ServerConfig, err error)
-	CreateAssociation(association AssociationCreateRequest) (result AssociationResponse, err error)
+	CreateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error)
+	CreateOrUpdateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error)
 	GetAssociationsBySubject(subject string, resourceType string, associationTypes []string,
 		lifecycle string, offset int, limit int) (result []Association, err error)
 	GetAssociationsByResourceID(resourceID string, resourceType string, associationTypes []string,
 		lifecycle string, offset int, limit int) (result []Association, err error)
+	GetAssociationsByResourceName(resourceName string, resourceNamespace string, resourceType string,
+		associationTypes []string, lifecycle string, offset int, limit int) (result []Association, err error)
 	DeleteAssociations(resourceID string, resourceType string, associationTypes []string,
 		cascadeLifecycle bool) error
 	ClearLatestCaches() error
@@ -454,6 +457,7 @@ func NewClient(conf *Config) (Client, error) {
 			subjectToAssocCache:       make(map[string][]*Association),
 			resourceAndAssocTypeCache: make(map[resourceAndAssocType]*Association),
 			resourceIDToAssocCache:    make(map[string][]*Association),
+			resourceNameToAssocCache:  make(map[string]map[string][]*Association),
 		}
 		return mock, nil
 	}
@@ -1124,6 +1128,13 @@ func (a *Association) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+func (a *Association) isEquivalent(info AssociationCreateOrUpdateInfo) bool {
+	return a.Subject == info.Subject &&
+		a.AssociationType == info.AssociationType &&
+		(info.Lifecycle == "" || a.Lifecycle == info.Lifecycle) &&
+		(a.Frozen == info.Frozen)
+}
+
 func (a *Association) equalsWithoutGUID(b Association) bool {
 	if a.Subject != b.Subject || a.ResourceName != b.ResourceName || a.ResourceNamespace != b.ResourceNamespace ||
 		a.ResourceID != b.ResourceID || a.ResourceType != b.ResourceType || a.AssociationType != b.AssociationType ||
@@ -1133,23 +1144,23 @@ func (a *Association) equalsWithoutGUID(b Association) bool {
 	return true
 }
 
-// AssociationCreateRequest represents a request to create associations
-type AssociationCreateRequest struct {
-	ResourceName      string                  `json:"resourceName,omitempty"`
-	ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
-	ResourceID        string                  `json:"resourceId,omitempty"`
-	ResourceType      string                  `json:"resourceType,omitempty"`
-	Associations      []AssociationCreateInfo `json:"associations,omitempty"`
+// AssociationCreateOrUpdateRequest represents a request to create associations
+type AssociationCreateOrUpdateRequest struct {
+	ResourceName      string                          `json:"resourceName,omitempty"`
+	ResourceNamespace string                          `json:"resourceNamespace,omitempty"`
+	ResourceID        string                          `json:"resourceId,omitempty"`
+	ResourceType      string                          `json:"resourceType,omitempty"`
+	Associations      []AssociationCreateOrUpdateInfo `json:"associations,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
-func (a *AssociationCreateRequest) MarshalJSON() ([]byte, error) {
+func (a *AssociationCreateOrUpdateRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		ResourceName      string                  `json:"resourceName,omitempty"`
-		ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
-		ResourceID        string                  `json:"resourceId,omitempty"`
-		ResourceType      string                  `json:"resourceType,omitempty"`
-		Associations      []AssociationCreateInfo `json:"associations,omitempty"`
+		ResourceName      string                          `json:"resourceName,omitempty"`
+		ResourceNamespace string                          `json:"resourceNamespace,omitempty"`
+		ResourceID        string                          `json:"resourceId,omitempty"`
+		ResourceType      string                          `json:"resourceType,omitempty"`
+		Associations      []AssociationCreateOrUpdateInfo `json:"associations,omitempty"`
 	}{
 		a.ResourceName,
 		a.ResourceNamespace,
@@ -1160,14 +1171,14 @@ func (a *AssociationCreateRequest) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements the json.Unmarshaller interface
-func (a *AssociationCreateRequest) UnmarshalJSON(b []byte) error {
+func (a *AssociationCreateOrUpdateRequest) UnmarshalJSON(b []byte) error {
 	var err error
 	var tmp struct {
-		ResourceName      string                  `json:"resourceName,omitempty"`
-		ResourceNamespace string                  `json:"resourceNamespace,omitempty"`
-		ResourceID        string                  `json:"resourceId,omitempty"`
-		ResourceType      string                  `json:"resourceType,omitempty"`
-		Associations      []AssociationCreateInfo `json:"associations,omitempty"`
+		ResourceName      string                          `json:"resourceName,omitempty"`
+		ResourceNamespace string                          `json:"resourceNamespace,omitempty"`
+		ResourceID        string                          `json:"resourceId,omitempty"`
+		ResourceType      string                          `json:"resourceType,omitempty"`
+		Associations      []AssociationCreateOrUpdateInfo `json:"associations,omitempty"`
 	}
 
 	err = json.Unmarshal(b, &tmp)
@@ -1181,8 +1192,8 @@ func (a *AssociationCreateRequest) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AssociationCreateInfo represents information for creating an association
-type AssociationCreateInfo struct {
+// AssociationCreateOrUpdateInfo represents information for creating an association
+type AssociationCreateOrUpdateInfo struct {
 	Subject         string          `json:"subject,omitempty"`
 	AssociationType string          `json:"associationType,omitempty"`
 	Lifecycle       LifecyclePolicy `json:"lifecycle,omitempty"`
@@ -1192,7 +1203,7 @@ type AssociationCreateInfo struct {
 }
 
 // MarshalJSON implements the json.Marshaler interface
-func (a *AssociationCreateInfo) MarshalJSON() ([]byte, error) {
+func (a *AssociationCreateOrUpdateInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Subject         string          `json:"subject,omitempty"`
 		AssociationType string          `json:"associationType,omitempty"`
@@ -1209,7 +1220,7 @@ func (a *AssociationCreateInfo) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements the json.Unmarshaller interface
-func (a *AssociationCreateInfo) UnmarshalJSON(b []byte) error {
+func (a *AssociationCreateOrUpdateInfo) UnmarshalJSON(b []byte) error {
 	var err error
 	var tmp struct {
 		Subject         string          `json:"subject,omitempty"`
@@ -1425,8 +1436,14 @@ func (c *client) UpdateDefaultConfig(update ServerConfig) (result ServerConfig, 
 }
 
 // CreateAssociation creates associations between a resource and subjects
-func (c *client) CreateAssociation(association AssociationCreateRequest) (result AssociationResponse, err error) {
+func (c *client) CreateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error) {
 	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Associations, &association), &result)
+	return result, err
+}
+
+// CreateOrUpdateAssociation creates or updates associations between a resource and subjects
+func (c *client) CreateOrUpdateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error) {
+	err = c.restService.HandleRequest(internal.NewRequest("PUT", internal.Associations, &association), &result)
 	return result, err
 }
 
@@ -1510,6 +1527,48 @@ func (c *client) GetAssociationsByResourceID(resourceID string, resourceType str
 	}
 
 	endpoint := fmt.Sprintf(internal.AssociationsByResourceID, url.PathEscape(resourceID)) + queryParams
+	err = c.restService.HandleRequest(internal.NewRequest("GET", endpoint, nil), &result)
+	return result, err
+}
+
+// GetAssociationsByResourceName retrieves associations by resource name
+func (c *client) GetAssociationsByResourceName(resourceName string, resourceNamespace string, resourceType string, associationTypes []string,
+	lifecycle string, offset int, limit int) (result []Association, err error) {
+	// Build query parameters
+	queryParams := ""
+	if offset > 0 {
+		queryParams = fmt.Sprintf("?offset=%d", offset)
+	}
+	if limit > 0 {
+		if queryParams == "" {
+			queryParams = fmt.Sprintf("?limit=%d", limit)
+		} else {
+			queryParams += fmt.Sprintf("&limit=%d", limit)
+		}
+	}
+	if resourceType != "" {
+		if queryParams == "" {
+			queryParams = "?resourceType=" + url.QueryEscape(resourceType)
+		} else {
+			queryParams += "&resourceType=" + url.QueryEscape(resourceType)
+		}
+	}
+	if lifecycle != "" {
+		if queryParams == "" {
+			queryParams = "?lifecycle=" + url.QueryEscape(lifecycle)
+		} else {
+			queryParams += "&lifecycle=" + url.QueryEscape(lifecycle)
+		}
+	}
+	for _, at := range associationTypes {
+		if queryParams == "" {
+			queryParams = "?associationType=" + url.QueryEscape(at)
+		} else {
+			queryParams += "&associationType=" + url.QueryEscape(at)
+		}
+	}
+
+	endpoint := fmt.Sprintf(internal.AssociationsByResourceName, url.PathEscape(resourceNamespace), url.PathEscape(resourceName)) + queryParams
 	err = c.restService.HandleRequest(internal.NewRequest("GET", endpoint, nil), &result)
 	return result, err
 }
