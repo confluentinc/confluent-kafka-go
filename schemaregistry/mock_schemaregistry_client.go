@@ -159,7 +159,7 @@ func (c *mockclient) RegisterFullResponse(subject string, schema SchemaInfo, nor
 	return result, nil
 }
 
-func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo, registerRequest bool) (int, string, error) {
+func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo, isRegister bool) (int, string, error) {
 	var id = -1
 	c.idToSchemaCacheLock.RLock()
 	for key, value := range c.idToSchemaCache {
@@ -178,8 +178,12 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo, regist
 		}
 	}
 	c.guidToSchemaCacheLock.RUnlock()
-	if !registerRequest {
-		return id, guid, fmt.Errorf("subject Not Found")
+	if !isRegister {
+		if id < 0 {
+			return id, guid, fmt.Errorf("subject Not Found")
+		} else {
+			return id, guid, nil
+		}
 	}
 	err := c.generateVersion(subject, schema)
 	if err != nil {

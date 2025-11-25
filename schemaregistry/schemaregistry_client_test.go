@@ -672,18 +672,20 @@ func testCreateOneAssociationHelper(client Client, associationCreator associatio
 	_, err = associationCreator(createRequest)
 	maybeFail("AssociationCreateOrUpdateRequest should succeed (idempotency)", err)
 
+	// Add the original schema to the same create association request. This call should be idempotent.
+	createRequest = (&AssociationRequestBuilder{}).
+		defaultResource().
+		valueSubject(defaultValueSubject).
+		valueSchema(simpleAvroSchema).
+		build()
+	_, err = associationCreator(createRequest)
+	maybeFail("AssociationCreateOrUpdateRequest with original schema should succeed (idempotency)", err)
+
 	// After the second request, the subject and resource should still have just one association.
 	associations, err := client.GetAssociationsBySubject(defaultValueSubject, "", nil, "", 0, -1)
 	maybeFail("GetAssociationsBySubject should succeed", err)
-
-	if associations == nil {
-		maybeFail("Associations should not be nil", fmt.Errorf("associations is nil"))
-	}
-
-	if len(associations) != 1 {
-		maybeFail("Should have exactly 1 association",
-			fmt.Errorf("expected 1 association, got %d", len(associations)))
-	}
+	maybeFail("Associations should not be nil", expect(associations != nil, true))
+	maybeFail("Should have exactly 1 association", expect(len(associations), 1))
 
 	// Create a key association using a new subject without schema should fail.
 	createRequest = (&AssociationRequestBuilder{}).
