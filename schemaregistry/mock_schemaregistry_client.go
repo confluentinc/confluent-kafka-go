@@ -181,9 +181,9 @@ func (c *mockclient) getIDFromRegistry(subject string, schema SchemaInfo, isRegi
 	if !isRegister {
 		if id < 0 {
 			return id, guid, fmt.Errorf("subject Not Found")
-		} else {
-			return id, guid, nil
 		}
+		return id, guid, nil
+
 	}
 	err := c.generateVersion(subject, schema)
 	if err != nil {
