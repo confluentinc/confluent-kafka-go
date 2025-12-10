@@ -68,11 +68,18 @@ const (
 	Mode                     = "/mode"
 	SubjectMode              = Mode + "/%s"
 
-	Keks          = "/dek-registry/v1/keks"
-	KekByName     = Keks + "/%s?deleted=%t"
-	Deks          = Keks + "/%s/deks"
-	DeksBySubject = Deks + "/%s?algorithm=%s&deleted=%t"
-	DeksByVersion = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
+	Keks                    = "/dek-registry/v1/keks"
+	KekByName               = Keks + "/%s?deleted=%t"
+	Deks                    = Keks + "/%s/deks"
+	DeksBySubject           = Deks + "/%s"
+	DeksBySubjectWithParams = Deks + "/%s?algorithm=%s&deleted=%t"
+	DeksByVersion           = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
+
+	Associations                 = "/associations"
+	AssociationsBySubject        = Associations + "/subjects/%s"
+	AssociationsByResourceID     = Associations + "/resources/%s"
+	AssociationsByResourceName   = Associations + "/resources/%s/%s"
+	AssociationsDeleteByResource = AssociationsByResourceID
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
@@ -140,6 +147,7 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 	headers := http.Header{}
 
 	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
+	headers.Set("Confluent-Accept-Unknown-Properties", "true")
 
 	authenticationHeaderProvider, err := NewAuthenticationHeaderProvider(urls[0], conf)
 	if err != nil {

@@ -1,15 +1,12 @@
 module github.com/confluentinc/confluent-kafka-go/examples/v2
 
-go 1.21
-
-toolchain go1.21.0
+go 1.24.3
 
 replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
 require (
-	github.com/actgardner/gogen-avro/v10 v10.2.1
 	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.11.1
+	github.com/confluentinc/confluent-kafka-go/v2 v2.12.0
 	github.com/gdamore/tcell v1.4.0
 	google.golang.org/protobuf v1.33.0
 )
@@ -67,7 +64,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.15.0 // indirect
-	github.com/heetch/avro v0.4.5 // indirect
+	github.com/hashicorp/vault/api/auth/approle v0.8.0 // indirect
 	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/jhump/protoreflect v1.15.6 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
