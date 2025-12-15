@@ -6,7 +6,7 @@ replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
 require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.12.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.13.0-RC1
 	github.com/gdamore/tcell v1.4.0
 	google.golang.org/protobuf v1.33.0
 )
