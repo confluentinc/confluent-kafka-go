@@ -1115,6 +1115,8 @@ func (a *Association) UnmarshalJSON(b []byte) error {
 		Frozen            bool            `json:"frozen,omitempty"`
 	}
 
+	err = json.Unmarshal(b, &tmp)
+
 	a.Subject = tmp.Subject
 	a.GUID = tmp.GUID
 	a.ResourceName = tmp.ResourceName
