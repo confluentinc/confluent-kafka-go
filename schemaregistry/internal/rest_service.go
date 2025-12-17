@@ -449,6 +449,9 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	}
 	defer resp.Body.Close()
 	if isSuccess(resp.StatusCode) {
+		if resp.StatusCode == 204 {
+			return nil
+		}
 		if err = json.NewDecoder(resp.Body).Decode(response); err != nil {
 			return err
 		}
