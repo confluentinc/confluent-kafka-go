@@ -1170,7 +1170,7 @@ func (c *mockclient) createOrUpdateAssociationHelper(request AssociationCreateOr
 	} else {
 		posErr = url.Error{
 			Op:  "PUT",
-			URL: c.url.String() + fmt.Sprintf(internal.AssociationsByResourceID),
+			URL: c.url.String() + fmt.Sprintf(internal.AssociationsByResourceID, request.ResourceID),
 		}
 	}
 
@@ -1288,7 +1288,7 @@ func (c *mockclient) CreateOrUpdateAssociation(request AssociationCreateOrUpdate
 	*/
 	posErr := url.Error{
 		Op:  "PUT",
-		URL: c.url.String() + fmt.Sprintf(internal.AssociationsByResourceID),
+		URL: c.url.String() + fmt.Sprintf(internal.AssociationsByResourceID, request.ResourceID),
 	}
 
 	err = c.validateAssociationCreateOrUpdateRequest(&request)
