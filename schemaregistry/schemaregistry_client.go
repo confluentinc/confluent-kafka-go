@@ -1445,7 +1445,8 @@ func (c *client) CreateAssociation(association AssociationCreateOrUpdateRequest)
 
 // CreateOrUpdateAssociation creates or updates associations between a resource and subjects
 func (c *client) CreateOrUpdateAssociation(association AssociationCreateOrUpdateRequest) (result AssociationResponse, err error) {
-	err = c.restService.HandleRequest(internal.NewRequest("PUT", internal.Associations, &association), &result)
+	endpoint := fmt.Sprintf(internal.AssociationsByResourceID, url.PathEscape(association.ResourceID))
+	err = c.restService.HandleRequest(internal.NewRequest("PUT", endpoint, &association), &result)
 	return result, err
 }
 
