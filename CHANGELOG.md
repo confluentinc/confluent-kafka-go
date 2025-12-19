@@ -1,7 +1,22 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.13.0
+
+This is a feature release:
+
 ### Enhancements
 * Add support for forwarding librdkafka log events to a Go channel in AdminClient (#1448)
+* Add support for FIPS 140-3 on Schema Registry operations (#1486)
+* Add Accept-Version header for Schema Registry (#1487)
+* SR Associations mock client implementation (#1485, #1494)
+* Handle evolution during field transformation (#1490)
+
+### Fixes
+* Fix support for wrapped Avro unions (#1493)
+
+confluent-kafka-go is based on librdkafka v2.13.0, see the
+[librdkafka v2.13.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.12.0
