@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -84,6 +85,14 @@ const (
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
 )
+
+// getClientVersionHeaderValue returns the client version header value
+// in the format "go/{version}"
+// Note: currently the client version is tied to the librdkafka version
+func getClientVersionHeaderValue() string {
+	_, version := kafka.LibraryVersion()
+	return "go/" + version
+}
 
 // API represents a REST API request
 type API struct {
@@ -148,6 +157,7 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 
 	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
 	headers.Set("Confluent-Accept-Unknown-Properties", "true")
+	headers.Set("Confluent-Client-Version", getClientVersionHeaderValue())
 
 	authenticationHeaderProvider, err := NewAuthenticationHeaderProvider(urls[0], conf)
 	if err != nil {
