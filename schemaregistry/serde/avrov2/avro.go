@@ -85,7 +85,17 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
+	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, s, conf.SubjectNameStrategyConfig)
 	return s, nil
+}
+
+// GetRecordName extracts the record name from an Avro schema using toType
+func (s *Serializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	_, name, err := s.toType(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	return name, nil
 }
 
 // Serialize implements serialization of generic Avro data
@@ -188,7 +198,17 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	if err != nil {
 		return nil, err
 	}
+	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, s, conf.SubjectNameStrategyConfig)
 	return s, nil
+}
+
+// GetRecordName extracts the record name from an Avro schema using toType
+func (s *Deserializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	_, name, err := s.toType(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	return name, nil
 }
 
 // Deserialize implements deserialization of generic Avro data
