@@ -179,7 +179,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
-	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, s.GetRecordName, conf.SubjectNameStrategyConfig)
+	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, conf.SubjectNameStrategyConfig, s.GetRecordName)
 	return s, nil
 }
 
@@ -527,7 +527,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	if err != nil {
 		return nil, err
 	}
-	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, s.GetRecordName, conf.SubjectNameStrategyConfig)
+	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, conf.SubjectNameStrategyConfig, s.GetRecordName)
 	return s, nil
 }
 
