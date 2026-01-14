@@ -575,7 +575,7 @@ type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemareg
 type RecordNameFunc func(schema schemaregistry.SchemaInfo) (string, error)
 
 // ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
-func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, getRecordName RecordNameFunc, config map[string]string) {
+func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) {
 	switch strategyType {
 	case TopicNameStrategyType:
 		s.SubjectNameStrategy = TopicNameStrategy
