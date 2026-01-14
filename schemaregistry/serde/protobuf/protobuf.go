@@ -19,12 +19,13 @@ package protobuf
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"io"
 	"log"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -178,7 +179,21 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
+	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, s, conf.SubjectNameStrategyConfig)
 	return s, nil
+}
+
+// GetRecordName extracts the message name from a Protobuf schema using toFileDesc
+func (s *Serializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	messages := fd.GetMessageTypes()
+	if len(messages) == 0 {
+		return "", fmt.Errorf("Protobuf schema does not contain any messages")
+	}
+	return messages[0].GetFullyQualifiedName(), nil
 }
 
 // ConfigureDeserializer configures the Protobuf deserializer
@@ -512,7 +527,21 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	if err != nil {
 		return nil, err
 	}
+	s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, s, conf.SubjectNameStrategyConfig)
 	return s, nil
+}
+
+// GetRecordName extracts the message name from a Protobuf schema using toFileDesc
+func (s *Deserializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	messages := fd.GetMessageTypes()
+	if len(messages) == 0 {
+		return "", fmt.Errorf("Protobuf schema does not contain any messages")
+	}
+	return messages[0].GetFullyQualifiedName(), nil
 }
 
 // Deserialize implements deserialization of Protobuf data

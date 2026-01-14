@@ -30,6 +30,10 @@ type SerializerConfig struct {
 	NormalizeSchemas bool
 	// RuleConfig specifies configuration options to the rules
 	RuleConfig map[string]string
+	// SubjectNameStrategyType specifies the subject name strategy type
+	SubjectNameStrategyType SubjectNameStrategyType
+	// SubjectNameStrategyConfig specifies configuration options for the subject name strategy
+	SubjectNameStrategyConfig map[string]string
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
@@ -52,6 +56,10 @@ type DeserializerConfig struct {
 	UseLatestWithMetadata map[string]string
 	// RuleConfig specifies configuration options to the rules
 	RuleConfig map[string]string
+	// SubjectNameStrategyType specifies the subject name strategy type
+	SubjectNameStrategyType SubjectNameStrategyType
+	// SubjectNameStrategyConfig specifies configuration options for the subject name strategy
+	SubjectNameStrategyConfig map[string]string
 }
 
 // NewDeserializerConfig returns a new configuration instance with sane defaults.

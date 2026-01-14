@@ -20,11 +20,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/google/uuid"
 	"log"
 	"reflect"
 	"strings"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/google/uuid"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
@@ -551,8 +552,49 @@ func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, s
 	return nil
 }
 
+// SubjectNameStrategyType determines the type of subject name strategy
+type SubjectNameStrategyType int
+
+const (
+	// DefaultNameStrategyType uses the strategy set in SubjectNameStrategy
+	DefaultNameStrategyType SubjectNameStrategyType = iota
+	// TopicNameStrategyType creates a subject name by appending -[key|value] to the topic name
+	TopicNameStrategyType
+	// RecordNameStrategyType creates a subject name from the record name
+	RecordNameStrategyType
+	// TopicRecordNameStrategyType creates a subject name from the topic and record name
+	TopicRecordNameStrategyType
+	// AssociatedNameStrategyType retrieves the associated subject name from schema registry
+	AssociatedNameStrategyType
+)
+
 // SubjectNameStrategyFunc determines the subject for the given parameters
 type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
+
+// RecordNameFunc extracts the record name from a schema
+type RecordNameFunc func(schema schemaregistry.SchemaInfo) (string, error)
+
+// RecordNameResolver is implemented by serializers that can extract record names from schemas
+type RecordNameResolver interface {
+	GetRecordName(schema schemaregistry.SchemaInfo) (string, error)
+}
+
+// ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
+func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, resolver RecordNameResolver, config map[string]string) {
+	switch strategyType {
+	case TopicNameStrategyType:
+		s.SubjectNameStrategy = TopicNameStrategy
+	case RecordNameStrategyType:
+		s.SubjectNameStrategy = RecordNameStrategy(resolver.GetRecordName)
+	case TopicRecordNameStrategyType:
+		s.SubjectNameStrategy = TopicRecordNameStrategy(resolver.GetRecordName)
+	case AssociatedNameStrategyType:
+		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config)
+	default:
+		// DefaultNameStrategyType or any unrecognized type
+		s.SubjectNameStrategy = TopicNameStrategy
+	}
+}
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
 func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
@@ -561,6 +603,44 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 		suffix = "-key"
 	}
 	return topic + suffix, nil
+}
+
+// RecordNameStrategy creates a subject name from the record name.
+func RecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFunc {
+	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+		recordName, err := getRecordName(schema)
+		if err != nil {
+			return "", err
+		}
+		suffix := "-value"
+		if serdeType == KeySerde {
+			suffix = "-key"
+		}
+		return recordName + suffix, nil
+	}
+}
+
+// TopicRecordNameStrategy creates a subject name from the topic and record name.
+func TopicRecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFunc {
+	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+		recordName, err := getRecordName(schema)
+		if err != nil {
+			return "", err
+		}
+		suffix := "-value"
+		if serdeType == KeySerde {
+			suffix = "-key"
+		}
+		return topic + "-" + recordName + suffix, nil
+	}
+}
+
+// AssociatedNameStrategy returns a strategy that retrieves the associated subject name from schema registry.
+func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string) SubjectNameStrategyFunc {
+	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+		// TODO: implement associated name lookup using client and config
+		return "", fmt.Errorf("AssociatedNameStrategy not yet implemented")
+	}
 }
 
 // SchemaIDSerializerFunc determines how to serialize a schema ID/GUID
