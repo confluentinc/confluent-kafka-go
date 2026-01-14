@@ -574,20 +574,15 @@ type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemareg
 // RecordNameFunc extracts the record name from a schema
 type RecordNameFunc func(schema schemaregistry.SchemaInfo) (string, error)
 
-// RecordNameResolver is implemented by serializers that can extract record names from schemas
-type RecordNameResolver interface {
-	GetRecordName(schema schemaregistry.SchemaInfo) (string, error)
-}
-
 // ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
-func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, resolver RecordNameResolver, config map[string]string) {
+func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, getRecordName RecordNameFunc, config map[string]string) {
 	switch strategyType {
 	case TopicNameStrategyType:
 		s.SubjectNameStrategy = TopicNameStrategy
 	case RecordNameStrategyType:
-		s.SubjectNameStrategy = RecordNameStrategy(resolver.GetRecordName)
+		s.SubjectNameStrategy = RecordNameStrategy(getRecordName)
 	case TopicRecordNameStrategyType:
-		s.SubjectNameStrategy = TopicRecordNameStrategy(resolver.GetRecordName)
+		s.SubjectNameStrategy = TopicRecordNameStrategy(getRecordName)
 	case AssociatedNameStrategyType:
 		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config)
 	default:
