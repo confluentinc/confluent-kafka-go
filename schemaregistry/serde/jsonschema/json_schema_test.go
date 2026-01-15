@@ -235,6 +235,75 @@ const (
 	"type" : "object"
 }
 `
+	messageSchema = `
+	{
+
+        "type": "object",
+        "properties": {
+            "messageType": {
+                "type": "string"
+            },
+            "version": {
+                "type": "string"
+            },
+            "payload": {
+                "type": "object",
+                "oneOf": [
+                    {
+                        "$ref": "#/$defs/authentication_request"
+                    },
+                    {
+                        "$ref": "#/$defs/authentication_status"
+                    }
+                ]
+            }
+        },
+        "required": [
+            "payload",
+            "messageType",
+            "version"
+        ],
+        "$defs": {
+            "authentication_request": {
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "confluent:tags": ["PII"]
+                    },
+                    "timestamp": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "requestId": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "messageId",
+                    "timestamp"
+                ]
+            },
+            "authentication_status": {
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "confluent:tags": ["PII"]
+                    },
+                    "authType": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "messageId",
+                    "authType"
+                ]
+            }
+        }
+    }
+`
 )
 
 func testMessageFactory1(subject string, name string) (interface{}, error) {
@@ -754,6 +823,70 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithNullable(t *testing.T) {
 	var newobj JSONDemoSchema
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformWithUnionOfRefs(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Expr: "name == 'messageId' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     messageSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	payload := Payload{}
+	payload.MessageID = "12345"
+	payload.Timestamp = 12345
+	obj := Message{}
+	obj.MessageType = "authentication_request"
+	obj.Version = "1.0"
+	obj.Payload = payload
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	payload2 := Payload{}
+	payload2.MessageID = "12345-suffix"
+	payload2.Timestamp = 12345
+	obj.Payload = payload2
+
+	var newobj Message
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj))
 }
 
 func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
@@ -1895,4 +2028,18 @@ type JSONPerson struct {
 	Name string `json:"name"`
 
 	Address Address `json:"address"`
+}
+
+type Message struct {
+	MessageType string `json:"messageType"`
+
+	Version string `json:"version"`
+
+	Payload Payload `json:"payload"`
+}
+
+type Payload struct {
+	MessageID string `json:"messageId"`
+
+	Timestamp int `json:"timestamp"`
 }

@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -68,15 +69,30 @@ const (
 	Mode                     = "/mode"
 	SubjectMode              = Mode + "/%s"
 
-	Keks          = "/dek-registry/v1/keks"
-	KekByName     = Keks + "/%s?deleted=%t"
-	Deks          = Keks + "/%s/deks"
-	DeksBySubject = Deks + "/%s?algorithm=%s&deleted=%t"
-	DeksByVersion = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
+	Keks                    = "/dek-registry/v1/keks"
+	KekByName               = Keks + "/%s?deleted=%t"
+	Deks                    = Keks + "/%s/deks"
+	DeksBySubject           = Deks + "/%s"
+	DeksBySubjectWithParams = Deks + "/%s?algorithm=%s&deleted=%t"
+	DeksByVersion           = Deks + "/%s/versions/%v?algorithm=%s&deleted=%t"
+
+	Associations                 = "/associations"
+	AssociationsBySubject        = Associations + "/subjects/%s"
+	AssociationsByResourceID     = Associations + "/resources/%s"
+	AssociationsByResourceName   = Associations + "/resources/%s/%s"
+	AssociationsDeleteByResource = AssociationsByResourceID
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
 )
+
+// getClientVersionHeaderValue returns the client version header value
+// in the format "go/{version}"
+// Note: currently the client version is tied to the librdkafka version
+func getClientVersionHeaderValue() string {
+	_, version := kafka.LibraryVersion()
+	return "go/" + version
+}
 
 // API represents a REST API request
 type API struct {
@@ -140,6 +156,8 @@ func NewRestService(conf *ClientConfig) (*RestService, error) {
 	headers := http.Header{}
 
 	headers.Set("Content-Type", "application/vnd.schemaregistry.v1+json")
+	headers.Set("Confluent-Accept-Unknown-Properties", "true")
+	headers.Set("Confluent-Client-Version", getClientVersionHeaderValue())
 
 	authenticationHeaderProvider, err := NewAuthenticationHeaderProvider(urls[0], conf)
 	if err != nil {
@@ -441,6 +459,9 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	}
 	defer resp.Body.Close()
 	if isSuccess(resp.StatusCode) {
+		if resp.StatusCode == 204 {
+			return nil
+		}
 		if err = json.NewDecoder(resp.Body).Decode(response); err != nil {
 			return err
 		}

@@ -6,7 +6,7 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.11.1
+      value: v2.13.0
   prologue:
     commands:
       - checkout
@@ -16,7 +16,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-13-5-arm64
+          type: s1-macos-15-arm64-8
       prologue:
         commands:
           - sem-version go 1.21
@@ -155,5 +155,4 @@ after_pipeline:
           - artifact pull workflow dynamic_coverage.txt
           - artifact pull workflow static_integration_coverage.txt
           - artifact pull workflow dynamic_integration_coverage.txt
-          - sem-version java 11
           - emit-sonarqube-data --run_only_sonar_scan

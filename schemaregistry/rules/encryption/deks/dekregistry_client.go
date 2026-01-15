@@ -18,12 +18,14 @@ package deks
 
 import (
 	"encoding/base64"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 	"net/url"
 	"strings"
 	"sync"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 )
 
 /* DEK Registry API endpoints
@@ -312,7 +314,7 @@ func (c *client) GetDek(kekName string, subject string, algorithm string, delete
 	// another goroutine could have already put it in cache
 	cacheValue, ok = c.dekCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.DeksBySubject, nil, url.QueryEscape(kekName), url.QueryEscape(subject), algorithm, deleted), &dek)
+		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.DeksBySubjectWithParams, nil, url.QueryEscape(kekName), url.QueryEscape(subject), algorithm, deleted), &dek)
 		if err == nil {
 			c.dekCache.Put(cacheKey, &dek)
 		}
@@ -349,7 +351,7 @@ func (c *client) RegisterDekVersion(kekName string, subject string, version int,
 	// another goroutine could have already put it in cache
 	cacheValue, ok = c.dekCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Deks, &input, url.QueryEscape(kekName)), &dek)
+		dek, err = c.createDek(kekName, &input)
 		if err == nil {
 			c.dekCache.Put(cacheKey, &dek)
 		} else {
@@ -362,6 +364,21 @@ func (c *client) RegisterDekVersion(kekName string, subject string, version int,
 		dek = *cacheValue.(*Dek)
 	}
 	c.dekCacheLock.Unlock()
+	return dek, err
+}
+
+// createDek attempts to create a DEK using the newer API endpoint with subject in the path.
+// If that fails with a 405 error, it falls back to the older API endpoint without subject in the path.
+func (c *client) createDek(kekName string, input *CreateDekRequest) (dek Dek, err error) {
+	// Try the newer API endpoint with subject in the path
+	err = c.restService.HandleRequest(internal.NewRequest("POST", internal.DeksBySubject, input, url.QueryEscape(kekName), url.QueryEscape(input.Subject)), &dek)
+	if err != nil {
+		// Check if it's a 405 error (Method Not Allowed)
+		if restErr, ok := err.(*rest.Error); ok && restErr.Code == 405 {
+			// Fallback to the older API endpoint without subject in the path
+			err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Deks, input, url.QueryEscape(kekName)), &dek)
+		}
+	}
 	return dek, err
 }
 

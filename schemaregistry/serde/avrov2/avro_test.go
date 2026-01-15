@@ -121,6 +121,41 @@ const (
   ]
 } 
 `
+	demoSchemaWithMissing = `
+{
+  "name": "DemoSchema",
+  "type": "record",
+  "fields": [
+    {
+      "name": "IntField",
+      "type": "int"
+    },
+    {
+      "name": "DoubleField",
+      "type": "double"
+    },
+    {
+      "name": "StringField",
+      "type": "string",
+      "confluent:tags": [ "PII" ]
+    },
+    {
+      "name": "BoolField",
+      "type": "boolean"
+    },
+    {
+      "name": "BytesField",
+      "type": "bytes",
+      "confluent:tags": [ "PII" ]
+    },
+    {
+      "name": "Missing",
+      "type": ["null", "string"],
+      "default": null
+    }
+  ]
+} 
+`
 	demoSchemaWithLogicalType = `
 {
   "name": "DemoSchema",
@@ -345,6 +380,61 @@ const (
   ]
 }
 `
+	wrappedUnionSchema = `{
+  "fields": [
+    {
+      "name": "id",
+      "type": "int"
+    },
+    {
+      "name": "result",
+      "type": [
+        "null",
+        {
+          "fields": [
+            {
+              "name": "code",
+              "type": "int"
+            },
+            {
+              "confluent:tags": [
+                "PII"
+              ],
+              "name": "secret",
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          ],
+          "name": "Data",
+          "type": "record"
+        },
+        {
+          "fields": [
+            {
+              "name": "code",
+              "type": "int"
+            },
+            {
+              "name": "reason",
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          ],
+          "name": "Error",
+          "type": "record"
+        }
+      ]
+    }
+  ],
+  "name": "Result",
+  "namespace": "com.acme",
+  "type": "record"
+}
+`
 )
 
 func testMessageFactory(subject string, name string) (interface{}, error) {
@@ -541,6 +631,32 @@ func TestAvroSerdeWithPrimitive(t *testing.T) {
 	deser.MessageFactory = testMessageFactory
 
 	var newobj string
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+}
+
+func TestAvroSerdeWithBytes(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := []byte{0x02, 0x03, 0x04}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+	serde.MaybeFail("serialization", serde.Expect(bytes, []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04}))
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj []byte
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
@@ -1197,6 +1313,71 @@ func TestAvroSerdeWithCELFieldTransformDisable(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(*DemoSchema).StringField, "hi"))
+}
+
+func TestAvroSerdeWithCELFieldTransformMissingProp(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "CEL_FIELD",
+		Expr: "name == 'StringField' ; value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchemaWithMissing,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	obj2 := DemoSchema{}
+	obj2.IntField = 123
+	obj2.DoubleField = 45.67
+	obj2.StringField = "hi-suffix-suffix"
+	obj2.BoolField = true
+	obj2.BytesField = []byte{1, 2}
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj2))
 }
 
 func TestAvroSerdeWithCELFieldTransform(t *testing.T) {
@@ -1859,6 +2040,85 @@ func TestAvroSerdeEncryptionWithSimpleMap(t *testing.T) {
 	// Reset encrypted field
 	obj["StringField"] = "hi"
 	obj["BytesField"] = []byte{1, 2}
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+}
+
+func TestAvroSerdeEncryptionWithWrappedUnion(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.RuleConfig = map[string]string{
+		"secret": "mysecret",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-encrypt",
+		Kind: "TRANSFORM",
+		Mode: "WRITEREAD",
+		Type: "ENCRYPT",
+		Tags: []string{"PII"},
+		Params: map[string]string{
+			"encrypt.kek.name":   "kek1",
+			"encrypt.kms.type":   "local-kms",
+			"encrypt.kms.key.id": "mykey",
+		},
+		OnFailure: "ERROR,NONE",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     wrappedUnionSchema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := make(map[string]interface{})
+	obj["id"] = 123
+	result := make(map[string]interface{})
+	result["com.acme.Data"] = map[string]interface{}{
+		"code":   456,
+		"secret": "mypii",
+	}
+	obj["result"] = result
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// Reset encrypted field
+	// Note that we use a wrapped union for secret
+	obj["result"].(map[string]interface{})["com.acme.Data"].(map[string]interface{})["secret"] = map[string]interface{}{
+		"string": "mypii",
+	}
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{

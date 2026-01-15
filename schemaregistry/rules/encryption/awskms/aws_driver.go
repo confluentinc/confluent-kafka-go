@@ -73,6 +73,7 @@ func (l *awsDriver) NewKMSClient(conf map[string]string, keyURL *string) (regist
 	if externalID == "" {
 		externalID = os.Getenv("AWS_ROLE_EXTERNAL_ID")
 	}
+	roleWebIdentityTokenFile := os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
 	var creds aws.CredentialsProvider
 	key := conf[accessKeyID]
 	secret := conf[secretAccessKey]
@@ -88,7 +89,8 @@ func (l *awsDriver) NewKMSClient(conf map[string]string, keyURL *string) (regist
 		}
 		creds = cfg.Credentials
 	}
-	if arn != "" {
+	// If roleWebIdentityTokenFile is set, use the DefaultCredentialsProvider
+	if arn != "" && roleWebIdentityTokenFile == "" {
 		region, err := getRegion(strings.TrimPrefix(uriPrefix, prefix))
 		if err != nil {
 			return nil, err
