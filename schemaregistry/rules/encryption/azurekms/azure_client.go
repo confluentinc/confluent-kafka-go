@@ -18,10 +18,11 @@ package azurekms
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/tink-crypto/tink-go/v2/core/registry"
-	"strings"
 
 	"github.com/tink-crypto/tink-go/v2/tink"
 )
@@ -55,7 +56,8 @@ func (c *azureClient) Supported(keyURI string) bool {
 }
 
 // GetAEAD gets an AEAD backend by keyURI.
-// keyURI must have the following format: 'azure-kms://https://{vaultURL}/keys/{keyName}/{keyVersion}"
+// keyURI must have the following format: 'azure-kms://https://{vaultURL}/keys/{keyName}/{keyVersion}'
+// where keyVersion is optional and if not provided, the latest version will be used.
 func (c *azureClient) GetAEAD(keyURI string) (tink.AEAD, error) {
 	if !c.Supported(keyURI) {
 		return nil, fmt.Errorf("keyURI must start with prefix %s, but got %s", c.keyURI, keyURI)
