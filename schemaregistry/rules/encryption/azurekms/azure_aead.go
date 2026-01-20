@@ -19,11 +19,12 @@ package azurekms
 import (
 	"context"
 	"errors"
+	"net/url"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/tink-crypto/tink-go/v2/tink"
-	"net/url"
-	"strings"
 )
 
 // azureAEAD represents an Azure AEAD
@@ -83,13 +84,21 @@ func (a *azureAEAD) Decrypt(ciphertext, associatedData []byte) ([]byte, error) {
 
 // getKeyInfo transforms keyID into the Azure key name and key version.
 // The keyPath is expected to have the form "https://{vaultURL}/keys/{keyName}/{keyVersion}"
+// where keyVersion is optional and if not provided, the latest version will be used.
 func getKeyInfo(keyID string) (vaultURL, keyName, keyVersion string, err error) {
 	u, err := url.Parse(keyID)
+	if err != nil {
+		return "", "", "", err
+	}
 	path := u.Path
 	parts := strings.Split(path, "/")
 	length := len(parts)
-	if length != 4 || parts[0] != "" || parts[1] != "keys" {
+	if (length != 3 && length != 4) || parts[0] != "" || parts[1] != "keys" {
 		return "", "", "", errors.New("malformed keyPath")
 	}
-	return u.Scheme + "://" + u.Host, parts[2], parts[3], nil
+	keyName = parts[2]
+	if length == 4 {
+		keyVersion = parts[3]
+	}
+	return u.Scheme + "://" + u.Host, keyName, keyVersion, nil
 }
