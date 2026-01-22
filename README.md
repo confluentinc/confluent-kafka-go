@@ -212,7 +212,7 @@ manually on the build and target system using one of the following alternatives:
 repositories or using [Confluent's Deb repository](http://docs.confluent.io/current/installation.html#installation-apt).
 - For Redhat based distros, install `librdkafka-devel` using [Confluent's YUM repository](http://docs.confluent.io/current/installation.html#rpm-packages-via-yum).
 - For MacOS X, install `librdkafka` from Homebrew. You may also need to brew install pkg-config if you don't already have it: `brew install librdkafka pkg-config`.
-- For Alpine: `apk add librdkafka-dev pkgconf`
+- For Alpine: `apk add librdkafka-dev pkgconf gcc musl-dev`
 - For Windows: there are no official/supported packages, but static builds are included for Windows/x64.
   Installing from source is needed only for GSSAPI/Kerberos support.
 - For source builds, see instructions below.
