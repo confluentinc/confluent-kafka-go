@@ -558,8 +558,8 @@ func (s *BaseDeserializer) ConfigureDeserializer(client schemaregistry.Client, s
 type SubjectNameStrategyType int
 
 const (
-	// DefaultNameStrategyType uses the strategy set in SubjectNameStrategy
-	DefaultNameStrategyType SubjectNameStrategyType = iota
+	// NoStrategyType uses the strategy set in SubjectNameStrategy
+	NoStrategyType SubjectNameStrategyType = iota
 	// TopicNameStrategyType creates a subject name by appending -[key|value] to the topic name
 	TopicNameStrategyType
 	// RecordNameStrategyType creates a subject name from the record name
@@ -587,20 +587,57 @@ type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemareg
 // RecordNameFunc extracts the record name from a schema
 type RecordNameFunc func(schema schemaregistry.SchemaInfo) (string, error)
 
-// ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
-func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) {
+// ParseSubjectNameStrategyType parses a string to SubjectNameStrategyType
+func ParseSubjectNameStrategyType(s string) SubjectNameStrategyType {
+	switch strings.ToUpper(s) {
+	case "TOPIC":
+		return TopicNameStrategyType
+	case "RECORD":
+		return RecordNameStrategyType
+	case "TOPIC_RECORD":
+		return TopicRecordNameStrategyType
+	case "ASSOCIATED":
+		return AssociatedNameStrategyType
+	case "NONE":
+		return NoStrategyType
+	default:
+		return TopicNameStrategyType
+	}
+}
+
+// StrategyFunc returns the SubjectNameStrategyFunc for the given strategy type.
+// Note: This does not handle AssociatedNameStrategyType as it requires additional parameters.
+func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordNameFunc) SubjectNameStrategyFunc {
 	switch strategyType {
 	case TopicNameStrategyType:
-		s.SubjectNameStrategy = TopicNameStrategy
+		return TopicNameStrategy
 	case RecordNameStrategyType:
-		s.SubjectNameStrategy = RecordNameStrategy(getRecordName)
+		if getRecordName != nil {
+			return RecordNameStrategy(getRecordName)
+		}
+		return TopicNameStrategy
 	case TopicRecordNameStrategyType:
-		s.SubjectNameStrategy = TopicRecordNameStrategy(getRecordName)
-	case AssociatedNameStrategyType:
-		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config, getRecordName)
+		if getRecordName != nil {
+			return TopicRecordNameStrategy(getRecordName)
+		}
+		return TopicNameStrategy
+	case NoStrategyType:
+		return nil
 	default:
-		// DefaultNameStrategyType or any unrecognized type
-		s.SubjectNameStrategy = TopicNameStrategy
+		return TopicNameStrategy
+	}
+}
+
+// ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
+func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) {
+	if strategyType == AssociatedNameStrategyType {
+		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config, getRecordName)
+	} else {
+		s.SubjectNameStrategy = StrategyFunc(strategyType, getRecordName)
+		if s.SubjectNameStrategy == nil {
+			// NoStrategyType should default to TopicNameStrategy for main strategy
+			s.SubjectNameStrategy = TopicNameStrategy
+		}
 	}
 }
 
@@ -666,31 +703,8 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 	}
 
 	// Determine fallback strategy
-	var fallbackStrategy SubjectNameStrategyFunc
-	fallbackConfig := strings.ToUpper(config[FallbackSubjectNameStrategyTypeConfig])
-	switch fallbackConfig {
-	case "TOPIC":
-		fallbackStrategy = TopicNameStrategy
-	case "RECORD":
-		if getRecordName != nil {
-			fallbackStrategy = RecordNameStrategy(getRecordName)
-		} else {
-			// Fall back to TopicNameStrategy if getRecordName is not available
-			fallbackStrategy = TopicNameStrategy
-		}
-	case "TOPIC_RECORD":
-		if getRecordName != nil {
-			fallbackStrategy = TopicRecordNameStrategy(getRecordName)
-		} else {
-			// Fall back to TopicNameStrategy if getRecordName is not available
-			fallbackStrategy = TopicNameStrategy
-		}
-	case "NONE":
-		fallbackStrategy = nil
-	default:
-		// Default is TopicNameStrategy
-		fallbackStrategy = TopicNameStrategy
-	}
+	fallbackType := ParseSubjectNameStrategyType(config[FallbackSubjectNameStrategyTypeConfig])
+	fallbackStrategy := StrategyFunc(fallbackType, getRecordName)
 
 	// Create LRU cache for subject names
 	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
