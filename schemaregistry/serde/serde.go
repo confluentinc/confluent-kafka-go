@@ -23,11 +23,13 @@ import (
 	"log"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/uuid"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 )
 
 // Type represents the type of Serde
@@ -568,6 +570,17 @@ const (
 	AssociatedNameStrategyType
 )
 
+const (
+	// KafkaClusterIDConfig is the configuration key for the Kafka cluster ID
+	KafkaClusterIDConfig = "kafka.cluster.id"
+	// NamespaceWildcard is the default namespace when no Kafka cluster ID is configured
+	NamespaceWildcard = "-"
+	// FallbackSubjectNameStrategyTypeConfig is the configuration key for the fallback subject name strategy
+	FallbackSubjectNameStrategyTypeConfig = "fallback.subject.name.strategy.type"
+	// DefaultCacheCapacity is the default capacity for the association cache
+	DefaultCacheCapacity = 1000
+)
+
 // SubjectNameStrategyFunc determines the subject for the given parameters
 type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
 
@@ -584,7 +597,7 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 	case TopicRecordNameStrategyType:
 		s.SubjectNameStrategy = TopicRecordNameStrategy(getRecordName)
 	case AssociatedNameStrategyType:
-		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config)
+		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config, getRecordName)
 	default:
 		// DefaultNameStrategyType or any unrecognized type
 		s.SubjectNameStrategy = TopicNameStrategy
@@ -630,11 +643,140 @@ func TopicRecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFu
 	}
 }
 
+// associationCacheKey is the cache key for association lookups
+type associationCacheKey struct {
+	topic    string
+	isKey    bool
+	schemaID string
+}
+
 // AssociatedNameStrategy returns a strategy that retrieves the associated subject name from schema registry.
-func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string) SubjectNameStrategyFunc {
+// The topic is passed as the resource name to schema registry. If there is a configuration property named
+// "kafka.cluster.id", then its value will be passed as the resource namespace; otherwise the value "-"
+// will be passed as the resource namespace.
+// If more than one subject is returned from the query, an error will be returned.
+// If no subjects are returned from the query, then the behavior will fall back to TopicNameStrategy,
+// unless the configuration property "fallback.subject.name.strategy.type" is set to "RECORD",
+// "TOPIC_RECORD", or "NONE".
+func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) SubjectNameStrategyFunc {
+	// Get kafka cluster ID from config, default to wildcard
+	kafkaClusterID := NamespaceWildcard
+	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
+		kafkaClusterID = id
+	}
+
+	// Determine fallback strategy
+	var fallbackStrategy SubjectNameStrategyFunc
+	fallbackConfig := strings.ToUpper(config[FallbackSubjectNameStrategyTypeConfig])
+	switch fallbackConfig {
+	case "TOPIC":
+		fallbackStrategy = TopicNameStrategy
+	case "RECORD":
+		if getRecordName != nil {
+			fallbackStrategy = RecordNameStrategy(getRecordName)
+		} else {
+			// Fall back to TopicNameStrategy if getRecordName is not available
+			fallbackStrategy = TopicNameStrategy
+		}
+	case "TOPIC_RECORD":
+		if getRecordName != nil {
+			fallbackStrategy = TopicRecordNameStrategy(getRecordName)
+		} else {
+			// Fall back to TopicNameStrategy if getRecordName is not available
+			fallbackStrategy = TopicNameStrategy
+		}
+	case "NONE":
+		fallbackStrategy = nil
+	default:
+		// Default is TopicNameStrategy
+		fallbackStrategy = TopicNameStrategy
+	}
+
+	// Create LRU cache for subject names
+	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
+	if err != nil {
+		// This should never happen since we're using a valid capacity constant
+		panic(fmt.Sprintf("failed to create LRU cache: %v", err))
+	}
+	var subjectNameCacheLock sync.RWMutex
+
 	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
-		// TODO: implement associated name lookup using client and config
-		return "", fmt.Errorf("AssociatedNameStrategy not yet implemented")
+		if topic == "" {
+			return "", nil
+		}
+
+		isKey := serdeType == KeySerde
+
+		// Create cache key using topic, isKey, and schema string
+		cacheKey := associationCacheKey{
+			topic:    topic,
+			isKey:    isKey,
+			schemaID: schema.Schema,
+		}
+
+		// Check cache first with read lock
+		subjectNameCacheLock.RLock()
+		cached, ok := subjectNameCache.Get(cacheKey)
+		subjectNameCacheLock.RUnlock()
+		if ok {
+			return cached.(string), nil
+		}
+
+		// Acquire write lock to load and cache
+		subjectNameCacheLock.Lock()
+		// another goroutine could have already put it in cache
+		cached, ok = subjectNameCache.Get(cacheKey)
+		if ok {
+			subjectNameCacheLock.Unlock()
+			return cached.(string), nil
+		}
+
+		// Load subject name from schema registry
+		subject, err := loadAssociatedSubjectName(client, topic, kafkaClusterID, isKey, schema, fallbackStrategy, serdeType)
+		if err != nil {
+			subjectNameCacheLock.Unlock()
+			return "", err
+		}
+
+		// Store in cache
+		subjectNameCache.Put(cacheKey, subject)
+		subjectNameCacheLock.Unlock()
+
+		return subject, nil
+	}
+}
+
+// loadAssociatedSubjectName loads the subject name from schema registry associations
+func loadAssociatedSubjectName(client schemaregistry.Client, topic string, kafkaClusterID string,
+	isKey bool, schema schemaregistry.SchemaInfo, fallbackStrategy SubjectNameStrategyFunc,
+	serdeType Type) (string, error) {
+
+	associationType := "value"
+	if isKey {
+		associationType = "key"
+	}
+
+	associations, err := client.GetAssociationsByResourceName(
+		topic,
+		kafkaClusterID,
+		"topic",
+		[]string{associationType},
+		"",
+		0,
+		-1,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get associations for topic %s: %w", topic, err)
+	}
+
+	if len(associations) > 1 {
+		return "", fmt.Errorf("multiple associated subjects found for topic %s", topic)
+	} else if len(associations) == 1 {
+		return associations[0].Subject, nil
+	} else if fallbackStrategy != nil {
+		return fallbackStrategy(topic, serdeType, schema)
+	} else {
+		return "", fmt.Errorf("no associated subject found for topic %s", topic)
 	}
 }
 
