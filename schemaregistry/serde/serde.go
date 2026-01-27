@@ -607,38 +607,47 @@ func ParseSubjectNameStrategyType(s string) SubjectNameStrategyType {
 
 // StrategyFunc returns the SubjectNameStrategyFunc for the given strategy type.
 // Note: This does not handle AssociatedNameStrategyType as it requires additional parameters.
-func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordNameFunc) SubjectNameStrategyFunc {
+func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordNameFunc) (SubjectNameStrategyFunc, error) {
 	switch strategyType {
 	case TopicNameStrategyType:
-		return TopicNameStrategy
+		return TopicNameStrategy, nil
 	case RecordNameStrategyType:
-		if getRecordName != nil {
-			return RecordNameStrategy(getRecordName)
+		if getRecordName == nil {
+			return nil, fmt.Errorf("getRecordName is required for RecordNameStrategyType")
 		}
-		return TopicNameStrategy
+		return RecordNameStrategy(getRecordName), nil
 	case TopicRecordNameStrategyType:
-		if getRecordName != nil {
-			return TopicRecordNameStrategy(getRecordName)
+		if getRecordName == nil {
+			return nil, fmt.Errorf("getRecordName is required for TopicRecordNameStrategyType")
 		}
-		return TopicNameStrategy
+		return TopicRecordNameStrategy(getRecordName), nil
 	case NoStrategyType:
-		return nil
+		return nil, nil
 	default:
-		return TopicNameStrategy
+		return TopicNameStrategy, nil
 	}
 }
 
 // ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
-func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) {
+func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) error {
 	if strategyType == AssociatedNameStrategyType {
-		s.SubjectNameStrategy = AssociatedNameStrategy(s.Client, config, getRecordName)
+		strategy, err := AssociatedNameStrategy(s.Client, config, getRecordName)
+		if err != nil {
+			return err
+		}
+		s.SubjectNameStrategy = strategy
 	} else {
-		s.SubjectNameStrategy = StrategyFunc(strategyType, getRecordName)
+		strategy, err := StrategyFunc(strategyType, getRecordName)
+		if err != nil {
+			return err
+		}
+		s.SubjectNameStrategy = strategy
 		if s.SubjectNameStrategy == nil {
 			// NoStrategyType should default to TopicNameStrategy for main strategy
 			s.SubjectNameStrategy = TopicNameStrategy
 		}
 	}
+	return nil
 }
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
@@ -695,7 +704,7 @@ type associationCacheKey struct {
 // If no subjects are returned from the query, then the behavior will fall back to TopicNameStrategy,
 // unless the configuration property "fallback.subject.name.strategy.type" is set to "RECORD",
 // "TOPIC_RECORD", or "NONE".
-func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) SubjectNameStrategyFunc {
+func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (SubjectNameStrategyFunc, error) {
 	// Get kafka cluster ID from config, default to wildcard
 	kafkaClusterID := NamespaceWildcard
 	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
@@ -704,7 +713,10 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 
 	// Determine fallback strategy
 	fallbackType := ParseSubjectNameStrategyType(config[FallbackSubjectNameStrategyTypeConfig])
-	fallbackStrategy := StrategyFunc(fallbackType, getRecordName)
+	fallbackStrategy, err := StrategyFunc(fallbackType, getRecordName)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create LRU cache for subject names
 	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
@@ -757,7 +769,7 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 		subjectNameCacheLock.Unlock()
 
 		return subject, nil
-	}
+	}, nil
 }
 
 // loadAssociatedSubjectName loads the subject name from schema registry associations
