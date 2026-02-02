@@ -56,6 +56,8 @@ func NewDeserializerConfig() *DeserializerConfig {
 	c := &DeserializerConfig{
 		DeserializerConfig: *serde.NewDeserializerConfig(),
 		EnableValidation:   false,
+		AssertContent:      false,
+		AssertFormat:       false,
 	}
 
 	return c
