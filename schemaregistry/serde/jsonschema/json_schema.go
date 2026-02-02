@@ -55,6 +55,8 @@ type Deserializer struct {
 // Serde represents a JSON Schema serde
 type Serde struct {
 	validate              bool
+	assertContent         bool
+	assertFormat          bool
 	schemaToTypeCache     cache.Cache
 	schemaToTypeCacheLock sync.RWMutex
 }
@@ -69,6 +71,8 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		return nil, err
 	}
 	sr := &Serde{
+		assertContent:     conf.AssertContent,
+		assertFormat:      conf.AssertFormat,
 		validate:          conf.EnableValidation,
 		schemaToTypeCache: schemaToTypeCache,
 	}
@@ -189,6 +193,8 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	}
 	sr := &Serde{
 		validate:          conf.EnableValidation,
+		assertContent:     conf.AssertContent,
+		assertFormat:      conf.AssertFormat,
 		schemaToTypeCache: schemaToTypeCache,
 	}
 	s := &Deserializer{
@@ -374,6 +380,9 @@ func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.Sche
 		return nil, err
 	}
 	compiler := jsonschema2.NewCompiler()
+	compiler.AssertContent = s.assertContent
+	compiler.AssertFormat = s.assertFormat
+
 	compiler.RegisterExtension("confluent:tags", tagsMeta, tagsCompiler{})
 	compiler.LoadURL = func(url string) (io.ReadCloser, error) {
 		url = strings.TrimPrefix(url, defaultBaseURL)
