@@ -23,6 +23,10 @@ type SerializerConfig struct {
 	serde.SerializerConfig
 	// EnableValidation enables validation of the JSON against the schema.
 	EnableValidation bool
+	// AssertContent explicitly configures content assertions in draft 2019 and above.
+	AssertContent bool
+	// AssertFormat explicitly configures format assertions in draft 2019 and above.
+	AssertFormat bool
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
@@ -30,6 +34,8 @@ func NewSerializerConfig() *SerializerConfig {
 	c := &SerializerConfig{
 		SerializerConfig: *serde.NewSerializerConfig(),
 		EnableValidation: false,
+		AssertContent:    false,
+		AssertFormat:     false,
 	}
 
 	return c
@@ -39,6 +45,10 @@ func NewSerializerConfig() *SerializerConfig {
 type DeserializerConfig struct {
 	serde.DeserializerConfig
 	EnableValidation bool
+	// AssertContent explicitly configures content assertions in draft 2019 and above.
+	AssertContent bool
+	// AssertFormat explicitly configures format assertions in draft 2019 and above.
+	AssertFormat bool
 }
 
 // NewDeserializerConfig returns a new configuration instance with sane defaults.

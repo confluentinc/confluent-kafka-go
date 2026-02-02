@@ -19,6 +19,7 @@ package jsonschema
 import (
 	"encoding/base64"
 	"errors"
+
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
@@ -583,6 +584,583 @@ func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
 	_, err = ser.Serialize("topic1", &diffObj)
 	if err == nil || !strings.Contains(err.Error(), "jsonschema") {
 		t.Errorf("Expected validation error, found %s", err)
+	}
+}
+
+func TestJSONSchemaSerializerValidationAssertFlags(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+
+	schemaWithFormats := `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "uri": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}
+`
+
+	schemaWithContent := `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "encodedData": {
+      "type": "string",
+      "contentEncoding": "base64"
+    },
+    "jsonData": {
+      "type": "string",
+      "contentMediaType": "application/json"
+    }
+  }
+}
+`
+
+	schemaCombined := `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "encodedData": {
+      "type": "string",
+      "contentEncoding": "base64"
+    }
+  }
+}
+`
+
+	testCases := []struct {
+		name          string
+		assertFormat  bool
+		assertContent bool
+		schema        string
+		topic         string
+		validObj      map[string]interface{}
+		invalidObj    map[string]interface{}
+		expectError   bool
+		errorContains []string
+	}{
+		{
+			name:          "AssertFormat enabled - valid email",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "assert-format-valid",
+			validObj: map[string]interface{}{
+				"email": "test@example.com",
+				"date":  "2024-01-01",
+				"uri":   "https://example.com",
+			},
+			expectError: false,
+		},
+		{
+			name:          "AssertFormat enabled - invalid email",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "assert-format-invalid-email",
+			invalidObj: map[string]interface{}{
+				"email": "not-an-email",
+				"date":  "2024-01-01",
+				"uri":   "https://example.com",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema", "email"},
+		},
+		{
+			name:          "AssertFormat enabled - invalid date",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "assert-format-invalid-date",
+			invalidObj: map[string]interface{}{
+				"email": "test@example.com",
+				"date":  "not-a-date",
+				"uri":   "https://example.com",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema", "date"},
+		},
+		{
+			name:          "AssertFormat enabled - invalid URI",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "assert-format-invalid-uri",
+			invalidObj: map[string]interface{}{
+				"email": "test@example.com",
+				"date":  "2024-01-01",
+				"uri":   "not a valid uri",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema", "uri"},
+		},
+		{
+			name:          "AssertContent enabled - valid content",
+			assertFormat:  false,
+			assertContent: true,
+			schema:        schemaWithContent,
+			topic:         "assert-content-valid",
+			validObj: map[string]interface{}{
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("test data")),
+				"jsonData":    `{"key":"value"}`,
+			},
+			expectError: false,
+		},
+		{
+			name:          "AssertContent enabled - invalid base64",
+			assertFormat:  false,
+			assertContent: true,
+			schema:        schemaWithContent,
+			topic:         "assert-content-invalid-base64",
+			invalidObj: map[string]interface{}{
+				"encodedData": "not-valid-base64!@#$%",
+				"jsonData":    `{"key":"value"}`,
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema"},
+		},
+		{
+			name:          "AssertContent enabled - invalid JSON",
+			assertFormat:  false,
+			assertContent: true,
+			schema:        schemaWithContent,
+			topic:         "assert-content-invalid-json",
+			invalidObj: map[string]interface{}{
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("test data")),
+				"jsonData":    "not valid json {",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema"},
+		},
+		{
+			name:          "AssertContent disabled - invalid content",
+			assertFormat:  false,
+			assertContent: false,
+			schema:        schemaWithContent,
+			topic:         "assert-content-disabled",
+			invalidObj: map[string]interface{}{
+				"encodedData": "not-valid-base64!@#$%",
+				"jsonData":    "not valid json {",
+			},
+			expectError: false,
+		},
+		{
+			name:          "Both flags enabled - valid",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "both-flags-valid",
+			validObj: map[string]interface{}{
+				"email":       "test@example.com",
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("data")),
+			},
+			expectError: false,
+		},
+		{
+			name:          "Both flags enabled - invalid email",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "both-flags-invalid-email",
+			invalidObj: map[string]interface{}{
+				"email":       "not-an-email",
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("data")),
+			},
+			expectError: true,
+		},
+		{
+			name:          "Both flags enabled - invalid encoding",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "both-flags-invalid-encoding",
+			invalidObj: map[string]interface{}{
+				"email":       "test@example.com",
+				"encodedData": "not-valid-base64!@#",
+			},
+			expectError: true,
+		},
+		{
+			name:          "Both flags enabled - both invalid",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "both-flags-both-invalid",
+			invalidObj: map[string]interface{}{
+				"email":       "not-an-email",
+				"encodedData": "not-valid-base64!@#",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := schemaregistry.NewConfig("mock://")
+			client, err := schemaregistry.NewClient(conf)
+			serde.MaybeFail("Schema Registry configuration", err)
+
+			serConfig := NewSerializerConfig()
+			serConfig.EnableValidation = true
+			serConfig.AssertFormat = tc.assertFormat
+			serConfig.AssertContent = tc.assertContent
+			serConfig.AutoRegisterSchemas = false
+			serConfig.UseLatestVersion = true
+			ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+			serde.MaybeFail("Serializer configuration", err)
+
+			info := schemaregistry.SchemaInfo{
+				Schema:     tc.schema,
+				SchemaType: "JSON",
+			}
+
+			id, err := client.Register(tc.topic+"-value", info, false)
+			serde.MaybeFail("Schema registration", err)
+			if id <= 0 {
+				t.Errorf("Expected valid schema id, found %d", id)
+			}
+
+			var obj map[string]interface{}
+			if tc.validObj != nil {
+				obj = tc.validObj
+			} else {
+				obj = tc.invalidObj
+			}
+
+			_, err = ser.Serialize(tc.topic, &obj)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected validation error but got none")
+				} else if len(tc.errorContains) > 0 {
+					foundAny := false
+					for _, substring := range tc.errorContains {
+						if strings.Contains(err.Error(), substring) {
+							foundAny = true
+							break
+						}
+					}
+					if !foundAny {
+						t.Errorf("Expected error to contain one of %v, found: %s", tc.errorContains, err)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no validation error, found: %s", err)
+				}
+			}
+		})
+	}
+}
+
+func TestJSONSchemaDeserializerValidationAssertFlags(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+
+	schemaWithFormats := `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "uri": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}
+`
+
+	schemaWithContent := `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "encodedData": {
+      "type": "string",
+      "contentEncoding": "base64"
+    },
+    "jsonData": {
+      "type": "string",
+      "contentMediaType": "application/json"
+    }
+  }
+}
+`
+
+	schemaCombined := `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "encodedData": {
+      "type": "string",
+      "contentEncoding": "base64"
+    }
+  }
+}
+`
+
+	testCases := []struct {
+		name          string
+		assertFormat  bool
+		assertContent bool
+		schema        string
+		topic         string
+		validObj      map[string]interface{}
+		invalidObj    map[string]interface{}
+		expectError   bool
+		errorContains []string
+	}{
+		{
+			name:          "AssertFormat enabled - valid email",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "deser-assert-format-valid",
+			validObj: map[string]interface{}{
+				"email": "test@example.com",
+				"date":  "2024-01-01",
+				"uri":   "https://example.com",
+			},
+			expectError: false,
+		},
+		{
+			name:          "AssertFormat enabled - invalid email",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "deser-assert-format-invalid-email",
+			invalidObj: map[string]interface{}{
+				"email": "not-an-email",
+				"date":  "2024-01-01",
+				"uri":   "https://example.com",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema", "email"},
+		},
+		{
+			name:          "AssertFormat enabled - invalid date",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "deser-assert-format-invalid-date",
+			invalidObj: map[string]interface{}{
+				"email": "test@example.com",
+				"date":  "not-a-date",
+				"uri":   "https://example.com",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema", "date"},
+		},
+		{
+			name:          "AssertFormat enabled - invalid URI",
+			assertFormat:  true,
+			assertContent: false,
+			schema:        schemaWithFormats,
+			topic:         "deser-assert-format-invalid-uri",
+			invalidObj: map[string]interface{}{
+				"email": "test@example.com",
+				"date":  "2024-01-01",
+				"uri":   "not a valid uri",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema", "uri"},
+		},
+		{
+			name:          "AssertContent enabled - valid content",
+			assertFormat:  false,
+			assertContent: true,
+			schema:        schemaWithContent,
+			topic:         "deser-assert-content-valid",
+			validObj: map[string]interface{}{
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("test data")),
+				"jsonData":    `{"key":"value"}`,
+			},
+			expectError: false,
+		},
+		{
+			name:          "AssertContent enabled - invalid base64",
+			assertFormat:  false,
+			assertContent: true,
+			schema:        schemaWithContent,
+			topic:         "deser-assert-content-invalid-base64",
+			invalidObj: map[string]interface{}{
+				"encodedData": "not-valid-base64!@#$%",
+				"jsonData":    `{"key":"value"}`,
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema"},
+		},
+		{
+			name:          "AssertContent enabled - invalid JSON",
+			assertFormat:  false,
+			assertContent: true,
+			schema:        schemaWithContent,
+			topic:         "deser-assert-content-invalid-json",
+			invalidObj: map[string]interface{}{
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("test data")),
+				"jsonData":    "not valid json {",
+			},
+			expectError:   true,
+			errorContains: []string{"jsonschema"},
+		},
+		{
+			name:          "AssertContent disabled - invalid content",
+			assertFormat:  false,
+			assertContent: false,
+			schema:        schemaWithContent,
+			topic:         "deser-assert-content-disabled",
+			invalidObj: map[string]interface{}{
+				"encodedData": "not-valid-base64!@#$%",
+				"jsonData":    "not valid json {",
+			},
+			expectError: false,
+		},
+		{
+			name:          "Both flags enabled - valid",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "deser-both-flags-valid",
+			validObj: map[string]interface{}{
+				"email":       "test@example.com",
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("data")),
+			},
+			expectError: false,
+		},
+		{
+			name:          "Both flags enabled - invalid email",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "deser-both-flags-invalid-email",
+			invalidObj: map[string]interface{}{
+				"email":       "not-an-email",
+				"encodedData": base64.StdEncoding.EncodeToString([]byte("data")),
+			},
+			expectError: true,
+		},
+		{
+			name:          "Both flags enabled - invalid encoding",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "deser-both-flags-invalid-encoding",
+			invalidObj: map[string]interface{}{
+				"email":       "test@example.com",
+				"encodedData": "not-valid-base64!@#",
+			},
+			expectError: true,
+		},
+		{
+			name:          "Both flags enabled - both invalid",
+			assertFormat:  true,
+			assertContent: true,
+			schema:        schemaCombined,
+			topic:         "deser-both-flags-both-invalid",
+			invalidObj: map[string]interface{}{
+				"email":       "not-an-email",
+				"encodedData": "not-valid-base64!@#",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := schemaregistry.NewConfig("mock://")
+			client, err := schemaregistry.NewClient(conf)
+			serde.MaybeFail("Schema Registry configuration", err)
+
+			// First serialize the data without validation to get serialized bytes
+			serConfig := NewSerializerConfig()
+			serConfig.EnableValidation = false
+			serConfig.AutoRegisterSchemas = false
+			serConfig.UseLatestVersion = true
+			ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+			serde.MaybeFail("Serializer configuration", err)
+
+			info := schemaregistry.SchemaInfo{
+				Schema:     tc.schema,
+				SchemaType: "JSON",
+			}
+
+			id, err := client.Register(tc.topic+"-value", info, false)
+			serde.MaybeFail("Schema registration", err)
+			if id <= 0 {
+				t.Errorf("Expected valid schema id, found %d", id)
+			}
+
+			var obj map[string]interface{}
+			if tc.validObj != nil {
+				obj = tc.validObj
+			} else {
+				obj = tc.invalidObj
+			}
+
+			bytes, err := ser.Serialize(tc.topic, &obj)
+			serde.MaybeFail("serialization", err)
+
+			deserConfig := NewDeserializerConfig()
+			deserConfig.EnableValidation = true
+			deserConfig.AssertFormat = tc.assertFormat
+			deserConfig.AssertContent = tc.assertContent
+			deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+			serde.MaybeFail("Deserializer configuration", err)
+			deser.Client = ser.Client
+
+			var newobj map[string]interface{}
+			err = deser.DeserializeInto(tc.topic, bytes, &newobj)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected validation error but got none")
+				} else if len(tc.errorContains) > 0 {
+					foundAny := false
+					for _, substring := range tc.errorContains {
+						if strings.Contains(err.Error(), substring) {
+							foundAny = true
+							break
+						}
+					}
+					if !foundAny {
+						t.Errorf("Expected error to contain one of %v, found: %s", tc.errorContains, err)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no validation error, found: %s", err)
+				}
+			}
+		})
 	}
 }
 
