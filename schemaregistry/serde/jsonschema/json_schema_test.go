@@ -305,6 +305,60 @@ const (
         }
     }
 `
+	schemaWithFormats = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "uri": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}
+`
+
+	schemaWithContent = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "encodedData": {
+      "type": "string",
+      "contentEncoding": "base64"
+    },
+    "jsonData": {
+      "type": "string",
+      "contentMediaType": "application/json"
+    }
+  }
+}
+`
+
+	schemaCombined = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "encodedData": {
+      "type": "string",
+      "contentEncoding": "base64"
+    }
+  }
+}
+`
 )
 
 func testMessageFactory1(subject string, name string) (interface{}, error) {
@@ -590,61 +644,6 @@ func TestFailingJSONSchemaValidationWithSimple(t *testing.T) {
 func TestJSONSchemaSerializerValidationAssertFlags(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 
-	schemaWithFormats := `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "email": {
-      "type": "string",
-      "format": "email"
-    },
-    "date": {
-      "type": "string",
-      "format": "date"
-    },
-    "uri": {
-      "type": "string",
-      "format": "uri"
-    }
-  }
-}
-`
-
-	schemaWithContent := `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "encodedData": {
-      "type": "string",
-      "contentEncoding": "base64"
-    },
-    "jsonData": {
-      "type": "string",
-      "contentMediaType": "application/json"
-    }
-  }
-}
-`
-
-	schemaCombined := `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "email": {
-      "type": "string",
-      "format": "email"
-    },
-    "encodedData": {
-      "type": "string",
-      "contentEncoding": "base64"
-    }
-  }
-}
-`
-
 	testCases := []struct {
 		name          string
 		assertFormat  bool
@@ -872,61 +871,6 @@ func TestJSONSchemaSerializerValidationAssertFlags(t *testing.T) {
 
 func TestJSONSchemaDeserializerValidationAssertFlags(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
-
-	schemaWithFormats := `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "email": {
-      "type": "string",
-      "format": "email"
-    },
-    "date": {
-      "type": "string",
-      "format": "date"
-    },
-    "uri": {
-      "type": "string",
-      "format": "uri"
-    }
-  }
-}
-`
-
-	schemaWithContent := `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "encodedData": {
-      "type": "string",
-      "contentEncoding": "base64"
-    },
-    "jsonData": {
-      "type": "string",
-      "contentMediaType": "application/json"
-    }
-  }
-}
-`
-
-	schemaCombined := `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "email": {
-      "type": "string",
-      "format": "email"
-    },
-    "encodedData": {
-      "type": "string",
-      "contentEncoding": "base64"
-    }
-  }
-}
-`
 
 	testCases := []struct {
 		name          string
