@@ -19,6 +19,7 @@ package serde
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 )
 
 // Type represents the type of Serde
@@ -792,6 +794,14 @@ func loadAssociatedSubjectName(client schemaregistry.Client, topic string, kafka
 		-1,
 	)
 	if err != nil {
+		// Handle 404 errors by falling back to the fallback strategy
+		var restErr *rest.Error
+		if errors.As(err, &restErr) && restErr.Code == 404 {
+			if fallbackStrategy != nil {
+				return fallbackStrategy(topic, serdeType, schema)
+			}
+			return "", fmt.Errorf("no associated subject found for topic %s", topic)
+		}
 		return "", fmt.Errorf("failed to get associations for topic %s: %w", topic, err)
 	}
 
