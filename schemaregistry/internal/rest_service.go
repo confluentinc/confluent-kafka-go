@@ -293,16 +293,18 @@ func createUSERINFOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderP
 	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(auth)), nil
 }
 
-// checkIdentityPoolIDAndLogicalCluster checks if identity pool id and logical cluster are set
-func checkIdentityPoolIDAndLogicalCluster(conf *ClientConfig) error {
-	if conf.BearerAuthIdentityPoolID == "" {
-		return fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
-	}
-	if conf.BearerAuthLogicalCluster == "" {
-		return fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
+// IdentityPoolIDsToString converts a slice of identity pool IDs to a comma-separated string
+func IdentityPoolIDsToString(poolIDs []string) string {
+	return strings.Join(poolIDs, ",")
+}
 
+// checkLogicalCluster checks if logical cluster is set
+// checkLogicalCluster checks if logical cluster is set for bearer authentication.
+// Note: bearer.auth.identity.pool.id is optional, as auto pool mapping is supported
+func checkLogicalCluster(conf *ClientConfig) error {
+	if conf.BearerAuthLogicalCluster == "" {
+		return fmt.Errorf("bearer.auth.logical.cluster must be specified when using bearer authentication " +
+			"(STATIC_TOKEN or OAUTHBEARER)")
 	}
 	return nil
 }
@@ -329,7 +331,7 @@ func checkBearerOAuthFields(conf *ClientConfig) error {
 			" specified with OAUTHBEARER")
 	}
 
-	err := checkIdentityPoolIDAndLogicalCluster(conf)
+	err := checkLogicalCluster(conf)
 	if err != nil {
 		return err
 	}
@@ -353,7 +355,7 @@ func createStaticTokenAuthHeaderProvider(conf *ClientConfig) (AuthenticationHead
 	// TODO: Enable these lines for major version 3 release, since static token does not check for
 	// identity pool id and logical cluster at the moment
 
-	// err := checkIdentityPoolIDAndLogicalCluster(conf)
+	// err := checkLogicalCluster(conf)
 	// if err != nil {
 	// 	return nil, err
 	// }
