@@ -237,14 +237,14 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 	config.BearerAuthLogicalCluster = "lsrc-123"
 	_, err = NewRestService(config)
 	if err != nil {
-		t.Errorf("should work with oauth bearer auth config without identity pool ID (auto mapping), got %s", err)
+		t.Errorf("should work with oauth bearer auth config without identity pool ID (auto mapping), got %v", err)
 	}
 
 	// Should also work with identity pool ID specified
 	config.BearerAuthIdentityPoolID = "pool_id"
 	_, err = NewRestService(config)
 	if err != nil {
-		t.Errorf("should work with oauth bearer auth config with identity pool ID, got %s", err)
+		t.Errorf("should work with oauth bearer auth config with identity pool ID, got %v", err)
 	}
 }
 
@@ -333,9 +333,9 @@ func TestNoAuthProviderSetAuthenticationHeaders(t *testing.T) {
 }
 
 func TestStaticTokenAuthWithOptionalIdentityPoolID(t *testing.T) {
-	url, err := url.Parse("mock://")
+	parsedURL, err := url.Parse("mock://")
 	if err != nil {
-		t.Errorf("Failed to parse URL, got %s", err)
+		t.Fatalf("Failed to parse URL, got %v", err)
 	}
 
 	// Test without identity pool ID (auto mapping)
@@ -346,34 +346,46 @@ func TestStaticTokenAuthWithOptionalIdentityPoolID(t *testing.T) {
 		BearerAuthIdentityPoolID:    "", // Empty for auto mapping
 	}
 
-	provider, err := NewAuthenticationHeaderProvider(url, config)
+	provider, err := NewAuthenticationHeaderProvider(parsedURL, config)
 	if err != nil {
-		t.Errorf("Should work with static token without identity pool ID (auto mapping), got %s", err)
+		t.Fatalf("Should work with static token without identity pool ID (auto mapping), got %v", err)
 	}
 
-	authHeader, _ := provider.GetAuthenticationHeader()
+	authHeader, err := provider.GetAuthenticationHeader()
+	if err != nil {
+		t.Errorf("GetAuthenticationHeader returned error: %v", err)
+	}
 	if authHeader != "Bearer test-token" {
 		t.Errorf("Expected Bearer test-token, got %s", authHeader)
 	}
 
-	identityPoolID, _ := provider.GetIdentityPoolID()
+	identityPoolID, err := provider.GetIdentityPoolID()
+	if err != nil {
+		t.Errorf("GetIdentityPoolID returned error: %v", err)
+	}
 	if identityPoolID != "" {
 		t.Errorf("Expected empty identity pool ID, got %s", identityPoolID)
 	}
 
-	logicalCluster, _ := provider.GetLogicalCluster()
+	logicalCluster, err := provider.GetLogicalCluster()
+	if err != nil {
+		t.Errorf("GetLogicalCluster returned error: %v", err)
+	}
 	if logicalCluster != "lsrc-123" {
 		t.Errorf("Expected lsrc-123, got %s", logicalCluster)
 	}
 
 	// Test with identity pool ID specified
 	config.BearerAuthIdentityPoolID = "pool-1,pool-2"
-	provider, err = NewAuthenticationHeaderProvider(url, config)
+	provider, err = NewAuthenticationHeaderProvider(parsedURL, config)
 	if err != nil {
-		t.Errorf("Should work with static token with identity pool ID, got %s", err)
+		t.Fatalf("Should work with static token with identity pool ID, got %v", err)
 	}
 
-	identityPoolID, _ = provider.GetIdentityPoolID()
+	identityPoolID, err = provider.GetIdentityPoolID()
+	if err != nil {
+		t.Errorf("GetIdentityPoolID returned error: %v", err)
+	}
 	if identityPoolID != "pool-1,pool-2" {
 		t.Errorf("Expected pool-1,pool-2, got %s", identityPoolID)
 	}
@@ -427,12 +439,12 @@ func TestSetAuthenticationHeadersWithoutIdentityPoolID(t *testing.T) {
 
 	rs, err := NewRestService(config)
 	if err != nil {
-		t.Errorf("Should work with static token without identity pool ID, got %s", err)
+		t.Fatalf("Should work with static token without identity pool ID, got %v", err)
 	}
 
 	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &rs.headers)
 	if err != nil {
-		t.Errorf("Should set headers without identity pool ID, got %s", err)
+		t.Fatalf("Should set headers without identity pool ID, got %v", err)
 	}
 
 	if rs.headers.Get("Authorization") != "Bearer test-token" {

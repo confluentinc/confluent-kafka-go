@@ -299,10 +299,12 @@ func IdentityPoolIDsToString(poolIDs []string) string {
 }
 
 // checkLogicalCluster checks if logical cluster is set
+// checkLogicalCluster checks if logical cluster is set for bearer authentication.
+// Note: bearer.auth.identity.pool.id is optional, as auto pool mapping is supported
 func checkLogicalCluster(conf *ClientConfig) error {
 	if conf.BearerAuthLogicalCluster == "" {
-		return fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
+		return fmt.Errorf("bearer.auth.logical.cluster must be specified when using bearer authentication " +
+			"(STATIC_TOKEN or OAUTHBEARER)")
 	}
 	return nil
 }
