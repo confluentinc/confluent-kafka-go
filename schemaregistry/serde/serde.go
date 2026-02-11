@@ -797,12 +797,10 @@ func loadAssociatedSubjectName(client schemaregistry.Client, topic string, kafka
 		// Handle 404 errors by falling back to the fallback strategy
 		var restErr *rest.Error
 		if errors.As(err, &restErr) && restErr.Code == 404 {
-			if fallbackStrategy != nil {
-				return fallbackStrategy(topic, serdeType, schema)
-			}
-			return "", fmt.Errorf("no associated subject found for topic %s", topic)
+			associations = nil
+		} else {
+			return "", fmt.Errorf("failed to get associations for topic %s: %w", topic, err)
 		}
-		return "", fmt.Errorf("failed to get associations for topic %s: %w", topic, err)
 	}
 
 	if len(associations) > 1 {
