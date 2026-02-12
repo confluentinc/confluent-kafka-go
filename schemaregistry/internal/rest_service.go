@@ -293,12 +293,6 @@ func createUSERINFOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderP
 	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(auth)), nil
 }
 
-// IdentityPoolIDsToString converts a slice of identity pool IDs to a comma-separated string
-func IdentityPoolIDsToString(poolIDs []string) string {
-	return strings.Join(poolIDs, ",")
-}
-
-// checkLogicalCluster checks if logical cluster is set
 // checkLogicalCluster checks if logical cluster is set for bearer authentication.
 // Note: bearer.auth.identity.pool.id is optional, as auto pool mapping is supported
 func checkLogicalCluster(conf *ClientConfig) error {

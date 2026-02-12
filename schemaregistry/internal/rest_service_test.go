@@ -391,44 +391,6 @@ func TestStaticTokenAuthWithOptionalIdentityPoolID(t *testing.T) {
 	}
 }
 
-func TestIdentityPoolIDsToString(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []string
-		expected string
-	}{
-		{
-			name:     "Single pool ID",
-			input:    []string{"pool-1"},
-			expected: "pool-1",
-		},
-		{
-			name:     "Multiple pool IDs",
-			input:    []string{"pool-1", "pool-2", "pool-3"},
-			expected: "pool-1,pool-2,pool-3",
-		},
-		{
-			name:     "Empty list",
-			input:    []string{},
-			expected: "",
-		},
-		{
-			name:     "Two pool IDs",
-			input:    []string{"pool-a", "pool-b"},
-			expected: "pool-a,pool-b",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IdentityPoolIDsToString(tt.input)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestSetAuthenticationHeadersWithoutIdentityPoolID(t *testing.T) {
 	config := &ClientConfig{
 		BearerAuthCredentialsSource: "STATIC_TOKEN",
