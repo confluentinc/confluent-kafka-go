@@ -22,6 +22,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/deks"
@@ -31,10 +36,6 @@ import (
 	"github.com/tink-crypto/tink-go/v2/daead"
 	tinkpb "github.com/tink-crypto/tink-go/v2/proto/tink_go_proto"
 	"github.com/tink-crypto/tink-go/v2/tink"
-	"log"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func init() {
@@ -312,6 +313,9 @@ func (f *ExecutorTransform) getOrCreateKek(ctx serde.RuleContext) (*deks.Kek, er
 	kmsType := ctx.GetParameter(EncryptKmsType)
 	kmsKeyID := ctx.GetParameter(EncryptKmsKeyID)
 	kek, err := f.retrieveKekFromRegistry(kekID)
+	if err != nil {
+		return nil, err
+	}
 	if kek == nil {
 		if isRead {
 			return nil, fmt.Errorf("no kek found for %s during consume", f.KekName)
@@ -323,6 +327,9 @@ func (f *ExecutorTransform) getOrCreateKek(ctx serde.RuleContext) (*deks.Kek, er
 			return nil, fmt.Errorf("no kms key id found for %s during produce", f.KekName)
 		}
 		kek, err = f.storeKekToRegistry(kekID, *kmsType, *kmsKeyID, false)
+		if err != nil {
+			return nil, err
+		}
 		if kek == nil {
 			// Handle conflicts (409)
 			kek, err = f.retrieveKekFromRegistry(kekID)
@@ -455,6 +462,9 @@ func (f *ExecutorTransform) createDek(dekID deks.DekID, newVersion int, encrypte
 	}
 	// encryptedDek may be passed as null if kek is shared
 	dek, err := f.storeDekToRegistry(newDekID, encryptedDek)
+	if err != nil {
+		return nil, err
+	}
 	if dek == nil {
 		// Handle conflicts (409)
 		// Use the original version, which should be null or LATEST_VERSION
