@@ -15,6 +15,7 @@
  */
 
 // Apache Kafka kafkatest VerifiableConsumer implemented in Go
+// This implementation is functionally equivalent to the Java VerifiableConsumer
 package main
 
 import (
@@ -31,347 +32,618 @@ import (
 )
 
 var (
-	verbosity = 1
-	sigs      chan os.Signal
+	verbosity              = 0
+	sigs                   chan os.Signal
+	lastConsumerState      string
+	lastAssignmentReported bool
 )
 
-func fatal(why string) {
-	fmt.Fprintf(os.Stderr, "%% FATAL ERROR: %s", why)
-	panic(why)
+// ConsumerState holds the state of the consumer
+type ConsumerState struct {
+	consumer                 *kafka.Consumer
+	topic                    string
+	maxMessages              int  // -1 for infinite
+	consumedMessages         int  // total messages consumed
+	useAutoCommit            bool // whether auto-commit is enabled
+	useAsyncCommit           bool // whether to use async commit
+	verbose                  bool // whether to output individual record data
+	run                      bool // flag to control main loop
+	currentAssignment        map[string]*PartitionState
+	consumedMsgsLastReported int
+	shuttingDown             bool
+	isCooperative            bool // whether using cooperative rebalancing protocol
 }
 
-func send(name string, msg map[string]interface{}) {
-	if msg == nil {
-		msg = make(map[string]interface{})
-	}
-	msg["name"] = name
-	msg["_time"] = time.Now().Format("2006-01-02 15:04:05.000")
-	b, err := json.Marshal(msg)
+// PartitionState tracks state for each assigned partition
+type PartitionState struct {
+	topic      string
+	partition  int32
+	count      int64 // messages consumed from this partition in current batch
+	minOffset  int64
+	maxOffset  int64
+	totalCount int64 // total messages consumed from this partition
+}
+
+var state ConsumerState
+
+// Event types for JSON output
+type ConsumerEvent struct {
+	Name      string `json:"name"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+type StartupCompleteEvent struct {
+	ConsumerEvent
+}
+
+type ShutdownCompleteEvent struct {
+	ConsumerEvent
+}
+
+type TopicPartitionInfo struct {
+	Topic     string `json:"topic"`
+	Partition int32  `json:"partition"`
+}
+
+type PartitionsAssignedEvent struct {
+	ConsumerEvent
+	Partitions []TopicPartitionInfo `json:"partitions"`
+}
+
+type PartitionsRevokedEvent struct {
+	ConsumerEvent
+	Partitions []TopicPartitionInfo `json:"partitions"`
+}
+
+type RecordSetSummary struct {
+	Topic     string `json:"topic"`
+	Partition int32  `json:"partition"`
+	Count     int64  `json:"count"`
+	MinOffset int64  `json:"minOffset"`
+	MaxOffset int64  `json:"maxOffset"`
+}
+
+type RecordsConsumedEvent struct {
+	ConsumerEvent
+	Count      int64              `json:"count"`
+	Partitions []RecordSetSummary `json:"partitions"`
+}
+
+type RecordDataEvent struct {
+	ConsumerEvent
+	Topic     string `json:"topic"`
+	Partition int32  `json:"partition"`
+	Offset    int64  `json:"offset"`
+	Key       string `json:"key,omitempty"`
+	Value     string `json:"value"`
+}
+
+type CommitData struct {
+	Topic     string `json:"topic"`
+	Partition int32  `json:"partition"`
+	Offset    int64  `json:"offset"`
+}
+
+type OffsetsCommittedEvent struct {
+	ConsumerEvent
+	Offsets []CommitData `json:"offsets"`
+	Success bool         `json:"success"`
+	Error   string       `json:"error,omitempty"`
+}
+
+// send prints a JSON event to stdout
+func send(event interface{}) {
+	b, err := json.Marshal(event)
 	if err != nil {
-		fatal(fmt.Sprintf("json.Marshal failed: %v", err))
+		fmt.Fprintf(os.Stderr, "Failed to marshal JSON: %v\n", err)
+		return
 	}
 	fmt.Println(string(b))
 }
 
-func partitionsToMap(partitions []kafka.TopicPartition) []map[string]interface{} {
-	parts := make([]map[string]interface{}, len(partitions))
+// getPartitionKey returns a unique key for a partition
+func getPartitionKey(topic string, partition int32) string {
+	return fmt.Sprintf("%s-%d", topic, partition)
+}
+
+// topicPartitionsToInfo converts kafka.TopicPartition slice to TopicPartitionInfo slice
+func topicPartitionsToInfo(partitions []kafka.TopicPartition) []TopicPartitionInfo {
+	infos := make([]TopicPartitionInfo, len(partitions))
 	for i, tp := range partitions {
-		parts[i] = map[string]interface{}{"topic": *tp.Topic, "partition": tp.Partition, "offset": tp.Offset}
-	}
-	return parts
-}
-
-func sendOffsetsCommitted(offsets []kafka.TopicPartition, err error) {
-	if len(state.currAssignment) == 0 {
-		// Dont emit offsets_committed if there is no current assignment
-		// This happens when auto_commit is enabled since we also
-		// force a manual commit on rebalance to make sure
-		// offsets_committed is emitted prior to partitions_revoked,
-		// so the builtin auto committer will also kick in and post
-		// this later OffsetsCommitted event which we simply ignore..
-		fmt.Fprintf(os.Stderr, "%% Ignore OffsetsCommitted(%v) without a valid assignment\n", err)
-		return
-	}
-	msg := make(map[string]interface{})
-
-	if err != nil {
-		msg["success"] = false
-		msg["error"] = fmt.Sprintf("%v", err)
-
-		kerr, ok := err.(kafka.Error)
-		if ok && kerr.Code() == kafka.ErrNoOffset {
-			fmt.Fprintf(os.Stderr, "%% No offsets to commit\n")
-			return
+		infos[i] = TopicPartitionInfo{
+			Topic:     *tp.Topic,
+			Partition: tp.Partition,
 		}
+	}
+	return infos
+}
 
-		fmt.Fprintf(os.Stderr, "%% Commit failed: %v", msg["error"])
-	} else {
-		msg["success"] = true
+// hasMessageLimit returns true if there's a max message limit
+func hasMessageLimit() bool {
+	return state.maxMessages >= 0
+}
 
+// isFinished returns true if we've consumed enough messages
+func isFinished() bool {
+	return hasMessageLimit() && state.consumedMessages >= state.maxMessages
+}
+
+// onPartitionsAssigned handles partition assignment
+func onPartitionsAssigned(partitions []kafka.TopicPartition) {
+	if verbosity >= 1 {
+		fmt.Fprintf(os.Stderr, "%% Partitions assigned: %v\n", partitions)
 	}
 
-	if offsets != nil {
-		msg["offsets"] = partitionsToMap(offsets)
+	// Clear current assignment and create new state
+	state.currentAssignment = make(map[string]*PartitionState)
+	for _, tp := range partitions {
+		key := getPartitionKey(*tp.Topic, tp.Partition)
+		state.currentAssignment[key] = &PartitionState{
+			topic:     *tp.Topic,
+			partition: tp.Partition,
+			minOffset: -1,
+			maxOffset: -1,
+		}
 	}
 
-	// Make sure we report consumption before commit,
-	// otherwise tests may fail because of commit > consumed
-	sendRecordsConsumed(true)
-
-	send("offsets_committed", msg)
+	send(PartitionsAssignedEvent{
+		ConsumerEvent: ConsumerEvent{
+			Name:      "partitions_assigned",
+			Timestamp: time.Now().UnixMilli(),
+		},
+		Partitions: topicPartitionsToInfo(partitions),
+	})
 }
 
-func sendPartitions(name string, partitions []kafka.TopicPartition) {
-
-	msg := make(map[string]interface{})
-	msg["partitions"] = partitionsToMap(partitions)
-
-	send(name, msg)
-}
-
-type assignedPartition struct {
-	tp           kafka.TopicPartition
-	consumedMsgs int
-	minOffset    int64
-	maxOffset    int64
-}
-
-func assignmentKey(tp kafka.TopicPartition) string {
-	return fmt.Sprintf("%s-%d", *tp.Topic, tp.Partition)
-}
-
-func findAssignment(tp kafka.TopicPartition) *assignedPartition {
-	a, ok := state.currAssignment[assignmentKey(tp)]
-	if !ok {
-		return nil
-	}
-	return a
-}
-
-func addAssignment(tp kafka.TopicPartition) {
-	state.currAssignment[assignmentKey(tp)] = &assignedPartition{tp: tp, minOffset: -1, maxOffset: -1}
-}
-
-func clearCurrAssignment() {
-	state.currAssignment = make(map[string]*assignedPartition)
-}
-
-type commState struct {
-	run                      bool
-	consumedMsgs             int
-	consumedMsgsLastReported int
-	consumedMsgsAtLastCommit int
-	currAssignment           map[string]*assignedPartition
-	maxMessages              int
-	autoCommit               bool
-	asyncCommit              bool
-	c                        *kafka.Consumer
-	termOnRevoke             bool
-}
-
-var state commState
-
-func sendRecordsConsumed(immediate bool) {
-	if len(state.currAssignment) == 0 ||
-		(!immediate && state.consumedMsgsLastReported+1000 > state.consumedMsgs) {
-		return
+// onPartitionsRevoked handles partition revocation
+func onPartitionsRevoked(partitions []kafka.TopicPartition) {
+	if verbosity >= 1 {
+		fmt.Fprintf(os.Stderr, "%% Partitions revoked: %v\n", partitions)
 	}
 
-	msg := map[string]interface{}{}
-	msg["count"] = state.consumedMsgs - state.consumedMsgsLastReported
-	parts := make([]map[string]interface{}, len(state.currAssignment))
-	i := 0
-	for _, a := range state.currAssignment {
-		if a.minOffset == -1 {
-			// Skip partitions that havent had any messages since last time.
-			// This is to circumvent some minOffset checks in kafkatest.
+	send(PartitionsRevokedEvent{
+		ConsumerEvent: ConsumerEvent{
+			Name:      "partitions_revoked",
+			Timestamp: time.Now().UnixMilli(),
+		},
+		Partitions: topicPartitionsToInfo(partitions),
+	})
+
+	// Clear current assignment
+	state.currentAssignment = make(map[string]*PartitionState)
+}
+
+// onRecordsReceived processes consumed records and returns offsets to commit
+func onRecordsReceived(records []*kafka.Message) []kafka.TopicPartition {
+	offsetsMap := make(map[string]kafka.TopicPartition)
+
+	// Group records by partition
+	partitionRecords := make(map[string][]*kafka.Message)
+	for _, record := range records {
+		key := getPartitionKey(*record.TopicPartition.Topic, record.TopicPartition.Partition)
+		partitionRecords[key] = append(partitionRecords[key], record)
+	}
+
+	summaries := []RecordSetSummary{}
+
+	for key, partRecords := range partitionRecords {
+		partState, ok := state.currentAssignment[key]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "%% Received records for unassigned partition: %s\n", key)
 			continue
 		}
-		parts[i] = map[string]interface{}{"topic": *a.tp.Topic,
-			"partition":     a.tp.Partition,
-			"consumed_msgs": a.consumedMsgs,
-			"minOffset":     a.minOffset,
-			"maxOffset":     a.maxOffset}
-		a.minOffset = -1
-		i++
+
+		// Check message limit
+		if hasMessageLimit() && state.consumedMessages+len(partRecords) > state.maxMessages {
+			partRecords = partRecords[0 : state.maxMessages-state.consumedMessages]
+		}
+
+		if len(partRecords) == 0 {
+			continue
+		}
+
+		minOffset := int64(partRecords[0].TopicPartition.Offset)
+		maxOffset := int64(partRecords[len(partRecords)-1].TopicPartition.Offset)
+
+		// Update partition state
+		if partState.minOffset == -1 || minOffset < partState.minOffset {
+			partState.minOffset = minOffset
+		}
+		if maxOffset > partState.maxOffset {
+			partState.maxOffset = maxOffset
+		}
+		partState.count += int64(len(partRecords))
+		partState.totalCount += int64(len(partRecords))
+
+		// Add to offsets to commit (next offset to read)
+		topicCopy := partState.topic
+		tp := kafka.TopicPartition{
+			Topic:     &topicCopy,
+			Partition: partState.partition,
+			Offset:    kafka.Offset(maxOffset + 1),
+		}
+		offsetsMap[key] = tp
+
+		// Output individual record data if verbose
+		if state.verbose {
+			for _, record := range partRecords {
+				event := RecordDataEvent{
+					ConsumerEvent: ConsumerEvent{
+						Name:      "record_data",
+						Timestamp: time.Now().UnixMilli(),
+					},
+					Topic:     *record.TopicPartition.Topic,
+					Partition: record.TopicPartition.Partition,
+					Offset:    int64(record.TopicPartition.Offset),
+					Value:     string(record.Value),
+				}
+				if record.Key != nil {
+					event.Key = string(record.Key)
+				}
+				send(event)
+			}
+		}
+
+		// Add summary
+		summaries = append(summaries, RecordSetSummary{
+			Topic:     partState.topic,
+			Partition: partState.partition,
+			Count:     int64(len(partRecords)),
+			MinOffset: minOffset,
+			MaxOffset: maxOffset,
+		})
+
+		state.consumedMessages += len(partRecords)
+
+		if isFinished() {
+			break
+		}
 	}
-	msg["partitions"] = parts[0:i]
 
-	send("records_consumed", msg)
+	// Send records_consumed event
+	send(RecordsConsumedEvent{
+		ConsumerEvent: ConsumerEvent{
+			Name:      "records_consumed",
+			Timestamp: time.Now().UnixMilli(),
+		},
+		Count:      int64(len(records)),
+		Partitions: summaries,
+	})
 
-	state.consumedMsgsLastReported = state.consumedMsgs
+	// Convert map to slice
+	offsets := make([]kafka.TopicPartition, 0, len(offsetsMap))
+	for _, tp := range offsetsMap {
+		offsets = append(offsets, tp)
+	}
+
+	return offsets
 }
 
-// do_commit commits every 1000 messages or whenever there is a consume timeout, or when immediate==true
-func doCommit(immediate bool, async bool) {
-	if !immediate &&
-		(state.autoCommit ||
-			state.consumedMsgsAtLastCommit+1000 > state.consumedMsgs) {
+// commitSync performs synchronous commit
+func commitSync(offsets []kafka.TopicPartition) {
+	if len(offsets) == 0 {
 		return
 	}
 
-	async = state.asyncCommit
+	committedOffsets, err := state.consumer.CommitOffsets(offsets)
 
-	fmt.Fprintf(os.Stderr, "%% Committing %d messages (async=%v)\n",
-		state.consumedMsgs-state.consumedMsgsAtLastCommit, async)
-
-	state.consumedMsgsAtLastCommit = state.consumedMsgs
-
-	var waitCommitted chan bool
-
-	if !async {
-		waitCommitted = make(chan bool)
+	// Prepare commit data
+	commitData := []CommitData{}
+	for _, tp := range committedOffsets {
+		commitData = append(commitData, CommitData{
+			Topic:     *tp.Topic,
+			Partition: tp.Partition,
+			Offset:    int64(tp.Offset),
+		})
 	}
 
-	go func() {
-		offsets, err := state.c.Commit()
+	event := OffsetsCommittedEvent{
+		ConsumerEvent: ConsumerEvent{
+			Name:      "offsets_committed",
+			Timestamp: time.Now().UnixMilli(),
+		},
+		Offsets: commitData,
+		Success: err == nil,
+	}
 
-		sendOffsetsCommitted(offsets, err)
-
-		if !async {
-			close(waitCommitted)
+	if err != nil {
+		event.Error = err.Error()
+		if verbosity >= 1 {
+			fmt.Fprintf(os.Stderr, "%% Commit failed: %v\n", err)
 		}
-	}()
+	}
 
-	if !async {
-		_, _ = <-waitCommitted
+	send(event)
+}
+
+// commitAsync performs asynchronous commit
+func commitAsync(offsets []kafka.TopicPartition) {
+	if len(offsets) == 0 {
+		return
+	}
+
+	// Async commit - callback will be received as an event
+	_, err := state.consumer.CommitOffsets(offsets)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%% Async commit error: %v\n", err)
 	}
 }
 
-// returns false when consumer should terminate, else true to keep running.
-func handleMsg(m *kafka.Message) bool {
-	if verbosity >= 2 {
-		fmt.Fprintf(os.Stderr, "%% Message receved: %v:\n", m.TopicPartition)
-	}
-
-	a := findAssignment(m.TopicPartition)
-	if a == nil {
-		fmt.Fprintf(os.Stderr, "%% Received message on unassigned partition: %v\n", m.TopicPartition)
-		return true
-	}
-
-	a.consumedMsgs++
-	offset := int64(m.TopicPartition.Offset)
-	if a.minOffset == -1 {
-		a.minOffset = offset
-	}
-	if a.maxOffset < offset {
-		a.maxOffset = offset
-	}
-
-	state.consumedMsgs++
-
-	sendRecordsConsumed(false)
-	doCommit(false, state.asyncCommit)
-
-	if state.maxMessages > 0 && state.consumedMsgs >= state.maxMessages {
-		// ignore extra messages
-		return false
-	}
-
-	return true
-
-}
-
-// handle_event handles an event as returned by Poll().
-func handleEvent(c *kafka.Consumer, ev kafka.Event) {
-	switch e := ev.(type) {
+// rebalanceCallback is called on each group rebalance
+func rebalanceCallback(c *kafka.Consumer, event kafka.Event) error {
+	switch e := event.(type) {
 	case kafka.AssignedPartitions:
-		if len(state.currAssignment) > 0 {
-			fatal(fmt.Sprintf("Assign: currAssignment should have been empty: %v", state.currAssignment))
+		fmt.Fprintf(os.Stderr, "%% AssignedPartitions event received with %d partitions\n", len(e.Partitions))
+		onPartitionsAssigned(e.Partitions)
+		lastAssignmentReported = true
+
+		// Use incremental assign for cooperative rebalancing (consumer protocol)
+		// Use regular assign for eager rebalancing (classic protocol)
+		var err error
+		if state.isCooperative {
+			err = c.IncrementalAssign(e.Partitions)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%% Error incrementally assigning partitions: %v\n", err)
+				return err
+			}
+		} else {
+			err = c.Assign(e.Partitions)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%% Error assigning partitions: %v\n", err)
+				return err
+			}
 		}
-		state.currAssignment = make(map[string]*assignedPartition)
-		for _, tp := range e.Partitions {
-			addAssignment(tp)
-		}
-		sendPartitions("partitions_assigned", e.Partitions)
-		c.Assign(e.Partitions)
 
 	case kafka.RevokedPartitions:
-		sendRecordsConsumed(true)
-		doCommit(true, false)
-		sendPartitions("partitions_revoked", e.Partitions)
-		clearCurrAssignment()
-		c.Unassign()
-		if state.termOnRevoke {
-			state.run = false
-		}
+		fmt.Fprintf(os.Stderr, "%% RevokedPartitions event received with %d partitions\n", len(e.Partitions))
+		onPartitionsRevoked(e.Partitions)
 
-	case kafka.OffsetsCommitted:
-		sendOffsetsCommitted(e.Offsets, e.Error)
-
-	case *kafka.Message:
-		state.run = handleMsg(e)
-
-	case kafka.Error:
-		if e.Code() == kafka.ErrUnknownTopicOrPart {
-			fmt.Fprintf(os.Stderr,
-				"%% Ignoring transient error: %v\n", e)
-		} else {
-			fatal(fmt.Sprintf("%% Error: %v\n", e))
+		// Use incremental unassign for cooperative rebalancing
+		// For eager rebalancing, unassign is called automatically by the library
+		if state.isCooperative {
+			err := c.IncrementalUnassign(e.Partitions)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%% Error incrementally unassigning partitions: %v\n", err)
+				return err
+			}
 		}
 
 	default:
-		fmt.Fprintf(os.Stderr, "%% Unhandled event %T ignored: %v\n", e, e)
+		fmt.Fprintf(os.Stderr, "%% Unexpected rebalance event type: %T\n", e)
 	}
+	return nil
 }
 
-// main_loop serves consumer events, signals, etc.
-// will run for at most (roughly) \p timeout seconds.
-func mainLoop(c *kafka.Consumer, timeout int) {
-	tmout := time.NewTicker(time.Duration(timeout) * time.Second)
-	every1s := time.NewTicker(1 * time.Second)
+// statsCallback processes statistics from librdkafka
+func statsCallback(stats string) {
+	// Only apply workaround for consumer protocol (KIP-848)
+	// The classic protocol correctly invokes callbacks for empty assignments
+	if !state.isCooperative {
+		return
+	}
 
-out:
-	for state.run == true {
-		select {
+	// Parse the stats JSON to check consumer state and assignment
+	var statsData map[string]interface{}
+	err := json.Unmarshal([]byte(stats), &statsData)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%% Failed to parse stats: %v\n", err)
+		return
+	}
 
-		case _ = <-tmout.C:
-			tmout.Stop()
-			break out
+	// Check consumer group state
+	cgrp, ok := statsData["cgrp"].(map[string]interface{})
+	if !ok {
+		return
+	}
 
-		case sig := <-sigs:
-			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
-			state.run = false
+	cgrpState, _ := cgrp["state"].(string)
+	cgrpStateAge, _ := cgrp["stateage"].(float64)
 
-		case _ = <-every1s.C:
-			// Report consumed messages
-			sendRecordsConsumed(true)
-			// Commit on timeout as well (not just every 1000 messages)
-			doCommit(false, state.asyncCommit)
+	// Track state changes
+	if cgrpState != lastConsumerState {
+		fmt.Fprintf(os.Stderr, "%% Consumer state changed: %s -> %s\n", lastConsumerState, cgrpState)
+		lastConsumerState = cgrpState
+	}
 
-		default:
-			//case _ = <-time.After(100000 * time.Microsecond):
-			for true {
-				ev := c.Poll(0)
-				if ev == nil {
-					break
-				}
-				handleEvent(c, ev)
+	// WORKAROUND for librdkafka bug in consumer protocol (KIP-848):
+	// When a consumer joins with an empty assignment, librdkafka skips the rebalance
+	// callback because it considers the assignment "unchanged" (comparing two empty lists).
+	// This is a bug in librdkafka's optimization logic at rdkafka_cgrp.c:2844-2865.
+	// The Java consumer always invokes the callback on join, even with empty assignments.
+	// This workaround ensures consistent behavior by manually triggering the callback.
+	if cgrpState == "up" && cgrpStateAge < 2000 && !lastAssignmentReported {
+		// Consumer just joined and is stable, check if we have assignment
+		assignment, err := state.consumer.Assignment()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%% Failed to get assignment: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "%% Consumer joined group with assignment: %v\n", assignment)
+			// If no partitions assigned and callback wasn't called, trigger it manually
+			if len(assignment) == 0 {
+				fmt.Fprintf(os.Stderr, "%% Manually triggering onPartitionsAssigned with empty assignment (consumer protocol workaround)\n")
+				onPartitionsAssigned([]kafka.TopicPartition{})
+				lastAssignmentReported = true
 			}
 		}
 	}
 }
 
-func runConsumer(config *kafka.ConfigMap, topic string) {
-	c, err := kafka.NewConsumer(config)
+// handleEvent processes consumer events from Poll()
+func handleEvent(ev kafka.Event) {
+	switch e := ev.(type) {
+	case *kafka.Message:
+		if e.TopicPartition.Error != nil {
+			fmt.Fprintf(os.Stderr, "%% Message error: %v\n", e.TopicPartition.Error)
+			return
+		}
+
+		// Batch messages for processing
+		records := []*kafka.Message{e}
+		offsets := onRecordsReceived(records)
+
+		// Commit if not using auto-commit
+		if !state.useAutoCommit && len(offsets) > 0 {
+			if state.useAsyncCommit {
+				commitAsync(offsets)
+			} else {
+				commitSync(offsets)
+			}
+		}
+
+		// Check if finished
+		if isFinished() {
+			state.run = false
+		}
+
+	case kafka.OffsetsCommitted:
+		// This event is received for async commits
+		if state.useAsyncCommit {
+			commitData := []CommitData{}
+			for _, tp := range e.Offsets {
+				commitData = append(commitData, CommitData{
+					Topic:     *tp.Topic,
+					Partition: tp.Partition,
+					Offset:    int64(tp.Offset),
+				})
+			}
+
+			event := OffsetsCommittedEvent{
+				ConsumerEvent: ConsumerEvent{
+					Name:      "offsets_committed",
+					Timestamp: time.Now().UnixMilli(),
+				},
+				Offsets: commitData,
+				Success: e.Error == nil,
+			}
+
+			if e.Error != nil {
+				event.Error = e.Error.Error()
+			}
+
+			send(event)
+		}
+
+	case *kafka.Stats:
+		// Process statistics to track consumer state
+		statsCallback(e.String())
+
+	case kafka.Error:
+		// Check if it's a fatal error
+		if e.Code() == kafka.ErrUnknownTopicOrPart {
+			fmt.Fprintf(os.Stderr, "%% Ignorable error: %v\n", e)
+		} else {
+			fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
+			// Some errors are fatal
+			if e.IsFatal() {
+				fmt.Fprintf(os.Stderr, "%% Fatal error detected, terminating immediately\n")
+				// Send shutdown event and exit immediately
+				// Don't call Close() as it may hang trying to leave the consumer group
+				send(ShutdownCompleteEvent{
+					ConsumerEvent: ConsumerEvent{
+						Name:      "shutdown_complete",
+						Timestamp: time.Now().UnixMilli(),
+					},
+				})
+				os.Exit(1)
+			}
+		}
+
+	default:
+		if verbosity >= 2 {
+			fmt.Fprintf(os.Stderr, "%% Ignored event: %T %v\n", e, e)
+		}
+	}
+}
+
+// run is the main consumer loop
+func run() {
+	defer func() {
+		state.consumer.Close()
+		send(ShutdownCompleteEvent{
+			ConsumerEvent: ConsumerEvent{
+				Name:      "shutdown_complete",
+				Timestamp: time.Now().UnixMilli(),
+			},
+		})
+	}()
+
+	// Subscribe to topic with rebalance callback
+	err := state.consumer.SubscribeTopics([]string{state.topic}, rebalanceCallback)
 	if err != nil {
-		fatal(fmt.Sprintf("Failed to create consumer: %v", err))
+		fmt.Fprintf(os.Stderr, "Failed to subscribe to topic: %v\n", err)
+		return
 	}
 
-	_, verstr := kafka.LibraryVersion()
-	fmt.Fprintf(os.Stderr, "%% Created Consumer %v (%s)\n", c, verstr)
-	state.c = c
+	send(StartupCompleteEvent{
+		ConsumerEvent: ConsumerEvent{
+			Name:      "startup_complete",
+			Timestamp: time.Now().UnixMilli(),
+		},
+	})
 
-	c.Subscribe(topic, nil)
-
-	send("startup_complete", nil)
 	state.run = true
 
-	mainLoop(c, 10*60)
+	// Main poll loop
+	for state.run {
+		select {
+		case sig := <-sigs:
+			fmt.Fprintf(os.Stderr, "%% Terminating on signal %v\n", sig)
+			state.run = false
+			return
 
-	tTermBegin := time.Now()
-	fmt.Fprintf(os.Stderr, "%% Consumer shutting down\n")
+		default:
+			// Poll with timeout (note: -1 would block indefinitely)
+			ev := state.consumer.Poll(100)
+			if ev != nil {
+				handleEvent(ev)
+				// Check if a fatal error was encountered and exit immediately
+				if !state.run {
+					fmt.Fprintf(os.Stderr, "%% Exiting main loop due to fatal error\n")
+					return
+				}
+			}
+		}
+	}
+}
 
-	sendRecordsConsumed(true)
+// loadPropertiesFile loads a properties file into the config map
+func loadPropertiesFile(filename string, config *kafka.ConfigMap) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 
-	// Final commit (if auto commit is disabled)
-	doCommit(false, false)
+	// Simple properties file parser
+	var lines []string
+	buf := make([]byte, 1024)
+	content := ""
+	for {
+		n, err := file.Read(buf)
+		if n > 0 {
+			content += string(buf[:n])
+		}
+		if err != nil {
+			break
+		}
+	}
 
-	c.Unsubscribe()
+	lines = strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Skip empty lines and comments
+		if len(line) == 0 || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			(*config)[key] = value
+		}
+	}
 
-	// Wait for rebalance, final offset commits, etc.
-	state.run = true
-	state.termOnRevoke = true
-	mainLoop(c, 10)
-
-	fmt.Fprintf(os.Stderr, "%% Closing consumer\n")
-
-	c.Close()
-
-	msg := make(map[string]interface{})
-	msg["_shutdown_duration"] = time.Since(tTermBegin).Seconds()
-	send("shutdown_complete", msg)
+	return nil
 }
 
 func main() {
@@ -379,66 +651,141 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Default config
-	conf := kafka.ConfigMap{"auto.offset.reset": "earliest"}
+	conf := kafka.ConfigMap{}
 
 	/* Required options */
-	group := kingpin.Flag("group-id", "Consumer group").Required().String()
-	topic := kingpin.Flag("topic", "Topic to consume").Required().String()
-	brokers := kingpin.Flag("broker-list", "Bootstrap broker(s)").Required().String()
-	sessionTimeout := kingpin.Flag("session-timeout", "Session timeout").Required().Int()
+	topic := kingpin.Flag("topic", "Consumes messages from this topic").Required().String()
+	brokers := kingpin.Flag("bootstrap-server", "The server(s) to connect to").Required().String()
+	groupId := kingpin.Flag("group-id", "The group id of the consumer group").Required().String()
 
-	/* Optionals */
-	enableAutocommit := kingpin.Flag("enable-autocommit", "Enable auto-commit").Default("true").Bool()
-	maxMessages := kingpin.Flag("max-messages", "Max messages to consume").Default("10000000").Int()
-	javaAssignmentStrategy := kingpin.Flag("assignment-strategy", "Assignment strategy (Java class name)").String()
-	configFile := kingpin.Flag("consumer.config", "SerializerConfig file").File()
+	/* Optional options */
+	groupProtocol := kingpin.Flag("group-protocol", "Group protocol (classic or consumer)").Default("classic").String()
+	groupRemoteAssignor := kingpin.Flag("group-remote-assignor", "Group remote assignor").Default("uniform").String()
+	groupInstanceId := kingpin.Flag("group-instance-id", "A unique identifier of the consumer instance").String()
+	maxMessages := kingpin.Flag("max-messages", "Consume this many messages. If -1, consume until killed externally").Default("-1").Int()
+	sessionTimeout := kingpin.Flag("session-timeout", "Set the consumer's session timeout in ms").Default("-1").Int()
+	verbose := kingpin.Flag("verbose", "Enable to log individual consumed records").Default("false").Bool()
+	enableAutocommit := kingpin.Flag("enable-autocommit", "Enable offset auto-commit on consumer").Default("false").Bool()
+	resetPolicy := kingpin.Flag("reset-policy", "Set reset policy (earliest, latest, or none)").Default("earliest").String()
+	assignmentStrategy := kingpin.Flag("assignment-strategy", "Set assignment strategy (Java class name)").Default("org.apache.kafka.clients.consumer.RangeAssignor").String()
+	consumerConfig := kingpin.Flag("consumer.config", "(DEPRECATED) Consumer config properties file").String()
+	commandConfig := kingpin.Flag("command-config", "Config properties file").String()
 	debug := kingpin.Flag("debug", "Debug flags").String()
-	xconf := kingpin.Flag("--property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
+	xconf := kingpin.Flag("property", "CSV separated key=value librdkafka configuration properties").Short('X').String()
 
 	kingpin.Parse()
 
+	// Set required config
 	conf["bootstrap.servers"] = *brokers
-	conf["group.id"] = *group
-	conf["session.timeout.ms"] = *sessionTimeout
+	conf["group.id"] = *groupId
 	conf["enable.auto.commit"] = *enableAutocommit
+	conf["auto.offset.reset"] = *resetPolicy
+	conf["group.protocol"] = *groupProtocol
+
+	// Enable rebalance callback
+	conf["go.application.rebalance.enable"] = true
+	conf["go.events.channel.enable"] = false
+
+	// Enable statistics callback to track consumer state
+	conf["statistics.interval.ms"] = 1000
+
+	// Load config files if specified
+	if *consumerConfig != "" && *commandConfig != "" {
+		fmt.Fprintf(os.Stderr, "Error: Options --consumer.config and --command-config are mutually exclusive\n")
+		os.Exit(1)
+	}
+
+	if *consumerConfig != "" {
+		fmt.Fprintf(os.Stderr, "Option --consumer.config has been deprecated and will be removed in a future version. Use --command-config instead.\n")
+		err := loadPropertiesFile(*consumerConfig, &conf)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load consumer config: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	if *commandConfig != "" {
+		err := loadPropertiesFile(*commandConfig, &conf)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load command config: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Set group remote assignor if using consumer protocol
+	if *groupProtocol == "consumer" && *groupRemoteAssignor != "" {
+		conf["group.remote.assignor"] = *groupRemoteAssignor
+	}
+
+	// Set assignment strategy if using classic protocol
+	if *groupProtocol == "classic" && *assignmentStrategy != "" {
+		// Convert Java class name to librdkafka strategy name
+		var strats []string
+		for _, jstrat := range strings.Split(*assignmentStrategy, ",") {
+			parts := strings.Split(jstrat, ".")
+			stratName := parts[len(parts)-1]
+			stratName = strings.TrimSuffix(stratName, "Assignor")
+			stratName = strings.ToLower(stratName)
+			strats = append(strats, stratName)
+		}
+		conf["partition.assignment.strategy"] = strings.Join(strats, ",")
+		if verbosity >= 1 {
+			fmt.Fprintf(os.Stderr, "%% Mapped assignment strategy %s -> %s\n",
+				*assignmentStrategy, conf["partition.assignment.strategy"])
+		}
+	}
+
+	// Set session timeout if specified
+	if *sessionTimeout > 0 {
+		conf["session.timeout.ms"] = *sessionTimeout
+	}
+
+	// Set group instance id if specified
+	if *groupInstanceId != "" {
+		conf["group.instance.id"] = *groupInstanceId
+	}
 
 	if len(*debug) > 0 {
 		conf["debug"] = *debug
 	}
 
-	/* Convert Java assignment strategy(s) (CSV) to librdkafka one.
-	 * "[java.class.path.]Strategy[Assignor],.." -> "strategy,.." */
-	if javaAssignmentStrategy != nil && len(*javaAssignmentStrategy) > 0 {
-		var strats []string
-		for _, jstrat := range strings.Split(*javaAssignmentStrategy, ",") {
-			s := strings.Split(jstrat, ".")
-			strats = append(strats, strings.ToLower(strings.TrimSuffix(s[len(s)-1], "Assignor")))
-		}
-		conf["partition.assignment.strategy"] = strings.Join(strats, ",")
-		fmt.Fprintf(os.Stderr, "%% Mapped %s -> %s\n",
-			*javaAssignmentStrategy, conf["partition.assignment.strategy"])
-	}
-
-	if *configFile != nil {
-		fmt.Fprintf(os.Stderr, "%% Ignoring config file %v\n", *configFile)
-	}
-
-	conf["go.events.channel.enable"] = false
-	conf["go.application.rebalance.enable"] = true
-
+	// Handle -X properties
 	if len(*xconf) > 0 {
 		for _, kv := range strings.Split(*xconf, ",") {
 			x := strings.Split(kv, "=")
 			if len(x) != 2 {
-				panic("-X expects a ,-separated list of confprop=val pairs")
+				fmt.Fprintf(os.Stderr, "-X expects a ,-separated list of confprop=val pairs\n")
+				os.Exit(1)
 			}
 			conf[x[0]] = x[1]
 		}
 	}
-	fmt.Println("SerializerConfig: ", conf)
 
-	state.autoCommit = *enableAutocommit
+	if verbosity >= 1 {
+		fmt.Fprintf(os.Stderr, "Config: %v\n", conf)
+	}
+
+	// Create consumer
+	consumer, err := kafka.NewConsumer(&conf)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create consumer: %v\n", err)
+		os.Exit(1)
+	}
+
+	_, verstr := kafka.LibraryVersion()
+	fmt.Fprintf(os.Stderr, "%% Created Consumer %v (%s)\n", consumer, verstr)
+
+	// Initialize state
+	state.consumer = consumer
+	state.topic = *topic1fee
 	state.maxMessages = *maxMessages
-	runConsumer((*kafka.ConfigMap)(&conf), *topic)
+	state.useAutoCommit = *enableAutocommit
+	state.useAsyncCommit = false // Java implementation uses sync by default
+	state.verbose = *verbose
+	state.currentAssignment = make(map[string]*PartitionState)
+	// Consumer protocol uses cooperative rebalancing
+	state.isCooperative = (*groupProtocol == "consumer")
 
+	// Run consumer
+	run()
 }
