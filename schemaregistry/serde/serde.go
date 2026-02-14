@@ -1321,9 +1321,15 @@ func (s *BaseDeserializer) GetWriterSchema(topic string, headers []kafka.Header,
 	}
 	var subject string
 	if schemaID.ID > 0 {
-		subject, err = s.SubjectNameStrategy(topic, s.SerdeType, info)
-		if err != nil {
-			return info, 0, err
+		// For RecordNameStrategy and TopicRecordNameStrategy, we need the schema info
+		// to get the record name, so we skip calling SubjectNameStrategy until after
+		// we have the schema info from GetBySubjectAndID
+		strategyType := s.Conf.SubjectNameStrategyType
+		if strategyType != RecordNameStrategyType && strategyType != TopicRecordNameStrategyType {
+			subject, err = s.SubjectNameStrategy(topic, s.SerdeType, info)
+			if err != nil {
+				return info, 0, err
+			}
 		}
 		info, err = s.Client.GetBySubjectAndID(subject, int(schemaID.ID))
 		if err != nil {
