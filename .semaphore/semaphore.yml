@@ -26,6 +26,7 @@ blocks:
           - export LD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - rm -rf tmp-build
+          - sudo apt-get install pkg-config -y
           - go install golang.org/x/lint/golint@latest && touch .do_lint
           - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
       jobs:
