@@ -56,7 +56,7 @@ blocks:
           - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
           - sudo add-apt-repository -y "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
           - sudo apt-get update -q
-          - sudo apt-get install confluent-librdkafka-plugins -y
+          - sudo apt-get install pkg-config confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
           - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
