@@ -843,8 +843,8 @@ func TestUpdateOneAssociationViaUpsertEndpoint(t *testing.T) {
 	_, err = client.CreateOrUpdateAssociation(createRequest)
 	maybeFail("Update association back to strong should succeed", err)
 
-	// Change to frozen should succeed.
-	// final state: strong, frozen
+	// Attempting to update the frozen attribute of an existing association should fail.
+	// final state: strong, non-frozen
 	createRequest = (&AssociationRequestBuilder{}).
 		defaultResource().
 		valueSubject(defaultValueSubject).
@@ -852,30 +852,30 @@ func TestUpdateOneAssociationViaUpsertEndpoint(t *testing.T) {
 		build()
 
 	_, err = client.CreateOrUpdateAssociation(createRequest)
-	maybeFail("Update association to strong frozen should succeed", err)
+	maybeFail("Update association frozen attribute should fail",
+		expect(err != nil, true))
 
-	// Change to non-frozen should fail.
+	// Create a frozen association on a fresh subject via the create endpoint.
 	// final state: strong, frozen
-	createRequest = (&AssociationRequestBuilder{}).
-		defaultResource().
-		valueSubject(defaultValueSubject).
+	frozenSubject := "frozenValue"
+	frozenRequest := (&AssociationRequestBuilder{}).
+		resource(defaultResourceName, defaultResourceNamespace, "frozen-resource-id", defaultResourceType).
+		association(frozenSubject, value, "STRONG", true, simpleAvroSchema, false).
+		build()
+
+	_, err = client.CreateAssociation(frozenRequest)
+	maybeFail("Create frozen association should succeed", err)
+
+	// Attempting to update a frozen association should fail.
+	// final state: strong, frozen
+	frozenUpdateRequest := (&AssociationRequestBuilder{}).
+		resource(defaultResourceName, defaultResourceNamespace, "frozen-resource-id", defaultResourceType).
+		valueSubject(frozenSubject).
 		valueFrozen(false).
 		build()
 
-	_, err = client.CreateOrUpdateAssociation(createRequest)
-	maybeFail("Update association back to strong non-frozen should fail",
-		expect(err != nil, true))
-
-	// Change to weak should fail.
-	// final state: strong, frozen
-	createRequest = (&AssociationRequestBuilder{}).
-		defaultResource().
-		valueSubject(defaultValueSubject).
-		valueLifecycle("WEAK").
-		build()
-
-	_, err = client.CreateOrUpdateAssociation(createRequest)
-	maybeFail("Update association back to weak when frozen should fail",
+	_, err = client.CreateOrUpdateAssociation(frozenUpdateRequest)
+	maybeFail("Update frozen association should fail",
 		expect(err != nil, true))
 }
 
