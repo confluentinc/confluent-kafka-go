@@ -972,7 +972,6 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 					associationType, resourceID)
 			}
 			// Only lifecycle can be updated
-			// frozen can only be changed from weak to strong, not the other way around
 			// subject must stay the same
 			if existingAssociation.Subject != subject {
 				return fmt.Errorf("the association specified an invalid value for property: '%s', detail: %s",
@@ -1478,7 +1477,7 @@ func (c *mockclient) GetAssociationsByResourceName(resourceName string, resource
 func (c *mockclient) checkDeleteAssociation(association *Association, cascadeLifecycle bool) error {
 	// Deleting frozen associations must have cascadeLifecycle to be true.
 	if !cascadeLifecycle && association.Frozen {
-		return fmt.Errorf("the association of type '%s' is frozen for subject '%s",
+		return fmt.Errorf("the association of type '%s' is frozen for subject '%s'",
 			association.AssociationType, association.Subject)
 	}
 	return nil
