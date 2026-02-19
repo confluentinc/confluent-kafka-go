@@ -880,7 +880,7 @@ func (c *mockclient) validateResourceTypeAndAssociationType(resourceType string,
 	4. An association can't be both weak and frozen.
 */
 func (c *mockclient) validateAssociationCreateOrUpdateRequest(request *AssociationCreateOrUpdateRequest) error {
-	if request.ResourceName == "" || request.ResourceNamespace == "" || request.ResourceID == "" || request.Associations == nil {
+	if request.ResourceName == "" || request.ResourceNamespace == "" || request.ResourceID == "" || len(request.Associations) == 0 {
 		return errors.New("resourceName, resourceNamespace, resourceID and associations cannot be null or empty")
 	}
 	if request.ResourceType == "" {
@@ -949,6 +949,16 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 
 		existingAssociation, exists := c.resourceAndAssocTypeCache[key]
 		if !exists {
+			// If on create, frozen is set to true, ensure that a schema is being
+			// passed in, and that no other schemas exist in the subject
+			if associationInRequest.Frozen {
+				if schema == nil {
+					return fmt.Errorf("schema must be provided when creating a frozen association")
+				}
+				if c.latestVersion(subject) >= 0 {
+					return fmt.Errorf("cannot create a frozen association when schemas already exist in the subject")
+				}
+			}
 			continue
 		}
 		if existingAssociation.isEquivalent(associationInRequest) {
@@ -968,9 +978,13 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 				return fmt.Errorf("the association specified an invalid value for property: '%s', detail: %s",
 					"subject", "subject of association cannot be changed")
 			}
-			// If existing association is frozen but request is not frozen, return false
-			if existingAssociation.Frozen && !associationInRequest.Frozen {
-				return fmt.Errorf("the association of type  '%s' is frozen for subject '%s'",
+			// Don't allow the frozen attribute to be updated
+			if existingAssociation.Frozen != associationInRequest.Frozen {
+				return fmt.Errorf("the association specified an invalid value for property: '%s', detail: %s",
+					"frozen", "frozen attribute of association cannot be changed")
+			}
+			if existingAssociation.Frozen {
+				return fmt.Errorf("the association of type '%s' is frozen for subject '%s'",
 					associationType, subject)
 			}
 			// If existing association is weak but request is frozen, return false
@@ -1468,7 +1482,7 @@ func (c *mockclient) GetAssociationsByResourceName(resourceName string, resource
 
 func (c *mockclient) checkDeleteAssociation(association *Association, cascadeLifecycle bool) error {
 	// Deleting frozen associations must have cascadeLifecycle to be true.
-	if !cascadeLifecycle && association.Lifecycle == STRONG && association.Frozen {
+	if !cascadeLifecycle && association.Frozen {
 		return fmt.Errorf("the association of type '%s' is frozen for subject '%s",
 			association.AssociationType, association.Subject)
 	}
