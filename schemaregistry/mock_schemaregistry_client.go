@@ -931,7 +931,7 @@ func (c *mockclient) checkSubjectExists(request AssociationCreateOrUpdateRequest
 		latestVersion := c.latestVersion(subject)
 		if associationInRequest.Schema == nil && latestVersion < 0 {
 			// subject doesn't exist
-			return fmt.Errorf("no active (non-deleted) version exists for subject '%s", subject)
+			return fmt.Errorf("no active (non-deleted) version exists for subject '%s'", subject)
 		}
 	}
 	return nil
