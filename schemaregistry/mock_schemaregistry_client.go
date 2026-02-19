@@ -971,7 +971,7 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 				return fmt.Errorf("an association of type '%s' already exists for resource '%s'",
 					associationType, resourceID)
 			}
-			// Only lifecycle and frozen can be updated
+			// Only lifecycle can be updated
 			// frozen can only be changed from weak to strong, not the other way around
 			// subject must stay the same
 			if existingAssociation.Subject != subject {
@@ -986,11 +986,6 @@ func (c *mockclient) checkExistingAssociationsByResourceID(request AssociationCr
 			if existingAssociation.Frozen {
 				return fmt.Errorf("the association of type '%s' is frozen for subject '%s'",
 					associationType, subject)
-			}
-			// If existing association is weak but request is frozen, return false
-			if existingAssociation.Lifecycle == WEAK && associationInRequest.Frozen {
-				return fmt.Errorf("the association specified an invalid value for property: '%s', detail: %s",
-					"frozen", "association with lifecycle of WEAK cannot be frozen")
 			}
 		}
 	}
