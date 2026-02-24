@@ -590,21 +590,23 @@ type SubjectNameStrategyFunc func(topic string, serdeType Type, schema schemareg
 // RecordNameFunc extracts the record name from a schema
 type RecordNameFunc func(schema schemaregistry.SchemaInfo) (string, error)
 
-// ParseSubjectNameStrategyType parses a string to SubjectNameStrategyType
-func ParseSubjectNameStrategyType(s string) SubjectNameStrategyType {
+// ParseSubjectNameStrategyType parses a string to SubjectNameStrategyType.
+// An empty string returns TopicNameStrategyType (the default).
+// An unrecognized non-empty string returns an error.
+func ParseSubjectNameStrategyType(s string) (SubjectNameStrategyType, error) {
 	switch strings.ToUpper(s) {
-	case "TOPIC":
-		return TopicNameStrategyType
+	case "", "TOPIC":
+		return TopicNameStrategyType, nil
 	case "RECORD":
-		return RecordNameStrategyType
+		return RecordNameStrategyType, nil
 	case "TOPIC_RECORD":
-		return TopicRecordNameStrategyType
+		return TopicRecordNameStrategyType, nil
 	case "ASSOCIATED":
-		return AssociatedNameStrategyType
+		return AssociatedNameStrategyType, nil
 	case "NONE":
-		return NoStrategyType
+		return NoStrategyType, nil
 	default:
-		return TopicNameStrategyType
+		return NoStrategyType, fmt.Errorf("unrecognized subject name strategy type: %q", s)
 	}
 }
 
@@ -703,7 +705,10 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 	}
 
 	// Determine fallback strategy
-	fallbackType := ParseSubjectNameStrategyType(config[FallbackSubjectNameStrategyTypeConfig])
+	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackSubjectNameStrategyTypeConfig])
+	if err != nil {
+		return nil, err
+	}
 	fallbackStrategy, err := StrategyFunc(fallbackType, getRecordName)
 	if err != nil {
 		return nil, err
