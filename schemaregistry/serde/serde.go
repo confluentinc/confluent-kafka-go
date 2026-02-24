@@ -664,15 +664,7 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 // RecordNameStrategy creates a subject name from the record name.
 func RecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFunc {
 	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
-		recordName, err := getRecordName(schema)
-		if err != nil {
-			return "", err
-		}
-		suffix := "-value"
-		if serdeType == KeySerde {
-			suffix = "-key"
-		}
-		return recordName + suffix, nil
+		return getRecordName(schema)
 	}
 }
 
@@ -683,11 +675,7 @@ func TopicRecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFu
 		if err != nil {
 			return "", err
 		}
-		suffix := "-value"
-		if serdeType == KeySerde {
-			suffix = "-key"
-		}
-		return topic + "-" + recordName + suffix, nil
+		return topic + "-" + recordName, nil
 	}
 }
 
