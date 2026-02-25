@@ -690,8 +690,8 @@ func TopicRecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFu
 	}
 }
 
-// associationCacheKey is the cache key for association lookups
-type associationCacheKey struct {
+// subjectCacheKey is the cache key for subject lookups
+type subjectCacheKey struct {
 	topic  string
 	isKey  bool
 	schema string
@@ -737,7 +737,7 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 		isKey := serdeType == KeySerde
 
 		// Create cache key using topic, isKey, and schema string
-		cacheKey := associationCacheKey{
+		cacheKey := subjectCacheKey{
 			topic:  topic,
 			isKey:  isKey,
 			schema: schema.Schema,
