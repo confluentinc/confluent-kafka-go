@@ -751,23 +751,14 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 			return cached.(string), nil
 		}
 
-		// Acquire write lock to load and cache
-		subjectNameCacheLock.Lock()
-		// another goroutine could have already put it in cache
-		cached, ok = subjectNameCache.Get(cacheKey)
-		if ok {
-			subjectNameCacheLock.Unlock()
-			return cached.(string), nil
-		}
-
-		// Load subject name from schema registry
+		// Load subject name from schema registry (without holding lock)
 		subject, err := loadAssociatedSubjectName(client, topic, kafkaClusterID, isKey, schema, fallbackStrategy, serdeType)
 		if err != nil {
-			subjectNameCacheLock.Unlock()
 			return "", err
 		}
 
 		// Store in cache
+		subjectNameCacheLock.Lock()
 		subjectNameCache.Put(cacheKey, subject)
 		subjectNameCacheLock.Unlock()
 
