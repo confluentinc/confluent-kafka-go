@@ -19,11 +19,12 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"io"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 
@@ -86,7 +87,31 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
+	err = s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, conf.SubjectNameStrategyConfig, s.GetRecordName)
+	if err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// GetRecordName extracts the title from a JSON schema using toJSONSchema for validation
+func (s *Serializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	// Validate schema by calling toJSONSchema (also populates cache)
+	_, err := s.toJSONSchema(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	// Parse the raw schema to get the title
+	var schemaObj map[string]interface{}
+	err = json.Unmarshal([]byte(info.Schema), &schemaObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JSON schema: %w", err)
+	}
+	title, ok := schemaObj["title"].(string)
+	if !ok || title == "" {
+		return "", fmt.Errorf("JSON schema does not have a title field")
+	}
+	return title, nil
 }
 
 // Serialize implements serialization of generic data to JSON
@@ -181,7 +206,31 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	if err != nil {
 		return nil, err
 	}
+	err = s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, conf.SubjectNameStrategyConfig, s.GetRecordName)
+	if err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// GetRecordName extracts the title from a JSON schema using toJSONSchema for validation
+func (s *Deserializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	// Validate schema by calling toJSONSchema (also populates cache)
+	_, err := s.toJSONSchema(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	// Parse the raw schema to get the title
+	var schemaObj map[string]interface{}
+	err = json.Unmarshal([]byte(info.Schema), &schemaObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JSON schema: %w", err)
+	}
+	title, ok := schemaObj["title"].(string)
+	if !ok || title == "" {
+		return "", fmt.Errorf("JSON schema does not have a title field")
+	}
+	return title, nil
 }
 
 // Deserialize implements deserialization of generic data from JSON
