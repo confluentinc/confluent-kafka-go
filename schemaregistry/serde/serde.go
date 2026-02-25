@@ -665,15 +665,23 @@ func TopicNameStrategy(topic string, serdeType Type, schema schemaregistry.Schem
 }
 
 // RecordNameStrategy creates a subject name from the record name.
+// If the schema is empty, an empty string is returned to allow deferred resolution.
 func RecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFunc {
 	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+		if schema.Schema == "" {
+			return "", nil
+		}
 		return getRecordName(schema)
 	}
 }
 
 // TopicRecordNameStrategy creates a subject name from the topic and record name.
+// If the schema is empty, an empty string is returned to allow deferred resolution.
 func TopicRecordNameStrategy(getRecordName RecordNameFunc) SubjectNameStrategyFunc {
 	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+		if schema.Schema == "" {
+			return "", nil
+		}
 		recordName, err := getRecordName(schema)
 		if err != nil {
 			return "", err
@@ -1315,15 +1323,9 @@ func (s *BaseDeserializer) GetWriterSchema(topic string, headers []kafka.Header,
 	}
 	var subject string
 	if schemaID.ID > 0 {
-		// For RecordNameStrategy and TopicRecordNameStrategy, we need the schema info
-		// to get the record name, so we skip calling SubjectNameStrategy until after
-		// we have the schema info from GetBySubjectAndID
-		strategyType := s.Conf.SubjectNameStrategyType
-		if strategyType != RecordNameStrategyType && strategyType != TopicRecordNameStrategyType {
-			subject, err = s.SubjectNameStrategy(topic, s.SerdeType, info)
-			if err != nil {
-				return info, 0, err
-			}
+		subject, err = s.SubjectNameStrategy(topic, s.SerdeType, info)
+		if err != nil {
+			return info, 0, err
 		}
 		info, err = s.Client.GetBySubjectAndID(subject, int(schemaID.ID))
 		if err != nil {
