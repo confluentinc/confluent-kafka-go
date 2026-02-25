@@ -725,8 +725,7 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 	// Create LRU cache for subject names
 	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
 	if err != nil {
-		// This should never happen since we're using a valid capacity constant
-		panic(fmt.Sprintf("failed to create LRU cache: %v", err))
+		return nil, fmt.Errorf("associated name strategy: failed to create LRU cache: %w", err)
 	}
 	var subjectNameCacheLock sync.RWMutex
 
