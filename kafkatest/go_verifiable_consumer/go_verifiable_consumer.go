@@ -316,6 +316,16 @@ func onRecordsReceived(records []*kafka.Message) []kafka.TopicPartition {
 		offsets = append(offsets, tp)
 	}
 
+	// Store offsets for auto-commit or manual commit
+	// This ensures offsets are only stored after messages are processed and reported
+	// With enable.auto.offset.store=false, we must explicitly store offsets
+	if len(offsets) > 0 {
+		_, err := state.consumer.StoreOffsets(offsets)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%% Error storing offsets: %v\n", err)
+		}
+	}
+
 	return offsets
 }
 
@@ -377,8 +387,9 @@ func rebalanceCallback(c *kafka.Consumer, event kafka.Event) error {
 		onPartitionsAssigned(e.Partitions)
 		lastAssignmentReported = true
 
-		// Use incremental assign for cooperative rebalancing (consumer protocol)
-		// Use regular assign for eager rebalancing (classic protocol)
+		// Use incremental assign for cooperative rebalancing
+		// (consumer protocol OR classic protocol with cooperative assignment strategy)
+		// Use regular assign for eager rebalancing (classic protocol with eager strategies)
 		var err error
 		if state.isCooperative {
 			err = c.IncrementalAssign(e.Partitions)
@@ -655,12 +666,13 @@ func main() {
 
 	/* Required options */
 	topic := kingpin.Flag("topic", "Consumes messages from this topic").Required().String()
-	brokers := kingpin.Flag("bootstrap-server", "The server(s) to connect to").Required().String()
+	brokers := kingpin.Flag("bootstrap-server", "The server(s) to connect to").String()
+	brokerList := kingpin.Flag("broker-list", "The server(s) to connect to (alias for --bootstrap-server)").String()
 	groupId := kingpin.Flag("group-id", "The group id of the consumer group").Required().String()
 
 	/* Optional options */
 	groupProtocol := kingpin.Flag("group-protocol", "Group protocol (classic or consumer)").Default("classic").String()
-	groupRemoteAssignor := kingpin.Flag("group-remote-assignor", "Group remote assignor").Default("uniform").String()
+	groupRemoteAssignor := kingpin.Flag("group-remote-assignor", "Group remote assignor").String()
 	groupInstanceId := kingpin.Flag("group-instance-id", "A unique identifier of the consumer instance").String()
 	maxMessages := kingpin.Flag("max-messages", "Consume this many messages. If -1, consume until killed externally").Default("-1").Int()
 	sessionTimeout := kingpin.Flag("session-timeout", "Set the consumer's session timeout in ms").Default("-1").Int()
@@ -675,12 +687,39 @@ func main() {
 
 	kingpin.Parse()
 
+	// Handle broker-list and bootstrap-server flags (broker-list is for backward compatibility)
+	var bootstrapServers string
+	if *brokers != "" {
+		bootstrapServers = *brokers
+	} else if *brokerList != "" {
+		bootstrapServers = *brokerList
+	} else {
+		fmt.Fprintf(os.Stderr, "Error: either --bootstrap-server or --broker-list must be specified\n")
+		os.Exit(1)
+	}
+
 	// Set required config
-	conf["bootstrap.servers"] = *brokers
+	conf["bootstrap.servers"] = bootstrapServers
 	conf["group.id"] = *groupId
 	conf["enable.auto.commit"] = *enableAutocommit
 	conf["auto.offset.reset"] = *resetPolicy
 	conf["group.protocol"] = *groupProtocol
+
+	// Disable automatic offset store to match Java consumer behavior
+	//
+	// IMPORTANT: Java KafkaConsumer does not have enable.auto.offset.store config.
+	// In Java, offsets are only committed for messages from previous poll() cycles,
+	// never for messages from the current poll() that haven't been processed yet.
+	//
+	// librdkafka default (enable.auto.offset.store=true) is MORE aggressive:
+	// - Offsets are stored immediately when poll() returns, before processing
+	// - If consumer crashes after poll() but before processing, those offsets may be auto-committed
+	// - This causes message loss as next consumer resumes from the stored offset
+	//
+	// By setting enable.auto.offset.store=false and calling StoreOffsets() after processing,
+	// we replicate Java's behavior where offsets are only committed for successfully
+	// processed messages. This prevents message loss during consumer failures.
+	conf["enable.auto.offset.store"] = false
 
 	// Enable rebalance callback
 	conf["go.application.rebalance.enable"] = true
@@ -726,6 +765,12 @@ func main() {
 			stratName := parts[len(parts)-1]
 			stratName = strings.TrimSuffix(stratName, "Assignor")
 			stratName = strings.ToLower(stratName)
+
+			// Note: librdkafka supports: range, roundrobin, cooperative-sticky
+			if stratName == "cooperativesticky" {
+				stratName = "cooperative-sticky"
+			}
+
 			strats = append(strats, stratName)
 		}
 		conf["partition.assignment.strategy"] = strings.Join(strats, ",")
@@ -777,14 +822,26 @@ func main() {
 
 	// Initialize state
 	state.consumer = consumer
-	state.topic = *topic1fee
+	state.topic = *topic
 	state.maxMessages = *maxMessages
 	state.useAutoCommit = *enableAutocommit
 	state.useAsyncCommit = false // Java implementation uses sync by default
 	state.verbose = *verbose
 	state.currentAssignment = make(map[string]*PartitionState)
-	// Consumer protocol uses cooperative rebalancing
+
+	// Determine if we need to use cooperative rebalancing methods (incremental assign/unassign)
+	// This is required when:
+	// 1. Using consumer protocol (KIP-848), OR
+	// 2. Using classic protocol with a cooperative assignment strategy (e.g., cooperative-sticky)
 	state.isCooperative = (*groupProtocol == "consumer")
+	if !state.isCooperative {
+		// Check if using a cooperative assignment strategy in classic protocol
+		if strategyVal, ok := conf["partition.assignment.strategy"]; ok {
+			if strategy, ok := strategyVal.(string); ok {
+				state.isCooperative = strings.Contains(strategy, "cooperative")
+			}
+		}
+	}
 
 	// Run consumer
 	run()

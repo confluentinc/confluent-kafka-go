@@ -454,7 +454,8 @@ func main() {
 
 	/* Required options */
 	topic := kingpin.Flag("topic", "Produce messages to this topic").Required().String()
-	brokers := kingpin.Flag("bootstrap-server", "REQUIRED: The server(s) to connect to").Required().String()
+	brokers := kingpin.Flag("bootstrap-server", "REQUIRED: The server(s) to connect to").String()
+	brokerList := kingpin.Flag("broker-list", "The server(s) to connect to (alias for --bootstrap-server)").String()
 
 	/* Optional options */
 	maxMessages := kingpin.Flag("max-messages", "Produce this many messages. If -1, produce until killed externally").Default("-1").Int64()
@@ -470,8 +471,19 @@ func main() {
 
 	kingpin.Parse()
 
+	// Handle broker-list and bootstrap-server flags (broker-list is for backward compatibility)
+	var bootstrapServers string
+	if *brokers != "" {
+		bootstrapServers = *brokers
+	} else if *brokerList != "" {
+		bootstrapServers = *brokerList
+	} else {
+		fmt.Fprintf(os.Stderr, "Error: either --bootstrap-server or --broker-list must be specified\n")
+		os.Exit(1)
+	}
+
 	// Set bootstrap servers and acks
-	conf["bootstrap.servers"] = *brokers
+	conf["bootstrap.servers"] = bootstrapServers
 	conf["acks"] = *acks
 
 	// Set retries to 0 (like Java implementation)
