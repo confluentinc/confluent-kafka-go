@@ -230,21 +230,21 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 
 	config.BearerAuthClientSecret = "client_secret"
 	_, err = NewRestService(config)
+
+	if !strings.Contains(err.Error(), "bearer.auth.identity.pool.id") {
+		t.Errorf("should have error about bearer.auth.identity.pool.id")
+	}
+	config.BearerAuthIdentityPoolID = "pool_id"
+	_, err = NewRestService(config)
+
 	if !strings.Contains(err.Error(), "bearer.auth.logical.cluster") {
-		t.Errorf("should have error about bearer.auth.logical.cluster, got %s", err)
+		t.Errorf("should have error about bearer.auth.logical.cluster")
 	}
 
 	config.BearerAuthLogicalCluster = "lsrc-123"
 	_, err = NewRestService(config)
 	if err != nil {
-		t.Errorf("should work with oauth bearer auth config without identity pool ID (auto mapping), got %v", err)
-	}
-
-	// Should also work with identity pool ID specified
-	config.BearerAuthIdentityPoolID = "pool_id"
-	_, err = NewRestService(config)
-	if err != nil {
-		t.Errorf("should work with oauth bearer auth config with identity pool ID, got %v", err)
+		t.Errorf("should work with oauth bearer auth config, got %s", err)
 	}
 }
 
@@ -329,97 +329,5 @@ func TestNoAuthProviderSetAuthenticationHeaders(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("should work with no auth provider, got err %s", err)
-	}
-}
-
-func TestStaticTokenAuthWithOptionalIdentityPoolID(t *testing.T) {
-	parsedURL, err := url.Parse("mock://")
-	if err != nil {
-		t.Fatalf("Failed to parse URL, got %v", err)
-	}
-
-	// Test without identity pool ID (auto mapping)
-	config := &ClientConfig{
-		BearerAuthCredentialsSource: "STATIC_TOKEN",
-		BearerAuthToken:             "test-token",
-		BearerAuthLogicalCluster:    "lsrc-123",
-		BearerAuthIdentityPoolID:    "", // Empty for auto mapping
-	}
-
-	provider, err := NewAuthenticationHeaderProvider(parsedURL, config)
-	if err != nil {
-		t.Fatalf("Should work with static token without identity pool ID (auto mapping), got %v", err)
-	}
-
-	authHeader, err := provider.GetAuthenticationHeader()
-	if err != nil {
-		t.Errorf("GetAuthenticationHeader returned error: %v", err)
-	}
-	if authHeader != "Bearer test-token" {
-		t.Errorf("Expected Bearer test-token, got %s", authHeader)
-	}
-
-	identityPoolID, err := provider.GetIdentityPoolID()
-	if err != nil {
-		t.Errorf("GetIdentityPoolID returned error: %v", err)
-	}
-	if identityPoolID != "" {
-		t.Errorf("Expected empty identity pool ID, got %s", identityPoolID)
-	}
-
-	logicalCluster, err := provider.GetLogicalCluster()
-	if err != nil {
-		t.Errorf("GetLogicalCluster returned error: %v", err)
-	}
-	if logicalCluster != "lsrc-123" {
-		t.Errorf("Expected lsrc-123, got %s", logicalCluster)
-	}
-
-	// Test with identity pool ID specified
-	config.BearerAuthIdentityPoolID = "pool-1,pool-2"
-	provider, err = NewAuthenticationHeaderProvider(parsedURL, config)
-	if err != nil {
-		t.Fatalf("Should work with static token with identity pool ID, got %v", err)
-	}
-
-	identityPoolID, err = provider.GetIdentityPoolID()
-	if err != nil {
-		t.Errorf("GetIdentityPoolID returned error: %v", err)
-	}
-	if identityPoolID != "pool-1,pool-2" {
-		t.Errorf("Expected pool-1,pool-2, got %s", identityPoolID)
-	}
-}
-
-func TestSetAuthenticationHeadersWithoutIdentityPoolID(t *testing.T) {
-	config := &ClientConfig{
-		BearerAuthCredentialsSource: "STATIC_TOKEN",
-		BearerAuthToken:             "test-token",
-		BearerAuthLogicalCluster:    "lsrc-123",
-		BearerAuthIdentityPoolID:    "", // Empty for auto mapping
-	}
-
-	rs, err := NewRestService(config)
-	if err != nil {
-		t.Fatalf("Should work with static token without identity pool ID, got %v", err)
-	}
-
-	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &rs.headers)
-	if err != nil {
-		t.Fatalf("Should set headers without identity pool ID, got %v", err)
-	}
-
-	if rs.headers.Get("Authorization") != "Bearer test-token" {
-		t.Errorf("Should have Authorization header with value Bearer test-token")
-	}
-
-	if rs.headers.Get("Target-Sr-Cluster") != "lsrc-123" {
-		t.Errorf("Should have Target-Sr-Cluster header with value lsrc-123")
-	}
-
-	// Identity pool ID header should not be set when empty
-	if rs.headers.Get("Confluent-Identity-Pool-Id") != "" {
-		t.Errorf("Should not have Confluent-Identity-Pool-Id header when not configured, got %s",
-			rs.headers.Get("Confluent-Identity-Pool-Id"))
 	}
 }
