@@ -293,12 +293,16 @@ func createUSERINFOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderP
 	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(auth)), nil
 }
 
-// checkLogicalCluster checks if logical cluster is set for bearer authentication.
-// Note: bearer.auth.identity.pool.id is optional, as auto pool mapping is supported
-func checkLogicalCluster(conf *ClientConfig) error {
+// checkIdentityPoolIDAndLogicalCluster checks if identity pool id and logical cluster are set
+func checkIdentityPoolIDAndLogicalCluster(conf *ClientConfig) error {
+	if conf.BearerAuthIdentityPoolID == "" {
+		return fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
+			" specified with STATIC_TOKEN or OAUTHBEARER")
+	}
 	if conf.BearerAuthLogicalCluster == "" {
-		return fmt.Errorf("bearer.auth.logical.cluster must be specified when using bearer authentication " +
-			"(STATIC_TOKEN or OAUTHBEARER)")
+		return fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
+			" specified with STATIC_TOKEN or OAUTHBEARER")
+
 	}
 	return nil
 }
@@ -325,7 +329,7 @@ func checkBearerOAuthFields(conf *ClientConfig) error {
 			" specified with OAUTHBEARER")
 	}
 
-	err := checkLogicalCluster(conf)
+	err := checkIdentityPoolIDAndLogicalCluster(conf)
 	if err != nil {
 		return err
 	}
@@ -349,7 +353,7 @@ func createStaticTokenAuthHeaderProvider(conf *ClientConfig) (AuthenticationHead
 	// TODO: Enable these lines for major version 3 release, since static token does not check for
 	// identity pool id and logical cluster at the moment
 
-	// err := checkLogicalCluster(conf)
+	// err := checkIdentityPoolIDAndLogicalCluster(conf)
 	// if err != nil {
 	// 	return nil, err
 	// }

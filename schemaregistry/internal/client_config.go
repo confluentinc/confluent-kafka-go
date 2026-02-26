@@ -43,8 +43,7 @@ type ClientConfig struct {
 	BearerAuthCredentialsSource string
 	// BearerAuthLogicalCluster specifies the target SR logical cluster id. It is required for Confluent Cloud Schema Registry
 	BearerAuthLogicalCluster string
-	// BearerAuthIdentityPoolID specifies the identity pool ID. Optional - if omitted, the SR server will rely on
-	// SDS auto pool mapping. Can be a single pool ID or comma-separated list for union-of-pools (e.g., "pool-a,pool-b").
+	// BearerAuthIdentityPoolID specifies the identity pool ID. It is required for Confluent Cloud Schema Registry
 	BearerAuthIdentityPoolID string
 	// BearerAuthIssuerEndpointURL specifies the issuer endpoint URL for OAuth Bearer Token authentication.
 	BearerAuthIssuerEndpointURL string

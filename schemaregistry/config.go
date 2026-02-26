@@ -85,9 +85,8 @@ func NewConfigWithBasicAuthentication(url string, username string, password stri
 }
 
 // NewConfigWithBearerAuthentication returns a new configuration instance using bearer authentication.
-// For Confluent Cloud, targetSr (bearer.auth.logical.cluster) is required.
-// identityPoolID (bearer.auth.identity.pool.id) is optional - if empty, SR will use auto pool mapping.
-// identityPoolID can be a single pool ID or comma-separated list for union-of-pools (e.g., "pool-a,pool-b").
+// For Confluent Cloud, targetSr(`bearer.auth.logical.cluster` and
+// identityPoolID(`bearer.auth.identity.pool.id`) is required
 func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID string) *Config {
 
 	c := NewConfig(url)
