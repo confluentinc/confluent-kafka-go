@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.13.1
+
+This is a maintenance release:
+
+### Fixes
+* Allow Azure KMS key version to be optional (#1503)
+* schemaregistry/rules/encryption: fix dropped errors (#1512)
+* Update frozen semantics for associations in mock SR client (#1514)
+* DGS-23472: Client side upgrade for union-of-pools (#1511)
+
+
 ## v2.13.0
 
 This is a feature release:
