@@ -23,9 +23,11 @@ CHANGELOG_FILE = Path(__file__).parent.parent / "CHANGELOG.md"
 # Stable release tag pattern (e.g. v2.13.0 — no RC, dev, alpha, beta suffixes)
 STABLE_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
 
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
 # Skip purely housekeeping commits (CHANGELOG updates, version bumps, CI chores)
 SKIP_SUBJECT_RE = re.compile(
-    r"^(update changelog|bump version|update version|chore:)",
+    r"^(update changelog|bump version|update version|chore(\([^)]*\))?:)",
     re.IGNORECASE,
 )
 
@@ -104,6 +106,8 @@ def main():
     # Ensure v prefix
     if not new_ver.startswith("v"):
         new_ver = "v" + new_ver
+    if not SEMVER_RE.match(new_ver.lstrip("v")):
+        sys.exit(f"Error: {new_ver!r} is not a valid version; expected vX.Y.Z")
     print(f"New version:       {new_ver}")
 
     all_commits = commits_since(tag)
