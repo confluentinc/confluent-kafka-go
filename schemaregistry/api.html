@@ -14,7 +14,7 @@
   <script defer="" src="https://go.dev/js/jquery.js">
   </script>
   <script>
-   var goVersion = "go1.24.3";
+   var goVersion = "go1.25.7";
   </script>
   <script defer="" src="https://go.dev/js/godocs.js">
   </script>
@@ -402,7 +402,7 @@
 )</pre>
     <h2 id="ConfigsEqual">
      func
-     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.13.0/schemaregistry/config.go?s=3079:3125#L93">
+     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.13.0/schemaregistry/config.go?s=3240:3286#L94">
       ConfigsEqual
      </a>
      <a class="permalink" href="#ConfigsEqual">
@@ -817,7 +817,7 @@ This method is deprecated.
 For Confluent Cloud, use the API key for the username and the API secret for the password.
                               <h3 id="NewConfigWithBearerAuthentication">
                                func
-                               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.13.0/schemaregistry/config.go?s=2720:2811#L80">
+                               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.13.0/schemaregistry/config.go?s=2881:2972#L81">
                                 NewConfigWithBearerAuthentication
                                </a>
                                <a class="permalink" href="#NewConfigWithBearerAuthentication">
@@ -827,8 +827,9 @@ For Confluent Cloud, use the API key for the username and the API secret for the
                               <pre>func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID <a href="https://pkg.go.dev/builtin/#string">string</a>) *<a href="#Config">Config</a></pre>
                               <p>
                                NewConfigWithBearerAuthentication returns a new configuration instance using bearer authentication.
-For Confluent Cloud, targetSr(`bearer.auth.logical.cluster` and
-identityPoolID(`bearer.auth.identity.pool.id`) is required
+For Confluent Cloud, targetSr (bearer.auth.logical.cluster) is required.
+identityPoolID (bearer.auth.identity.pool.id) is optional - if empty, SR will use auto pool mapping.
+identityPoolID can be a single pool ID or comma-separated list for union-of-pools (e.g., "pool-a,pool-b").
                                <h2 id="LifecyclePolicy">
                                 type
                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.13.0/schemaregistry/schemaregistry_client.go?s=34909:34936#L1037">
@@ -1122,7 +1123,7 @@ identityPoolID(`bearer.auth.identity.pool.id`) is required
 }
 </pre>
                                                  <div id="footer">
-                                                  Build version go1.24.3.
+                                                  Build version go1.25.7.
                                                   <br/>
                                                   Except as
                                                   <a href="https://developers.google.com/site-policies#restrictions">
