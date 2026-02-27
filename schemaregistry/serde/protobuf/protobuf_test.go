@@ -1156,3 +1156,464 @@ func BenchmarkProtobufDeserWithReference(b *testing.B) {
 		deser.Deserialize("topic1", bytes)
 	}
 }
+
+func TestProtobufSerdeWithRecordNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.SubjectNameStrategyType = serde.RecordNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.RecordNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	var newobj test.Author
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj.ProtoReflect(), obj.ProtoReflect()))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
+func TestProtobufSerdeWithTopicRecordNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.SubjectNameStrategyType = serde.TopicRecordNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.TopicRecordNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	var newobj test.Author
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj.ProtoReflect(), obj.ProtoReflect()))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
+func TestProtobufSerdeWithAssociatedNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+	}
+
+	id, err := client.Register("my-custom-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association between topic1 and my-custom-subject
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-custom-subject",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	var newobj test.Author
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj.ProtoReflect(), obj.ProtoReflect()))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
+func TestProtobufSerdeWithAssociatedNameStrategyFallbackToTopic(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with topic name strategy (no association)
+	info := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// No association created - should fall back to TopicNameStrategy
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	// Default fallback is TOPIC
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
+func TestProtobufSerdeWithAssociatedNameStrategyFallbackNone(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with some subject (but no association will be created)
+	info := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// No association created, and fallback is NONE - should error
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	serConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.FallbackTypeConfig: "NONE",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	_, err = ser.Serialize("topic1", &obj)
+	if err == nil {
+		t.Errorf("Expected error when no association found and fallback is NONE")
+	}
+}
+
+func TestProtobufSerdeWithAssociatedNameStrategyMultipleAssociations(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register two schemas with different subjects
+	info1 := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+	}
+	id, err := client.Register("subject1", info1, false)
+	serde.MaybeFail("Schema registration 1", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	info2 := schemaregistry.SchemaInfo{
+		Schema:     widgetSchema,
+		SchemaType: "PROTOBUF",
+	}
+	id, err = client.Register("subject2", info2, false)
+	serde.MaybeFail("Schema registration 2", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create first association
+	assocRequest1 := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "subject1",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest1)
+	serde.MaybeFail("Association creation 1", err)
+
+	// Create second association for same topic and association type
+	assocRequest2 := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-456:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "subject2",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest2)
+	serde.MaybeFail("Association creation 2", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	_, err = ser.Serialize("topic1", &obj)
+	if err == nil {
+		t.Errorf("Expected error when multiple associations found")
+	}
+}
+
+func TestProtobufSerdeWithAssociatedNameStrategyWithKafkaClusterID(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+	}
+
+	id, err := client.Register("my-custom-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association with specific namespace (kafka cluster id)
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "lkc-my-cluster",
+		ResourceID:        "lkc-my-cluster:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-custom-subject",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	serConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.KafkaClusterIDConfig: "lkc-my-cluster",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deserConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.KafkaClusterIDConfig: "lkc-my-cluster",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
+func TestProtobufSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     authorSchema,
+		SchemaType: "PROTOBUF",
+	}
+
+	id, err := client.Register("my-cached-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-cached-subject",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	// Serialize multiple times - should use cache after first call
+	for i := 0; i < 5; i++ {
+		bytes, err := ser.Serialize("topic1", &obj)
+		serde.MaybeFail("serialization", err)
+
+		msg, err := deser.Deserialize("topic1", bytes)
+		serde.MaybeFail("deserialization", err, serde.Expect(msg.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	}
+}
