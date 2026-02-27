@@ -575,11 +575,11 @@ const (
 
 const (
 	// KafkaClusterIDConfig is the configuration key for the Kafka cluster ID
-	KafkaClusterIDConfig = "kafka.cluster.id"
+	KafkaClusterIDConfig = "subject.name.strategy.kafka.cluster.id"
 	// NamespaceWildcard is the default namespace when no Kafka cluster ID is configured
 	NamespaceWildcard = "-"
-	// FallbackSubjectNameStrategyTypeConfig is the configuration key for the fallback subject name strategy
-	FallbackSubjectNameStrategyTypeConfig = "fallback.subject.name.strategy.type"
+	// FallbackTypeConfig is the configuration key for the fallback subject name strategy
+	FallbackTypeConfig = "subject.name.strategy.fallback.type"
 	// DefaultCacheCapacity is the default capacity for the association cache
 	DefaultCacheCapacity = 1000
 )
@@ -698,11 +698,11 @@ type subjectCacheKey struct {
 
 // AssociatedNameStrategy returns a strategy that retrieves the associated subject name from schema registry.
 // The topic is passed as the resource name to schema registry. If there is a configuration property named
-// "kafka.cluster.id", then its value will be passed as the resource namespace; otherwise the value "-"
+// "subject.name.strategy.kafka.cluster.id", then its value will be passed as the resource namespace; otherwise the value "-"
 // will be passed as the resource namespace.
 // If more than one subject is returned from the query, an error will be returned.
 // If no subjects are returned from the query, then the behavior will fall back to TopicNameStrategy,
-// unless the configuration property "fallback.subject.name.strategy.type" is set to "RECORD",
+// unless the configuration property "subject.name.strategy.fallback.type" is set to "RECORD",
 // "TOPIC_RECORD", or "NONE".
 func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (SubjectNameStrategyFunc, error) {
 	// Get kafka cluster ID from config, default to wildcard
@@ -712,7 +712,7 @@ func AssociatedNameStrategy(client schemaregistry.Client, config map[string]stri
 	}
 
 	// Determine fallback strategy
-	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackSubjectNameStrategyTypeConfig])
+	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackTypeConfig])
 	if err != nil {
 		return nil, err
 	}

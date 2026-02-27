@@ -3415,7 +3415,7 @@ func TestAvroSerdeWithAssociatedNameStrategyFallbackNone(t *testing.T) {
 	serConfig.UseLatestVersion = true
 	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
 	serConfig.SubjectNameStrategyConfig = map[string]string{
-		serde.FallbackSubjectNameStrategyTypeConfig: "NONE",
+		serde.FallbackTypeConfig: "NONE",
 	}
 	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
 	serde.MaybeFail("Serializer configuration", err)
