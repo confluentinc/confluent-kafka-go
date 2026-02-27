@@ -635,6 +635,9 @@ func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordName
 
 // ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
 func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) error {
+	if strategyType == NoStrategyType {
+		strategyType = AssociatedNameStrategyType
+	}
 	if strategyType == AssociatedNameStrategyType {
 		strategy, err := AssociatedNameStrategy(s.Client, config, getRecordName)
 		if err != nil {
@@ -647,10 +650,6 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 			return err
 		}
 		s.SubjectNameStrategy = strategy
-		if s.SubjectNameStrategy == nil {
-			// NoStrategyType should default to TopicNameStrategy for main strategy
-			s.SubjectNameStrategy = TopicNameStrategy
-		}
 	}
 	return nil
 }
