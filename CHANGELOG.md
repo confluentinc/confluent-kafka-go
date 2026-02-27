@@ -1,6 +1,6 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.13.1
+## v2.13.2
 
 This is a maintenance release:
 
