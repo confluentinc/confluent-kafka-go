@@ -498,6 +498,8 @@ const (
 	ResourceUnknown ResourceType = C.RD_KAFKA_RESOURCE_UNKNOWN
 	// ResourceAny - match any resource type (DescribeConfigs)
 	ResourceAny ResourceType = C.RD_KAFKA_RESOURCE_ANY
+	// ResourceTransactionalID - Transactional ID
+	ResourceTransactionalID ResourceType = C.RD_KAFKA_RESOURCE_TRANSACTIONAL_ID
 	// ResourceTopic - Topic
 	ResourceTopic ResourceType = C.RD_KAFKA_RESOURCE_TOPIC
 	// ResourceGroup - Group
@@ -517,6 +519,8 @@ func ResourceTypeFromString(typeString string) (ResourceType, error) {
 	switch strings.ToUpper(typeString) {
 	case "ANY":
 		return ResourceAny, nil
+	case "TRANSACTIONAL_ID":
+		return ResourceTransactionalID, nil
 	case "TOPIC":
 		return ResourceTopic, nil
 	case "GROUP":
