@@ -309,14 +309,9 @@ func (h *handle) setOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
 		extensionSize++
 	}
 
-	var cExtensionsToUse **C.char
-	if extensionSize > 0 {
-		cExtensionsToUse = (**C.char)(unsafe.Pointer(&cExtensions[0]))
-	}
-
 	cErr := C.rd_kafka_oauthbearer_set_token(h.rk, cTokenValue,
-		C.int64_t(oauthBearerToken.Expiration.UnixNano()/(1000*1000)), cPrincipal,
-		cExtensionsToUse, C.size_t(extensionSize), cErrstr, cErrstrSize)
+		C.int64_t(oauthBearerToken.Expiration.UnixMilli()), cPrincipal,
+		unsafe.SliceData(cExtensions), C.size_t(extensionSize), cErrstr, cErrstrSize)
 	if cErr == C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return nil
 	}
