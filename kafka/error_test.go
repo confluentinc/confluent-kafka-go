@@ -37,6 +37,15 @@ func TestFatalError(t *testing.T) {
 	t.Logf("%v", normalErr)
 }
 
+// TestIsTimeoutError tests timeout errors
+func TestIsTimeoutError(t *testing.T) {
+	err := newErrorFromString(ErrMsgTimedOut, "Testing timeout error")
+	if !err.IsTimeout() {
+		t.Errorf("Expected IsTimeout() to return true for %v", err)
+	}
+	t.Logf("%v", err)
+}
+
 // TestFatalErrorClient tests fatal errors using a client instance
 func TestFatalErrorClient(t *testing.T) {
 	p, err := NewProducer(&ConfigMap{})
