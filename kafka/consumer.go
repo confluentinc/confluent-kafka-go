@@ -317,6 +317,12 @@ func (c *Consumer) CommitMessage(m *Message) ([]TopicPartition, error) {
 // CommitOffsets commits the provided list of offsets
 // This is a blocking call.
 // Returns the committed offsets on success.
+//
+// The offsets committed using this API will be used on the first fetch after
+// every rebalance and also on startup. As such, if you need to store offsets in
+// anything other than Kafka, this API should not be used.
+// The committed offset should be the next message your application will consume,
+// i.e. lastProcessedMessageOffset + 1.
 func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, error) {
 	err := c.verifyClient()
 	if err != nil {
@@ -332,6 +338,9 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 // Returns the stored offsets on success. If at least one offset couldn't be stored,
 // an error and a list of offsets is returned. Each offset can be checked for
 // specific errors via its `.Error` member.
+//
+// Similar to the `CommitOffsets` method, the stored offset should be the next message your application will consume,
+// i.e. lastProcessedMessageOffset + 1.
 func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []TopicPartition, err error) {
 	err = c.verifyClient()
 	if err != nil {
