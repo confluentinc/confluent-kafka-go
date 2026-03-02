@@ -82,9 +82,10 @@ type Serializer struct {
 	ReferenceSubjectNameStrategy ReferenceSubjectNameStrategyFunc
 }
 
+// ReferenceSubjectNameStrategyFunc used to map references to subject names
 type ReferenceSubjectNameStrategyFunc func(fileDesc *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error)
 
-func DefaultReferenceSubjectNameStrategy(fileDescriptor *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error) {
+func defaultReferenceSubjectNameStrategy(fileDescriptor *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error) {
 	return fileDescriptor.GetName(), nil
 }
 
@@ -173,7 +174,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		descToSchemaCache: descToSchemaCache,
 	}
 	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
-	s.ReferenceSubjectNameStrategy = DefaultReferenceSubjectNameStrategy
+	s.ReferenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
 	s.Conf = conf
 	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
