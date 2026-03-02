@@ -29,7 +29,7 @@ import (
 //defines and strings in sync.
 //
 
-#define MIN_RD_KAFKA_VERSION 0x020d02ff
+#define MIN_RD_KAFKA_VERSION 0x020d00ff
 
 #ifdef __APPLE__
 #define MIN_VER_ERRSTR "confluent-kafka-go requires librdkafka v2.13.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
