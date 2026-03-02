@@ -1,5 +1,13 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.13.3
+
+This is a maintenance release:
+
+### Fixes
+* Allow compatibility with librdkafka 2.13.0+ (#)
+
+
 ## v2.13.2
 
 This is a maintenance release:
