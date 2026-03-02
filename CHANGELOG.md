@@ -18,6 +18,10 @@ This is a maintenance release:
 * Update frozen semantics for associations in mock SR client (#1514)
 * Client side upgrade for union-of-pools (#1511)
 
+confluent-kafka-go is based on librdkafka v2.13.2, see the
+[librdkafka v2.13.2 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.13.0
 
