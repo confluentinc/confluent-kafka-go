@@ -16,7 +16,6 @@ This is a maintenance release:
 * Allow Azure KMS key version to be optional (#1503)
 * schemaregistry/rules/encryption: fix dropped errors (#1512)
 * Update frozen semantics for associations in mock SR client (#1514)
-* Client side upgrade for union-of-pools (#1511)
 
 confluent-kafka-go is based on librdkafka v2.13.2, see the
 [librdkafka v2.13.2 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.2)
