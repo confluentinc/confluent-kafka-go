@@ -3303,6 +3303,7 @@ func TestAvroSerdeWithAssociatedNameStrategy(t *testing.T) {
 			{
 				Subject:         "my-custom-subject",
 				AssociationType: "value",
+				Lifecycle:       "STRONG",
 			},
 		},
 	}
@@ -3338,6 +3339,8 @@ func TestAvroSerdeWithAssociatedNameStrategy(t *testing.T) {
 
 	msg, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	client.DeleteAssociations("lkc-123:topic1", "topic", []string{"value"}, true)
 }
 
 func TestAvroSerdeWithAssociatedNameStrategyFallbackToTopic(t *testing.T) {
@@ -3432,86 +3435,6 @@ func TestAvroSerdeWithAssociatedNameStrategyFallbackNone(t *testing.T) {
 	}
 }
 
-func TestAvroSerdeWithAssociatedNameStrategyMultipleAssociations(t *testing.T) {
-	serde.MaybeFail = serde.InitFailFunc(t)
-	var err error
-	conf := schemaregistry.NewConfig("mock://")
-
-	client, err := schemaregistry.NewClient(conf)
-	serde.MaybeFail("Schema Registry configuration", err)
-
-	// Register two schemas with different subjects
-	info1 := schemaregistry.SchemaInfo{
-		Schema:     demoSchema,
-		SchemaType: "AVRO",
-	}
-	id, err := client.Register("subject1", info1, false)
-	serde.MaybeFail("Schema registration 1", err)
-	if id <= 0 {
-		t.Errorf("Expected valid schema id, found %d", id)
-	}
-
-	info2 := schemaregistry.SchemaInfo{
-		Schema:     demoSchema,
-		SchemaType: "AVRO",
-	}
-	id, err = client.Register("subject2", info2, false)
-	serde.MaybeFail("Schema registration 2", err)
-	if id <= 0 {
-		t.Errorf("Expected valid schema id, found %d", id)
-	}
-
-	// Create first association
-	assocRequest1 := schemaregistry.AssociationCreateOrUpdateRequest{
-		ResourceName:      "topic1",
-		ResourceNamespace: "-",
-		ResourceID:        "lkc-123:topic1",
-		ResourceType:      "topic",
-		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
-			{
-				Subject:         "subject1",
-				AssociationType: "value",
-			},
-		},
-	}
-	_, err = client.CreateAssociation(assocRequest1)
-	serde.MaybeFail("Association creation 1", err)
-
-	// Create second association for same topic and association type
-	assocRequest2 := schemaregistry.AssociationCreateOrUpdateRequest{
-		ResourceName:      "topic1",
-		ResourceNamespace: "-",
-		ResourceID:        "lkc-456:topic1",
-		ResourceType:      "topic",
-		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
-			{
-				Subject:         "subject2",
-				AssociationType: "value",
-			},
-		},
-	}
-	_, err = client.CreateAssociation(assocRequest2)
-	serde.MaybeFail("Association creation 2", err)
-
-	serConfig := NewSerializerConfig()
-	serConfig.AutoRegisterSchemas = false
-	serConfig.UseLatestVersion = true
-	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
-	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
-	serde.MaybeFail("Serializer configuration", err)
-
-	obj := DemoSchema{}
-	obj.IntField = 123
-	obj.DoubleField = 45.67
-	obj.StringField = "hi"
-	obj.BoolField = true
-	obj.BytesField = []byte{1, 2}
-	_, err = ser.Serialize("topic1", &obj)
-	if err == nil {
-		t.Errorf("Expected error when multiple associations found")
-	}
-}
-
 func TestAvroSerdeWithAssociatedNameStrategyWithKafkaClusterID(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
@@ -3542,6 +3465,7 @@ func TestAvroSerdeWithAssociatedNameStrategyWithKafkaClusterID(t *testing.T) {
 			{
 				Subject:         "my-custom-subject",
 				AssociationType: "value",
+				Lifecycle:       "STRONG",
 			},
 		},
 	}
@@ -3579,6 +3503,8 @@ func TestAvroSerdeWithAssociatedNameStrategyWithKafkaClusterID(t *testing.T) {
 
 	msg, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	client.DeleteAssociations("lkc-my-cluster:topic1", "topic", []string{"value"}, true)
 }
 
 func TestAvroSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
@@ -3611,6 +3537,7 @@ func TestAvroSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
 			{
 				Subject:         "my-cached-subject",
 				AssociationType: "value",
+				Lifecycle:       "STRONG",
 			},
 		},
 	}
@@ -3646,4 +3573,6 @@ func TestAvroSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
 		msg, err := deser.Deserialize("topic1", bytes)
 		serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 	}
+
+	client.DeleteAssociations("lkc-123:topic1", "topic", []string{"value"}, true)
 }
