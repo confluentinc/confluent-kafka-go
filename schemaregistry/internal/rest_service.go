@@ -468,11 +468,25 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 		return nil
 	}
 
-	var failure rest.Error
-	if err = json.NewDecoder(resp.Body).Decode(&failure); err != nil {
-		return err
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("schema registry unauthorized: check credentials or token expiration (HTTP %d): %s",
+			resp.StatusCode, string(bodyBytes))
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("schema registry forbidden: check permissions for this resource (HTTP %d): %s",
+			resp.StatusCode, string(bodyBytes))
 	}
 
+	var failure rest.Error
+	if err = json.Unmarshal(bodyBytes, &failure); err != nil {
+		//Fallback
+		return fmt.Errorf("unexpected response from schema registry (HTTP %d): %s",
+			resp.StatusCode, string(bodyBytes))
+	}
 	return &failure
 }
 
