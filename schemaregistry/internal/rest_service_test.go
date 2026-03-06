@@ -19,6 +19,8 @@ package internal
 import (
 	"crypto/tls"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -329,5 +331,98 @@ func TestNoAuthProviderSetAuthenticationHeaders(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("should work with no auth provider, got err %s", err)
+	}
+}
+
+func TestHandleRequest_UnauthorizedError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Invalid credentials"))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/subjects", nil)
+	var response interface{}
+
+	err = rs.HandleRequest(request, &response)
+
+	if err == nil {
+		t.Error("Expected error for 401 response, got nil")
+	}
+
+	expectedError := "schema registry unauthorized: check credentials or token expiration (HTTP 401): Invalid credentials"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
+	}
+}
+
+func TestHandleRequest_ForbiddenError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("Access denied"))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/subjects", nil)
+	var response interface{}
+
+	err = rs.HandleRequest(request, &response)
+
+	if err == nil {
+		t.Error("Expected error for 403 response, got nil")
+	}
+
+	expectedError := "schema registry forbidden: check permissions for this resource (HTTP 403): Access denied"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
+	}
+}
+
+func TestHandleRequest_SuccessResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"name":"test-subject"}`))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/subjects/test-subject", nil)
+	var response map[string]interface{}
+
+	err = rs.HandleRequest(request, &response)
+
+	if err != nil {
+		t.Errorf("Expected no error for 200 response, got %v", err)
+	}
+
+	if response["name"] != "test-subject" {
+		t.Errorf("Expected response name 'test-subject', got %v", response["name"])
 	}
 }
