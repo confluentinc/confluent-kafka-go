@@ -472,6 +472,7 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	if err = json.NewDecoder(resp.Body).Decode(&failure); err != nil {
 		return err
 	}
+
 	return &failure
 }
 
