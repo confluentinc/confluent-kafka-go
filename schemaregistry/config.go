@@ -18,6 +18,7 @@ package schemaregistry
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
@@ -49,6 +50,8 @@ func NewConfig(url string) *Config {
 	c.BearerAuthCredentialsSource = ""
 	c.BearerAuthLogicalCluster = ""
 	c.BearerAuthIdentityPoolID = ""
+	c.BearerAuthUAMIEndpointURL = ""
+	c.BearerAuthUAMIEndpointQuery = ""
 	c.AuthenticationHeaderProvider = nil
 
 	c.ConnectionTimeoutMs = 10000
@@ -93,6 +96,31 @@ func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID stri
 
 	c.BearerAuthToken = token
 	c.BearerAuthCredentialsSource = "STATIC_TOKEN"
+	c.BearerAuthLogicalCluster = targetSr
+	c.BearerAuthIdentityPoolID = identityPoolID
+
+	return c
+}
+
+// NewConfigWithUAMIAuthentication returns a new configuration instance using Azure User-Assigned Managed Identity.
+// endpointURL is the custom Azure authority host (empty for Azure public cloud).
+// endpointQuery is the UAMI client ID (empty for system-assigned identity).
+// resource is the Azure resource URI (e.g. "api://..."). It is automatically
+// "/.default" is appended automatically if not already present, as required by the Azure SDK.
+// targetSr is the target Schema Registry logical cluster ID.
+// identityPoolID is the Confluent identity pool ID.
+func NewConfigWithUAMIAuthentication(url, endpointURL, endpointQuery, resource, targetSr, identityPoolID string) *Config {
+	c := NewConfig(url)
+
+	azureResource := resource
+	if !strings.HasSuffix(azureResource, "/.default") {
+		azureResource = azureResource + "/.default"
+	}
+
+	c.BearerAuthCredentialsSource = "UAMI"
+	c.BearerAuthUAMIEndpointURL = endpointURL
+	c.BearerAuthUAMIEndpointQuery = endpointQuery
+	c.BearerAuthScopes = []string{azureResource}
 	c.BearerAuthLogicalCluster = targetSr
 	c.BearerAuthIdentityPoolID = identityPoolID
 
