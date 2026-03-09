@@ -359,7 +359,7 @@ func TestHandleRequest_UnauthorizedError(t *testing.T) {
 		t.Error("Expected error for 401 response, got nil")
 	}
 
-	expectedError := "schema registry unauthorized: check credentials or token expiration (HTTP 401): Invalid credentials"
+	expectedError := "(HTTP 401): Invalid credentials"
 	if err.Error() != expectedError {
 		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
 	}
@@ -390,7 +390,7 @@ func TestHandleRequest_ForbiddenError(t *testing.T) {
 		t.Error("Expected error for 403 response, got nil")
 	}
 
-	expectedError := "schema registry forbidden: check permissions for this resource (HTTP 403): Access denied"
+	expectedError := "(HTTP 403): Access denied"
 	if err.Error() != expectedError {
 		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
 	}
