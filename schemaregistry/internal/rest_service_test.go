@@ -250,6 +250,45 @@ func TestOAuthBearerAuthConfig(t *testing.T) {
 	}
 }
 
+func TestUAMIAuthConfig(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.BearerAuthCredentialsSource = "UAMI"
+
+	_, err := NewRestService(config)
+	if !strings.Contains(err.Error(), "bearer.auth.scopes must specify exactly one resource") {
+		t.Errorf("should have error about bearer.auth.scopes, got %s", err)
+	}
+
+	config.BearerAuthScopes = []string{"https://example.com/.default"}
+	_, err = NewRestService(config)
+	if !strings.Contains(err.Error(), "bearer.auth.identity.pool.id") {
+		t.Errorf("should have error about bearer.auth.identity.pool.id, got %s", err)
+	}
+
+	config.BearerAuthIdentityPoolID = "pool_id"
+	_, err = NewRestService(config)
+	if !strings.Contains(err.Error(), "bearer.auth.logical.cluster") {
+		t.Errorf("should have error about bearer.auth.logical.cluster, got %s", err)
+	}
+}
+
+func TestUAMIAuthConfigWithCustomProvider(t *testing.T) {
+	config := &ClientConfig{}
+
+	config.BearerAuthCredentialsSource = "UAMI"
+	config.AuthenticationHeaderProvider = &CustomHeaderProvider{
+		token:                        testToken,
+		schemaRegistryLogicalCluster: testLogicalCluster,
+		identityPoolID:               testIdentityPoolID,
+	}
+
+	_, err := NewRestService(config)
+	if !strings.Contains(err.Error(), "cannot have bearer.auth.credentials.source UAMI") {
+		t.Errorf("should have error about custom provider conflict with UAMI, got %s", err)
+	}
+}
+
 type CustomHeaderProvider struct {
 	token                        string
 	schemaRegistryLogicalCluster string

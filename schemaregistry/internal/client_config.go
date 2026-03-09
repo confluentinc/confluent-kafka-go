@@ -53,6 +53,12 @@ type ClientConfig struct {
 	BearerAuthClientSecret string
 	// BearerAuthScopes specifies the scopes for OAuth Bearer Token authentication.
 	BearerAuthScopes []string
+	// BearerAuthUAMIEndpointURL specifies the custom Azure authority host for UAMI authentication.
+	// If empty, Azure public cloud is used.
+	BearerAuthUAMIEndpointURL string
+	// BearerAuthUAMIEndpointQuery specifies the UAMI client ID for UAMI authentication.
+	// If empty, system-assigned identity is used.
+	BearerAuthUAMIEndpointQuery string
 	// AuthenticationHeaderProvider specifies a custom authentication header provider.
 	AuthenticationHeaderProvider AuthenticationHeaderProvider
 
@@ -114,6 +120,8 @@ func ConfigsEqual(c1 *ClientConfig, c2 *ClientConfig) bool {
 		c1.BearerAuthClientID == c2.BearerAuthClientID &&
 		c1.BearerAuthClientSecret == c2.BearerAuthClientSecret &&
 		stringSlicesEqual(c1.BearerAuthScopes, c2.BearerAuthScopes) &&
+		c1.BearerAuthUAMIEndpointURL == c2.BearerAuthUAMIEndpointURL &&
+		c1.BearerAuthUAMIEndpointQuery == c2.BearerAuthUAMIEndpointQuery &&
 		c1.AuthenticationHeaderProvider == c2.AuthenticationHeaderProvider &&
 		c1.SslCertificateLocation == c2.SslCertificateLocation &&
 		c1.SslKeyLocation == c2.SslKeyLocation &&

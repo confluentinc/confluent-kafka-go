@@ -23,6 +23,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/oauth2"
 )
 
@@ -203,4 +207,52 @@ func (p *BearerTokenAuthenticationHeaderProvider) GetIdentityPoolID() (string, e
 // GetLogicalCluster returns the logical cluster
 func (p *BearerTokenAuthenticationHeaderProvider) GetLogicalCluster() (string, error) {
 	return p.logicalCluster, nil
+}
+
+// UAMITokenFetcher implements TokenFetcher using Azure User-Assigned Managed Identity
+type UAMITokenFetcher struct {
+	credential *azidentity.ManagedIdentityCredential
+	scopes     []string
+}
+
+// NewUAMITokenFetcher creates a new UAMITokenFetcher
+func NewUAMITokenFetcher(endpointURL, endpointQuery string, scopes []string) (*UAMITokenFetcher, error) {
+	opts := &azidentity.ManagedIdentityCredentialOptions{}
+
+	if endpointURL != "" {
+		opts.ClientOptions = azcore.ClientOptions{
+			Cloud: cloud.Configuration{
+				ActiveDirectoryAuthorityHost: endpointURL,
+			},
+		}
+	}
+
+	if endpointQuery != "" {
+		opts.ID = azidentity.ClientID(endpointQuery)
+	}
+
+	cred, err := azidentity.NewManagedIdentityCredential(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create UAMI credential: %w", err)
+	}
+
+	return &UAMITokenFetcher{
+		credential: cred,
+		scopes:     scopes,
+	}, nil
+}
+
+// Token fetches an access token from Azure and returns it as an oauth2.Token
+func (f *UAMITokenFetcher) Token(ctx context.Context) (*oauth2.Token, error) {
+	accessToken, err := f.credential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: f.scopes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get UAMI token: %w", err)
+	}
+
+	return &oauth2.Token{
+		AccessToken: accessToken.Token,
+		Expiry:      accessToken.ExpiresOn,
+	}, nil
 }
