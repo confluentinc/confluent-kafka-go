@@ -472,11 +472,7 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("(HTTP %d): %s",
-			resp.StatusCode, string(bodyBytes))
-	}
-	if resp.StatusCode == http.StatusForbidden {
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return fmt.Errorf("(HTTP %d): %s",
 			resp.StatusCode, string(bodyBytes))
 	}
