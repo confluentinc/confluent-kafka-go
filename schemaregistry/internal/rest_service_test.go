@@ -269,6 +269,12 @@ func TestUAMIAuthConfig(t *testing.T) {
 	if !strings.Contains(err.Error(), "bearer.auth.logical.cluster") {
 		t.Errorf("should have error about bearer.auth.logical.cluster, got %s", err)
 	}
+
+	config.BearerAuthLogicalCluster = "lsrc-123"
+	_, err = NewRestService(config)
+	if err != nil {
+		t.Errorf("should work with valid UAMI auth config, got %s", err)
+	}
 }
 
 func TestUAMIAuthConfigWithCustomProvider(t *testing.T) {

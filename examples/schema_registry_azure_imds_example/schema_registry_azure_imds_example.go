@@ -26,7 +26,8 @@
 //	  -uami.client.id=<uami-client-id> \
 //	  -uami.resource=api://<uami-resource-id> \
 //	  -bearer.auth.logical.cluster=lsrc-xxxxx \
-//	  -bearer.auth.identity.pool.id=pool-xxxxx
+//	  -bearer.auth.identity.pool.id=pool-xxxxx \
+//	  [-uami.base.url=https://custom-authority-host]
 package main
 
 import (

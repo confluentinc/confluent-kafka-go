@@ -105,7 +105,7 @@ func NewConfigWithBearerAuthentication(url, token, targetSr, identityPoolID stri
 // NewConfigWithUAMIAuthentication returns a new configuration instance using Azure User-Assigned Managed Identity.
 // endpointURL is the custom Azure authority host (empty for Azure public cloud).
 // endpointQuery is the UAMI client ID (empty for system-assigned identity).
-// resource is the Azure resource URI (e.g. "api://..."). It is automatically
+// resource is the Azure resource URI (e.g. "api://...").
 // "/.default" is appended automatically if not already present, as required by the Azure SDK.
 // targetSr is the target Schema Registry logical cluster ID.
 // identityPoolID is the Confluent identity pool ID.
