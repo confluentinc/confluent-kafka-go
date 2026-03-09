@@ -468,20 +468,9 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 		return nil
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return fmt.Errorf("(HTTP %d): %s",
-			resp.StatusCode, string(bodyBytes))
-	}
-
 	var failure rest.Error
-	if err = json.Unmarshal(bodyBytes, &failure); err != nil {
-		//Fallback
-		return fmt.Errorf("(HTTP %d): %s",
-			resp.StatusCode, string(bodyBytes))
+	if err = json.NewDecoder(resp.Body).Decode(&failure); err != nil {
+		return err
 	}
 	return &failure
 }

@@ -336,8 +336,9 @@ func TestNoAuthProviderSetAuthenticationHeaders(t *testing.T) {
 
 func TestHandleRequest_UnauthorizedError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Invalid credentials"))
+		w.Write([]byte(`{"error_code": 401, "message": "Invalid credentials"}`))
 	}))
 	defer server.Close()
 
@@ -359,38 +360,7 @@ func TestHandleRequest_UnauthorizedError(t *testing.T) {
 		t.Error("Expected error for 401 response, got nil")
 	}
 
-	expectedError := "(HTTP 401): Invalid credentials"
-	if err.Error() != expectedError {
-		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
-	}
-}
-
-func TestHandleRequest_ForbiddenError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("Access denied"))
-	}))
-	defer server.Close()
-
-	config := &ClientConfig{
-		SchemaRegistryURL: server.URL,
-	}
-
-	rs, err := NewRestService(config)
-	if err != nil {
-		t.Fatalf("Failed to create RestService: %v", err)
-	}
-
-	request := NewRequest("GET", "/subjects", nil)
-	var response interface{}
-
-	err = rs.HandleRequest(request, &response)
-
-	if err == nil {
-		t.Error("Expected error for 403 response, got nil")
-	}
-
-	expectedError := "(HTTP 403): Access denied"
+	expectedError := "schema registry request failed error code: 401: Invalid credentials"
 	if err.Error() != expectedError {
 		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
 	}
