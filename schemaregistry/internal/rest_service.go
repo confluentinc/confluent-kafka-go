@@ -297,11 +297,11 @@ func createUSERINFOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderP
 func checkIdentityPoolIDAndLogicalCluster(conf *ClientConfig) error {
 	if conf.BearerAuthIdentityPoolID == "" {
 		return fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
+			" specified with STATIC_TOKEN, OAUTHBEARER, or UAMI")
 	}
 	if conf.BearerAuthLogicalCluster == "" {
 		return fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
+			" specified with STATIC_TOKEN, OAUTHBEARER, or UAMI")
 
 	}
 	return nil
@@ -389,6 +389,47 @@ func createBearerOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderPr
 	return authenticationHeaderProvider, nil
 }
 
+// checkUAMIFields checks if the UAMI auth fields are set
+func checkUAMIFields(conf *ClientConfig) error {
+	if conf.AuthenticationHeaderProvider != nil {
+		return fmt.Errorf("cannot have bearer.auth.credentials.source UAMI " +
+			"with custom authentication header provider")
+	}
+
+	if len(conf.BearerAuthScopes) != 1 {
+		return fmt.Errorf("bearer.auth.scopes must specify exactly one resource when bearer.auth.credentials.source is" +
+			" specified with UAMI")
+	}
+
+	return checkIdentityPoolIDAndLogicalCluster(conf)
+}
+
+// createUAMIAuthHeaderProvider creates a new BearerTokenAuthenticationHeaderProvider using UAMI
+func createUAMIAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
+	err := checkUAMIFields(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenFetcher, err := NewUAMITokenFetcher(
+		conf.BearerAuthUAMIEndpointURL,
+		conf.BearerAuthUAMIEndpointQuery,
+		conf.BearerAuthScopes,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBearerTokenAuthenticationHeaderProvider(
+		conf.BearerAuthIdentityPoolID,
+		conf.BearerAuthLogicalCluster,
+		tokenFetcher,
+		conf.MaxRetries,
+		conf.RetriesWaitMs,
+		conf.RetriesMaxWaitMs,
+	), nil
+}
+
 // handleCustomAuthenticationHeaderProvider handles custom authentication header provider
 func handleCustomAuthenticationHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
 	if conf.AuthenticationHeaderProvider == nil {
@@ -431,6 +472,8 @@ func NewAuthenticationHeaderProvider(service *url.URL, conf *ClientConfig) (Auth
 			provider, err = createStaticTokenAuthHeaderProvider(conf)
 		case "OAUTHBEARER":
 			provider, err = createBearerOAuthHeaderProvider(conf)
+		case "UAMI":
+			provider, err = createUAMIAuthHeaderProvider(conf)
 		case "CUSTOM":
 			provider, err = handleCustomAuthenticationHeaderProvider(conf)
 		default:
