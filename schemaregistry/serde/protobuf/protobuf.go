@@ -19,12 +19,13 @@ package protobuf
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"io"
 	"log"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -75,9 +76,17 @@ const SchemaType = "PROTOBUF"
 type Serializer struct {
 	serde.BaseSerializer
 	*Serde
-	Conf                  *SerializerConfig
-	descToSchemaCache     cache.Cache
-	descToSchemaCacheLock sync.RWMutex
+	Conf                         *SerializerConfig
+	descToSchemaCache            cache.Cache
+	descToSchemaCacheLock        sync.RWMutex
+	ReferenceSubjectNameStrategy ReferenceSubjectNameStrategyFunc
+}
+
+// ReferenceSubjectNameStrategyFunc used to map references to subject names
+type ReferenceSubjectNameStrategyFunc func(fileDesc *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error)
+
+func defaultReferenceSubjectNameStrategy(fileDescriptor *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error) {
+	return fileDescriptor.GetName(), nil
 }
 
 // Deserializer represents a Protobuf deserializer
@@ -165,6 +174,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		descToSchemaCache: descToSchemaCache,
 	}
 	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	s.ReferenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
 	s.Conf = conf
 	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
@@ -276,7 +286,7 @@ func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.Sche
 	}
 	autoRegister := s.Conf.AutoRegisterSchemas
 	normalize := s.Conf.NormalizeSchemas
-	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
+	metadata, err := s.resolveDependencies(fileDesc, deps, false, autoRegister, normalize)
 	if err != nil {
 		return nil, err
 	}
@@ -327,13 +337,13 @@ func (s *Serializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[stri
 	return nil
 }
 
-func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
+func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, isReferenceSchema bool, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
 	refs := make([]schemaregistry.Reference, 0, len(fileDesc.GetDependencies())+len(fileDesc.GetPublicDependencies()))
 	for _, d := range fileDesc.GetDependencies() {
 		if ignoreFile(d.GetName()) {
 			continue
 		}
-		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
+		ref, err := s.resolveDependencies(d, deps, true, autoRegister, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -347,7 +357,7 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if ignoreFile(d.GetName()) {
 			continue
 		}
-		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
+		ref, err := s.resolveDependencies(d, deps, true, autoRegister, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -365,7 +375,12 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 	var id = -1
 	var err error
 	var version = 0
-	if subject != "" {
+	var subject = ""
+	if isReferenceSchema {
+		subject, err = s.ReferenceSubjectNameStrategy(fileDesc, info)
+		if err != nil {
+			return schemaregistry.SchemaMetadata{}, err
+		}
 		if autoRegister {
 			id, err = s.Client.Register(subject, info, normalize)
 			if err != nil {

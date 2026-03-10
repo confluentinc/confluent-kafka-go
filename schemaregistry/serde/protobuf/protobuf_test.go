@@ -27,6 +27,7 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
+	"github.com/jhump/protoreflect/desc"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -298,6 +299,91 @@ func TestProtobufSerdeWithReference(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}
+
+func TestProtobufSerdeWithCustomReferenceSubjectName(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	clientForCustomStrategy, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	clientForDefaultStrategy, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serForCustomStrategy, err := NewSerializer(clientForCustomStrategy, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	serForDefaultStrategy, err := NewSerializer(clientForDefaultStrategy, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	serForCustomStrategy.ReferenceSubjectNameStrategy = func(fileDesc *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error) {
+		name := fileDesc.GetName()
+		return "prefix/" + name, nil
+	}
+
+	msg := test.TestMessage{
+		TestString:   "hi",
+		TestBool:     true,
+		TestBytes:    []byte{1, 2},
+		TestDouble:   1.23,
+		TestFloat:    3.45,
+		TestFixed32:  67,
+		TestFixed64:  89,
+		TestInt32:    100,
+		TestInt64:    200,
+		TestSfixed32: 300,
+		TestSfixed64: 400,
+		TestSint32:   500,
+		TestSint64:   600,
+		TestUint32:   700,
+		TestUint64:   800,
+	}
+	obj := test.DependencyMessage{
+		IsActive:     true,
+		TestMesssage: &msg,
+	}
+
+	_, err = serForCustomStrategy.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+	_, err = serForDefaultStrategy.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	topic1ValueCustomStrategyMetadata, err := clientForCustomStrategy.GetSchemaMetadata("topic1-value", 1)
+	serde.MaybeFail("GetSchemaMetadata", err)
+	serde.MaybeFail("references",
+		err,
+		serde.Expect(
+			topic1ValueCustomStrategyMetadata.References,
+			[]schemaregistry.Reference{
+				{
+					Subject: "prefix/test.proto",
+					Name:    "test.proto",
+					Version: 1,
+				},
+			},
+		),
+	)
+	_, err = clientForCustomStrategy.GetSchemaMetadata("prefix/test.proto", 1)
+	serde.MaybeFail("GetSchemaMetadata", err)
+
+	topic1ValueDefaultStrategyMetadata, err := clientForDefaultStrategy.GetSchemaMetadata("topic1-value", 1)
+	serde.MaybeFail("GetSchemaMetadata", err)
+	serde.MaybeFail("references",
+		err,
+		serde.Expect(
+			topic1ValueDefaultStrategyMetadata.References,
+			[]schemaregistry.Reference{
+				{
+					Subject: "test.proto",
+					Name:    "test.proto",
+					Version: 1,
+				},
+			},
+		),
+	)
+	_, err = clientForDefaultStrategy.GetSchemaMetadata("test.proto", 1)
+	serde.MaybeFail("GetSchemaMetadata", err)
 }
 
 func TestProtobufSerdeWithCycle(t *testing.T) {
