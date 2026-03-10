@@ -73,3 +73,7 @@ make -f mk/Makefile generr
 Integration tests for `kafka/` use a `testconf` struct populated from `testconf.json` (if present) or defaults to `localhost:9092`. Tests can spin up Docker containers via testcontainers-go when `-docker.needed` flag is set.
 
 Schema registry integration tests are in `schemaregistry/test/` and use `testcontainers-go/modules/compose`.
+
+## Git
+
+- Always use `git push-external` instead of `git push` (proprietary code check required).
