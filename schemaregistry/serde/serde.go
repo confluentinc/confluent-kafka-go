@@ -257,6 +257,7 @@ type BaseDeserializer struct {
 
 // RuleContext represents a rule context
 type RuleContext struct {
+	EnabledEnv       string
 	Source           *schemaregistry.SchemaInfo
 	Target           *schemaregistry.SchemaInfo
 	Subject          string
@@ -842,19 +843,23 @@ func (s *Serde) ExecuteRulesWithPhase(subject string, topic string,
 	if msg == nil || target == nil {
 		return msg, nil
 	}
+	var enabledEnv string
 	var rules []schemaregistry.Rule
 	switch ruleMode {
 	case schemaregistry.Upgrade:
 		if target.RuleSet != nil {
+			enabledEnv = target.RuleSet.EnableAt
 			rules = target.RuleSet.MigrationRules
 		}
 	case schemaregistry.Downgrade:
 		if source.RuleSet != nil {
+			enabledEnv = source.RuleSet.EnableAt
 			// Execute downgrade rules in reverse order for symmetry
 			rules = reverseRules(source.RuleSet.MigrationRules)
 		}
 	default:
 		if target.RuleSet != nil {
+			enabledEnv = target.RuleSet.EnableAt
 			if rulePhase == schemaregistry.EncodingPhase {
 				rules = target.RuleSet.EncodingRules
 			} else {
@@ -867,7 +872,20 @@ func (s *Serde) ExecuteRulesWithPhase(subject string, topic string,
 		}
 	}
 	for i, rule := range rules {
-		if s.isDisabled(rule) {
+		ctx := RuleContext{
+			EnabledEnv:       enabledEnv,
+			Source:           source,
+			Target:           target,
+			Subject:          subject,
+			Topic:            topic,
+			IsKey:            s.SerdeType == KeySerde,
+			RuleMode:         ruleMode,
+			Rule:             &rule,
+			Index:            i,
+			Rules:            rules,
+			FieldTransformer: s.FieldTransformer,
+		}
+		if s.isDisabled(ctx, rule) {
 			continue
 		}
 		mode, ok := schemaregistry.ParseMode(rule.Mode)
@@ -887,18 +905,6 @@ func (s *Serde) ExecuteRulesWithPhase(subject string, topic string,
 			if mode != ruleMode {
 				continue
 			}
-		}
-		ctx := RuleContext{
-			Source:           source,
-			Target:           target,
-			Subject:          subject,
-			Topic:            topic,
-			IsKey:            s.SerdeType == KeySerde,
-			RuleMode:         ruleMode,
-			Rule:             &rule,
-			Index:            i,
-			Rules:            rules,
-			FieldTransformer: s.FieldTransformer,
 		}
 		ruleExecutor := s.RuleRegistry.GetExecutor(rule.Type)
 		if ruleExecutor == nil {
@@ -955,10 +961,17 @@ func (s *Serde) getOnFailure(rule schemaregistry.Rule) string {
 	return rule.OnFailure
 }
 
-func (s *Serde) isDisabled(rule schemaregistry.Rule) bool {
+func (s *Serde) isDisabled(ctx RuleContext, rule schemaregistry.Rule) bool {
 	override := s.RuleRegistry.GetOverride(rule.Type)
 	if override != nil && override.Disabled != nil {
 		return *override.Disabled
+	}
+	enabledEnv := ctx.EnabledEnv
+	if enabledEnv == "" {
+		enabledEnv = "ALL"
+	}
+	if enabledEnv != "ALL" && enabledEnv != "CLIENT" {
+		return true
 	}
 	return rule.Disabled
 }
