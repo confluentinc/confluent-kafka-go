@@ -1,5 +1,12 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.xx.x
+
+### Enhancements
+* Add AssociatedNameStrategy (#1515)
+* Add enableAt to RuleSet (#1530)
+
+
 ## v2.13.3
 
 This is a maintenance release:
