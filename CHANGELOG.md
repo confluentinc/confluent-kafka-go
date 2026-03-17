@@ -1,5 +1,12 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.14.0
+
+This is a feature release:
+
+### Enhancements
+* Add support for Azure User-Assigned Managed Identity (UAMI) authentication in Schema Registry client
+
 ## v2.13.3
 
 This is a maintenance release:
