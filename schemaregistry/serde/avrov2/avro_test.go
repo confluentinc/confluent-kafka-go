@@ -1073,7 +1073,7 @@ func TestAvroSerdeWithCELCondition(t *testing.T) {
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
 }
 
-func TestAvroSerdeCELConditionSimpleMap(t *testing.T) {
+func TestAvroSerdeWithCELConditionSimpleMap(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
 	conf := schemaregistry.NewConfig("mock://")
