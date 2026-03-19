@@ -71,6 +71,10 @@ func (c *Executor) Type() string {
 
 // Transform transforms the message using the rule
 func (c *Executor) Transform(ctx serde.RuleContext, msg interface{}) (interface{}, error) {
+	// Dereference pointer to get the underlying value for CEL evaluation
+	if v := reflect.ValueOf(msg); v.Kind() == reflect.Ptr && !v.IsNil() {
+		msg = v.Elem().Interface()
+	}
 	args := map[string]interface{}{
 		"message": msg,
 	}
