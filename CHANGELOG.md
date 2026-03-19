@@ -6,6 +6,7 @@
 * Add support for Azure User-Assigned Managed Identity (UAMI) authentication in Schema Registry client
 * Add AssociatedNameStrategy (#1515)
 * Add enableAt to RuleSet (#1530)
+* Dereference map ptrs for data quality rules (#1532)
 
 
 ## v2.13.3
