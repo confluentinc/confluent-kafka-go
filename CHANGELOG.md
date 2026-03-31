@@ -8,6 +8,12 @@
 * Add enableAt to RuleSet (#1530)
 * Dereference map ptrs for data quality rules (#1532)
 
+## v2.14.1
+
+This is a maintenance release:
+
+* Bundle prebuilt binaries for linux-s390x (#)
+
 
 ## v2.13.3
 

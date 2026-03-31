@@ -2,11 +2,9 @@ module github.com/confluentinc/confluent-kafka-go/soaktest/v2
 
 go 1.24.3
 
-replace github.com/confluentinc/confluent-kafka-go/v2 => ../
-
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.13.3
+	github.com/confluentinc/confluent-kafka-go/v2 v2.14.1-alpha.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 )
 
