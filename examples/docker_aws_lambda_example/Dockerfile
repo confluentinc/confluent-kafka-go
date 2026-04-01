@@ -1,13 +1,14 @@
 FROM fedora:latest
-
+ARG GOVERSION=1.25.5
+ARG TARGETARCH
 # Install pre-reqs
 RUN dnf install wget -y
 RUN dnf install gcc -y
 
 RUN rpm --import https://packages.confluent.io/rpm/5.4/archive.key
 
-# Install Go v1.24.3
-RUN wget https://dl.google.com/go/go1.24.3.linux-amd64.tar.gz && tar -xvzf go1.24.3.linux-amd64.tar.gz && rm go1.24.3.linux-amd64.tar.gz
+# Install Go
+RUN wget https://dl.google.com/go/go${GOVERSION}.linux-${TARGETARCH}.tar.gz && tar -xvzf go${GOVERSION}.linux-${TARGETARCH}.tar.gz && rm go${GOVERSION}.linux-${TARGETARCH}.tar.gz
 RUN mv go /usr/local
 ENV GOROOT=/usr/local/go
 ENV PATH="${GOROOT}/bin:${PATH}"
