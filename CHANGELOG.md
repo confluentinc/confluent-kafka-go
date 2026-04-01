@@ -1,6 +1,8 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.14.0-RC1
+## v2.14.0
+
+This is a feature release:
 
 ### Enhancements
 * Add support for Azure User-Assigned Managed Identity (UAMI) authentication in Schema Registry client
@@ -8,8 +10,8 @@
 * Add enableAt to RuleSet (#1530)
 * Dereference map ptrs for data quality rules (#1532)
 
-confluent-kafka-go is based on librdkafka v2.14.0-RC1, see the
-[librdkafka v2.14.0-RC1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0-RC1)
+confluent-kafka-go is based on librdkafka v2.14.0, see the
+[librdkafka v2.14.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
