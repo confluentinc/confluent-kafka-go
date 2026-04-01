@@ -2,6 +2,8 @@
 
 ## v2.14.0
 
+This is a feature release:
+
 ### Enhancements
 * Add support for Azure User-Assigned Managed Identity (UAMI) authentication in Schema Registry client
 * Add AssociatedNameStrategy (#1515)
