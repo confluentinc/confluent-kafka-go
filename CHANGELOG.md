@@ -1,13 +1,13 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.14.1
+## v2.14.1-RC1
 
 This is a maintenance release:
 
 * Bundle prebuilt binaries for linux-s390x (#5365)
 
-confluent-kafka-go is based on librdkafka v2.14.1, see the
-[librdkafka v2.14.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.1)
+confluent-kafka-go is based on librdkafka v2.14.1-RC1, see the
+[librdkafka v2.14.1-RC1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.1-RC1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
