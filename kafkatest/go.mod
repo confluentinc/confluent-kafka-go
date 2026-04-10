@@ -6,7 +6,7 @@ replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
 require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.14.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.14.1-RC1
 )
 
 require (
