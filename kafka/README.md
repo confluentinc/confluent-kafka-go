@@ -146,6 +146,18 @@ Make sure to push to github before creating the tag to have CI tests pass.
     # Remove --dry-run and re-execute if it looks ok.
 
 
+### Tag the AWS OAUTHBEARER submodule (if present)
+
+The optional AWS OAUTHBEARER provider at
+[kafka/oauthbearer/aws](../kafka/oauthbearer/aws) is a nested Go module with
+its own release tag. Use the same version as the main module (lockstep
+policy) so compatibility is always obvious to consumers.
+
+    $ git tag kafka/oauthbearer/aws/v1.3.0
+    $ git push --dry-run origin kafka/oauthbearer/aws/v1.3.0
+    # Remove --dry-run and re-execute if it looks ok.
+
+
 ### Create release notes page on github
 
 ### Update version in Confluent docs

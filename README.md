@@ -281,6 +281,53 @@ GODEBUG=fips140=only ./myapp
 
 When running with `GODEBUG=fips140=only`, the application will use only FIPS 140-3 validated cryptographic implementations for all TLS connections to Schema Registry. The application will panic immediately if any non-FIPS-approved cryptographic operation is attempted.
 
+Optional integrations
+=====================
+
+Separately-versioned submodules provide opt-in support for cloud identity
+federation. Users who do not import them see zero change in their dependency
+graph — the main confluent-kafka-go module does not declare any AWS, Azure,
+or GCP SDK dependency for these integrations.
+
+AWS OAUTHBEARER provider
+------------------------
+
+Mint OIDC JWTs from AWS STS `GetWebIdentityToken` to authenticate to
+OAUTHBEARER-gated Kafka brokers (e.g. Confluent Cloud) using AWS IAM
+identity. Works on EC2, EKS (IRSA and Pod Identity), ECS, Fargate, and
+Lambda via the AWS SDK's default credential chain.
+
+```go
+import (
+    "github.com/confluentinc/confluent-kafka-go/v2/kafka"
+    oauthaws "github.com/confluentinc/confluent-kafka-go/v2/kafka/oauthbearer/aws"
+)
+
+provider, _ := oauthaws.New(ctx, oauthaws.Config{
+    Region:   "eu-north-1",
+    Audience: "https://confluent.cloud/oidc",
+})
+
+// Inside the poll loop:
+for {
+    switch ev := consumer.Poll(1000).(type) {
+    case kafka.OAuthBearerTokenRefresh:
+        provider.Refresh(ctx, consumer)
+    case *kafka.Message:
+        // ...
+    }
+}
+```
+
+Install separately:
+
+```bash
+go get github.com/confluentinc/confluent-kafka-go/v2/kafka/oauthbearer/aws
+```
+
+See [kafka/oauthbearer/aws/](kafka/oauthbearer/aws) for package docs and
+[DESIGN_AWS_OAUTHBEARER.md](DESIGN_AWS_OAUTHBEARER.md) for the design.
+
 API Strands
 ===========
 

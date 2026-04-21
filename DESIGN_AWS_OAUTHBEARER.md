@@ -1,6 +1,6 @@
 # Design: AWS STS `GetWebIdentityToken` OAUTHBEARER Provider
 
-**Status:** Draft — pending naming decision and first implementation
+**Status:** Implemented. See [IMPLEMENTATION_PLAN_AWS_OAUTHBEARER.md](IMPLEMENTATION_PLAN_AWS_OAUTHBEARER.md) for milestone tracking and the real-AWS validation result.
 **Owner:** prashah@confluent.io
 **Last updated:** 2026-04-21
 
@@ -293,12 +293,19 @@ The project-wide test runner at [mk/Makefile](mk/Makefile) already traverses all
 - **FIPS / VPC endpoints:** supported via `Config.STSEndpoint` override.
 - **Lambda:** the default credential chain picks up `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` that Lambda injects. Lambda's execution role needs `sts:GetWebIdentityToken` permission; VPC-bound Lambdas need egress to the STS regional endpoint.
 
-## 11. Open items
+## 11. Decisions and open items
 
-1. **Submodule path naming.** Current working name is `kafka/oauthbearer/aws`, leaving room for future `kafka/oauthbearer/azure`, `kafka/oauthbearer/gcp`. Alternatives: `kafka/awsiam`, `kafka/awsoauth`. Naming is locked by the first published version — decide before v1.
-2. **Token caching.** The AWS SDK does not cache `GetWebIdentityToken` responses. Since librdkafka drives refresh via the event, caching inside `TokenProvider` is redundant — but worth a one-liner comment in the provider doc explaining why.
-3. **Should `New()` eagerly resolve credentials** (catch misconfiguration early, add startup latency) **or lazily** (first token fetch slower, fewer startup deps)? Leaning eager. Document whichever is chosen.
-4. **CHANGELOG integration.** Add a new top-level "Optional integrations" section to the README pointing at the submodule, and a `CHANGELOG.md` entry at first release.
+Execution plan with milestones is in [IMPLEMENTATION_PLAN_AWS_OAUTHBEARER.md](IMPLEMENTATION_PLAN_AWS_OAUTHBEARER.md).
+
+**Decided:**
+
+1. **Submodule path naming: `kafka/oauthbearer/aws`.** Leaves room for future `kafka/oauthbearer/azure`, `kafka/oauthbearer/gcp`. Locked.
+2. **Credential resolution: lazy.** `New()` is syntactic — it validates config and constructs the `*sts.Client`, but does NOT pre-fetch credentials. First call to `Token()` triggers the SDK's credential chain, which then caches internally. Rationale: matches AWS SDK convention across .NET / Go / Python / JS (all four construct clients cheaply, resolve credentials on first API call, cache afterward). Avoids blocking `New()` on network calls (IMDS, web-identity file I/O).
+
+**Still open:**
+
+3. **Token caching.** The AWS SDK does not cache `GetWebIdentityToken` responses (it caches *credentials*, not the outbound JWT). Since librdkafka drives refresh via the event, caching inside `TokenProvider` is redundant — worth a one-liner comment in the provider doc explaining why, so future readers don't try to "optimize" by adding one.
+4. **CHANGELOG + README integration.** Add a new top-level "Optional integrations" section to the README pointing at the submodule, and a `CHANGELOG.md` entry at first release (both tracked as M8 in the implementation plan).
 
 ## 12. References
 

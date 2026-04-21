@@ -1,5 +1,20 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.15.0
+
+This is a feature release:
+
+### Enhancements
+* Add optional AWS OAUTHBEARER token provider submodule at
+  `kafka/oauthbearer/aws`, backed by AWS STS `GetWebIdentityToken`
+  (AWS IAM Outbound Identity Federation, GA 2025-11-19). Users running Kafka
+  clients on AWS (EC2, EKS, ECS/Fargate, Lambda) can authenticate to
+  OIDC-gated brokers using their IAM identity — no long-lived secrets.
+  The submodule is published as a separate Go module: users who do not
+  import it see zero change in their dependency graph. See
+  `DESIGN_AWS_OAUTHBEARER.md` and `kafka/oauthbearer/aws/TESTING.md`.
+
+
 ## v2.14.1
 
 This is a maintenance release:
