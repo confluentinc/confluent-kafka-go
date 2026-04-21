@@ -9,13 +9,21 @@ confluent-kafka-go is Confluent's Go client for Apache Kafka. It is a CGo wrappe
 ## Build & Test Commands
 
 ### Building
+
+Requires Go 1.17+ and (at runtime) librdkafka 2.14.0+. `CGO_ENABLED` must not be `0` — this is a CGo package.
+
 ```bash
 # Default build (uses statically linked vendored librdkafka)
 go build ./...
 
 # Build with dynamically linked librdkafka (requires librdkafka installed via pkg-config)
 go build -tags dynamic ./...
+
+# Build for Alpine / musl-based Linux (uses bundled musl static build)
+go build -tags musl ./...
 ```
+
+Build tags are applied to the **application** build, not this library. `-tags dynamic` is also required when GSSAPI/Kerberos support is needed, since the vendored builds omit it.
 
 ### Testing
 ```bash
@@ -44,9 +52,24 @@ make -f mk/Makefile "go vet"
 ```bash
 # Regenerate error codes from librdkafka (produces kafka/generated_errors.go)
 make -f mk/Makefile generr
+
+# Regenerate HTML API docs (requires beautifulsoup4 in a Python venv)
+make -f mk/Makefile docs
 ```
 
+### Updating the vendored librdkafka
+
+The static librdkafka binaries in `kafka/librdkafka_vendor/` are updated per the procedure in [kafka/librdkafka_vendor/README.md](kafka/librdkafka_vendor/README.md). When bumping, also update the minimum required version in `kafka/00version.go`, the top-level `README.md`, `examples/go.mod`, and `mk/doc-gen.py`, then re-run `make -f mk/Makefile generr` in case error codes changed.
+
 ## Architecture
+
+### Top-level layout
+
+- `kafka/` and `schemaregistry/` are the two shipped packages (see below).
+- `examples/` — runnable samples, including Confluent Cloud, AWS Lambda, transactions, OAuth, and legacy channel-based APIs. Each subdirectory has its own `go.mod`.
+- `soaktest/` — long-running stability test harness (not run in CI).
+- `kafkatest/` — verifiable client harness used by the cross-language Kafka system tests.
+- `mk/` — shared Makefile and doc-generation scripts.
 
 ### Two main packages
 
