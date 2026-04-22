@@ -46,32 +46,68 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 		}
 		schema.Types = originalTypes // restore original types
 	}
-	if len(schema.AllOf) > 0 {
-		subschema, err := validateSubschemas(schema.AllOf, msg)
-		if err != nil {
-			return nil, err
+	if len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
+		if len(schema.AllOf) > 0 {
+			for _, subschema := range schema.AllOf {
+				result, err := transform(ctx, subschema, path, msg, fieldTransform)
+				if err != nil {
+					return nil, err
+				}
+				msg = result
+			}
+		} else if len(schema.OneOf) > 0 {
+			for _, subschema := range schema.OneOf {
+				valid, err := validate(subschema, deref(msg))
+				if err != nil {
+					return nil, err
+				}
+				if valid {
+					result, err := transform(ctx, subschema, path, msg, fieldTransform)
+					if err != nil {
+						return nil, err
+					}
+					msg = result
+					break
+				}
+			}
+		} else { // AnyOf
+			for _, subschema := range schema.AnyOf {
+				valid, err := validate(subschema, deref(msg))
+				if err != nil {
+					return nil, err
+				}
+				if valid {
+					result, err := transform(ctx, subschema, path, msg, fieldTransform)
+					if err != nil {
+						return nil, err
+					}
+					msg = result
+				}
+			}
 		}
-		if subschema != nil {
-			return transform(ctx, subschema, path, msg, fieldTransform)
+		// Also visit sibling properties/items at this level
+		// (siblings to allOf/anyOf/oneOf).
+		if len(schema.Properties) > 0 {
+			result, err := transformProperties(ctx, schema, path, msg, fieldTransform)
+			if err != nil {
+				return nil, err
+			}
+			msg = result
 		}
-	}
-	if len(schema.AnyOf) > 0 {
-		subschema, err := validateSubschemas(schema.AnyOf, msg)
-		if err != nil {
-			return nil, err
+		var itemSchema *jsonschema2.Schema
+		if isModernJSONSchema(schema.Draft) {
+			itemSchema = schema.Items2020
+		} else if sch, ok := schema.Items.(*jsonschema2.Schema); ok {
+			itemSchema = sch
 		}
-		if subschema != nil {
-			return transform(ctx, subschema, path, msg, fieldTransform)
+		if itemSchema != nil {
+			result, err := transformArray(ctx, msg, itemSchema, path, fieldTransform)
+			if err != nil {
+				return nil, err
+			}
+			msg = result
 		}
-	}
-	if len(schema.OneOf) > 0 {
-		subschema, err := validateSubschemas(schema.OneOf, msg)
-		if err != nil {
-			return nil, err
-		}
-		if subschema != nil {
-			return transform(ctx, subschema, path, msg, fieldTransform)
-		}
+		return msg, nil
 	}
 	if isModernJSONSchema(schema.Draft) {
 		sch := schema.Items2020
@@ -91,31 +127,10 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 	switch typ {
 	case serde.TypeRecord:
 		val := deref(msg)
-		if val.Kind() == reflect.Struct {
-			fieldByNames := fieldByNames(val)
-			for propName, propSchema := range schema.Properties {
-				structField, ok := fieldByNames[propName]
-				if !ok {
-					continue
-				}
-				err := transformField(ctx, path, propName, structField, val, propSchema, fieldTransform)
-				if err != nil {
-					return nil, err
-				}
-			}
-			return msg, nil
-		} else if val.Kind() == reflect.Map {
-			for propName, propSchema := range schema.Properties {
-				mapField := val.MapIndex(reflect.ValueOf(propName))
-				err := transformField(ctx, path, propName, &mapField, val, propSchema, fieldTransform)
-				if err != nil {
-					return nil, err
-				}
-			}
-			return msg, nil
-		} else {
+		if val.Kind() != reflect.Struct && val.Kind() != reflect.Map {
 			return nil, fmt.Errorf("message of kind %s is not a struct or map", val.Kind())
 		}
+		return transformProperties(ctx, schema, path, msg, fieldTransform)
 	case serde.TypeEnum, serde.TypeString, serde.TypeInt, serde.TypeDouble, serde.TypeBoolean:
 		if fieldCtx != nil {
 			ruleTags := ctx.Rule.Tags
@@ -147,6 +162,32 @@ func fieldByNames(value *reflect.Value) map[string]*reflect.Value {
 		fieldByNames[fieldName] = &field
 	}
 	return fieldByNames
+}
+
+func transformProperties(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, msg *reflect.Value,
+	fieldTransform serde.FieldTransform) (*reflect.Value, error) {
+	val := deref(msg)
+	switch val.Kind() {
+	case reflect.Struct:
+		fieldByNames := fieldByNames(val)
+		for propName, propSchema := range schema.Properties {
+			structField, ok := fieldByNames[propName]
+			if !ok {
+				continue
+			}
+			if err := transformField(ctx, path, propName, structField, val, propSchema, fieldTransform); err != nil {
+				return nil, err
+			}
+		}
+	case reflect.Map:
+		for propName, propSchema := range schema.Properties {
+			mapField := val.MapIndex(reflect.ValueOf(propName))
+			if err := transformField(ctx, path, propName, &mapField, val, propSchema, fieldTransform); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return msg, nil
 }
 
 func transformField(ctx serde.RuleContext, path string, propName string, structField *reflect.Value, val *reflect.Value,
@@ -205,20 +246,6 @@ func validateSubtypes(schema *jsonschema2.Schema, msg *reflect.Value) (*jsonsche
 		}
 		if valid {
 			return schema, nil
-		}
-	}
-	return nil, nil
-}
-
-func validateSubschemas(subschemas []*jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
-	val := deref(msg)
-	for _, subschema := range subschemas {
-		valid, err := validate(subschema, val)
-		if err != nil {
-			return nil, err
-		}
-		if valid {
-			return subschema, nil
 		}
 	}
 	return nil, nil
