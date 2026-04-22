@@ -1,5 +1,11 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.x.x
+
+### Fixes
+* Handle anyOf/allOf in JSON transforms #1539
+
+
 ## v2.14.1
 
 This is a maintenance release:
