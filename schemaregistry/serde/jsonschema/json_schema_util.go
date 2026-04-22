@@ -182,6 +182,9 @@ func transformProperties(ctx serde.RuleContext, schema *jsonschema2.Schema, path
 	case reflect.Map:
 		for propName, propSchema := range schema.Properties {
 			mapField := val.MapIndex(reflect.ValueOf(propName))
+			if !mapField.IsValid() {
+				continue
+			}
 			if err := transformField(ctx, path, propName, &mapField, val, propSchema, fieldTransform); err != nil {
 				return nil, err
 			}
