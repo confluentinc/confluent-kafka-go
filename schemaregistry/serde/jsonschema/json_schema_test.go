@@ -305,7 +305,6 @@ const (
         }
     }
 `
-<<<<<<< HEAD
 	allOfSchema = `
 {
     "type": "object",
@@ -386,8 +385,6 @@ const (
     }
 }
 `
-||||||| parent of 7e25407 (chore: pr reverts)
-=======
 	schemaWithFormats = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -442,7 +439,6 @@ const (
   }
 }
 `
->>>>>>> 7e25407 (chore: pr reverts)
 )
 
 func testMessageFactory1(subject string, name string) (interface{}, error) {
