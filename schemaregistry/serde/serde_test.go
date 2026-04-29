@@ -95,3 +95,25 @@ func TestIdWithMessageIndexes(t *testing.T) {
 	output, err := schemaID.IDToBytes()
 	MaybeFail("same bytes", err, Expect(output, input))
 }
+
+func TestReadMessageIndexes(t *testing.T) {
+	MaybeFail = InitFailFunc(t)
+
+	// count=0 shorthand: 1 byte consumed, indexes=[0]
+	bytesRead, indexes, err := readMessageIndexes([]byte{0x00, 0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f})
+	MaybeFail("zero count", err, Expect(indexes, []int{0}), Expect(bytesRead, 1))
+
+	// 0x09 = raw 9, zigzag = -5 (e.g. field 1, wire type 1 in protobuf): negative count
+	// should return 0 bytes consumed and default index [0]
+	bytesRead, indexes, err = readMessageIndexes([]byte{0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	MaybeFail("negative count", err, Expect(indexes, []int{0}), Expect(bytesRead, 0))
+
+	// 0x0a = count 5 (field 1, wire type 2 in protobuf), 0x05 = raw 5, zigzag = -3:
+	// positive count but first index is negative — should return 0 bytes consumed + [0]
+	bytesRead, indexes, err = readMessageIndexes([]byte{0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f})
+	MaybeFail("negative first index", err, Expect(indexes, []int{0}), Expect(bytesRead, 0))
+
+	// valid positive indexes: 0x06 = count 3, then indexes 1, 2, 3 (zigzag: 0x02 0x04 0x06)
+	bytesRead, indexes, err = readMessageIndexes([]byte{0x06, 0x02, 0x04, 0x06})
+	MaybeFail("valid indexes", err, Expect(indexes, []int{1, 2, 3}), Expect(bytesRead, 4))
+}
