@@ -1546,3 +1546,43 @@ func TestProtobufSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
 
 	client.DeleteAssociations("lkc-123:topic1", "topic", []string{"value"}, true)
 }
+
+func TestProtobufSerdeWithMissingMessageIndexes(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+
+	// serialize normally so the schema is registered and we get a valid wire-format payload.
+	fullBytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// cflt wire format is: magic(1) + schemaId(4) + msgIndexCount(1+) + protobuf
+	// non-compliant producers that omit the message-index byte produce:
+	//   magic(1) + schemaId(4) + protobuf
+	// we can sim that by dropping byte 5 (the 0x00 shorthand count byte).
+	bytesWithoutIndexes := append(fullBytes[:5:5], fullBytes[6:]...)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	// Before the fix this panicked: runtime error: index out of range
+	newobj, err := deser.Deserialize("topic1", bytesWithoutIndexes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+}

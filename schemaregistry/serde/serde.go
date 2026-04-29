@@ -169,11 +169,15 @@ func (s *SchemaID) GUIDToBytes() ([]byte, error) {
 
 func readMessageIndexes(payload []byte) (int, []int, error) {
 	arrayLen, bytesRead := binary.Varint(payload)
-	if bytesRead <= 0 {
+	if bytesRead == 0 {
+		// Empty payload: message-index bytes are absent, fallback to 0
+		return 0, []int{0}, nil
+	}
+	if bytesRead < 0 {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
 	}
 	if arrayLen < 0 {
-		return bytesRead, nil, fmt.Errorf("parsed invalid message index count")
+		return 0, []int{0}, nil
 	}
 	if arrayLen == 0 {
 		// Handle the optimization for the first message in the schema
@@ -184,6 +188,9 @@ func readMessageIndexes(payload []byte) (int, []int, error) {
 		idx, read := binary.Varint(payload[bytesRead:])
 		if read <= 0 {
 			return bytesRead, nil, fmt.Errorf("unable to read message indexes")
+		}
+		if idx < 0 {
+			return 0, []int{0}, nil
 		}
 		bytesRead += read
 		msgIndexes[i] = int(idx)
