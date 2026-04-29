@@ -169,7 +169,11 @@ func (s *SchemaID) GUIDToBytes() ([]byte, error) {
 
 func readMessageIndexes(payload []byte) (int, []int, error) {
 	arrayLen, bytesRead := binary.Varint(payload)
-	if bytesRead <= 0 {
+	if bytesRead == 0 {
+		// Empty payload: message-index bytes are absent, fallback to 0
+		return 0, []int{0}, nil
+	}
+	if bytesRead < 0 {
 		return bytesRead, nil, fmt.Errorf("unable to read message indexes")
 	}
 	if arrayLen < 0 {

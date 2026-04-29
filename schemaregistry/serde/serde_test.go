@@ -116,4 +116,8 @@ func TestReadMessageIndexes(t *testing.T) {
 	// valid positive indexes: 0x06 = count 3, then indexes 1, 2, 3 (zigzag: 0x02 0x04 0x06)
 	bytesRead, indexes, err = readMessageIndexes([]byte{0x06, 0x02, 0x04, 0x06})
 	MaybeFail("valid indexes", err, Expect(indexes, []int{1, 2, 3}), Expect(bytesRead, 4))
+
+	// empty payload
+	bytesRead, indexes, err = readMessageIndexes([]byte{})
+	MaybeFail("empty payload", err, Expect(indexes, []int{0}), Expect(bytesRead, 0))
 }
