@@ -18,6 +18,7 @@ package protobuf
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
@@ -1582,7 +1583,13 @@ func TestProtobufSerdeWithMissingMessageIndexes(t *testing.T) {
 	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
 	serde.MaybeFail("register message", err)
 
-	// Before the fix this panicked: runtime error: index out of range
-	newobj, err := deser.Deserialize("topic1", bytesWithoutIndexes)
-	serde.MaybeFail("deserialization", err, serde.Expect(newobj.(proto.Message).ProtoReflect(), obj.ProtoReflect()))
+	// Non-compliant producers that omit message-index bytes should now return a descriptive error
+	// rather than silently falling back or panicking.
+	_, err = deser.Deserialize("topic1", bytesWithoutIndexes)
+	if err == nil {
+		t.Fatal("expected error for missing message indexes, got nil")
+	}
+	if !strings.Contains(err.Error(), "message indexes are absent or malformed") {
+		t.Fatalf("expected error to contain 'message indexes are absent or malformed', got: %v", err)
+	}
 }
