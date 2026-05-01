@@ -18,6 +18,7 @@ package protobuf
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
@@ -1545,4 +1546,50 @@ func TestProtobufSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
 	}
 
 	client.DeleteAssociations("lkc-123:topic1", "topic", []string{"value"}, true)
+}
+
+func TestProtobufSerdeWithMissingMessageIndexes(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := test.Author{
+		Name:     "Kafka",
+		Id:       123,
+		Works:    []string{"The Castle", "The Trial"},
+		PiiOneof: &test.Author_OneofString{OneofString: "oneof"},
+	}
+
+	// serialize normally so the schema is registered and we get a valid wire-format payload.
+	fullBytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// cflt wire format is: magic(1) + schemaId(4) + msgIndexCount(1+) + protobuf
+	// non-compliant producers that omit the message-index byte produce:
+	//   magic(1) + schemaId(4) + protobuf
+	// we can sim that by dropping byte 5 (the 0x00 shorthand count byte).
+	bytesWithoutIndexes := append(fullBytes[:5:5], fullBytes[6:]...)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	err = deser.ProtoRegistry.RegisterMessage(obj.ProtoReflect().Type())
+	serde.MaybeFail("register message", err)
+
+	// Non-compliant producers that omit message-index bytes should now return a descriptive error
+	// rather than silently falling back or panicking.
+	_, err = deser.Deserialize("topic1", bytesWithoutIndexes)
+	if err == nil {
+		t.Fatal("expected error for missing message indexes, got nil")
+	}
+	if !strings.Contains(err.Error(), "message indexes are absent or malformed") {
+		t.Fatalf("expected error to contain 'message indexes are absent or malformed', got: %v", err)
+	}
 }

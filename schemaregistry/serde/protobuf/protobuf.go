@@ -715,15 +715,23 @@ func toMessageDesc(descriptor desc.Descriptor, msgIndexes []int) (*desc.MessageD
 
 	switch v := descriptor.(type) {
 	case *desc.FileDescriptor:
-		if len(msgIndexes) == 1 {
-			return v.GetMessageTypes()[index], nil
+		msgs := v.GetMessageTypes()
+		if index < 0 || index >= len(msgs) {
+			return nil, fmt.Errorf("message index %d out of range, schema has %d top-level message(s)", index, len(msgs))
 		}
-		return toMessageDesc(v.GetMessageTypes()[index], msgIndexes[1:])
+		if len(msgIndexes) == 1 {
+			return msgs[index], nil
+		}
+		return toMessageDesc(msgs[index], msgIndexes[1:])
 	case *desc.MessageDescriptor:
-		if len(msgIndexes) == 1 {
-			return v.GetNestedMessageTypes()[index], nil
+		nested := v.GetNestedMessageTypes()
+		if index < 0 || index >= len(nested) {
+			return nil, fmt.Errorf("message index %d out of range, message has %d nested message(s)", index, len(nested))
 		}
-		return toMessageDesc(v.GetNestedMessageTypes()[index], msgIndexes[1:])
+		if len(msgIndexes) == 1 {
+			return nested[index], nil
+		}
+		return toMessageDesc(nested[index], msgIndexes[1:])
 	default:
 		return nil, fmt.Errorf("unexpected type")
 	}
