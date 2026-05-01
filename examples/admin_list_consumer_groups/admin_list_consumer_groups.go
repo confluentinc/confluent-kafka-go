@@ -31,7 +31,7 @@ import (
 func usage(message string, fs *flag.FlagSet) {
 	if message != "" {
 		fmt.Fprintf(os.Stderr,
-			message)
+			"%s", message)
 	}
 	fs.Usage()
 	os.Exit(1)
