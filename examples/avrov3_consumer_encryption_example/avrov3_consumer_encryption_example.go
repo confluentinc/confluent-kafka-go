@@ -28,9 +28,14 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/gcpkms"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
 func main() {
@@ -42,7 +47,12 @@ func main() {
 	}
 
 	// Register the KMS drivers and the field-level encryption executor
-	jsonata.Register()
+	awskms.Register()
+	azurekms.Register()
+	gcpkms.Register()
+	hcvault.Register()
+	localkms.Register()
+	encryption.Register()
 
 	bootstrapServers := os.Args[1]
 	url := os.Args[2]
@@ -71,12 +81,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	deserConfig := avrov2.NewDeserializerConfig()
-	deserConfig.UseLatestWithMetadata = map[string]string{
-		"application.major.version": "2",
-	}
+	deserConfig := avrov3.NewDeserializerConfig()
+	// KMS properties can be passed as follows
+	//deserConfig.RuleConfig = map[string]string{
+	//	"secret.access.key": "xxx",
+	//	"access.key,id": "xxx",
+	//}
 
-	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, deserConfig)
+	deser, err := avrov3.NewDeserializer(client, serde.ValueSerde, deserConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

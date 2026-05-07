@@ -24,7 +24,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
 func main() {
@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, avrov2.NewSerializerConfig())
+	ser, err := avrov3.NewSerializer(client, serde.ValueSerde, avrov3.NewSerializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)

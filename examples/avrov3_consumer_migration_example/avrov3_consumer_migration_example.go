@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Confluent Inc.
+ * Copyright 2024 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,9 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
 func main() {
@@ -39,6 +40,9 @@ func main() {
 			os.Args[0])
 		os.Exit(1)
 	}
+
+	// Register the KMS drivers and the field-level encryption executor
+	jsonata.Register()
 
 	bootstrapServers := os.Args[1]
 	url := os.Args[2]
@@ -67,7 +71,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
+	deserConfig := avrov3.NewDeserializerConfig()
+	deserConfig.UseLatestWithMetadata = map[string]string{
+		"application.major.version": "2",
+	}
+
+	deser, err := avrov3.NewDeserializer(client, serde.ValueSerde, deserConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

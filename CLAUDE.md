@@ -62,7 +62,7 @@ make -f mk/Makefile generr
 **`schemaregistry/`** — Confluent Schema Registry client and serialization/deserialization (serde)
 - `schemaregistry_client.go` — REST client for Schema Registry API (register/lookup schemas, compatibility checks)
 - `serde/` — Serializer/Deserializer framework with format-specific implementations:
-  - `serde/avro/` and `serde/avrov2/` — Avro (two generations of implementation)
+  - `serde/avro/`, `serde/avrov2/`, and `serde/avrov3/` — Avro (gogen-avro, hamba/avro, and confluentinc/confluent-avro-go respectively)
   - `serde/jsonschema/` — JSON Schema
   - `serde/protobuf/` — Protocol Buffers
 - `rules/` — Data contract rules engine (CEL, JSONata, field-level encryption)
