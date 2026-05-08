@@ -36,7 +36,6 @@ var processorGroupID = "go-transactions-example-processor"
 // intersectionState
 type intersectionState struct {
 	name        string            // Name of intersection
-	partition   int32             // Input partition
 	lightState  map[string]string // Current light states, indexed by road
 	carsWaiting map[string]int    // Numbers of cars waiting, indexed by road
 	carCnt      int               // Total number of cars waiting
@@ -47,8 +46,8 @@ type intersectionState struct {
 // intersectionStates maintains state per intersection
 var intersectionStates map[string]*intersectionState
 
-// producers map assigned consumer input partitions to Producer instances.
-var producers map[int32]*kafka.Producer
+// producer is the single transactional producer used for all partitions.
+var producer *kafka.Producer
 
 // consumer is the processor consumer
 var processorConsumer *kafka.Consumer
@@ -74,15 +73,14 @@ func (m lightStateMsg) String() string {
 		m.Name, m.Road, m.State, m.CarsWaiting)
 }
 
-func getIntersectionState(name string, partition int32) *intersectionState {
+func getIntersectionState(name string) *intersectionState {
 	istate, found := intersectionStates[name]
 	if found {
 		return istate
 	}
 
 	istate = &intersectionState{
-		name:      name,
-		partition: partition,
+		name: name,
 	}
 
 	istate.lightState = make(map[string]string)
@@ -121,7 +119,7 @@ func processIngressCarMessage(msg *kafka.Message) {
 	intersection := string(msg.Key)
 	road := string(msg.Value)
 
-	istate := getIntersectionState(intersection, msg.TopicPartition.Partition)
+	istate := getIntersectionState(intersection)
 	_, found := istate.carsWaiting[road]
 	if !found {
 		addLog(fmt.Sprintf("Processor: %v: unknown road \"%s\" for intersection \"%s\": ignoring",
@@ -132,12 +130,6 @@ func processIngressCarMessage(msg *kafka.Message) {
 	if istate.currGreen != road {
 		istate.carsWaiting[road]++
 		istate.carCnt++
-	}
-
-	// Keep track of which input partition this istate is mapped to
-	// so we know which transactional producer to use.
-	if istate.partition == kafka.PartitionAny {
-		istate.partition = msg.TopicPartition.Partition
 	}
 
 }
@@ -202,10 +194,8 @@ func intersectionStateMachine(istate *intersectionState) bool {
 		changed = electNewGreenLight(istate)
 	}
 
-	// Get the producer for this istate's input partition
-	producer := producers[istate.partition]
 	if producer == nil {
-		fatal(fmt.Sprintf("BUG: No producer for intersection %s partition %v", istate.name, istate.partition))
+		fatal(fmt.Sprintf("BUG: No producer for intersection %s", istate.name))
 	}
 
 	// Produce message with current intersection light states.
@@ -263,9 +253,6 @@ func trafficLightProcessor(wg *sync.WaitGroup, termChan chan bool) {
 
 	intersectionStates = make(map[string]*intersectionState)
 
-	// The per-partition producers are set up in groupRebalance
-	producers = make(map[int32]*kafka.Producer)
-
 	consumerConfig := &kafka.ConfigMap{
 		"client.id":         "processor",
 		"bootstrap.servers": bootstrapServers,
@@ -286,6 +273,11 @@ func trafficLightProcessor(wg *sync.WaitGroup, termChan chan bool) {
 		fatal(err)
 	}
 
+	producer, err = createTransactionalProducer()
+	if err != nil {
+		fatal(err)
+	}
+
 	err = processorConsumer.Subscribe(inputTopic, groupRebalance)
 	if err != nil {
 		fatal(err)
@@ -298,22 +290,15 @@ func trafficLightProcessor(wg *sync.WaitGroup, termChan chan bool) {
 
 		case <-ticker.C:
 			// Run intersection state machine(s) periodically
-			partitionsToCommit := make(map[int32]bool)
+			needsCommit := false
 			for _, istate := range intersectionStates {
 				if intersectionStateMachine(istate) || punctuate {
-					// The state machine wants its transaction committed.
-					// The transaction is shared among all intersectionStates
-					// that use the same input partition since the input
-					// offset that is committed along with the transaction
-					// applies to all intersectionStates mapped to
-					// that partition.
-					partitionsToCommit[istate.partition] = true
+					needsCommit = true
 				}
 			}
 
-			// Commit transactions
-			for partition := range partitionsToCommit {
-				commitTransactionForInputPartition(partition)
+			if needsCommit {
+				commitTransaction()
 			}
 
 		case <-termChan:
@@ -342,7 +327,7 @@ func trafficLightProcessor(wg *sync.WaitGroup, termChan chan bool) {
 	addLog(fmt.Sprintf("Processor: shutting down"))
 	processorConsumer.Close()
 
-	for _, producer := range producers {
+	if producer != nil {
 		producer.AbortTransaction(nil)
 		producer.Close()
 	}
