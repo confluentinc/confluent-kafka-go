@@ -30,7 +30,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
 func main() {
@@ -112,7 +112,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	serConfig := avrov2.NewSerializerConfig()
+	serConfig := avrov3.NewSerializerConfig()
 	serConfig.AutoRegisterSchemas = false
 	serConfig.UseLatestVersion = true
 	// KMS properties can be passed as follows
@@ -121,7 +121,7 @@ func main() {
 	//	"access.key,id": "xxx",
 	//}
 
-	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, serConfig)
+	ser, err := avrov3.NewSerializer(client, serde.ValueSerde, serConfig)
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
