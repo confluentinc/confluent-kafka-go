@@ -569,8 +569,11 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 	var req *http.Request
 	var resp *http.Response
 
-	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &rs.headers)
-
+	// Clone base headers before setting auth to avoid concurrent map access
+	// when multiple goroutines call HandleHTTPRequest simultaneously.
+	// Each request gets its own header copy, so no synchronization is needed.
+	headers := rs.headers.Clone()
+	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &headers)
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +585,7 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 			endpoint.String(),
 			outbuf,
 		)
-		req.Header = rs.headers
+		req.Header = headers
 
 		resp, err = rs.Do(req)
 		if err != nil {
