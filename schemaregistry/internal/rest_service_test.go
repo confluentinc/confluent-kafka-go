@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -463,21 +464,34 @@ func TestHandleRequest_ConcurrentAccess(t *testing.T) {
 		t.Fatalf("Failed to create RestService: %v", err)
 	}
 
-	// Launch multiple goroutines to trigger concurrent map access.
-	// Before the fix, this would cause a fatal "concurrent map read and map write" panic.
+	// Use a start barrier so all goroutines begin at the same time,
+	// maximizing the chance of concurrent header map access.
 	const goroutines = 20
-	errs := make(chan error, goroutines)
+	const requestsPerGoroutine = 5
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make(chan error, goroutines*requestsPerGoroutine)
 
 	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
 		go func() {
-			request := NewRequest("GET", "/subjects", nil)
-			var response interface{}
-			errs <- rs.HandleRequest(request, &response)
+			defer wg.Done()
+			<-start
+			for j := 0; j < requestsPerGoroutine; j++ {
+				request := NewRequest("GET", "/subjects", nil)
+				var response interface{}
+				errs <- rs.HandleRequest(request, &response)
+			}
 		}()
 	}
 
-	for i := 0; i < goroutines; i++ {
-		if err := <-errs; err != nil {
+	// Release all goroutines simultaneously
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
 			t.Errorf("Concurrent request failed: %v", err)
 		}
 	}
