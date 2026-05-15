@@ -441,3 +441,44 @@ func TestHandleRequest_SuccessResponse(t *testing.T) {
 		t.Errorf("Expected response name 'test-subject', got %v", response["name"])
 	}
 }
+
+func TestHandleRequest_ConcurrentAccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":1}`))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL:          server.URL,
+		BearerAuthCredentialsSource: "STATIC_TOKEN",
+		BearerAuthToken:            "test-token",
+		BearerAuthLogicalCluster:   "lsrc-123",
+		BearerAuthIdentityPoolID:   "pool-id",
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	// Launch multiple goroutines to trigger concurrent map access.
+	// Before the fix, this would cause a fatal "concurrent map read and map write" panic.
+	const goroutines = 20
+	errs := make(chan error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			request := NewRequest("GET", "/subjects", nil)
+			var response interface{}
+			errs <- rs.HandleRequest(request, &response)
+		}()
+	}
+
+	for i := 0; i < goroutines; i++ {
+		if err := <-errs; err != nil {
+			t.Errorf("Concurrent request failed: %v", err)
+		}
+	}
+}
