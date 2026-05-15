@@ -28,7 +28,7 @@ blocks:
           - rm -rf tmp-build
           - brew install pkg-config
           - go install golang.org/x/lint/golint@latest && touch .do_lint
-          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build"
           env_vars:
@@ -60,7 +60,7 @@ blocks:
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
-          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build + Integration tests (CGRP classic)"
           env_vars:
@@ -106,7 +106,7 @@ blocks:
           #- sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
-          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build"
           env_vars:
