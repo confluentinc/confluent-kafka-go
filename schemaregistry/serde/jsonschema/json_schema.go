@@ -334,7 +334,7 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		if err != nil {
 			return nil, err
 		}
-		jschema, err := s.toJSONSchema(s.Client, info)
+		jschema, err := s.toJSONSchema(s.Client, *target)
 		if err != nil {
 			return nil, err
 		}
