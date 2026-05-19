@@ -204,6 +204,27 @@ const (
   }
 }
 `
+	pairASchema = `
+{
+"type": "object",
+"properties": {
+"a": { "type": "string" }
+},
+"required": ["a"],
+"additionalProperties": true
+}
+`
+	pairABSchema = `
+{
+  "type": "object",
+  "properties": {
+    "a": { "type": "string" },
+    "b": { "type": "integer" }
+  },
+  "required": ["a", "b"],
+  "additionalProperties": false
+}
+`
 	defSchema = `
 {
 	"$schema" : "http://json-schema.org/draft-07/schema#",
@@ -397,6 +418,10 @@ func testMessageFactory2(subject string, name string) (interface{}, error) {
 
 func testMessageFactory3(subject string, name string) (interface{}, error) {
 	return &NewerWidget{}, nil
+}
+
+func testMessageFactoryPairA(subject string, name string) (interface{}, error) {
+	return &PairA{}, nil
 }
 
 func TestJSONSchemaSerdeWithSimple(t *testing.T) {
@@ -2267,6 +2292,16 @@ type NewerWidget struct {
 	Version int `json:"version"`
 }
 
+type PairA struct {
+	A string `json:"a"`
+}
+
+type PairAB struct {
+	A string `json:"a"`
+
+	B int `json:"b"`
+}
+
 type Address struct {
 	DoorNumber int `json:"doornumber"`
 
@@ -2600,4 +2635,73 @@ func TestJSONSchemaSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
 		msg, err := deser.Deserialize("topic1", bytes)
 		serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
 	}
+}
+
+func TestJSONSchemaSerdeWithBackwardCompatibleFieldRemoval(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	obj := PairAB{
+		A: "x",
+		B: 42,
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     pairABSchema,
+		SchemaType: "JSON",
+		Metadata: &schemaregistry.Metadata{
+			Properties: map[string]string{"application.version": "v1"},
+		},
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	info = schemaregistry.SchemaInfo{
+		Schema:     pairASchema,
+		SchemaType: "JSON",
+		Metadata: &schemaregistry.Metadata{
+			Properties: map[string]string{"application.version": "v2"},
+		},
+	}
+
+	id, err = client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = false
+	serConfig.UseLatestWithMetadata = map[string]string{
+		"application.version": "v1",
+	}
+
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.EnableValidation = true
+	deserConfig.UseLatestWithMetadata = map[string]string{
+		"application.version": "v2",
+	}
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactoryPairA
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &PairA{A: "x"}))
 }
