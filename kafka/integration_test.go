@@ -604,7 +604,12 @@ type IntegrationTestSuite struct {
 
 func (its *IntegrationTestSuite) TearDownSuite() {
 	if testconf.DockerNeeded && its.composeFile != "" {
-		_ = exec.Command("docker", "compose", "-f", its.composeFile, "-p", "test-docker", "down").Run()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, "docker", "compose", "-f", its.composeFile, "-p", "test-docker", "down").CombinedOutput()
+		if err != nil {
+			its.T().Logf("docker compose down failed: %s\n%s", err, out)
+		}
 	}
 }
 
@@ -3570,7 +3575,9 @@ func TestIntegration(t *testing.T) {
 			dockerCompose = "./testresources/docker-compose-kraft.yaml"
 		}
 		its.composeFile = dockerCompose
-		out, err := exec.Command("docker", "compose", "-f", dockerCompose, "-p", "test-docker", "up", "-d").CombinedOutput()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, "docker", "compose", "-f", dockerCompose, "-p", "test-docker", "up", "-d").CombinedOutput()
 		if err != nil {
 			t.Fatalf("docker compose up -d failed: %s\n%s", err, out)
 		}
