@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"os/exec"
 	"path"
 	"reflect"
 	"runtime"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go/modules/compose"
 )
 
 // producer test control
@@ -599,12 +599,17 @@ func validateConfig(t *testing.T, results []ConfigResourceResult, expResults []C
 
 type IntegrationTestSuite struct {
 	suite.Suite
-	compose *compose.LocalDockerCompose
+	composeFile string
 }
 
 func (its *IntegrationTestSuite) TearDownSuite() {
-	if testconf.DockerNeeded && its.compose != nil {
-		its.compose.Down()
+	if testconf.DockerNeeded && its.composeFile != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, "docker", "compose", "-f", its.composeFile, "-p", "test-docker", "down").CombinedOutput()
+		if err != nil {
+			its.T().Logf("docker compose down failed: %s\n%s", err, out)
+		}
 	}
 }
 
@@ -3569,10 +3574,12 @@ func TestIntegration(t *testing.T) {
 		if !testConsumerGroupProtocolClassic() {
 			dockerCompose = "./testresources/docker-compose-kraft.yaml"
 		}
-		its.compose = compose.NewLocalDockerCompose([]string{dockerCompose}, "test-docker")
-		execErr := its.compose.WithCommand([]string{"up", "-d"}).Invoke()
-		if err := execErr.Error; err != nil {
-			t.Fatalf("up -d command failed with the error message %s\n", err)
+		its.composeFile = dockerCompose
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, "docker", "compose", "-f", dockerCompose, "-p", "test-docker", "up", "-d").CombinedOutput()
+		if err != nil {
+			t.Fatalf("docker compose up -d failed: %s\n%s", err, out)
 		}
 		// It takes some time after the containers come up for them to be ready.
 		time.Sleep(20 * time.Second)
