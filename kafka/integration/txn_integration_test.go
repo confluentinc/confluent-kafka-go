@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package kafka
+package integration
 
 // Integration tests for the transactional producer
 
@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	. "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 // expectDeliveryReports expects numDrs delivery reports on drChan
@@ -55,7 +57,7 @@ func TestTransactionalProducer(t *testing.T) {
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"transactional.id": fmt.Sprintf("go-txnid-%d", rand.Intn(100000))}
-	if err := config.updateFromTestconf(); err != nil {
+	if err := applyTestconf(config); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 
@@ -181,7 +183,7 @@ func TestTransactionalSendOffsets(t *testing.T) {
 	// Producer config
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"transactional.id": fmt.Sprintf("go-txnid-%d", rand.Intn(100000))}
-	if err := config.updateFromTestconf(); err != nil {
+	if err := applyTestconf(config); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 
@@ -189,7 +191,7 @@ func TestTransactionalSendOffsets(t *testing.T) {
 	groupID := fmt.Sprintf("go-txngroup-%d", rand.Intn(10000))
 	consumerConfig := &ConfigMap{"bootstrap.servers": testconf.Brokers, "group.id": groupID}
 
-	if err := consumerConfig.updateFromTestconf(); err != nil {
+	if err := applyTestconf(consumerConfig); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 

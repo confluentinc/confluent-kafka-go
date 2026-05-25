@@ -28,10 +28,11 @@ go test ./kafka/ -run TestLibraryVersion
 # Run unit tests for schema registry
 go test ./schemaregistry/...
 
-# Integration tests require a running Kafka broker. Tests use docker-compose
-# via testcontainers. Use these flags:
-go test ./kafka/ -docker.needed    # auto-starts Docker containers
-go test ./kafka/ -docker.exists    # uses already-running containers
+# Integration tests live in a separate sub-module (kafka/integration/) so the
+# testcontainers + testify deps don't bleed into the main kafka module's go.mod.
+# Tests use docker-compose via testcontainers. Use these flags:
+go test ./kafka/integration/ -docker.needed    # auto-starts Docker containers
+go test ./kafka/integration/ -docker.exists    # uses already-running containers
 
 # Run all tests across all packages
 make -f mk/Makefile "go test"
@@ -70,9 +71,9 @@ make -f mk/Makefile generr
 
 ### Test Configuration
 
-Integration tests for `kafka/` use a `testconf` struct populated from `testconf.json` (if present) or defaults to `localhost:9092`. Tests can spin up Docker containers via testcontainers-go when `-docker.needed` flag is set.
+Integration tests for `kafka/` live in the `kafka/integration/` **sub-module** (own `go.mod`, own `testresources/`) — they use a `testconf` struct populated from `testconf.json` (if present) or defaults to `localhost:9092`, and can spin up Docker containers via testcontainers-go when `-docker.needed` is set. The sub-module isolates the testcontainers + testify dependency surface from the main `kafka` module.
 
-Schema registry integration tests are in `schemaregistry/test/` and use `testcontainers-go/modules/compose`.
+Schema registry integration tests live under `schemaregistry/test/` and use `testcontainers-go/modules/compose`.
 
 ## Git
 
