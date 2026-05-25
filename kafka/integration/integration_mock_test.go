@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package kafka
+package integration
 
 // Integration tests using the mock cluster.
 
@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -128,9 +129,9 @@ func TestConsumerMethodCallsWhileClosing(t *testing.T) {
 		case RevokedPartitions:
 			partitionsRevoked = true
 			_, err := c.Commit()
-			assert.NotErrorIs(err, getOperationNotAllowedErrorForClosedClient(),
+			assert.NotErrorIs(err, NewError(ErrState, "Operation not allowed on closed client", false),
 				"Commit should not fail with '%s'",
-				getOperationNotAllowedErrorForClosedClient())
+				NewError(ErrState, "Operation not allowed on closed client", false))
 		}
 		return nil
 	})

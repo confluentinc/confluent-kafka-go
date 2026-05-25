@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package kafka
+package integration
 
 import (
 	"context"
@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 )
@@ -195,7 +196,7 @@ func createTestMessages() {
 
 	// a test message for a non-existent partition with Value, Key, and Opaque.
 	// It should generate ErrUnknownPartition
-	testmsgs[i] = &testmsgType{expectedError: Error{code: ErrUnknownPartition},
+	testmsgs[i] = &testmsgType{expectedError: NewError(ErrUnknownPartition, "", false),
 		msg: Message{TopicPartition: TopicPartition{Topic: &testconf.TopicName, Partition: int32(10000)},
 			Value:  []byte(fmt.Sprintf("value%d", i)),
 			Key:    []byte(fmt.Sprintf("key%d", i)),
@@ -300,7 +301,7 @@ func producerTest(t *testing.T, testname string, testmsgs []*testmsgType, pc pro
 		"queue.buffering.max.messages": len(testmsgs),
 		"acks":                         "all"}
 
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	p, err := NewProducer(&conf)
 	if err != nil {
@@ -401,7 +402,7 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		conf["partition.assignment.strategy"] = assignmentStrategy
 	}
 
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	c, err := testNewConsumer(t, &conf)
 
@@ -616,7 +617,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 
 	// Produce `numMessages` messages to Topic.
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	producer, err := NewProducer(&conf)
 	if err != nil {
@@ -640,7 +641,7 @@ func (its *IntegrationTestSuite) TestConsumerSeekPartitions() {
 		"group.id":          testconf.GroupID,
 		"auto.offset.reset": "end",
 	}
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	consumer, err := testNewConsumer(t, &conf)
 	if err != nil {
@@ -731,7 +732,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		"auto.offset.reset":        "earliest",
 		"enable.auto.offset.store": false,
 	}
-	config.updateFromTestconf()
+	applyTestconf(config)
 	consumer, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
@@ -786,7 +787,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		return
 	}
 
-	if resultGroups[0].Error.code != ErrNonEmptyGroup {
+	if resultGroups[0].Error.Code() != ErrNonEmptyGroup {
 		t.Errorf("Encountered the wrong error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
 		return
 	}
@@ -811,7 +812,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DeleteConsumerGroups() {
 		return
 	}
 
-	if resultGroups[0].Error.code != ErrNoError {
+	if resultGroups[0].Error.Code() != ErrNoError {
 		t.Errorf("Encountered an error after calling DeleteConsumerGroups %s", resultGroups[0].Error)
 		return
 	}
@@ -887,7 +888,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListConsumerGroups() {
 		"group.id":          groupID,
 		"client.id":         clientID,
 	}
-	config.updateFromTestconf()
+	applyTestconf(config)
 	consumer, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
@@ -1025,7 +1026,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 		"client.id":                     clientID1,
 		"partition.assignment.strategy": "range",
 	}
-	config.updateFromTestconf()
+	applyTestconf(config)
 	consumer1, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
@@ -1095,7 +1096,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAndDescribeConsumerGroups()
 		"client.id":                     clientID2,
 		"partition.assignment.strategy": "range",
 	}
-	config.updateFromTestconf()
+	applyTestconf(config)
 	consumer2, err := testNewConsumer(t, config)
 	if err != nil {
 		t.Errorf("Failed to create consumer: %s\n", err)
@@ -1269,7 +1270,7 @@ func (its *IntegrationTestSuite) TestAdminClient_DescribeConsumerGroupsAuthorize
 		"sasl.mechanism":    testconf.SaslMechanism,
 		"security.protocol": "SASL_PLAINTEXT",
 	}
-	config.updateFromTestconf()
+	applyTestconf(config)
 	consumer, err := testNewConsumer(t, config)
 	assert.Nil(err, "NewConsumer should succeed")
 
@@ -1751,7 +1752,7 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 			useReplicas = manyReplicas
 		} else if i == topicCnt-1 {
 			newTopics[i].ReplicationFactor = len(brokerList) + 10
-			expError[newTopics[i].Topic] = Error{code: ErrInvalidReplicationFactor}
+			expError[newTopics[i].Topic] = NewError(ErrInvalidReplicationFactor, "", false)
 		}
 
 		if len(useReplicas) > 0 {
@@ -1794,8 +1795,8 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 	// Attempt to create the topics again, should all fail.
 	t.Logf("Attempt to re-create topics, should all fail\n")
 	for k := range expError {
-		if expError[k].code == ErrNoError {
-			expError[k] = Error{code: ErrTopicAlreadyExists}
+		if expError[k].Code() == ErrNoError {
+			expError[k] = NewError(ErrTopicAlreadyExists, "", false)
 		}
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
@@ -1820,7 +1821,7 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 		if i == 1 {
 			// Invalid partition count (less than current)
 			newParts[i].IncreaseTo = newTopics[i].NumPartitions - 1
-			expError[topic] = Error{code: ErrInvalidPartitions}
+			expError[topic] = NewError(ErrInvalidPartitions, "", false)
 		} else {
 			expError[topic] = Error{}
 		}
@@ -1845,7 +1846,7 @@ func (its *IntegrationTestSuite) TestAdminTopics() {
 	for i := 0; i < topicCnt; i++ {
 		deleteTopics[i] = newTopics[i].Topic
 		if i == topicCnt-1 {
-			expError[deleteTopics[i]] = Error{code: ErrUnknownTopicOrPart}
+			expError[deleteTopics[i]] = NewError(ErrUnknownTopicOrPart, "", false)
 		} else {
 			expError[deleteTopics[i]] = Error{}
 		}
@@ -2081,7 +2082,7 @@ func (its *IntegrationTestSuite) TestAdminGetMetadata() {
 	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
+	applyTestconf(config)
 
 	// Create Admin client
 	a, err := NewAdminClient(config)
@@ -2111,7 +2112,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ClusterID() {
 	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	if err := config.updateFromTestconf(); err != nil {
+	if err := applyTestconf(config); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 
@@ -2139,7 +2140,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ControllerID() {
 	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	if err := config.updateFromTestconf(); err != nil {
+	if err := applyTestconf(config); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 
@@ -2373,7 +2374,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 	rand.Seed(time.Now().Unix())
 
 	conf := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	if err := conf.updateFromTestconf(); err != nil {
+	if err := applyTestconf(conf); err != nil {
 		t.Fatalf("Failed to update test configuration: %s\n", err)
 	}
 
@@ -2417,7 +2418,7 @@ func (its *IntegrationTestSuite) TestAdminClient_ListAllConsumerGroupsOffsets() 
 		"group.id":          group,
 		"auto.offset.reset": "end",
 	}
-	conf.updateFromTestconf()
+	applyTestconf(conf)
 
 	consumer, err := testNewConsumer(t, conf)
 	if err != nil {
@@ -2535,7 +2536,7 @@ func (its *IntegrationTestSuite) TestConsumerGetWatermarkOffsets() {
 		"enable.auto.commit":       false,
 		"auto.offset.reset":        "earliest",
 	}
-	_ = config.updateFromTestconf()
+	_ = applyTestconf(config)
 
 	c, err := testNewConsumer(t, config)
 	if err != nil {
@@ -2585,7 +2586,7 @@ func (its *IntegrationTestSuite) TestConsumerOffsetsForTimes() {
 		"group.id":            testconf.GroupID,
 		"api.version.request": true}
 
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	c, err := testNewConsumer(t, &conf)
 
@@ -2647,7 +2648,7 @@ func (its *IntegrationTestSuite) TestConsumerGetMetadata() {
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"group.id": testconf.GroupID}
-	config.updateFromTestconf()
+	applyTestconf(config)
 
 	// Create consumer
 	c, err := testNewConsumer(t, config)
@@ -2677,7 +2678,7 @@ func (its *IntegrationTestSuite) TestProducerQueryWatermarkOffsets() {
 	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
+	applyTestconf(config)
 
 	// Create producer
 	p, err := NewProducer(config)
@@ -2719,7 +2720,7 @@ func (its *IntegrationTestSuite) TestProducerGetMetadata() {
 	t := its.T()
 
 	config := &ConfigMap{"bootstrap.servers": testconf.Brokers}
-	config.updateFromTestconf()
+	applyTestconf(config)
 
 	// Create producer
 	p, err := NewProducer(config)
@@ -2775,7 +2776,7 @@ func (its *IntegrationTestSuite) TestProducerFuncDR() {
 func (its *IntegrationTestSuite) TestProducerWithBadMessages() {
 	t := its.T()
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	p, err := NewProducer(&conf)
 	if err != nil {
@@ -2980,7 +2981,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 		"enable.partition.eof":     true,
 	}
 
-	consumerConf.updateFromTestconf()
+	applyTestconf(&consumerConf)
 
 	/* Create consumer and find recognizable message, verify timestamp.
 	 * The consumer is started before the producer to make sure
@@ -3011,7 +3012,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerTimestamps() {
 	 * Create producer and produce one recognizable message with timestamp
 	 */
 	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
-	producerConf.updateFromTestconf()
+	applyTestconf(&producerConf)
 
 	t.Logf("Creating producer")
 	p, err := NewProducer(&producerConf)
@@ -3109,7 +3110,7 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 		"group.id":            testconf.TopicName,
 	}
 
-	conf.updateFromTestconf()
+	applyTestconf(&conf)
 
 	/*
 	 * Create producer and produce a couple of messages with and without
@@ -3134,23 +3135,23 @@ func (its *IntegrationTestSuite) TestProducerConsumerHeaders() {
 
 	expMsgHeaders := [][]Header{
 		{
-			{"msgid", []byte("1")},
-			{"a key with SPACES ", bigBytes[:15]},
-			{"BIGONE!", bigBytes},
+			{Key: "msgid", Value: []byte("1")},
+			{Key: "a key with SPACES ", Value: bigBytes[:15]},
+			{Key: "BIGONE!", Value: bigBytes},
 		},
 		{
-			{"msgid", []byte("2")},
-			{"myVarint", myVarint[:myVarintLen]},
-			{"empty", []byte("")},
-			{"theNullIsNil", nil},
+			{Key: "msgid", Value: []byte("2")},
+			{Key: "myVarint", Value: myVarint[:myVarintLen]},
+			{Key: "empty", Value: []byte("")},
+			{Key: "theNullIsNil", Value: nil},
 		},
 		nil, // no headers
 		{
-			{"msgid", []byte("4")},
-			{"order", []byte("1")},
-			{"order", []byte("2")},
-			{"order", nil},
-			{"order", []byte("4")},
+			{Key: "msgid", Value: []byte("4")},
+			{Key: "order", Value: []byte("1")},
+			{Key: "order", Value: []byte("2")},
+			{Key: "order", Value: nil},
+			{Key: "order", Value: []byte("4")},
 		},
 	}
 
