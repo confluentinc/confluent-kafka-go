@@ -30,9 +30,10 @@ go test ./schemaregistry/...
 
 # Integration tests live in a separate sub-module (kafka/integration/) so the
 # testcontainers + testify deps don't bleed into the main kafka module's go.mod.
-# Tests use docker-compose via testcontainers. Use these flags:
-go test ./kafka/integration/ -docker.needed    # auto-starts Docker containers
-go test ./kafka/integration/ -docker.exists    # uses already-running containers
+# Run them from within that module. Tests use docker-compose via testcontainers.
+# Use these flags:
+(cd kafka/integration && go test ./... -docker.needed)    # auto-starts Docker containers
+(cd kafka/integration && go test ./... -docker.exists)    # uses already-running containers
 
 # Run all tests across all packages
 make -f mk/Makefile "go test"
