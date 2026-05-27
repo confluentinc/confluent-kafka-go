@@ -1,6 +1,8 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.x.x
+## v2.14.2
+
+This is a maintenance release:
 
 ### Enhancements
 * Add a new Avro package "avrov3" which uses confluent-avro-go, Confluent's
@@ -20,6 +22,8 @@
   (v2.0.0 → v2.5.0), `github.com/klauspost/compress` (v1.17.9 → v1.18.5),
   `github.com/stretchr/testify` (v1.9.0 → v1.11.1), and `golang.org/x/sync`
   (v0.8.0 → v0.20.0).
+* Removed integration test dependencies from the kafka module (#1555).
+* Bump golang.org/x/net to v0.55.0 to fix: GO-2026-5026 in idna, GO-2026-4918 in HTTP/2 transport (#1555).
 
 ### Fixes
 * Handle anyOf/allOf in JSON transforms #1539
