@@ -27,7 +27,6 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
-	"github.com/jhump/protoreflect/desc"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -317,8 +316,8 @@ func TestProtobufSerdeWithCustomReferenceSubjectName(t *testing.T) {
 	serForDefaultStrategy, err := NewSerializer(clientForDefaultStrategy, serde.ValueSerde, NewSerializerConfig())
 	serde.MaybeFail("Serializer configuration", err)
 
-	serForCustomStrategy.ReferenceSubjectNameStrategy = func(fileDesc *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error) {
-		name := fileDesc.GetName()
+	serForCustomStrategy.ReferenceSubjectNameStrategy = func(fileName string, schema schemaregistry.SchemaInfo) (string, error) {
+		name := fileName
 		return "prefix/" + name, nil
 	}
 

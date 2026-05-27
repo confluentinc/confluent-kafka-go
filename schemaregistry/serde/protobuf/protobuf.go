@@ -83,10 +83,10 @@ type Serializer struct {
 }
 
 // ReferenceSubjectNameStrategyFunc used to map references to subject names
-type ReferenceSubjectNameStrategyFunc func(fileDesc *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error)
+type ReferenceSubjectNameStrategyFunc func(fileName string, schema schemaregistry.SchemaInfo) (string, error)
 
-func defaultReferenceSubjectNameStrategy(fileDescriptor *desc.FileDescriptor, schema schemaregistry.SchemaInfo) (string, error) {
-	return fileDescriptor.GetName(), nil
+func defaultReferenceSubjectNameStrategy(fileName string, schema schemaregistry.SchemaInfo) (string, error) {
+	return fileName, nil
 }
 
 // Deserializer represents a Protobuf deserializer
@@ -377,9 +377,16 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 	var version = 0
 	var subject = ""
 	if isReferenceSchema {
-		subject, err = s.ReferenceSubjectNameStrategy(fileDesc, info)
+		referenceSubjectNameStrategy := s.ReferenceSubjectNameStrategy
+		if referenceSubjectNameStrategy == nil {
+			referenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
+		}
+		subject, err = referenceSubjectNameStrategy(fileDesc.GetName(), info)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
+		}
+		if strings.TrimSpace(subject) == "" {
+			return schemaregistry.SchemaMetadata{}, fmt.Errorf("reference subject name strategy returned an empty subject for %q", fileDesc.GetName())
 		}
 		if autoRegister {
 			id, err = s.Client.Register(subject, info, normalize)
