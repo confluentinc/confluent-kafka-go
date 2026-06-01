@@ -1,6 +1,6 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.14.2-RC3
+## v2.14.2
 
 This is a maintenance release:
 
@@ -28,8 +28,8 @@ This is a maintenance release:
 ### Fixes
 * Handle anyOf/allOf in JSON transforms #1539
 
-confluent-kafka-go is based on librdkafka v2.14.2-RC3, see the
-[librdkafka v2.14.2-RC3 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2-RC3)
+confluent-kafka-go is based on librdkafka v2.14.2, see the
+[librdkafka v2.14.2 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
