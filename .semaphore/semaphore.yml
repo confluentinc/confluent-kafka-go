@@ -6,12 +6,12 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.14.1
+      value: v2.14.2-RC3
   prologue:
     commands:
       - checkout
 blocks:
-  - name: "go 1.21 OSX bundled librdkafka"
+  - name: "go 1.25 OSX bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -19,7 +19,7 @@ blocks:
           type: s1-macos-15-arm64-8
       prologue:
         commands:
-          - sem-version go 1.21
+          - sem-version go 1.25
           - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig:$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
@@ -28,7 +28,7 @@ blocks:
           - rm -rf tmp-build
           - brew install pkg-config
           - go install golang.org/x/lint/golint@latest && touch .do_lint
-          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build"
           env_vars:
@@ -40,7 +40,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "go 1.21 linux bundled librdkafka"
+  - name: "go 1.25 linux bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -48,7 +48,7 @@ blocks:
           type: s1-prod-ubuntu24-04-amd64-2
       prologue:
         commands:
-          - sem-version go 1.21
+          - sem-version go 1.25
           - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
@@ -56,11 +56,11 @@ blocks:
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
           - sudo add-apt-repository -y "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
-          - sudo apt-get update -q
+          - sudo apt-get update -q || true
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
-          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build + Integration tests (CGRP classic)"
           env_vars:
@@ -86,7 +86,7 @@ blocks:
             - name: TEST_CONSUMER_GROUP_PROTOCOL
               value: consumer
           commands_file: semaphore_integration_commands.sh
-  - name: "go 1.21 linux arm64 bundled librdkafka"
+  - name: "go 1.25 linux arm64 bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -94,7 +94,7 @@ blocks:
           type: s1-prod-ubuntu24-04-arm64-1
       prologue:
         commands:
-          - sem-version go 1.21
+          - sem-version go 1.25
           - export GOPATH=$(go env GOPATH)
           - export PATH="$PATH:$GOPATH/bin"
           - export PKG_CONFIG_PATH="$HOME/confluent-kafka-go/tmp-build/lib/pkgconfig"
@@ -102,11 +102,11 @@ blocks:
           - export DYLD_LIBRARY_PATH="$HOME/confluent-kafka-go/tmp-build/lib"
           - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add -
           - sudo add-apt-repository -y "deb [arch=amd64] https://packages.confluent.io/deb/5.4 stable main"
-          - sudo apt-get update -q
+          - sudo apt-get update -q || true
           #- sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
-          - go get github.com/wadey/gocovmerge && go install github.com/wadey/gocovmerge
+          - go install github.com/wadey/gocovmerge@latest
       jobs:
         - name: "Static Build"
           env_vars:
@@ -118,7 +118,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "go 1.21 Windows bundled librdkafka"
+  - name: "go 1.25 Windows bundled librdkafka"
     dependencies: [ ]
     task:
       agent:

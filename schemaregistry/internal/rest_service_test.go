@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -439,5 +440,59 @@ func TestHandleRequest_SuccessResponse(t *testing.T) {
 
 	if response["name"] != "test-subject" {
 		t.Errorf("Expected response name 'test-subject', got %v", response["name"])
+	}
+}
+
+func TestHandleRequest_ConcurrentAccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":1}`))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL:          server.URL,
+		BearerAuthCredentialsSource: "STATIC_TOKEN",
+		BearerAuthToken:            "test-token",
+		BearerAuthLogicalCluster:   "lsrc-123",
+		BearerAuthIdentityPoolID:   "pool-id",
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	// Use a start barrier so all goroutines begin at the same time,
+	// maximizing the chance of concurrent header map access.
+	const goroutines = 20
+	const requestsPerGoroutine = 5
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make(chan error, goroutines*requestsPerGoroutine)
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < requestsPerGoroutine; j++ {
+				request := NewRequest("GET", "/subjects", nil)
+				var response interface{}
+				errs <- rs.HandleRequest(request, &response)
+			}
+		}()
+	}
+
+	// Release all goroutines simultaneously
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Errorf("Concurrent request failed: %v", err)
+		}
 	}
 }
