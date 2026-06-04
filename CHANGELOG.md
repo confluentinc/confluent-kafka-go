@@ -1,11 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## Unreleased
+
+### Enhancements
+* Add support for `ResourceTransactionalID` in AdminClient ACL APIs (#1407)
+
+
 ## v2.14.2
 
 This is a maintenance release:
 
 ### Enhancements
-* Add support for `ResourceTransactionalID` in AdminClient ACL APIs (#1407)
 * Add a new Avro package "avrov3" which uses confluent-avro-go, Confluent's
   fork of the now-archived hamba/avro library. avrov3 picks up the upstream
   little-endian decoding fix for floats and doubles (per the Avro spec) and
