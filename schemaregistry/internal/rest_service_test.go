@@ -18,15 +18,202 @@ package internal
 
 import (
 	"crypto/tls"
+	"errors"
+	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// networkErrorTransport is an http.RoundTripper that returns a network-level
+// error (as if the request failed before a response was received) for the
+// first failCalls invocations, then returns a 200 response. It records the
+// total number of attempts so tests can assert retry behavior.
+type networkErrorTransport struct {
+	mu        sync.Mutex
+	calls     int
+	failCalls int
+}
+
+func (t *networkErrorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	t.calls++
+	n := t.calls
+	t.mu.Unlock()
+	if n <= t.failCalls {
+		// Mimic a dial/connection failure surfaced by http.Client.Do.
+		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"name":"test-subject"}`)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func (t *networkErrorTransport) attempts() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.calls
+}
+
+// TestHandleRequest_RetriesOnNetworkError verifies that network-level errors
+// (no HTTP response received) are retried, matching the Java client's behavior
+// of retrying on IOException.
+func TestHandleRequest_RetriesOnNetworkError(t *testing.T) {
+	transport := &networkErrorTransport{failCalls: 2}
+	config := &ClientConfig{
+		SchemaRegistryURL: "http://localhost:65000",
+		MaxRetries:        3,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+		HTTPClient:        &http.Client{Transport: transport},
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/subjects/test-subject", nil)
+	var response map[string]interface{}
+	if err := rs.HandleRequest(request, &response); err != nil {
+		t.Fatalf("Expected success after retrying network errors, got %v", err)
+	}
+	if response["name"] != "test-subject" {
+		t.Errorf("Expected response name 'test-subject', got %v", response["name"])
+	}
+	if got := transport.attempts(); got != 3 {
+		t.Errorf("Expected 3 attempts (2 network failures + 1 success), got %d", got)
+	}
+}
+
+// TestHandleRequest_PreservesBodyOnRetry verifies that the request body is
+// re-sent intact on a retried attempt, rather than being drained on the first
+// attempt and sent empty on subsequent ones.
+func TestHandleRequest_PreservesBodyOnRetry(t *testing.T) {
+	var bodies []string
+	attempt := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(data))
+		attempt++
+		w.Header().Set("Content-Type", "application/json")
+		if attempt == 1 {
+			// Force a retry on the first attempt.
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error_code": 50301, "message": "unavailable"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":1}`))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+		MaxRetries:        3,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	reqBody := map[string]interface{}{"schema": "string"}
+	request := NewRequest("POST", "/subjects/test/versions", reqBody)
+	var response map[string]interface{}
+	if err := rs.HandleRequest(request, &response); err != nil {
+		t.Fatalf("Expected success after retry, got %v", err)
+	}
+
+	if len(bodies) != 2 {
+		t.Fatalf("Expected 2 attempts, got %d", len(bodies))
+	}
+	if bodies[0] == "" {
+		t.Error("First attempt sent an empty body")
+	}
+	if bodies[1] != bodies[0] {
+		t.Errorf("Retried attempt body %q differs from first attempt body %q", bodies[1], bodies[0])
+	}
+}
+
+// TestHandleRequest_DoesNotRetryRedirectPolicyError verifies that an error
+// where http.Client.Do returns a non-nil response together with the error
+// (i.e. a redirect policy failure) is not retried, since it is not a transient
+// network failure.
+func TestHandleRequest_DoesNotRetryRedirectPolicyError(t *testing.T) {
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		// Always redirect to itself, so the client eventually fails its
+		// redirect policy ("stopped after N redirects"), which makes Do return
+		// a non-nil response alongside the error.
+		http.Redirect(w, r, "/loop", http.StatusFound)
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+		MaxRetries:        3,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/start", nil)
+	var response interface{}
+	if err := rs.HandleRequest(request, &response); err == nil {
+		t.Error("Expected redirect policy error, got nil")
+	}
+
+	// A single pass follows the default redirect limit (~10 requests). If the
+	// redirect-policy error were incorrectly retried, the count would multiply
+	// by maxRetries+1 (~40). Assert it stayed within a single pass.
+	if got := atomic.LoadInt32(&requests); got > 15 {
+		t.Errorf("Redirect policy error should not be retried, but saw %d requests", got)
+	}
+}
+
+// TestHandleRequest_ExhaustsRetriesOnNetworkError verifies that a persistent
+// network-level error is retried up to maxRetries+1 times before failing.
+func TestHandleRequest_ExhaustsRetriesOnNetworkError(t *testing.T) {
+	transport := &networkErrorTransport{failCalls: 100}
+	config := &ClientConfig{
+		SchemaRegistryURL: "http://localhost:65000",
+		MaxRetries:        2,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+		HTTPClient:        &http.Client{Transport: transport},
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/subjects/test-subject", nil)
+	var response map[string]interface{}
+	if err := rs.HandleRequest(request, &response); err == nil {
+		t.Error("Expected error after exhausting retries on network failure, got nil")
+	}
+	if got := transport.attempts(); got != 3 {
+		t.Errorf("Expected 3 attempts (maxRetries+1), got %d", got)
+	}
+}
 
 // TestConfigureTLS tests the configureTLS function called while creating a new
 // REST client.
