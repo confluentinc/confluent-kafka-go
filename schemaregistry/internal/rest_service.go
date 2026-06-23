@@ -589,7 +589,14 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 		resp, err = rs.Do(req)
 		if err != nil {
-			return nil, err
+			// A non-nil error from Do means the request failed before a
+			// response was received (DNS failure, dial/connection timeout,
+			// connection refused/reset, TLS handshake error, etc.).
+			if i >= rs.maxRetries {
+				return nil, err
+			}
+			time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
+			continue
 		}
 
 		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries {
