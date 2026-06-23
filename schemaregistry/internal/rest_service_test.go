@@ -94,6 +94,58 @@ func TestHandleRequest_RetriesOnNetworkError(t *testing.T) {
 	}
 }
 
+// TestHandleRequest_PreservesBodyOnRetry verifies that the request body is
+// re-sent intact on a retried attempt, rather than being drained on the first
+// attempt and sent empty on subsequent ones.
+func TestHandleRequest_PreservesBodyOnRetry(t *testing.T) {
+	var bodies []string
+	attempt := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(data))
+		attempt++
+		w.Header().Set("Content-Type", "application/json")
+		if attempt == 1 {
+			// Force a retry on the first attempt.
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error_code": 50301, "message": "unavailable"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":1}`))
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+		MaxRetries:        3,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	reqBody := map[string]interface{}{"schema": "string"}
+	request := NewRequest("POST", "/subjects/test/versions", reqBody)
+	var response map[string]interface{}
+	if err := rs.HandleRequest(request, &response); err != nil {
+		t.Fatalf("Expected success after retry, got %v", err)
+	}
+
+	if len(bodies) != 2 {
+		t.Fatalf("Expected 2 attempts, got %d", len(bodies))
+	}
+	if bodies[0] == "" {
+		t.Error("First attempt sent an empty body")
+	}
+	if bodies[1] != bodies[0] {
+		t.Errorf("Retried attempt body %q differs from first attempt body %q", bodies[1], bodies[0])
+	}
+}
+
 // TestHandleRequest_ExhaustsRetriesOnNetworkError verifies that a persistent
 // network-level error is retried up to maxRetries+1 times before failing.
 func TestHandleRequest_ExhaustsRetriesOnNetworkError(t *testing.T) {
