@@ -557,13 +557,15 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 		return nil, err
 	}
 
-	var outbuf io.Reader
+	// Marshal the body once and create a fresh reader for each attempt below.
+	// Reusing a single reader would send an empty body on retries, since the
+	// reader is drained once the request has been sent.
+	var body []byte
 	if request.body != nil {
-		body, err := json.Marshal(request.body)
+		body, err = json.Marshal(request.body)
 		if err != nil {
 			return nil, err
 		}
-		outbuf = bytes.NewBuffer(body)
 	}
 
 	var req *http.Request
@@ -580,22 +582,44 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 	for i := 0; i < rs.maxRetries+1; i++ {
 
+		var bodyReader io.Reader
+		if body != nil {
+			bodyReader = bytes.NewReader(body)
+		}
 		req, err = http.NewRequest(
 			request.method,
 			endpoint.String(),
-			outbuf,
+			bodyReader,
 		)
 		req.Header = headers
 
 		resp, err = rs.Do(req)
 		if err != nil {
-			return nil, err
+			// A non-nil error from Do usually means the request failed before a
+			// response was received (DNS failure, dial/connection timeout,
+			// connection refused/reset, TLS handshake error, etc.). Do can also
+			// return a non-nil resp together with err (e.g. a redirect policy
+			// failure); in that case its body is already closed, but close it
+			// defensively to be safe.
+			if resp != nil {
+				resp.Body.Close()
+			}
+			if i >= rs.maxRetries {
+				return nil, err
+			}
+			time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
+			continue
 		}
 
 		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries {
 			return resp, nil
 		}
 
+		// Drain and close the response body before retrying so the underlying
+		// connection can be reused (HTTP keep-alive) and no file descriptors
+		// are leaked across attempts.
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
 	}
 	return nil, fmt.Errorf("failed to send request after %d retries", rs.maxRetries)
