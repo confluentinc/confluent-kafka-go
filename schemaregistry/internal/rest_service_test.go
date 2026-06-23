@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -143,6 +144,47 @@ func TestHandleRequest_PreservesBodyOnRetry(t *testing.T) {
 	}
 	if bodies[1] != bodies[0] {
 		t.Errorf("Retried attempt body %q differs from first attempt body %q", bodies[1], bodies[0])
+	}
+}
+
+// TestHandleRequest_DoesNotRetryRedirectPolicyError verifies that an error
+// where http.Client.Do returns a non-nil response together with the error
+// (i.e. a redirect policy failure) is not retried, since it is not a transient
+// network failure.
+func TestHandleRequest_DoesNotRetryRedirectPolicyError(t *testing.T) {
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		// Always redirect to itself, so the client eventually fails its
+		// redirect policy ("stopped after N redirects"), which makes Do return
+		// a non-nil response alongside the error.
+		http.Redirect(w, r, "/loop", http.StatusFound)
+	}))
+	defer server.Close()
+
+	config := &ClientConfig{
+		SchemaRegistryURL: server.URL,
+		MaxRetries:        3,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+	}
+
+	rs, err := NewRestService(config)
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	request := NewRequest("GET", "/start", nil)
+	var response interface{}
+	if err := rs.HandleRequest(request, &response); err == nil {
+		t.Error("Expected redirect policy error, got nil")
+	}
+
+	// A single pass follows the default redirect limit (~10 requests). If the
+	// redirect-policy error were incorrectly retried, the count would multiply
+	// by maxRetries+1 (~40). Assert it stayed within a single pass.
+	if got := atomic.LoadInt32(&requests); got > 15 {
+		t.Errorf("Redirect policy error should not be retried, but saw %d requests", got)
 	}
 }
 

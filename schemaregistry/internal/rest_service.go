@@ -595,15 +595,19 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 		resp, err = rs.Do(req)
 		if err != nil {
-			// A non-nil error from Do usually means the request failed before a
-			// response was received (DNS failure, dial/connection timeout,
-			// connection refused/reset, TLS handshake error, etc.). Do can also
-			// return a non-nil resp together with err (e.g. a redirect policy
-			// failure); in that case its body is already closed, but close it
-			// defensively to be safe.
+			// Do returns a non-nil resp together with an error only when the
+			// redirect policy fails (e.g. too many redirects). That is not a
+			// transient network failure, so don't retry it: close the (already
+			// closed by http.Client, but closed here defensively) body and
+			// return the error immediately.
 			if resp != nil {
 				resp.Body.Close()
+				return nil, err
 			}
+			// Otherwise the request failed before any response was received
+			// (DNS failure, dial/connection timeout, connection refused/reset,
+			// TLS handshake error, etc.) — a network-level failure worth
+			// retrying, like the Java client retries on IOException.
 			if i >= rs.maxRetries {
 				return nil, err
 			}
