@@ -1,5 +1,13 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.x.x
+
+### Enhancements
+
+### Fixes
+* Handle non-http errors during retries (#1563)
+
+
 ## v2.14.2
 
 This is a maintenance release:

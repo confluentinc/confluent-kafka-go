@@ -557,13 +557,15 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 		return nil, err
 	}
 
-	var outbuf io.Reader
+	// Marshal the body once and create a fresh reader for each attempt below.
+	// Reusing a single reader would send an empty body on retries, since the
+	// reader is drained once the request has been sent.
+	var body []byte
 	if request.body != nil {
-		body, err := json.Marshal(request.body)
+		body, err = json.Marshal(request.body)
 		if err != nil {
 			return nil, err
 		}
-		outbuf = bytes.NewBuffer(body)
 	}
 
 	var req *http.Request
@@ -580,16 +582,27 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 	for i := 0; i < rs.maxRetries+1; i++ {
 
+		var bodyReader io.Reader
+		if body != nil {
+			bodyReader = bytes.NewReader(body)
+		}
 		req, err = http.NewRequest(
 			request.method,
 			endpoint.String(),
-			outbuf,
+			bodyReader,
 		)
 		req.Header = headers
 
 		resp, err = rs.Do(req)
 		if err != nil {
-			return nil, err
+			// A non-nil error from Do means the request failed before a
+			// response was received (DNS failure, dial/connection timeout,
+			// connection refused/reset, TLS handshake error, etc.).
+			if i >= rs.maxRetries {
+				return nil, err
+			}
+			time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
+			continue
 		}
 
 		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries {
