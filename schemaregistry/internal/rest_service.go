@@ -595,9 +595,15 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 
 		resp, err = rs.Do(req)
 		if err != nil {
-			// A non-nil error from Do means the request failed before a
+			// A non-nil error from Do usually means the request failed before a
 			// response was received (DNS failure, dial/connection timeout,
-			// connection refused/reset, TLS handshake error, etc.).
+			// connection refused/reset, TLS handshake error, etc.). Do can also
+			// return a non-nil resp together with err (e.g. a redirect policy
+			// failure); in that case its body is already closed, but close it
+			// defensively to be safe.
+			if resp != nil {
+				resp.Body.Close()
+			}
 			if i >= rs.maxRetries {
 				return nil, err
 			}
@@ -609,6 +615,11 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 			return resp, nil
 		}
 
+		// Drain and close the response body before retrying so the underlying
+		// connection can be reused (HTTP keep-alive) and no file descriptors
+		// are leaked across attempts.
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
 	}
 	return nil, fmt.Errorf("failed to send request after %d retries", rs.maxRetries)

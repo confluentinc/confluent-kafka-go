@@ -5,7 +5,7 @@
 ### Enhancements
 
 ### Fixes
-* Handle non-http errors during retries (#1563)
+* Handle non-HTTP errors during retries (#1563)
 
 
 ## v2.14.2
