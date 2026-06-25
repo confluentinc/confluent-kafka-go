@@ -3,6 +3,7 @@
 ## v2.x.x
 
 ### Enhancements
+* Add support for `ResourceTransactionalID` in AdminClient ACL APIs (#1407)
 
 ### Fixes
 * Handle non-HTTP errors during retries (#1563)

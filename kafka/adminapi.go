@@ -504,6 +504,8 @@ const (
 	ResourceGroup ResourceType = C.RD_KAFKA_RESOURCE_GROUP
 	// ResourceBroker - Broker
 	ResourceBroker ResourceType = C.RD_KAFKA_RESOURCE_BROKER
+	// ResourceTransactionalID - Transactional ID
+	ResourceTransactionalID ResourceType = C.RD_KAFKA_RESOURCE_TRANSACTIONAL_ID
 )
 
 // String returns the human-readable representation of a ResourceType
@@ -523,6 +525,8 @@ func ResourceTypeFromString(typeString string) (ResourceType, error) {
 		return ResourceGroup, nil
 	case "BROKER":
 		return ResourceBroker, nil
+	case "TRANSACTIONAL_ID":
+		return ResourceTransactionalID, nil
 	default:
 		return ResourceUnknown, NewError(ErrInvalidArg, "Unknown resource type", false)
 	}
