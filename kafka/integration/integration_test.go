@@ -2228,6 +2228,15 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 			Operation:           ACLOperationAll,
 			PermissionType:      ACLPermissionTypeAllow,
 		},
+		{
+			Type:                ResourceTransactionalID,
+			Name:                group,
+			ResourcePatternType: ResourcePatternTypePrefixed,
+			Principal:           "User:test-user-2",
+			Host:                "*",
+			Operation:           ACLOperationAll,
+			PermissionType:      ACLPermissionTypeAllow,
+		},
 	}
 
 	invalidACLs := ACLBindings{
@@ -2280,7 +2289,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 		if err != nil {
 			t.Fatalf("CreateACLs() failed: %s", err)
 		}
-		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}}
+		expectedCreateACLs = []CreateACLResult{{Error: noError}, {Error: noError}, {Error: noError}, {Error: noError}}
 		checkExpectedResult(expectedCreateACLs, resultCreateACLs)
 	}
 
@@ -2305,7 +2314,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 			resultCreateACLs[0].Error.Code())
 	}
 
-	// DescribeACLs must return the three ACLs
+	// DescribeACLs must return the four ACLs
 	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
 	resultDescribeACLs, err := a.DescribeACLs(ctx, aclBindingFilters[0], SetAdminRequestTimeout(requestTimeout))
@@ -2326,7 +2335,7 @@ func (its *IntegrationTestSuite) TestAdminACLs() {
 	expectedDeleteACLs = []DeleteACLsResult{
 		{
 			Error:       noError,
-			ACLBindings: newACLs[1:3],
+			ACLBindings: newACLs[1:4],
 		},
 	}
 	if err != nil {
