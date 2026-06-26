@@ -7,6 +7,7 @@
 
 ### Fixes
 * Handle non-HTTP errors during retries (#1563)
+* `ErrMsgTimedOut` is now counted as a timeout error (#1422, @marcoferrer)
 
 
 ## v2.14.2
