@@ -6,7 +6,7 @@ This is a feature release:
 
 ### Enhancements
 * Add support for `ResourceTransactionalID` in AdminClient ACL APIs (#1407)
-* Add support for union-of-pools/auto pool mapping for Schema Registry (#2182)
+* Add support for union-of-pools/auto pool mapping for Schema Registry (#1519)
 
 ### Fixes
 * Handle non-HTTP errors during retries (#1563)
