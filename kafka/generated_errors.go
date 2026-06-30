@@ -1,7 +1,7 @@
 package kafka
 
 // Copyright 2016-2026 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2026-06-01 16:10:43.20932 +0530 IST m=+0.000220710 USING librdkafka 2.14.2
+// AUTOMATICALLY GENERATED ON 2026-06-30 14:53:35.209636 +0530 IST m=+0.000204168 USING librdkafka 2.15.0-RC2
 
 /*
 #include "select_rdkafka.h"
@@ -343,6 +343,8 @@ const (
 	ErrPrincipalDeserializationFailure ErrorCode = C.RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE
 	// ErrUnknownTopicID Broker: Unknown topic id
 	ErrUnknownTopicID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID
+	// ErrInconsistentTopicID Broker: The log's topic ID did not match the topic ID in the request
+	ErrInconsistentTopicID ErrorCode = C.RD_KAFKA_RESP_ERR_INCONSISTENT_TOPIC_ID
 	// ErrFencedMemberEpoch Broker: The member epoch is fenced by the group coordinator
 	ErrFencedMemberEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH
 	// ErrUnreleasedInstanceID Broker: The instance ID is still used by another member in the consumer group
@@ -351,10 +353,44 @@ const (
 	ErrUnsupportedAssignor ErrorCode = C.RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR
 	// ErrStaleMemberEpoch Broker: The member epoch is stale
 	ErrStaleMemberEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH
+	// ErrMismatchedEndpointType Broker: The request was sent to an endpoint of the wrong type
+	ErrMismatchedEndpointType ErrorCode = C.RD_KAFKA_RESP_ERR_MISMATCHED_ENDPOINT_TYPE
+	// ErrUnsupportedEndpointType Broker: This endpoint type is not supported yet
+	ErrUnsupportedEndpointType ErrorCode = C.RD_KAFKA_RESP_ERR_UNSUPPORTED_ENDPOINT_TYPE
+	// ErrUnknownControllerID Broker: This controller ID is not known
+	ErrUnknownControllerID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_CONTROLLER_ID
 	// ErrUnknownSubscriptionID Broker: Client sent a push telemetry request with an invalid or outdated subscription ID
 	ErrUnknownSubscriptionID ErrorCode = C.RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID
 	// ErrTelemetryTooLarge Broker: Client sent a push telemetry request larger than the maximum size the broker will accept
 	ErrTelemetryTooLarge ErrorCode = C.RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE
+	// ErrInvalidRegistration Broker: The controller has considered the broker registration to be invalid
+	ErrInvalidRegistration ErrorCode = C.RD_KAFKA_RESP_ERR_INVALID_REGISTRATION
+	// ErrTransactionAbortable Broker: The server encountered an error with the transaction
+	ErrTransactionAbortable ErrorCode = C.RD_KAFKA_RESP_ERR_TRANSACTION_ABORTABLE
+	// ErrInvalidRecordState Broker: The record state is invalid
+	ErrInvalidRecordState ErrorCode = C.RD_KAFKA_RESP_ERR_INVALID_RECORD_STATE
+	// ErrShareSessionNotFound Broker: The share session was not found
+	ErrShareSessionNotFound ErrorCode = C.RD_KAFKA_RESP_ERR_SHARE_SESSION_NOT_FOUND
+	// ErrInvalidShareSessionEpoch Broker: The share session epoch is invalid
+	ErrInvalidShareSessionEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH
+	// ErrFencedStateEpoch Broker: The share-group state epoch did not match
+	ErrFencedStateEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_FENCED_STATE_EPOCH
+	// ErrInvalidVoterKey Broker: The voter key doesn't match the receiving replica's key
+	ErrInvalidVoterKey ErrorCode = C.RD_KAFKA_RESP_ERR_INVALID_VOTER_KEY
+	// ErrDuplicateVoter Broker: The voter is already part of the set of voters
+	ErrDuplicateVoter ErrorCode = C.RD_KAFKA_RESP_ERR_DUPLICATE_VOTER
+	// ErrVoterNotFound Broker: The voter is not part of the set of voters
+	ErrVoterNotFound ErrorCode = C.RD_KAFKA_RESP_ERR_VOTER_NOT_FOUND
+	// ErrInvalidRegularExpression Broker: The regular expression is not valid
+	ErrInvalidRegularExpression ErrorCode = C.RD_KAFKA_RESP_ERR_INVALID_REGULAR_EXPRESSION
 	// ErrRebootstrapRequired Broker: Client metadata is stale, client should rebootstrap to obtain new metadata
 	ErrRebootstrapRequired ErrorCode = C.RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED
+	// ErrStreamsInvalidTopology Broker: The supplied topology is invalid
+	ErrStreamsInvalidTopology ErrorCode = C.RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY
+	// ErrStreamsInvalidTopologyEpoch Broker: The supplied topology epoch is invalid
+	ErrStreamsInvalidTopologyEpoch ErrorCode = C.RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY_EPOCH
+	// ErrStreamsTopologyFenced Broker: The supplied topology epoch is outdated
+	ErrStreamsTopologyFenced ErrorCode = C.RD_KAFKA_RESP_ERR_STREAMS_TOPOLOGY_FENCED
+	// ErrShareSessionLimitReached Broker: The limit of share sessions has been reached
+	ErrShareSessionLimitReached ErrorCode = C.RD_KAFKA_RESP_ERR_SHARE_SESSION_LIMIT_REACHED
 )
