@@ -14,7 +14,7 @@
   <script defer="" src="https://go.dev/js/jquery.js">
   </script>
   <script>
-   var goVersion = "go1.25.0";
+   var goVersion = "go1.25.11";
   </script>
   <script defer="" src="https://go.dev/js/godocs.js">
   </script>
@@ -1970,7 +1970,7 @@ possible complications with blocking Poll() calls.
 )</pre>
     <p>
      LibrdkafkaLinkInfo explains how librdkafka was linked to the Go client
-     <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin_arm64 from librdkafka-static-bundle-v2.14.2.tgz"</pre>
+     <pre>const <span id="LibrdkafkaLinkInfo">LibrdkafkaLinkInfo</span> = "static darwin_arm64 from librdkafka-static-bundle-v2.15.0-RC2.tgz"</pre>
      <p>
       OffsetBeginning represents the earliest offset (logical)
       <pre>const <span id="OffsetBeginning">OffsetBeginning</span> = <a href="#Offset">Offset</a>(<a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_OFFSET_BEGINNING">RD_KAFKA_OFFSET_BEGINNING</a>)</pre>
@@ -2016,7 +2016,7 @@ librdkafka error codes.
 This function is not intended for public use.
             <h2 id="ACLBinding">
              type
-             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=31343:32001#L881">
+             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=31531:32189#L885">
               ACLBinding
              </a>
              <a class="permalink" href="#ACLBinding">
@@ -2041,7 +2041,7 @@ returned by `AdminClient.DescribeACLs` and `AdminClient.DeleteACLs`.
 </pre>
              <h2 id="ACLBindingFilter">
               type
-              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32188:32222#L895">
+              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32376:32410#L899">
                ACLBindingFilter
               </a>
               <a class="permalink" href="#ACLBindingFilter">
@@ -2054,7 +2054,7 @@ Used by `AdminClient.DescribeACLs` and `AdminClient.DeleteACLs`.
               <pre>type ACLBindingFilter = <a href="#ACLBinding">ACLBinding</a></pre>
               <h2 id="ACLBindingFilters">
                type
-               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32433:32474#L903">
+               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32621:32662#L907">
                 ACLBindingFilters
                </a>
                <a class="permalink" href="#ACLBindingFilters">
@@ -2067,7 +2067,7 @@ the sort interface
                <pre>type ACLBindingFilters []<a href="#ACLBindingFilter">ACLBindingFilter</a></pre>
                <h2 id="ACLBindings">
                 type
-                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32307:32336#L899">
+                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32495:32524#L903">
                  ACLBindings
                 </a>
                 <a class="permalink" href="#ACLBindings">
@@ -2080,7 +2080,7 @@ the sort interface
                 <pre>type ACLBindings []<a href="#ACLBinding">ACLBinding</a></pre>
                 <h3 id="ACLBindings.Len">
                  func (ACLBindings)
-                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32476:32506#L905">
+                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32664:32694#L909">
                   Len
                  </a>
                  <a class="permalink" href="#ACLBindings.Len">
@@ -2090,7 +2090,7 @@ the sort interface
                 <pre>func (a <a href="#ACLBindings">ACLBindings</a>) Len() <a href="https://pkg.go.dev/builtin/#int">int</a></pre>
                 <h3 id="ACLBindings.Less">
                  func (ACLBindings)
-                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32527:32567#L909">
+                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=32715:32755#L913">
                   Less
                  </a>
                  <a class="permalink" href="#ACLBindings.Less">
@@ -2100,7 +2100,7 @@ the sort interface
                 <pre>func (a <a href="#ACLBindings">ACLBindings</a>) Less(i, j <a href="https://pkg.go.dev/builtin/#int">int</a>) <a href="https://pkg.go.dev/builtin/#bool">bool</a></pre>
                 <h3 id="ACLBindings.Swap">
                  func (ACLBindings)
-                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33167:33202#L934">
+                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33355:33390#L938">
                   Swap
                  </a>
                  <a class="permalink" href="#ACLBindings.Swap">
@@ -2110,7 +2110,7 @@ the sort interface
                 <pre>func (a <a href="#ACLBindings">ACLBindings</a>) Swap(i, j <a href="https://pkg.go.dev/builtin/#int">int</a>)</pre>
                 <h2 id="ACLOperation">
                  type
-                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=26866:26887#L775">
+                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=27054:27075#L779">
                   ACLOperation
                  </a>
                  <a class="permalink" href="#ACLOperation">
@@ -2150,7 +2150,7 @@ the sort interface
 )</pre>
                  <h3 id="ACLOperationFromString">
                   func
-                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=28859:28935#L813">
+                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=29047:29123#L817">
                    ACLOperationFromString
                   </a>
                   <a class="permalink" href="#ACLOperationFromString">
@@ -2163,7 +2163,7 @@ the sort interface
 a ACLOperation value.
                   <h3 id="ACLOperation.String">
                    func (ACLOperation)
-                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=28651:28688#L807">
+                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=28839:28876#L811">
                     String
                    </a>
                    <a class="permalink" href="#ACLOperation.String">
@@ -2175,7 +2175,7 @@ a ACLOperation value.
                    String returns the human-readable representation of an ACLOperation
                    <h2 id="ACLPermissionType">
                     type
-                    <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=29801:29827#L845">
+                    <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=29989:30015#L849">
                      ACLPermissionType
                     </a>
                     <a class="permalink" href="#ACLPermissionType">
@@ -2197,7 +2197,7 @@ a ACLOperation value.
 )</pre>
                     <h3 id="ACLPermissionTypeFromString">
                      func
-                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=30698:30789#L865">
+                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=30886:30977#L869">
                       ACLPermissionTypeFromString
                      </a>
                      <a class="permalink" href="#ACLPermissionTypeFromString">
@@ -2210,7 +2210,7 @@ a ACLOperation value.
 a ACLPermissionType value.
                      <h3 id="ACLPermissionType.String">
                       func (ACLPermissionType)
-                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=30459:30501#L859">
+                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=30647:30689#L863">
                        String
                       </a>
                       <a class="permalink" href="#ACLPermissionType.String">
@@ -2237,7 +2237,7 @@ a ACLPermissionType value.
 </pre>
                        <h3 id="NewAdminClient">
                         func
-                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=128541:128599#L3716">
+                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=128729:128787#L3720">
                          NewAdminClient
                         </a>
                         <a class="permalink" href="#NewAdminClient">
@@ -2249,7 +2249,7 @@ a ACLPermissionType value.
                         NewAdminClient creats a new AdminClient instance with a new underlying client instance
                         <h3 id="NewAdminClientFromConsumer">
                          func
-                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=130481:130553#L3782">
+                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=130669:130741#L3786">
                           NewAdminClientFromConsumer
                          </a>
                          <a class="permalink" href="#NewAdminClientFromConsumer">
@@ -2262,7 +2262,7 @@ a ACLPermissionType value.
 The AdminClient will use the same configuration and connections as the parent instance.
                          <h3 id="NewAdminClientFromProducer">
                           func
-                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=130001:130073#L3768">
+                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=130189:130261#L3772">
                            NewAdminClientFromProducer
                           </a>
                           <a class="permalink" href="#NewAdminClientFromProducer">
@@ -2275,7 +2275,7 @@ The AdminClient will use the same configuration and connections as the parent in
 The AdminClient will use the same configuration and connections as the parent instance.
                           <h3 id="AdminClient.AlterConfigs">
                            func (*AdminClient)
-                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=70087:70249#L2023">
+                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=70275:70437#L2027">
                             AlterConfigs
                            </a>
                            <a class="permalink" href="#AdminClient.AlterConfigs">
@@ -2304,7 +2304,7 @@ resource requests must be sent to the broker specified in the resource.
 Deprecated: AlterConfigs is deprecated in favour of IncrementalAlterConfigs
                                <h3 id="AdminClient.AlterConsumerGroupOffsets">
                                 func (*AdminClient)
-                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=111625:111845#L3232">
+                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=111813:112033#L3236">
                                  AlterConsumerGroupOffsets
                                 </a>
                                 <a class="permalink" href="#AdminClient.AlterConsumerGroupOffsets">
@@ -2343,7 +2343,7 @@ This will succeed at the partition level only if the group is not actively
 subscribed to the corresponding topic(s).
                                   <h3 id="AdminClient.AlterUserScramCredentials">
                                    func (*AdminClient)
-                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=119451:119707#L3468">
+                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=119639:119895#L3472">
                                     AlterUserScramCredentials
                                    </a>
                                    <a class="permalink" href="#AdminClient.AlterUserScramCredentials">
@@ -2378,7 +2378,7 @@ indefinite.
 ErrNoError when the request succeeded.
                                      <h3 id="AdminClient.Close">
                                       func (*AdminClient)
-                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=94761:94790#L2721">
+                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=94949:94978#L2725">
                                        Close
                                       </a>
                                       <a class="permalink" href="#AdminClient.Close">
@@ -2390,7 +2390,7 @@ ErrNoError when the request succeeded.
                                       Close an AdminClient instance.
                                       <h3 id="AdminClient.ClusterID">
                                        func (*AdminClient)
-                                       <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=59142:59224#L1674">
+                                       <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=59330:59412#L1678">
                                         ClusterID
                                        </a>
                                        <a class="permalink" href="#AdminClient.ClusterID">
@@ -2408,7 +2408,7 @@ cancelling the context will block until the C function call returns.
                                          Requires broker version &gt;= 0.10.0.
                                          <h3 id="AdminClient.ControllerID">
                                           func (*AdminClient)
-                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=60196:60283#L1711">
+                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=60384:60471#L1715">
                                            ControllerID
                                           </a>
                                           <a class="permalink" href="#AdminClient.ControllerID">
@@ -2427,7 +2427,7 @@ cancelling the context will block until the C function call returns.
                                             Requires broker version &gt;= 0.10.0.
                                             <h3 id="AdminClient.CreateACLs">
                                              func (*AdminClient)
-                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=86815:86965#L2500">
+                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=87003:87153#L2504">
                                               CreateACLs
                                              </a>
                                              <a class="permalink" href="#AdminClient.CreateACLs">
@@ -2455,7 +2455,7 @@ cancelling the context will block until the C function call returns.
 plus an error that is not nil for client level errors
                                                <h3 id="AdminClient.CreatePartitions">
                                                 func (*AdminClient)
-                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=66725:66896#L1927">
+                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=66913:67084#L1931">
                                                  CreatePartitions
                                                 </a>
                                                 <a class="permalink" href="#AdminClient.CreatePartitions">
@@ -2467,7 +2467,7 @@ plus an error that is not nil for client level errors
                                                 CreatePartitions creates additional partitions for topics.
                                                 <h3 id="AdminClient.CreateTopics">
                                                  func (*AdminClient)
-                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=61088:61242#L1745">
+                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=61276:61430#L1749">
                                                   CreateTopics
                                                  </a>
                                                  <a class="permalink" href="#AdminClient.CreateTopics">
@@ -2486,7 +2486,7 @@ make sure to check the result for topic-specific errors.
                                                     Note: TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
                                                     <h3 id="AdminClient.DeleteACLs">
                                                      func (*AdminClient)
-                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=91979:92142#L2640">
+                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=92167:92330#L2644">
                                                       DeleteACLs
                                                      </a>
                                                      <a class="permalink" href="#AdminClient.DeleteACLs">
@@ -2526,7 +2526,7 @@ If `ResourcePatternType` is set to `ResourcePatternTypeMatch` deletes ACL bindin
 plus an error that is not `nil` for client level errors
                                                        <h3 id="AdminClient.DeleteConsumerGroups">
                                                         func (*AdminClient)
-                                                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=104954:105128#L3050">
+                                                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=105142:105316#L3054">
                                                          DeleteConsumerGroups
                                                         </a>
                                                         <a class="permalink" href="#AdminClient.DeleteConsumerGroups">
@@ -2557,7 +2557,7 @@ group-level errors, (if any) contained inside; and an error that is not nil
 for client level errors.
                                                          <h3 id="AdminClient.DeleteRecords">
                                                           func (*AdminClient)
-                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=123775:123945#L3581">
+                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=123963:124133#L3585">
                                                            DeleteRecords
                                                           </a>
                                                           <a class="permalink" href="#AdminClient.DeleteRecords">
@@ -2593,7 +2593,7 @@ If successful, the DeletedRecords within the DeleteRecordsResult will be non-nil
 and contain the low-watermark offset (smallest available offset of all live replicas).
                                                             <h3 id="AdminClient.DeleteTopics">
                                                              func (*AdminClient)
-                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=64889:65031#L1864">
+                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=65077:65219#L1868">
                                                               DeleteTopics
                                                              </a>
                                                              <a class="permalink" href="#AdminClient.DeleteTopics">
@@ -2613,7 +2613,7 @@ topic metadata and configuration may continue to return information about delete
                                                                Requires broker version &gt;= 0.10.1.0
                                                                <h3 id="AdminClient.DescribeACLs">
                                                                 func (*AdminClient)
-                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=89682:89848#L2580">
+                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=89870:90036#L2584">
                                                                  DescribeACLs
                                                                 </a>
                                                                 <a class="permalink" href="#AdminClient.DescribeACLs">
@@ -2653,7 +2653,7 @@ If `ResourcePatternType` is set to `ResourcePatternTypeMatch` returns ACL bindin
 plus an error that is not `nil` for client level errors
                                                                   <h3 id="AdminClient.DescribeCluster">
                                                                    func (*AdminClient)
-                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=103224:103366#L2993">
+                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=103412:103554#L2997">
                                                                     DescribeCluster
                                                                    </a>
                                                                    <a class="permalink" href="#AdminClient.DescribeCluster">
@@ -2681,7 +2681,7 @@ indefinite.
 along with a slice of Nodes. It also has a slice of allowed ACLOperations.
                                                                      <h3 id="AdminClient.DescribeConfigs">
                                                                       func (*AdminClient)
-                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=76475:76643#L2222">
+                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=76663:76831#L2226">
                                                                        DescribeConfigs
                                                                       </a>
                                                                       <a class="permalink" href="#AdminClient.DescribeConfigs">
@@ -2714,7 +2714,7 @@ since these resource requests must be sent to the broker specified
 in the resource.
                                                                             <h3 id="AdminClient.DescribeConsumerGroups">
                                                                              func (*AdminClient)
-                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=97942:98122#L2825">
+                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=98130:98310#L2829">
                                                                               DescribeConsumerGroups
                                                                              </a>
                                                                              <a class="permalink" href="#AdminClient.DescribeConsumerGroups">
@@ -2749,7 +2749,7 @@ ConsumerGroupDescriptions inside the slice should also be checked for
 errors.
                                                                                <h3 id="AdminClient.DescribeTopics">
                                                                                 func (*AdminClient)
-                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=100579:100742#L2907">
+                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=100767:100930#L2911">
                                                                                  DescribeTopics
                                                                                 </a>
                                                                                 <a class="permalink" href="#AdminClient.DescribeTopics">
@@ -2786,7 +2786,7 @@ errors. Individual TopicDescriptions also have a
 slice of allowed ACLOperations.
                                                                                   <h3 id="AdminClient.DescribeUserScramCredentials">
                                                                                    func (*AdminClient)
-                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=114815:115012#L3322">
+                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=115003:115200#L3326">
                                                                                     DescribeUserScramCredentials
                                                                                    </a>
                                                                                    <a class="permalink" href="#AdminClient.DescribeUserScramCredentials">
@@ -2819,7 +2819,7 @@ duplicates are allowed
 Each description can have an individual error.
                                                                                      <h3 id="AdminClient.ElectLeaders">
                                                                                       func (*AdminClient)
-                                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=126635:126805#L3659">
+                                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=126823:126993#L3663">
                                                                                        ElectLeaders
                                                                                       </a>
                                                                                       <a class="permalink" href="#AdminClient.ElectLeaders">
@@ -2853,7 +2853,7 @@ Individual TopicPartitions inside the ElectLeadersResult should be checked for e
 Additionally, an error that is not nil for client-level errors is returned.
                                                                                         <h3 id="AdminClient.GetMetadata">
                                                                                          func (*AdminClient)
-                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=78719:78817#L2290">
+                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=78907:79005#L2294">
                                                                                           GetMetadata
                                                                                          </a>
                                                                                          <a class="permalink" href="#AdminClient.GetMetadata">
@@ -2869,7 +2869,7 @@ else information about all topics is returned.
 GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
                                                                                          <h3 id="AdminClient.IncrementalAlterConfigs">
                                                                                           func (*AdminClient)
-                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=73161:73334#L2119">
+                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=73349:73522#L2123">
                                                                                            IncrementalAlterConfigs
                                                                                           </a>
                                                                                           <a class="permalink" href="#AdminClient.IncrementalAlterConfigs">
@@ -2907,7 +2907,7 @@ resource requests must be sent to the broker specified in the resource.
                                                                                                IsClosed returns boolean representing if client is closed or not
                                                                                                <h3 id="AdminClient.ListConsumerGroupOffsets">
                                                                                                 func (*AdminClient)
-                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=107810:108027#L3131">
+                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=107998:108215#L3135">
                                                                                                  ListConsumerGroupOffsets
                                                                                                 </a>
                                                                                                 <a class="permalink" href="#AdminClient.ListConsumerGroupOffsets">
@@ -2944,7 +2944,7 @@ not `nil` for client level errors. Individual TopicPartitions inside each of
 the ConsumerGroupTopicPartitions should also be checked for errors.
                                                                                                   <h3 id="AdminClient.ListConsumerGroups">
                                                                                                    func (*AdminClient)
-                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=95718:95869#L2754">
+                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=95906:96057#L2758">
                                                                                                     ListConsumerGroups
                                                                                                    </a>
                                                                                                    <a class="permalink" href="#AdminClient.ListConsumerGroups">
@@ -2974,7 +2974,7 @@ Additionally, an error that is not nil for client-level errors is returned.
 Both the returned error, and the errors slice should be checked.
                                                                                                      <h3 id="AdminClient.ListOffsets">
                                                                                                       func (*AdminClient)
-                                                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=117166:117349#L3400">
+                                                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=117354:117537#L3404">
                                                                                                        ListOffsets
                                                                                                       </a>
                                                                                                       <a class="permalink" href="#AdminClient.ListOffsets">
@@ -3007,7 +3007,7 @@ holds either the OffsetSpec enum value or timestamp. Must not be nil.
 Each TopicPartition's ListOffset can have an individual error.
                                                                                                         <h3 id="AdminClient.Logs">
                                                                                                          func (*AdminClient)
-                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=130840:130882#L3795">
+                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=131028:131070#L3799">
                                                                                                           Logs
                                                                                                          </a>
                                                                                                          <a class="permalink" href="#AdminClient.Logs">
@@ -3019,7 +3019,7 @@ Each TopicPartition's ListOffset can have an individual error.
                                                                                                          Logs returns the log channel if enabled, or nil otherwise.
                                                                                                          <h3 id="AdminClient.SetOAuthBearerToken">
                                                                                                           func (*AdminClient)
-                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=79806:79888#L2318">
+                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=79994:80076#L2322">
                                                                                                            SetOAuthBearerToken
                                                                                                           </a>
                                                                                                           <a class="permalink" href="#AdminClient.SetOAuthBearerToken">
@@ -3043,7 +3043,7 @@ the regular expression requirements as per
 authentication mechanism.
                                                                                                           <h3 id="AdminClient.SetOAuthBearerTokenFailure">
                                                                                                            func (*AdminClient)
-                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=80445:80514#L2333">
+                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=80633:80702#L2337">
                                                                                                             SetOAuthBearerTokenFailure
                                                                                                            </a>
                                                                                                            <a class="permalink" href="#AdminClient.SetOAuthBearerTokenFailure">
@@ -3061,7 +3061,7 @@ success, otherwise an error if:
 authentication mechanism.
                                                                                                            <h3 id="AdminClient.SetSaslCredentials">
                                                                                                             func (*AdminClient)
-                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=94529:94602#L2711">
+                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=94717:94790#L2715">
                                                                                                              SetSaslCredentials
                                                                                                             </a>
                                                                                                             <a class="permalink" href="#AdminClient.SetSaslCredentials">
@@ -3079,7 +3079,7 @@ were established with the old credentials.
 This method applies only to the SASL PLAIN and SCRAM mechanisms.
                                                                                                             <h3 id="AdminClient.String">
                                                                                                              func (*AdminClient)
-                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=79006:79043#L2299">
+                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=79194:79231#L2303">
                                                                                                               String
                                                                                                              </a>
                                                                                                              <a class="permalink" href="#AdminClient.String">
@@ -3413,7 +3413,7 @@ without performing the requested operation (create topics, etc).
                                                                                                                                                                  Valid for CreateTopics, DeleteTopics, CreatePartitions, AlterConfigs
                                                                                                                                                                  <h2 id="AlterConfigOpType">
                                                                                                                                                                   type
-                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19681:19707#L585">
+                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19869:19895#L589">
                                                                                                                                                                    AlterConfigOpType
                                                                                                                                                                   </a>
                                                                                                                                                                   <a class="permalink" href="#AlterConfigOpType">
@@ -3440,7 +3440,7 @@ on the ConfigEntry for IncrementalAlterConfig
 )</pre>
                                                                                                                                                                   <h3 id="AlterConfigOpType.String">
                                                                                                                                                                    func (AlterConfigOpType)
-                                                                                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=20460:20502#L603">
+                                                                                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=20648:20690#L607">
                                                                                                                                                                     String
                                                                                                                                                                    </a>
                                                                                                                                                                    <a class="permalink" href="#AlterConfigOpType.String">
@@ -3502,7 +3502,7 @@ AlterConsumerGroupOffsets operation.
 </pre>
                                                                                                                                                                         <h2 id="AlterOperation">
                                                                                                                                                                          type
-                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19223:19246#L566">
+                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19411:19434#L570">
                                                                                                                                                                           AlterOperation
                                                                                                                                                                          </a>
                                                                                                                                                                          <a class="permalink" href="#AlterOperation">
@@ -3515,7 +3515,7 @@ Currently only AlterOperationSet.
                                                                                                                                                                          <pre>type AlterOperation <a href="https://pkg.go.dev/builtin/#int">int</a></pre>
                                                                                                                                                                          <h3 id="AlterOperation.String">
                                                                                                                                                                           func (AlterOperation)
-                                                                                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19423:19462#L574">
+                                                                                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19611:19650#L578">
                                                                                                                                                                            String
                                                                                                                                                                           </a>
                                                                                                                                                                           <a class="permalink" href="#AlterOperation.String">
@@ -3543,7 +3543,7 @@ Currently only AlterOperationSet.
 }</pre>
                                                                                                                                                                             <h2 id="AlterUserScramCredentialsResult">
                                                                                                                                                                              type
-                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=36890:37044#L1048">
+                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=37078:37232#L1052">
                                                                                                                                                                               AlterUserScramCredentialsResult
                                                                                                                                                                              </a>
                                                                                                                                                                              <a class="permalink" href="#AlterUserScramCredentialsResult">
@@ -3603,7 +3603,7 @@ AlterUserScramCredentials call.
 </pre>
                                                                                                                                                                                <h2 id="ConfigEntry">
                                                                                                                                                                                 type
-                                                                                                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=20843:21175#L619">
+                                                                                                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=21031:21363#L623">
                                                                                                                                                                                  ConfigEntry
                                                                                                                                                                                 </a>
                                                                                                                                                                                 <a class="permalink" href="#ConfigEntry">
@@ -3625,7 +3625,7 @@ AlterUserScramCredentials call.
 </pre>
                                                                                                                                                                                 <h3 id="StringMapToConfigEntries">
                                                                                                                                                                                  func
-                                                                                                                                                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=21328:21426#L632">
+                                                                                                                                                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=21516:21614#L636">
                                                                                                                                                                                   StringMapToConfigEntries
                                                                                                                                                                                  </a>
                                                                                                                                                                                  <a class="permalink" href="#StringMapToConfigEntries">
@@ -3638,7 +3638,7 @@ AlterUserScramCredentials call.
 provided string map. The AlterOperation is set on each created entry.
                                                                                                                                                                                  <h3 id="StringMapToIncrementalConfigEntries">
                                                                                                                                                                                   func
-                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=21771:21898#L644">
+                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=21959:22086#L648">
                                                                                                                                                                                    StringMapToIncrementalConfigEntries
                                                                                                                                                                                   </a>
                                                                                                                                                                                   <a class="permalink" href="#StringMapToIncrementalConfigEntries">
@@ -3652,7 +3652,7 @@ provided string map. The AlterOperation is set on each created entry.
 provided string map an operation map. The AlterConfigOpType is set on each created entry.
                                                                                                                                                                                   <h3 id="ConfigEntry.String">
                                                                                                                                                                                    func (ConfigEntry)
-                                                                                                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=22146:22182#L656">
+                                                                                                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=22334:22370#L660">
                                                                                                                                                                                     String
                                                                                                                                                                                    </a>
                                                                                                                                                                                    <a class="permalink" href="#ConfigEntry.String">
@@ -3664,7 +3664,7 @@ provided string map an operation map. The AlterConfigOpType is set on each creat
                                                                                                                                                                                    String returns a human-readable representation of a ConfigEntry.
                                                                                                                                                                                    <h2 id="ConfigEntryResult">
                                                                                                                                                                                     type
-                                                                                                                                                                                    <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=22362:23172#L662">
+                                                                                                                                                                                    <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=22550:23360#L666">
                                                                                                                                                                                      ConfigEntryResult
                                                                                                                                                                                     </a>
                                                                                                                                                                                     <a class="permalink" href="#ConfigEntryResult">
@@ -3695,7 +3695,7 @@ DescribeConfigs request.
 </pre>
                                                                                                                                                                                     <h3 id="ConfigEntryResult.String">
                                                                                                                                                                                      func (ConfigEntryResult)
-                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=23248:23290#L682">
+                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=23436:23478#L686">
                                                                                                                                                                                       String
                                                                                                                                                                                      </a>
                                                                                                                                                                                      <a class="permalink" href="#ConfigEntryResult.String">
@@ -3773,7 +3773,7 @@ for `-X key=value` config.
 set on the "default.topic.config" sub-map, this use is deprecated.
                                                                                                                                                                                             <h2 id="ConfigResource">
                                                                                                                                                                                              type
-                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=18545:18940#L547">
+                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=18733:19128#L551">
                                                                                                                                                                                               ConfigResource
                                                                                                                                                                                              </a>
                                                                                                                                                                                              <a class="permalink" href="#ConfigResource">
@@ -3796,7 +3796,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
 </pre>
                                                                                                                                                                                              <h3 id="ConfigResource.String">
                                                                                                                                                                                               func (ConfigResource)
-                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19012:19051#L560">
+                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=19200:19239#L564">
                                                                                                                                                                                                String
                                                                                                                                                                                               </a>
                                                                                                                                                                                               <a class="permalink" href="#ConfigResource.String">
@@ -3808,7 +3808,7 @@ set on the "default.topic.config" sub-map, this use is deprecated.
                                                                                                                                                                                               String returns a human-readable representation of a ConfigResource
                                                                                                                                                                                               <h2 id="ConfigResourceResult">
                                                                                                                                                                                                type
-                                                                                                                                                                                               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=24490:24789#L716">
+                                                                                                                                                                                               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=24678:24977#L720">
                                                                                                                                                                                                 ConfigResourceResult
                                                                                                                                                                                                </a>
                                                                                                                                                                                                <a class="permalink" href="#ConfigResourceResult">
@@ -3831,7 +3831,7 @@ DescribeConfigs request.
 </pre>
                                                                                                                                                                                                <h3 id="ConfigResourceResult.String">
                                                                                                                                                                                                 func (ConfigResourceResult)
-                                                                                                                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=24868:24913#L728">
+                                                                                                                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=25056:25101#L732">
                                                                                                                                                                                                  String
                                                                                                                                                                                                 </a>
                                                                                                                                                                                                 <a class="permalink" href="#ConfigResourceResult.String">
@@ -3843,7 +3843,7 @@ DescribeConfigs request.
                                                                                                                                                                                                 String returns a human-readable representation of a ConfigResourceResult.
                                                                                                                                                                                                 <h2 id="ConfigSource">
                                                                                                                                                                                                  type
-                                                                                                                                                                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=16976:16997#L522">
+                                                                                                                                                                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=17164:17185#L526">
                                                                                                                                                                                                   ConfigSource
                                                                                                                                                                                                  </a>
                                                                                                                                                                                                  <a class="permalink" href="#ConfigSource">
@@ -3871,7 +3871,7 @@ DescribeConfigs request.
 )</pre>
                                                                                                                                                                                                  <h3 id="ConfigSource.String">
                                                                                                                                                                                                   func (ConfigSource)
-                                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=18336:18373#L542">
+                                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=18524:18561#L546">
                                                                                                                                                                                                    String
                                                                                                                                                                                                   </a>
                                                                                                                                                                                                   <a class="permalink" href="#ConfigSource.String">
@@ -4783,7 +4783,7 @@ a ConsumerGroupType value.
                                                                                                                                                                                                                                                                                     String returns the human-readable representation of a ConsumerGroupType
                                                                                                                                                                                                                                                                                     <h2 id="CreateACLResult">
                                                                                                                                                                                                                                                                                      type
-                                                                                                                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33291:33406#L939">
+                                                                                                                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33479:33594#L943">
                                                                                                                                                                                                                                                                                       CreateACLResult
                                                                                                                                                                                                                                                                                      </a>
                                                                                                                                                                                                                                                                                      <a class="permalink" href="#CreateACLResult">
@@ -4863,7 +4863,7 @@ a ConsumerGroupType value.
 }</pre>
                                                                                                                                                                                                                                                                                              <h2 id="DeleteACLsResult">
                                                                                                                                                                                                                                                                                               type
-                                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33752:33794#L953">
+                                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33940:33982#L957">
                                                                                                                                                                                                                                                                                                DeleteACLsResult
                                                                                                                                                                                                                                                                                               </a>
                                                                                                                                                                                                                                                                                               <a class="permalink" href="#DeleteACLsResult">
@@ -5009,7 +5009,7 @@ records of a single partition
 }</pre>
                                                                                                                                                                                                                                                                                                           <h2 id="DescribeACLsResult">
                                                                                                                                                                                                                                                                                                            type
-                                                                                                                                                                                                                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33482:33680#L945">
+                                                                                                                                                                                                                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33670:33868#L949">
                                                                                                                                                                                                                                                                                                             DescribeACLsResult
                                                                                                                                                                                                                                                                                                            </a>
                                                                                                                                                                                                                                                                                                            <a class="permalink" href="#DescribeACLsResult">
@@ -5163,7 +5163,7 @@ DescribeTopics call.
 }</pre>
                                                                                                                                                                                                                                                                                                                         <h2 id="DescribeUserScramCredentialsResult">
                                                                                                                                                                                                                                                                                                                          type
-                                                                                                                                                                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=36607:36791#L1040">
+                                                                                                                                                                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=36795:36979#L1044">
                                                                                                                                                                                                                                                                                                                           DescribeUserScramCredentialsResult
                                                                                                                                                                                                                                                                                                                          </a>
                                                                                                                                                                                                                                                                                                                          <a class="permalink" href="#DescribeUserScramCredentialsResult">
@@ -5197,7 +5197,7 @@ DescribeUserScramCredentials call.
 }</pre>
                                                                                                                                                                                                                                                                                                                            <h2 id="ElectLeadersRequest">
                                                                                                                                                                                                                                                                                                                             type
-                                                                                                                                                                                                                                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=39157:39341#L1109">
+                                                                                                                                                                                                                                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=39345:39529#L1113">
                                                                                                                                                                                                                                                                                                                              ElectLeadersRequest
                                                                                                                                                                                                                                                                                                                             </a>
                                                                                                                                                                                                                                                                                                                             <a class="permalink" href="#ElectLeadersRequest">
@@ -5213,7 +5213,7 @@ the topic partitions for which election has to be performed
 </pre>
                                                                                                                                                                                                                                                                                                                             <h3 id="NewElectLeadersRequest">
                                                                                                                                                                                                                                                                                                                              func
-                                                                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=39456:39559#L1118">
+                                                                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=39644:39747#L1122">
                                                                                                                                                                                                                                                                                                                               NewElectLeadersRequest
                                                                                                                                                                                                                                                                                                                              </a>
                                                                                                                                                                                                                                                                                                                              <a class="permalink" href="#NewElectLeadersRequest">
@@ -5226,7 +5226,7 @@ the topic partitions for which election has to be performed
 and topic partitions
                                                                                                                                                                                                                                                                                                                              <h2 id="ElectLeadersResult">
                                                                                                                                                                                                                                                                                                                               type
-                                                                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=39720:39960#L1126">
+                                                                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=39908:40148#L1130">
                                                                                                                                                                                                                                                                                                                                ElectLeadersResult
                                                                                                                                                                                                                                                                                                                               </a>
                                                                                                                                                                                                                                                                                                                               <a class="permalink" href="#ElectLeadersResult">
@@ -5243,7 +5243,7 @@ and topic partitions
 </pre>
                                                                                                                                                                                                                                                                                                                               <h2 id="ElectionType">
                                                                                                                                                                                                                                                                                                                                type
-                                                                                                                                                                                                                                                                                                                               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38310:38331#L1085">
+                                                                                                                                                                                                                                                                                                                               <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38498:38519#L1089">
                                                                                                                                                                                                                                                                                                                                 ElectionType
                                                                                                                                                                                                                                                                                                                                </a>
                                                                                                                                                                                                                                                                                                                                <a class="permalink" href="#ElectionType">
@@ -5261,7 +5261,7 @@ and topic partitions
 )</pre>
                                                                                                                                                                                                                                                                                                                                <h3 id="ElectionTypeFromString">
                                                                                                                                                                                                                                                                                                                                 func
-                                                                                                                                                                                                                                                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38674:38750#L1096">
+                                                                                                                                                                                                                                                                                                                                <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38862:38938#L1100">
                                                                                                                                                                                                                                                                                                                                  ElectionTypeFromString
                                                                                                                                                                                                                                                                                                                                 </a>
                                                                                                                                                                                                                                                                                                                                 <a class="permalink" href="#ElectionTypeFromString">
@@ -5380,7 +5380,7 @@ A timeout error indicates that the operation timed out locally.
                                                                                                                                                                                                                                                                                                                                         String returns a human readable representation of an Error
                                                                                                                                                                                                                                                                                                                                         <h3 id="Error.TxnRequiresAbort">
                                                                                                                                                                                                                                                                                                                                          func (Error)
-                                                                                                                                                                                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/error.go?s=4033:4071#L131">
+                                                                                                                                                                                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/error.go?s=4061:4099#L131">
                                                                                                                                                                                                                                                                                                                                           TxnRequiresAbort
                                                                                                                                                                                                                                                                                                                                          </a>
                                                                                                                                                                                                                                                                                                                                          <a class="permalink" href="#Error.TxnRequiresAbort">
@@ -5396,7 +5396,7 @@ if it wishes to proceed with transactional operations.
 This flag is only set by the Transactional producer API.
                                                                                                                                                                                                                                                                                                                                          <h2 id="ErrorCode">
                                                                                                                                                                                                                                                                                                                                           type
-                                                                                                                                                                                                                                                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/generated_errors.go?s=280:298#L2">
+                                                                                                                                                                                                                                                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/generated_errors.go?s=285:303#L2">
                                                                                                                                                                                                                                                                                                                                            ErrorCode
                                                                                                                                                                                                                                                                                                                                           </a>
                                                                                                                                                                                                                                                                                                                                           <a class="permalink" href="#ErrorCode">
@@ -5733,6 +5733,8 @@ This flag is only set by the Transactional producer API.
     <span id="ErrPrincipalDeserializationFailure">ErrPrincipalDeserializationFailure</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE">RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE</a>
     <span class="comment">// ErrUnknownTopicID Broker: Unknown topic id</span>
     <span id="ErrUnknownTopicID">ErrUnknownTopicID</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID">RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID</a>
+    <span class="comment">// ErrInconsistentTopicID Broker: The log's topic ID did not match the topic ID in the request</span>
+    <span id="ErrInconsistentTopicID">ErrInconsistentTopicID</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_INCONSISTENT_TOPIC_ID">RD_KAFKA_RESP_ERR_INCONSISTENT_TOPIC_ID</a>
     <span class="comment">// ErrFencedMemberEpoch Broker: The member epoch is fenced by the group coordinator</span>
     <span id="ErrFencedMemberEpoch">ErrFencedMemberEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH">RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH</a>
     <span class="comment">// ErrUnreleasedInstanceID Broker: The instance ID is still used by another member in the consumer group</span>
@@ -5741,16 +5743,50 @@ This flag is only set by the Transactional producer API.
     <span id="ErrUnsupportedAssignor">ErrUnsupportedAssignor</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR">RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR</a>
     <span class="comment">// ErrStaleMemberEpoch Broker: The member epoch is stale</span>
     <span id="ErrStaleMemberEpoch">ErrStaleMemberEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH">RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH</a>
+    <span class="comment">// ErrMismatchedEndpointType Broker: The request was sent to an endpoint of the wrong type</span>
+    <span id="ErrMismatchedEndpointType">ErrMismatchedEndpointType</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_MISMATCHED_ENDPOINT_TYPE">RD_KAFKA_RESP_ERR_MISMATCHED_ENDPOINT_TYPE</a>
+    <span class="comment">// ErrUnsupportedEndpointType Broker: This endpoint type is not supported yet</span>
+    <span id="ErrUnsupportedEndpointType">ErrUnsupportedEndpointType</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_UNSUPPORTED_ENDPOINT_TYPE">RD_KAFKA_RESP_ERR_UNSUPPORTED_ENDPOINT_TYPE</a>
+    <span class="comment">// ErrUnknownControllerID Broker: This controller ID is not known</span>
+    <span id="ErrUnknownControllerID">ErrUnknownControllerID</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_UNKNOWN_CONTROLLER_ID">RD_KAFKA_RESP_ERR_UNKNOWN_CONTROLLER_ID</a>
     <span class="comment">// ErrUnknownSubscriptionID Broker: Client sent a push telemetry request with an invalid or outdated subscription ID</span>
     <span id="ErrUnknownSubscriptionID">ErrUnknownSubscriptionID</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID">RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID</a>
     <span class="comment">// ErrTelemetryTooLarge Broker: Client sent a push telemetry request larger than the maximum size the broker will accept</span>
     <span id="ErrTelemetryTooLarge">ErrTelemetryTooLarge</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE">RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE</a>
+    <span class="comment">// ErrInvalidRegistration Broker: The controller has considered the broker registration to be invalid</span>
+    <span id="ErrInvalidRegistration">ErrInvalidRegistration</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_INVALID_REGISTRATION">RD_KAFKA_RESP_ERR_INVALID_REGISTRATION</a>
+    <span class="comment">// ErrTransactionAbortable Broker: The server encountered an error with the transaction</span>
+    <span id="ErrTransactionAbortable">ErrTransactionAbortable</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_TRANSACTION_ABORTABLE">RD_KAFKA_RESP_ERR_TRANSACTION_ABORTABLE</a>
+    <span class="comment">// ErrInvalidRecordState Broker: The record state is invalid</span>
+    <span id="ErrInvalidRecordState">ErrInvalidRecordState</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_INVALID_RECORD_STATE">RD_KAFKA_RESP_ERR_INVALID_RECORD_STATE</a>
+    <span class="comment">// ErrShareSessionNotFound Broker: The share session was not found</span>
+    <span id="ErrShareSessionNotFound">ErrShareSessionNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_SHARE_SESSION_NOT_FOUND">RD_KAFKA_RESP_ERR_SHARE_SESSION_NOT_FOUND</a>
+    <span class="comment">// ErrInvalidShareSessionEpoch Broker: The share session epoch is invalid</span>
+    <span id="ErrInvalidShareSessionEpoch">ErrInvalidShareSessionEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH">RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH</a>
+    <span class="comment">// ErrFencedStateEpoch Broker: The share-group state epoch did not match</span>
+    <span id="ErrFencedStateEpoch">ErrFencedStateEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_FENCED_STATE_EPOCH">RD_KAFKA_RESP_ERR_FENCED_STATE_EPOCH</a>
+    <span class="comment">// ErrInvalidVoterKey Broker: The voter key doesn't match the receiving replica's key</span>
+    <span id="ErrInvalidVoterKey">ErrInvalidVoterKey</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_INVALID_VOTER_KEY">RD_KAFKA_RESP_ERR_INVALID_VOTER_KEY</a>
+    <span class="comment">// ErrDuplicateVoter Broker: The voter is already part of the set of voters</span>
+    <span id="ErrDuplicateVoter">ErrDuplicateVoter</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_DUPLICATE_VOTER">RD_KAFKA_RESP_ERR_DUPLICATE_VOTER</a>
+    <span class="comment">// ErrVoterNotFound Broker: The voter is not part of the set of voters</span>
+    <span id="ErrVoterNotFound">ErrVoterNotFound</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_VOTER_NOT_FOUND">RD_KAFKA_RESP_ERR_VOTER_NOT_FOUND</a>
+    <span class="comment">// ErrInvalidRegularExpression Broker: The regular expression is not valid</span>
+    <span id="ErrInvalidRegularExpression">ErrInvalidRegularExpression</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_INVALID_REGULAR_EXPRESSION">RD_KAFKA_RESP_ERR_INVALID_REGULAR_EXPRESSION</a>
     <span class="comment">// ErrRebootstrapRequired Broker: Client metadata is stale, client should rebootstrap to obtain new metadata</span>
     <span id="ErrRebootstrapRequired">ErrRebootstrapRequired</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED">RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED</a>
+    <span class="comment">// ErrStreamsInvalidTopology Broker: The supplied topology is invalid</span>
+    <span id="ErrStreamsInvalidTopology">ErrStreamsInvalidTopology</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY">RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY</a>
+    <span class="comment">// ErrStreamsInvalidTopologyEpoch Broker: The supplied topology epoch is invalid</span>
+    <span id="ErrStreamsInvalidTopologyEpoch">ErrStreamsInvalidTopologyEpoch</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY_EPOCH">RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY_EPOCH</a>
+    <span class="comment">// ErrStreamsTopologyFenced Broker: The supplied topology epoch is outdated</span>
+    <span id="ErrStreamsTopologyFenced">ErrStreamsTopologyFenced</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_STREAMS_TOPOLOGY_FENCED">RD_KAFKA_RESP_ERR_STREAMS_TOPOLOGY_FENCED</a>
+    <span class="comment">// ErrShareSessionLimitReached Broker: The limit of share sessions has been reached</span>
+    <span id="ErrShareSessionLimitReached">ErrShareSessionLimitReached</span> <a href="#ErrorCode">ErrorCode</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESP_ERR_SHARE_SESSION_LIMIT_REACHED">RD_KAFKA_RESP_ERR_SHARE_SESSION_LIMIT_REACHED</a>
 )</pre>
                                                                                                                                                                                                                                                                                                                                           <h3 id="ErrorCode.String">
                                                                                                                                                                                                                                                                                                                                            func (ErrorCode)
-                                                                                                                                                                                                                                                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/generated_errors.go?s=367:401#L5">
+                                                                                                                                                                                                                                                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/generated_errors.go?s=372:406#L5">
                                                                                                                                                                                                                                                                                                                                             String
                                                                                                                                                                                                                                                                                                                                            </a>
                                                                                                                                                                                                                                                                                                                                            <a class="permalink" href="#ErrorCode.String">
@@ -5956,7 +5992,7 @@ ListConsumerGroupOffsets operation.
 }</pre>
                                                                                                                                                                                                                                                                                                                                                            <h2 id="ListOffsetsResult">
                                                                                                                                                                                                                                                                                                                                                             type
-                                                                                                                                                                                                                                                                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38157:38244#L1080">
+                                                                                                                                                                                                                                                                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38345:38432#L1084">
                                                                                                                                                                                                                                                                                                                                                              ListOffsetsResult
                                                                                                                                                                                                                                                                                                                                                             </a>
                                                                                                                                                                                                                                                                                                                                                             <a class="permalink" href="#ListOffsetsResult">
@@ -5971,7 +6007,7 @@ ListConsumerGroupOffsets operation.
 </pre>
                                                                                                                                                                                                                                                                                                                                                             <h2 id="ListOffsetsResultInfo">
                                                                                                                                                                                                                                                                                                                                                              type
-                                                                                                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=37947:38062#L1072">
+                                                                                                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=38135:38250#L1076">
                                                                                                                                                                                                                                                                                                                                                               ListOffsetsResultInfo
                                                                                                                                                                                                                                                                                                                                                              </a>
                                                                                                                                                                                                                                                                                                                                                              <a class="permalink" href="#ListOffsetsResultInfo">
@@ -6384,7 +6420,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
                                                                                                                                                                                                                                                                                                                                                                                       <pre>func (o <a href="#Offset">Offset</a>) String() <a href="https://pkg.go.dev/builtin/#string">string</a></pre>
                                                                                                                                                                                                                                                                                                                                                                                       <h2 id="OffsetSpec">
                                                                                                                                                                                                                                                                                                                                                                                        type
-                                                                                                                                                                                                                                                                                                                                                                                       <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=37111:37132#L1055">
+                                                                                                                                                                                                                                                                                                                                                                                       <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=37299:37320#L1059">
                                                                                                                                                                                                                                                                                                                                                                                         OffsetSpec
                                                                                                                                                                                                                                                                                                                                                                                        </a>
                                                                                                                                                                                                                                                                                                                                                                                        <a class="permalink" href="#OffsetSpec">
@@ -6404,7 +6440,7 @@ Logical offsets: "beginning", "earliest", "end", "latest", "unset", "invalid", "
 )</pre>
                                                                                                                                                                                                                                                                                                                                                                                        <h3 id="NewOffsetSpecForTimestamp">
                                                                                                                                                                                                                                                                                                                                                                                         func
-                                                                                                                                                                                                                                                                                                                                                                                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=37761:37819#L1067">
+                                                                                                                                                                                                                                                                                                                                                                                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=37949:38007#L1071">
                                                                                                                                                                                                                                                                                                                                                                                          NewOffsetSpecForTimestamp
                                                                                                                                                                                                                                                                                                                                                                                         </a>
                                                                                                                                                                                                                                                                                                                                                                                         <a class="permalink" href="#NewOffsetSpecForTimestamp">
@@ -7102,7 +7138,7 @@ The passed Event will be either AssignedPartitions or RevokedPartitions
                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <pre>type RebalanceCb func(*<a href="#Consumer">Consumer</a>, <a href="#Event">Event</a>) <a href="https://pkg.go.dev/builtin/#error">error</a></pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <h2 id="ResourcePatternType">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                  type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=25202:25230#L737">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=25390:25418#L741">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ResourcePatternType
                                                                                                                                                                                                                                                                                                                                                                                                                                                                  </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <a class="permalink" href="#ResourcePatternType">
@@ -7126,7 +7162,7 @@ The passed Event will be either AssignedPartitions or RevokedPartitions
 )</pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <h3 id="ResourcePatternTypeFromString">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   func
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=26325:26414#L759">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=26513:26602#L763">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ResourcePatternTypeFromString
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   <a class="permalink" href="#ResourcePatternTypeFromString">
@@ -7139,7 +7175,7 @@ The passed Event will be either AssignedPartitions or RevokedPartitions
 a ResourcePatternType value.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   <h3 id="ResourcePatternType.String">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                    func (ResourcePatternType)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=26074:26118#L753">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                   <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=26262:26306#L757">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                     String
                                                                                                                                                                                                                                                                                                                                                                                                                                                                    </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <a class="permalink" href="#ResourcePatternType.String">
@@ -7172,10 +7208,12 @@ a ResourcePatternType value.
     <span id="ResourceGroup">ResourceGroup</span> <a href="#ResourceType">ResourceType</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESOURCE_GROUP">RD_KAFKA_RESOURCE_GROUP</a>
     <span class="comment">// ResourceBroker - Broker</span>
     <span id="ResourceBroker">ResourceBroker</span> <a href="#ResourceType">ResourceType</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESOURCE_BROKER">RD_KAFKA_RESOURCE_BROKER</a>
+    <span class="comment">// ResourceTransactionalID - Transactional ID</span>
+    <span id="ResourceTransactionalID">ResourceTransactionalID</span> <a href="#ResourceType">ResourceType</a> = <a href="https://pkg.go.dev/C/">C</a>.<a href="https://pkg.go.dev/C/#RD_KAFKA_RESOURCE_TRANSACTIONAL_ID">RD_KAFKA_RESOURCE_TRANSACTIONAL_ID</a>
 )</pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                     <h3 id="ResourceTypeFromString">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                      func
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=16542:16610#L506">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=16666:16734#L508">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                       ResourceTypeFromString
                                                                                                                                                                                                                                                                                                                                                                                                                                                                      </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <a class="permalink" href="#ResourceTypeFromString">
@@ -7188,7 +7226,7 @@ a ResourcePatternType value.
 a ResourceType value.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <h3 id="ResourceType.String">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                       func (ResourceType)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=16327:16364#L500">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=16451:16488#L502">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                        String
                                                                                                                                                                                                                                                                                                                                                                                                                                                                       </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                       <a class="permalink" href="#ResourceType.String">
@@ -7225,7 +7263,7 @@ a ResourceType value.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <pre>func (e <a href="#RevokedPartitions">RevokedPartitions</a>) String() <a href="https://pkg.go.dev/builtin/#string">string</a></pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <h2 id="ScramCredentialInfo">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                         type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=35176:35371#L997">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=35364:35559#L1001">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ScramCredentialInfo
                                                                                                                                                                                                                                                                                                                                                                                                                                                                         </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <a class="permalink" href="#ScramCredentialInfo">
@@ -7244,7 +7282,7 @@ SASL/SCRAM credential associated with a user.
 </pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <h2 id="ScramMechanism">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                          type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=33950:33973#L958">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=34138:34161#L962">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                           ScramMechanism
                                                                                                                                                                                                                                                                                                                                                                                                                                                                          </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <a class="permalink" href="#ScramMechanism">
@@ -7266,7 +7304,7 @@ and `AdminClient.DescribeUserScramCredentials`.
 )</pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <h3 id="ScramMechanismFromString">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                           func
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=34728:34799#L983">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=34916:34987#L987">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ScramMechanismFromString
                                                                                                                                                                                                                                                                                                                                                                                                                                                                           </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                           <a class="permalink" href="#ScramMechanismFromString">
@@ -7279,7 +7317,7 @@ and `AdminClient.DescribeUserScramCredentials`.
 a ScramMechanism value.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                           <h3 id="ScramMechanism.String">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                            func (ScramMechanism)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=34441:34480#L970">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                           <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=34629:34668#L974">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                             String
                                                                                                                                                                                                                                                                                                                                                                                                                                                                            </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <a class="permalink" href="#ScramMechanism.String">
@@ -7624,7 +7662,7 @@ TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Base64 string representation of the UUID
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <h2 id="UserScramCredentialDeletion">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=35935:36076#L1018">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=36123:36264#L1022">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              UserScramCredentialDeletion
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             <a class="permalink" href="#UserScramCredentialDeletion">
@@ -7643,7 +7681,7 @@ a SASL/SCRAM credential for a user.
 </pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             <h2 id="UserScramCredentialUpsertion">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=36179:36502#L1027">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=36367:36690#L1031">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               UserScramCredentialUpsertion
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <a class="permalink" href="#UserScramCredentialUpsertion">
@@ -7666,7 +7704,7 @@ a SASL/SCRAM credential for a user.
 </pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <h2 id="UserScramCredentialsDescription">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=35560:35840#L1007">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.14.2/kafka/adminapi.go?s=35748:36028#L1011">
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                UserScramCredentialsDescription
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               </a>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               <a class="permalink" href="#UserScramCredentialsDescription">
@@ -7687,7 +7725,7 @@ why credentials could not be retrieved.
 }
 </pre>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               <div id="footer">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Build version go1.25.0.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Build version go1.25.11.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <br/>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Except as
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <a href="https://developers.google.com/site-policies#restrictions">
