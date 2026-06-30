@@ -265,6 +265,7 @@ typedef struct rd_kafka_acl_result_s rd_kafka_acl_result_t;
 typedef struct rd_kafka_Uuid_s rd_kafka_Uuid_t;
 typedef struct rd_kafka_topic_partition_result_s
     rd_kafka_topic_partition_result_t;
+typedef struct rd_kafka_share_s rd_kafka_share_t;
 /* @endcond */
 
 
@@ -640,6 +641,8 @@ typedef enum {
         RD_KAFKA_RESP_ERR_PRINCIPAL_DESERIALIZATION_FAILURE = 97,
         /** Unknown Topic Id */
         RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID = 100,
+        /** The log's topic ID did not match the topic ID in the request */
+        RD_KAFKA_RESP_ERR_INCONSISTENT_TOPIC_ID = 103,
         /** The member epoch is fenced by the group coordinator */
         RD_KAFKA_RESP_ERR_FENCED_MEMBER_EPOCH = 110,
         /** The instance ID is still used by another member in the
@@ -650,15 +653,54 @@ typedef enum {
         RD_KAFKA_RESP_ERR_UNSUPPORTED_ASSIGNOR = 112,
         /** The member epoch is stale */
         RD_KAFKA_RESP_ERR_STALE_MEMBER_EPOCH = 113,
+        /** The request was sent to an endpoint of the wrong type. */
+        RD_KAFKA_RESP_ERR_MISMATCHED_ENDPOINT_TYPE = 114,
+        /** This endpoint type is not supported yet. */
+        RD_KAFKA_RESP_ERR_UNSUPPORTED_ENDPOINT_TYPE = 115,
+        /** This controller ID is not known. */
+        RD_KAFKA_RESP_ERR_UNKNOWN_CONTROLLER_ID = 116,
         /** Client sent a push telemetry request with an invalid or outdated
          *  subscription ID. */
         RD_KAFKA_RESP_ERR_UNKNOWN_SUBSCRIPTION_ID = 117,
         /** Client sent a push telemetry request larger than the maximum size
          *  the broker will accept. */
         RD_KAFKA_RESP_ERR_TELEMETRY_TOO_LARGE = 118,
+        /** The controller has considered the broker registration
+         *  to be invalid. */
+        RD_KAFKA_RESP_ERR_INVALID_REGISTRATION = 119,
+        /** The server encountered an error with the transaction.
+         *  The client can abort the transaction to continue using
+         *  this transactional ID. */
+        RD_KAFKA_RESP_ERR_TRANSACTION_ABORTABLE = 120,
+        /** The record state is invalid. The acknowledgement of delivery
+         *  could not be completed. */
+        RD_KAFKA_RESP_ERR_INVALID_RECORD_STATE = 121,
+        /** The share session was not found. */
+        RD_KAFKA_RESP_ERR_SHARE_SESSION_NOT_FOUND = 122,
+        /** The share session epoch is invalid. */
+        RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH = 123,
+        /** The share coordinator rejected the request because the
+         *  share-group state epoch did not match. */
+        RD_KAFKA_RESP_ERR_FENCED_STATE_EPOCH = 124,
+        /** The voter key doesn't match the receiving replica's key. */
+        RD_KAFKA_RESP_ERR_INVALID_VOTER_KEY = 125,
+        /** The voter is already part of the set of voters. */
+        RD_KAFKA_RESP_ERR_DUPLICATE_VOTER = 126,
+        /** The voter is not part of the set of voters. */
+        RD_KAFKA_RESP_ERR_VOTER_NOT_FOUND = 127,
+        /** The regular expression is not valid. */
+        RD_KAFKA_RESP_ERR_INVALID_REGULAR_EXPRESSION = 128,
         /** Client metadata is stale,
          *  client should rebootstrap to obtain new metadata. */
         RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED = 129,
+        /** The supplied topology is invalid. */
+        RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY = 130,
+        /** The supplied topology epoch is invalid. */
+        RD_KAFKA_RESP_ERR_STREAMS_INVALID_TOPOLOGY_EPOCH = 131,
+        /** The supplied topology epoch is outdated. */
+        RD_KAFKA_RESP_ERR_STREAMS_TOPOLOGY_FENCED = 132,
+        /** The limit of share sessions has been reached. */
+        RD_KAFKA_RESP_ERR_SHARE_SESSION_LIMIT_REACHED = 133,
         RD_KAFKA_RESP_ERR_END_ALL,
 } rd_kafka_resp_err_t;
 
@@ -1497,6 +1539,61 @@ typedef struct rd_kafka_message_s {
 
 
 /**
+ * @brief Opaque container of messages returned by rd_kafka_share_poll().
+ *
+ * Use rd_kafka_messages_count() and rd_kafka_messages_get() to iterate the
+ * batch, and rd_kafka_messages_destroy() to release it.
+ */
+typedef struct rd_kafka_messages_s rd_kafka_messages_t;
+
+
+/**
+ * @brief Returns the number of messages in \p messages.
+ *
+ * @param messages Message list returned by rd_kafka_share_poll().
+ *                 May be NULL, in which case 0 is returned.
+ *
+ * @returns The number of messages in \p messages.
+ */
+RD_EXPORT
+size_t rd_kafka_messages_count(const rd_kafka_messages_t *messages);
+
+/**
+ * @brief Returns the message at zero-based \p index in \p messages.
+ *
+ * The returned message is owned by \p messages and remains valid until
+ * rd_kafka_messages_destroy() is called.
+ *
+ * @param messages Message list returned by rd_kafka_share_poll().
+ *                 Must be non-NULL.
+ * @param index    Zero-based index of the message to return.
+ *                 Must be strictly less than rd_kafka_messages_count(messages);
+ *                 behavior is undefined otherwise.
+ *
+ * @returns The message at \p index.
+ */
+RD_EXPORT
+rd_kafka_message_t *rd_kafka_messages_get(const rd_kafka_messages_t *messages,
+                                          size_t index);
+
+/**
+ * @brief Destroys \p messages and all messages it contains.
+ *
+ * @param messages Message list to destroy. NULL is a safe no-op.
+ *
+ * @remark After this call the \p messages handle itself, and any
+ *         \c rd_kafka_message_t pointer previously obtained from it via
+ *         rd_kafka_messages_get(), are invalid and must not be accessed —
+ *         doing so reads freed memory. Users should only use this method to
+ *         destroy the \p messages handle returned by rd_kafka_share_poll() and
+ *         set the pointer to NULL after destroying to avoid use-after-free
+ *         bugs.
+ */
+RD_EXPORT
+void rd_kafka_messages_destroy(rd_kafka_messages_t *messages);
+
+
+/**
  * @brief Frees resources for \p rkmessage and hands ownership back to rdkafka.
  */
 RD_EXPORT
@@ -1664,6 +1761,19 @@ rd_kafka_message_status(const rd_kafka_message_t *rkmessage);
  */
 RD_EXPORT int32_t
 rd_kafka_message_leader_epoch(const rd_kafka_message_t *rkmessage);
+
+/**
+ * @brief Get the delivery count for a message associated with the share
+ * consumer.
+ *
+ * @param rkmessage Message object.
+ *
+ * @returns Delivery count (number of times this message has been delivered).
+ *          Returns 0 if delivery count is not available like in case of normal
+ * consumer or producer.
+ */
+RD_EXPORT int16_t
+rd_kafka_message_delivery_count(const rd_kafka_message_t *rkmessage);
 
 
 /**@}*/
@@ -3081,6 +3191,105 @@ void rd_kafka_destroy(rd_kafka_t *rk);
  */
 RD_EXPORT
 void rd_kafka_destroy_flags(rd_kafka_t *rk, int flags);
+
+/**
+ * @brief Get the SASL callback queue for a share consumer.
+ *
+ * @returns a reference to the SASL callback queue for the share consumer,
+ *          if a SASL mechanism with callbacks is configured
+ *          (currently only OAUTHBEARER), else returns NULL.
+ *
+ * @remark The dedicated SASL callback queue is only created when
+ *         rd_kafka_conf_enable_sasl_queue() was enabled on the configuration
+ *         before creating the share consumer; otherwise SASL callbacks are
+ *         served on the main queue and this returns NULL.
+ *
+ * Use rd_kafka_queue_destroy() to lose the reference.
+ *
+ * @sa rd_kafka_conf_enable_sasl_queue()
+ * @sa rd_kafka_queue_get_sasl()
+ * @sa rd_kafka_share_sasl_background_callbacks_enable()
+ */
+RD_EXPORT
+rd_kafka_queue_t *rd_kafka_share_queue_get_sasl(rd_kafka_share_t *rkshare);
+
+/**
+ * @brief Set SASL/OAUTHBEARER token and metadata for a share consumer.
+ *
+ * @param rkshare Share consumer instance.
+ * @param token_value the mandatory token value to set, often (but not
+ *  necessarily) a JWS compact serialization as per
+ *  https://tools.ietf.org/html/rfc7515#section-3.1.
+ * @param md_lifetime_ms when the token expires, in terms of the number of
+ *  milliseconds since the epoch.
+ * @param md_principal_name the mandatory Kafka principal name associated
+ *  with the token.
+ * @param extensions optional SASL extensions key-value array with
+ *  \p extension_size elements (number of keys * 2), where [i] is the key and
+ *  [i+1] is the key's value, to be communicated to the broker
+ *  as additional key-value pairs during the initial client response as per
+ *  https://tools.ietf.org/html/rfc7628#section-3.1. The key-value pairs are
+ *  copied.
+ * @param extension_size the number of SASL extension keys plus values,
+ *  which must be a non-negative multiple of 2.
+ * @param errstr A human readable error string (nul-terminated) is written to
+ *               this location that must be of at least \p errstr_size bytes.
+ *               The \p errstr is only written in case of error.
+ * @param errstr_size Writable size in \p errstr.
+ *
+ * The SASL/OAUTHBEARER token refresh callback or event handler should invoke
+ * this method upon success.
+ *
+ * @returns \c RD_KAFKA_RESP_ERR_NO_ERROR on success, otherwise \p errstr set
+ *              and:<br>
+ *          \c RD_KAFKA_RESP_ERR__INVALID_ARG if any of the arguments are
+ *              invalid;<br>
+ *          \c RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED if SASL/OAUTHBEARER is not
+ *              supported by this build;<br>
+ *          \c RD_KAFKA_RESP_ERR__STATE if SASL/OAUTHBEARER is supported but is
+ *              not configured as the client's authentication mechanism.<br>
+ *
+ * @sa rd_kafka_oauthbearer_set_token()
+ * @sa rd_kafka_share_oauthbearer_set_token_failure()
+ * @sa rd_kafka_conf_set_oauthbearer_token_refresh_cb()
+ */
+RD_EXPORT
+rd_kafka_resp_err_t
+rd_kafka_share_oauthbearer_set_token(rd_kafka_share_t *rkshare,
+                                     const char *token_value,
+                                     int64_t md_lifetime_ms,
+                                     const char *md_principal_name,
+                                     const char **extensions,
+                                     size_t extension_size,
+                                     char *errstr,
+                                     size_t errstr_size);
+
+/**
+ * @brief SASL/OAUTHBEARER token refresh failure indicator for a share
+ *        consumer.
+ *
+ * @param rkshare Share consumer instance.
+ * @param errstr mandatory human readable error reason for failing to acquire
+ *  a token.
+ *
+ * The SASL/OAUTHBEARER token refresh callback or event handler should invoke
+ * this method upon failure.
+ *
+ * @returns \c RD_KAFKA_RESP_ERR_NO_ERROR on success, otherwise:<br>
+ *          \c RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED if SASL/OAUTHBEARER is not
+ *              supported by this build;<br>
+ *          \c RD_KAFKA_RESP_ERR__STATE if SASL/OAUTHBEARER is supported but is
+ *              not configured as the client's authentication mechanism,<br>
+ *          \c RD_KAFKA_RESP_ERR__INVALID_ARG if no error string is supplied.
+ *
+ * @sa rd_kafka_oauthbearer_set_token_failure()
+ * @sa rd_kafka_share_oauthbearer_set_token()
+ * @sa rd_kafka_conf_set_oauthbearer_token_refresh_cb()
+ */
+RD_EXPORT
+rd_kafka_resp_err_t
+rd_kafka_share_oauthbearer_set_token_failure(rd_kafka_share_t *rkshare,
+                                             const char *errstr);
 
 /**
  * @brief Flags for rd_kafka_destroy_flags()
@@ -5018,6 +5227,906 @@ rd_kafka_resp_err_t rd_kafka_purge(rd_kafka_t *rk, int purge_flags);
 
 
 /**@}*/
+
+
+
+/**
+ * @name Share consumer (Queues for Kafka)
+ * @brief Cooperative, queue-style consumption with a share group (KIP-932)
+ * @{
+ *
+ * @warning **Preview feature.** The share consumer is provided as a preview:
+ *          the public interfaces may change in a future release and it is not
+ *          recommended for production use. It is currently available through
+ *          the C API only; there is no C++ wrapper yet. See the "Current
+ *          limitations" section below.
+ *
+ * @par Overview
+ * A share consumer lets multiple members of a *share group* cooperatively
+ * consume records from the same topic partitions, providing queue-like
+ * semantics on top of Kafka. This differs from consumers in a consumer group
+ * (rd_kafka_subscribe(), et.al.) where each partition is assigned to exactly
+ * one member of the group at a time. In a share group a single partition may
+ * be consumed by several members at once, and individual records — rather than
+ * the committed offset — are the unit of progress: each delivered record is
+ * *acquired* by a member under a time-limited acquisition lock, processed, and
+ * then *acknowledged*. The lock duration is a broker/group setting
+ * (\c group.share.record.lock.duration.ms, 30 seconds by default) and is not
+ * configured on this client. A record that is not acknowledged before its lock
+ * expires, or that is released, becomes available again and may be redelivered
+ * (possibly to a different member). A record thus moves through the states
+ * *available* -> *acquired* -> *acknowledged*; a rejected record, or one that
+ * exceeds the broker's delivery-count limit, becomes *archived* and is no
+ * longer delivered.
+ *
+ * For a conceptual overview of share groups and Queues for Kafka, see KIP-932
+ * (https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka)
+ * and the Confluent share consumer documentation
+ * (https://docs.confluent.io/platform/current/clients/share-consumers.html).
+ *
+ * A share consumer is created with rd_kafka_share_consumer_new() rather than
+ * rd_kafka_new(), and is represented by the opaque \c rd_kafka_share_t handle.
+ * Its lifecycle mirrors the regular consumer:
+ * subscribe -> poll/acknowledge (loop) -> close -> destroy.
+ *
+ * @par Broker compatibility
+ * Requires a broker with share groups enabled. Share groups are available
+ * since Apache Kafka 4.2.0. The set of partitions assigned to each member is
+ * decided entirely by the broker (driven by the share group heartbeat); there
+ * is no client-side rebalance callback or assign() step.
+ *
+ * @par Configuration
+ * Configure the handle through the normal \c rd_kafka_conf_t interface before
+ * calling rd_kafka_share_consumer_new(). \c group.id is required.
+ * \c share.acknowledgement.mode is optional and selects the acknowledgement
+ * mode (see below); when unset it defaults to \c implicit. It is the only
+ * share-specific client property: other share-group settings (acquisition-lock
+ * duration, delivery-count limit, session/heartbeat timeouts, isolation level,
+ * acquire mode and offset reset) are broker/group settings and are not exposed
+ * by this client.
+ * Several regular-consumer properties are not applicable to share consumers
+ * (for example \c partition.assignment.strategy, \c enable.auto.commit,
+ * \c isolation.level, \c enable.partition.eof and the per-partition fetch
+ * queue tuning). A few network-related defaults also differ for share
+ * consumers: \c receive.message.max.bytes, \c connections.max.idle.ms,
+ * \c reconnect.backoff.ms and \c reconnect.backoff.max.ms. See
+ * \ref CONFIGURATION.md, where such properties are marked, for the
+ * authoritative list and the share-consumer default values.
+ *
+ * @par Subscription
+ * Subscribe to a set of topics with rd_kafka_share_subscribe() (exact topic
+ * names only; wildcard/regex subscriptions are not supported), inspect the
+ * current subscription with rd_kafka_share_subscription(), and clear it with
+ * rd_kafka_share_unsubscribe().
+ *
+ * @par Polling
+ * rd_kafka_share_poll() returns a *batch* of messages in a single call (unlike
+ * the regular single-message poll), as an opaque \c rd_kafka_messages_t handle.
+ * Iterate it with rd_kafka_messages_count() and rd_kafka_messages_get(), and
+ * release it with rd_kafka_messages_destroy(). Record-level errors are surfaced
+ * as individual messages with a non-zero \c rd_kafka_message_t.err field
+ * (topic, partition and offset remain valid), so the application should check
+ * each message's \c err before treating it as data. \c max.poll.records bounds
+ * the batch size; in this preview it is a soft bound and the actual count may
+ * differ.
+ *
+ * @par Acknowledgement types
+ * Each acquired record is acknowledged with one of
+ * #rd_kafka_share_AcknowledgeType_t:
+ *  - #RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT  — processed successfully.
+ *  - #RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_RELEASE — not processed; make available
+ *    again for redelivery.
+ *  - #RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT  — do not deliver again.
+ * @note RENEW (acquisition-lock renewal) is not yet available; see
+ *       "Current limitations" below.
+ * The number of times a record has been delivered is available via
+ * rd_kafka_message_delivery_count(), which can be used to detect and reject
+ * "poison" records after a threshold. The broker also enforces its own maximum
+ * delivery count (\c group.share.delivery.count.limit, default 5); once a
+ * record exceeds it the broker archives the record and stops redelivering it.
+ *
+ * @par Acknowledgement modes
+ * The acknowledgement mode is fixed at creation by
+ * \c share.acknowledgement.mode:
+ *  - \b implicit (default): the application does not call the acknowledge APIs.
+ *    All records returned by a poll are automatically accepted (ACCEPT) when
+ *    the next rd_kafka_share_poll() / rd_kafka_share_commit_sync() /
+ *    rd_kafka_share_commit_async() is issued.
+ *  - \b explicit: the application must acknowledge every record returned by a
+ *    poll, using rd_kafka_share_acknowledge(),
+ *    rd_kafka_share_acknowledge_type() or rd_kafka_share_acknowledge_offset(),
+ *    before the next poll. If any record from the previous batch is still
+ *    unacknowledged, rd_kafka_share_poll() returns
+ *    RD_KAFKA_RESP_ERR__STATE. Records you have acknowledged but not yet
+ *    committed are also committed when the consumer is closed (unless it is
+ *    destroyed with RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE).
+ *
+ * @par Committing acknowledgements
+ * Acknowledgements are sent to the broker as part of the next poll, or
+ * explicitly with rd_kafka_share_commit_async() (fire-and-forget) or
+ * rd_kafka_share_commit_sync() (blocks for the broker replies and reports
+ * per-partition results). The acknowledgement-commit callback registered with
+ * rd_kafka_share_set_acknowledgement_commit_cb() is invoked with the outcome
+ * for each partition. Failed acknowledgements are not retried automatically;
+ * the error is reported to the application.
+ *
+ * @par Example: implicit acknowledgement (default)
+ * @code
+ *   rd_kafka_share_t *rkshare = rd_kafka_share_consumer_new(conf, errstr,
+ *                                                           sizeof(errstr));
+ *   rd_kafka_share_subscribe(rkshare, topics);
+ *   while (run) {
+ *       rd_kafka_messages_t *batch = NULL;
+ *       rd_kafka_error_t *error = rd_kafka_share_poll(rkshare, 500, &batch);
+ *       if (error) {
+ *           // handle/log error
+ *           rd_kafka_error_destroy(error);
+ *       } else {
+ *           size_t cnt = rd_kafka_messages_count(batch);
+ *           for (size_t i = 0 ; i < cnt ; i++) {
+ *               rd_kafka_message_t *rkm = rd_kafka_messages_get(batch, i);
+ *               if (rkm->err) {
+ *                   // Record-level error. The acknowledgement has already
+ *                   // been applied internally based on the error type:
+ *                   // corrupt/CRC (RD_KAFKA_RESP_ERR__BAD_MSG) and
+ *                   // unsupported (RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED) batches
+ *                   // are REJECTed; decompression failures are RELEASEd for
+ *                   // redelivery. In implicit mode the application only needs
+ *                   // to inspect rkm->err.
+ *               } else {
+ *                   // process rkm (auto-accepted on next poll)
+ *               }
+ *           }
+ *       }
+ *       rd_kafka_messages_destroy(batch); // NULL-safe
+ *   }
+ *   rd_kafka_share_consumer_close(rkshare);
+ *   rd_kafka_share_destroy(rkshare);
+ * @endcode
+ *
+ * @par Example: explicit acknowledgement
+ * @code
+ *   // Created with conf "share.acknowledgement.mode" = "explicit".
+ *   rd_kafka_messages_t *batch = NULL;
+ *   rd_kafka_error_t *error = rd_kafka_share_poll(rkshare, 500, &batch);
+ *   if (!error) {
+ *       size_t cnt = rd_kafka_messages_count(batch);
+ *       for (size_t i = 0 ; i < cnt ; i++) {
+ *           rd_kafka_message_t *rkm = rd_kafka_messages_get(batch, i);
+ *           if (process(rkm) == OK)
+ *               // Processed successfully.
+ *               rd_kafka_share_acknowledge_type(
+ *                   rkshare, rkm, RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT);
+ *           else if (is_temporary(rkm))
+ *               // Temporary failure: release for redelivery (possibly to
+ *               // another member) so it can be retried.
+ *               rd_kafka_share_acknowledge_type(
+ *                   rkshare, rkm, RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_RELEASE);
+ *           else
+ *               // Permanent failure (e.g. a "poison" record): reject so it
+ *               // is not delivered again.
+ *               rd_kafka_share_acknowledge_type(
+ *                   rkshare, rkm, RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT);
+ *       }
+ *       // Every record must be acknowledged before the next poll.
+ *   }
+ *   rd_kafka_error_destroy(error); // NULL-safe
+ *   rd_kafka_messages_destroy(batch);
+ * @endcode
+ *
+ * For complete runnable programs see \c examples/share_consumer.c,
+ * \c examples/share_consumer_commit_sync.c and
+ * \c examples/share_consumer_commit_async.c.
+ *
+ * @par Thread safety
+ * The share consumer handle is **not thread-safe by design**: a single
+ * \c rd_kafka_share_t handle must not be used concurrently from multiple
+ * threads. This matches the share consumer design in KIP-932. Use one handle
+ * per thread, or serialise all access to a handle. Concurrent use is detected
+ * on a best-effort basis and rejected with RD_KAFKA_RESP_ERR__CONFLICT. Unlike
+ * the regular consumer there is no wakeup mechanism in this preview, so a
+ * blocking poll/commit ends only when its timeout expires.
+ *
+ * @par Closing
+ * Close the consumer with rd_kafka_share_consumer_close() (or the asynchronous
+ * rd_kafka_share_consumer_close_queue()), which sends any pending
+ * acknowledgements and leaves the share group, then free the handle with
+ * rd_kafka_share_destroy(). Close takes no timeout argument in this preview and
+ * is bounded internally to roughly \c socket.timeout.ms.
+ *
+ * @par Current limitations (preview)
+ *  - No strict per-poll record limit: \c max.poll.records is a soft bound.
+ *  - Acknowledgement types are limited to ACCEPT / RELEASE / REJECT; there is
+ *    no acquisition-lock renewal, so a long-running handler cannot extend a
+ *    record's lock and the record may be redelivered.
+ *  - No wakeup API; blocking calls end only at their timeout.
+ *  - No share-group admin operations and no share-consumer client metrics APIs.
+ *  - Topics are resolved by id; auto topic creation is not performed.
+ *  - Some app-visible error codes differ from other clients because librdkafka
+ *    generates certain failures locally (for example
+ *    RD_KAFKA_RESP_ERR_NOT_LEADER_OR_FOLLOWER, RD_KAFKA_RESP_ERR__TRANSPORT,
+ *    RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH).
+ *
+ * @sa rd_kafka_share_consumer_new()
+ * @sa rd_kafka_share_set_acknowledgement_commit_cb()
+ * @sa rd_kafka_share_subscribe()
+ * @sa rd_kafka_share_unsubscribe()
+ * @sa rd_kafka_share_subscription()
+ * @sa rd_kafka_share_poll()
+ * @sa rd_kafka_messages_count()
+ * @sa rd_kafka_messages_get()
+ * @sa rd_kafka_messages_destroy()
+ * @sa rd_kafka_message_delivery_count()
+ * @sa rd_kafka_share_acknowledge()
+ * @sa rd_kafka_share_acknowledge_type()
+ * @sa rd_kafka_share_acknowledge_offset()
+ * @sa rd_kafka_share_commit_sync()
+ * @sa rd_kafka_share_commit_async()
+ * @sa rd_kafka_share_consumer_close()
+ * @sa rd_kafka_share_consumer_close_queue()
+ * @sa rd_kafka_share_consumer_closed()
+ * @sa rd_kafka_share_destroy()
+ * @sa rd_kafka_share_destroy_flags()
+ * @sa rd_kafka_share_set_log_queue()
+ * @sa rd_kafka_share_sasl_background_callbacks_enable()
+ * @sa rd_kafka_share_sasl_set_credentials()
+ * @sa rd_kafka_share_oauthbearer_set_token()
+ * @sa rd_kafka_share_oauthbearer_set_token_failure()
+ */
+
+/**
+ * @enum rd_kafka_share_AcknowledgeType_t
+ * @brief Share consumer acknowledgement types (exposed to Public APIs).
+ */
+typedef enum rd_kafka_share_AcknowledgeType_s {
+        RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT  = 1, /**< Accept the message */
+        RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_RELEASE = 2, /**< Release the message
+                                                      * for redelivery */
+        RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT = 3   /**< Reject the message */
+} rd_kafka_share_AcknowledgeType_t;
+
+/**
+ * @brief Share consumer partition offsets for a single offset range.
+ *
+ * Contains information about an acknowledged offset range including
+ * topic, partition, offset range, and any error.
+ */
+typedef struct rd_kafka_share_partition_offsets_s
+    rd_kafka_share_partition_offsets_t;
+
+/**
+ * @brief List of share consumer partition offsets.
+ *
+ * Contains multiple partition offset entries.
+ */
+typedef struct rd_kafka_share_partition_offsets_list_s
+    rd_kafka_share_partition_offsets_list_t;
+
+/**
+ * @brief Get the number of partitions in the offsets list.
+ * @param list Partition offsets list.
+ * @returns The number of partitions in the list.
+ */
+RD_EXPORT size_t rd_kafka_share_partition_offsets_list_count(
+    const rd_kafka_share_partition_offsets_list_t *list);
+
+/**
+ * @brief Get a partition offsets entry at the specified index.
+ * @param list Partition offsets list.
+ * @param index Zero-based index of the partition to retrieve.
+ * @returns Pointer to the partition offsets entry
+ */
+RD_EXPORT const rd_kafka_share_partition_offsets_t *
+rd_kafka_share_partition_offsets_list_get(
+    const rd_kafka_share_partition_offsets_list_t *list,
+    size_t index);
+
+/**
+ * @brief Destroy the partition offsets list.
+ * @param list Partition offsets list to destroy.
+ *
+ * @remark Only call this if you have ownership of the list.
+ *         The list passed to the callback is owned by librdkafka
+ *         and will be destroyed automatically after the callback returns.
+ */
+RD_EXPORT void rd_kafka_share_partition_offsets_list_destroy(
+    rd_kafka_share_partition_offsets_list_t *list);
+
+/**
+ * @brief Get the topic partition from a partition offsets entry.
+ * @param partition_offsets The partition offsets entry.
+ * @returns Pointer to the topic partition (valid for the lifetime of the list).
+ */
+RD_EXPORT const rd_kafka_topic_partition_t *
+rd_kafka_share_partition_offsets_partition(
+    const rd_kafka_share_partition_offsets_t *partition_offsets);
+
+/*
+ * TODO KIP-932: Recheck name once public interfaces are finalized.
+ */
+/**
+ * @brief Get the offsets array from a partition offsets entry.
+ * @param partition_offsets The partition offsets entry.
+ * @returns Array of acknowledged offsets (valid for the lifetime of the list).
+ */
+RD_EXPORT const int64_t *rd_kafka_share_partition_offsets_offsets(
+    const rd_kafka_share_partition_offsets_t *partition_offsets);
+
+/**
+ * @brief Get the number of offsets in a partition offsets entry.
+ * @param partition_offsets The partition offsets entry.
+ * @returns The number of offsets in the array.
+ */
+RD_EXPORT size_t rd_kafka_share_partition_offsets_offsets_cnt(
+    const rd_kafka_share_partition_offsets_t *partition_offsets);
+
+
+/*
+ * TODO KIP-932: understand whether all share consumer APIs need to be gated
+ * once a fatal error has been raised on the handle, and check what the Java
+ * client does in the fatal-error case.
+ */
+/**
+ * @brief Creates a new share consumer instance.
+ *
+ * \p conf is an optional struct created with `rd_kafka_conf_new()` that will
+ * be used instead of the default configuration.
+ * The \p conf object is freed by this function on success and must not be used
+ * or destroyed by the application subsequently.
+ * See `rd_kafka_conf_set()` et.al for more information.
+ *
+ * \p errstr must be a pointer to memory of at least size \p errstr_size where
+ * `rd_kafka_share_consumer_new()` may write a human readable error message
+ * in case the creation of a new handle fails. In which case the function
+ * returns NULL.
+ *
+ * @param conf Configuration. The \p conf object is freed by this function
+ *             on success and must not be used or destroyed by the application
+ *             subsequently.
+ * @param errstr A human readable error string is written to this location
+ *               if the function fails.
+ * @param errstr_size The size of the \p errstr buffer.
+ *
+ * @returns The share consumer handle on success or NULL on error
+ *          (see \p errstr).
+ *
+ * @remark \c group.id is required. \c share.acknowledgement.mode is optional
+ *         and defaults to \c implicit. See \ref CONFIGURATION.md for
+ *         share-consumer defaults and the properties that are not supported
+ *         for share consumers.
+ *
+ * @sa rd_kafka_share_subscribe()
+ * @sa rd_kafka_share_destroy()
+ */
+RD_EXPORT
+rd_kafka_share_t *rd_kafka_share_consumer_new(rd_kafka_conf_t *conf,
+                                              char *errstr,
+                                              size_t errstr_size);
+
+
+/**
+ * @brief Set acknowledgement commit callback at runtime.
+ *
+ * Sets a callback to be invoked when acknowledgements sent to the broker
+ * have been completed (either successfully or with an error).
+ *
+ * This callback can be changed at any time. The currently set callback
+ * will be used when processing acknowledgement responses, not the callback
+ * that was active when acknowledgements were sent.
+ *
+ * The callback is invoked once per partition with the acknowledgement result
+ * for that partition.
+ *
+ * @param rkshare Share consumer handle.
+ * @param share_acknowledgement_commit_cb Callback function, or NULL to clear.
+ * @param opaque Application opaque passed to callback.
+ *
+ * @remark Cannot be called from within the acknowledgement callback itself.
+ * @remark Replaces any previously set callback.
+ * @remark Registration is asynchronous - there is a brief window after
+ *         calling this function during which the new registration state
+ *         is not yet visible to the main thread.
+ *
+ * @returns NULL on success, otherwise an rd_kafka_error_t* (which must be freed
+ *          with rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer has been closed, or the call is made from inside the
+ *    acknowledgement-commit callback, etc.
+ */
+RD_EXPORT rd_kafka_error_t *rd_kafka_share_set_acknowledgement_commit_cb(
+    rd_kafka_share_t *rkshare,
+    void (*share_acknowledgement_commit_cb)(
+        rd_kafka_share_t *rkshare,
+        rd_kafka_share_partition_offsets_list_t *partitions,
+        rd_kafka_resp_err_t err,
+        void *opaque),
+    void *opaque);
+
+
+/**
+ * @brief Subscribe a share consumer to a set of topics.
+ *
+ * Wildcard (regex) topics are not supported. Only the \c .topic field
+ * is used in \p topics; all other fields are ignored.
+ *
+ * @param rkshare Share consumer instance.
+ * @param topics  Topics to subscribe to.
+ *
+ * @remark This call is asynchronous and returns immediately. The background
+ *         thread sends a ShareGroupHeartbeat to the broker, which assigns
+ *         partitions to the consumer. Partition assignment is entirely
+ *         broker-driven; there is no client-side rebalance callback or
+ *         assign() step.
+ *
+ * @remark Topic names are forwarded verbatim to the broker via the share
+ *         group heartbeat. The broker validates them; unavailable or
+ *         unauthorized topics will surface as errors via
+ *         rd_kafka_share_poll().
+ *
+ * @remark If \p topics is empty (cnt == 0), the call is equivalent to
+ *         rd_kafka_share_unsubscribe(): the subscription is cleared and
+ *         RD_KAFKA_RESP_ERR_NO_ERROR is returned.
+ *
+ * @returns
+ *  - RD_KAFKA_RESP_ERR_NO_ERROR on success, or when \p topics is empty
+ *    (treated as unsubscribe).
+ *  - RD_KAFKA_RESP_ERR__INVALID_ARG if \p topics contains empty topic names or
+ *    duplicate entries.
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer has been (or is being) closed, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *  - RD_KAFKA_RESP_ERR__FATAL if the consumer has raised a fatal error.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_share_subscribe(rd_kafka_share_t *rkshare,
+                         const rd_kafka_topic_partition_list_t *topics);
+
+
+/**
+ * @brief Unsubscribe from the current subscription set.
+ *
+ * Clears the subscription; the broker removes the member from the share group.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @returns
+ *  - RD_KAFKA_RESP_ERR_NO_ERROR on success.
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer has been (or is being) closed, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *  - Otherwise, an error code from the underlying unsubscribe.
+ */
+RD_EXPORT
+rd_kafka_resp_err_t rd_kafka_share_unsubscribe(rd_kafka_share_t *rkshare);
+
+
+/**
+ * @brief Returns the current topic subscription
+ *
+ * @param rkshare Share consumer instance.
+ * @param topics  Output pointer to a newly allocated topic list (possibly
+ *                empty) on success.
+ *
+ * @returns
+ *  - RD_KAFKA_RESP_ERR_NO_ERROR on success, in which case \p topics is updated
+ *    to point to a newly allocated topic list (possibly empty).
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer has been (or is being) closed, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *  - Otherwise, an error code from the underlying subscription query.
+ *
+ * @remark The application is responsible for calling
+ *         rd_kafka_topic_partition_list_destroy on the returned list.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_share_subscription(rd_kafka_share_t *rkshare,
+                            rd_kafka_topic_partition_list_t **topics);
+
+
+/**
+ * @brief Poll the share consumer for a batch of messages. It is different from
+ *        normal consumer poll where a single record is returned, this API
+ *        returns a batch of messages in a single call.
+ *
+ * @param rkshare    Share consumer instance.
+ * @param timeout_ms Maximum time to block waiting for messages.
+ * @param rkmessages Output pointer to a newly-allocated message list (callee
+ *                   allocates). On return:
+ *                   - On success with at least one message: \c *rkmessages
+ *                     points to an \c rd_kafka_messages_t handle owned by the
+ *                     caller, who must release it with
+ *                     rd_kafka_messages_destroy().
+ *                   - On error or timeout with no messages:
+ *                     \c *rkmessages is set to NULL.
+ *                   \c rd_kafka_messages_destroy(NULL) is a safe no-op so
+ *                   callers may unconditionally destroy.
+ *
+ * Use rd_kafka_messages_count() and rd_kafka_messages_get() to access the
+ * returned messages.
+ *
+ * @returns NULL on success (including a timeout with no messages, in which
+ *          case \c *rkmessages is NULL), otherwise an \c rd_kafka_error_t
+ *          (which must be freed with rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer is not subscribed, it has been closed, or (explicit mode) records
+ *    from the previous poll have not all been acknowledged, etc.
+ *  - RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED if the caller is not
+ *    authorized to read one of the subscribed topics or the share group.
+ *  - A fatal-flagged error (rd_kafka_error_is_fatal() is true) carrying the
+ *    specific error code, if a fatal error has been raised on the handle.
+ *  - Another error code for any other failure encountered while fetching.
+ *
+ * @note \c *rkmessages must point to NULL on entry. The function
+ * unconditionally overwrites \c *rkmessages, so any non-NULL value it held on
+ * entry is overwritten and leaked.
+ *
+ * @remark A single call returns either an error or messages, never both: on
+ *         failure a non-NULL error is returned and \c *rkmessages is NULL; on
+ *         success the error is NULL and \c *rkmessages points to the batch.
+ *         On a timeout with no messages both are NULL.
+ *
+ * @remark Record-level errors are delivered as messages with a non-zero
+ *         \c rd_kafka_message_t.err field (topic/partition/offset intact);
+ *         the application should inspect each message's \c err.
+ *
+ * @remark In explicit acknowledgement mode every record returned by the
+ *         previous poll must be acknowledged before calling this function
+ *         again.
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_poll(rd_kafka_share_t *rkshare,
+                                      int timeout_ms,
+                                      rd_kafka_messages_t **rkmessages);
+
+
+/**
+ * @brief Acknowledge a message with ACCEPT type.
+ *
+ * This is equivalent to calling rd_kafka_share_acknowledge_type() with
+ * RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT.
+ *
+ * @param rkshare Share consumer handle.
+ * @param rkmessage Message to acknowledge.
+ *
+ * @returns
+ *  - RD_KAFKA_RESP_ERR_NO_ERROR on success.
+ *  - RD_KAFKA_RESP_ERR__INVALID_ARG on invalid input parameters (e.g. rkmessage
+ *    is NULL).
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer is not in explicit acknowledgement mode, it has been closed, or
+ *    the message is unknown, etc.
+ */
+RD_EXPORT
+rd_kafka_resp_err_t
+rd_kafka_share_acknowledge(rd_kafka_share_t *rkshare,
+                           const rd_kafka_message_t *rkmessage);
+
+/**
+ * @brief Acknowledge a message with specified acknowledgement type.
+ *
+ * @param rkshare Share consumer handle.
+ * @param rkmessage Message to acknowledge.
+ * @param type Acknowledgement type (ACCEPT, RELEASE, or REJECT).
+ *
+ * @returns
+ *  - RD_KAFKA_RESP_ERR_NO_ERROR on success.
+ *  - RD_KAFKA_RESP_ERR__INVALID_ARG on invalid input parameters (e.g. rkmessage
+ *    is NULL or \p type is out of range).
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer is not in explicit acknowledgement mode, it has been closed, or
+ *    the message is unknown, etc.
+ */
+RD_EXPORT
+rd_kafka_resp_err_t
+rd_kafka_share_acknowledge_type(rd_kafka_share_t *rkshare,
+                                const rd_kafka_message_t *rkmessage,
+                                rd_kafka_share_AcknowledgeType_t type);
+
+/*
+ * TODO KIP-932: Check if it should only be allowed for error cases
+ *               like Java.
+ */
+/**
+ * @brief Acknowledge an offset directly with specified acknowledgement type.
+ *
+ * @param rkshare Share consumer handle.
+ * @param topic Topic name.
+ * @param partition Partition id.
+ * @param offset Offset to acknowledge.
+ * @param type Acknowledgement type (ACCEPT, RELEASE, or REJECT).
+ *
+ * @returns
+ *  - RD_KAFKA_RESP_ERR_NO_ERROR on success.
+ *  - RD_KAFKA_RESP_ERR__INVALID_ARG on invalid input parameters (e.g. topic is
+ *    NULL, partition < 0, offset < 0, or \p type is out of range).
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer is not in explicit acknowledgement mode, it has been closed, or
+ *    the offset is unknown, etc.
+ */
+RD_EXPORT
+rd_kafka_resp_err_t
+rd_kafka_share_acknowledge_offset(rd_kafka_share_t *rkshare,
+                                  const char *topic,
+                                  int32_t partition,
+                                  int64_t offset,
+                                  rd_kafka_share_AcknowledgeType_t type);
+
+
+/**
+ * @brief Asynchronously commit all pending acknowledgements.
+ *
+ * Sends all pending acknowledgements (from rd_kafka_share_acknowledge*
+ * calls) to their respective brokers without fetching new records.
+ * This function returns immediately — the acknowledgements are sent
+ * asynchronously via the broker threads.
+ *
+ * The per-partition outcome is delivered to the acknowledgement-commit
+ * callback registered with rd_kafka_share_set_acknowledgement_commit_cb().
+ * Failed acknowledgements are not retried automatically.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @returns NULL on success, otherwise an \c rd_kafka_error_t* (which must be
+ *          freed with rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer has been (or is being) closed, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *
+ * @sa rd_kafka_share_set_acknowledgement_commit_cb()
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_commit_async(rd_kafka_share_t *rkshare);
+
+/**
+ * @brief Synchronously commit all pending acknowledgements.
+ *
+ * Sends all pending acknowledgements (from rd_kafka_share_acknowledge*
+ * calls) to their respective brokers and blocks until all broker
+ * replies are received or the timeout expires.
+ *
+ * In implicit ack mode, all ACQUIRED records from the previous poll
+ * are first converted to ACCEPT before committing.
+ *
+ * Failed acknowledgements are not retried automatically; the per-partition
+ * error is reported through \p partitions.
+ *
+ * @param rkshare Share consumer instance.
+ * @param timeout_ms Timeout in milliseconds.
+ * @param partitions [out] Per-partition results. Each partition's err
+ *                   field contains the result for that partition — for example
+ *                   RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT (on timeout),
+ *                   RD_KAFKA_RESP_ERR_NOT_LEADER_OR_FOLLOWER,
+ *                   RD_KAFKA_RESP_ERR__TRANSPORT, or a share-session error such
+ *                   as RD_KAFKA_RESP_ERR_INVALID_SHARE_SESSION_EPOCH, etc.
+ *                   The caller must destroy the returned list with
+ *                   rd_kafka_topic_partition_list_destroy().
+ *                   Set to NULL if no acks were pending.
+ *
+ * @returns NULL on success, otherwise an \c rd_kafka_error_t* (which must be
+ *          freed with rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer has been (or is being) closed, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *
+ *          A non-NULL error reflects a call-level failure; per-partition
+ *          failures are reported through \p partitions.
+ */
+RD_EXPORT
+rd_kafka_error_t *
+rd_kafka_share_commit_sync(rd_kafka_share_t *rkshare,
+                           int timeout_ms,
+                           rd_kafka_topic_partition_list_t **partitions);
+
+
+/**
+ * @brief Close the share consumer.
+ *
+ * This call will block until the consumer has committed all the pending
+ * acknowledgments and left the consumer group. The maximum blocking time is
+ * roughly limited to socket.timeout.ms.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @returns NULL on success, otherwise an error object (which must be freed
+ *          with rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer is already closed or closing, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *  - RD_KAFKA_RESP_ERR__FATAL if the consumer has raised a fatal error.
+ *
+ * @remark The application still needs to call rd_kafka_share_destroy() after
+ *         this call finishes to clean up the underlying handle resources.
+ *
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_consumer_close(rd_kafka_share_t *rkshare);
+
+/**
+ * @brief Asynchronously close the share consumer.
+ *
+ * Performs the same actions as rd_kafka_share_consumer_close() but in a
+ * background thread.
+ *
+ * Callbacks (etc) will be forwarded to the
+ * application-provided \p rkqu. The application must poll/serve this queue
+ * until rd_kafka_share_consumer_closed() returns true.
+ *
+ * @param rkshare Share consumer instance.
+ * @param rkqu    Queue to forward close callbacks to.
+ *
+ * @returns NULL on success, otherwise an error object (which must be freed
+ *          with rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently inside a
+ *    share consumer API.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    consumer is already closed or closing, or the call is made from inside
+ *    the acknowledgement-commit callback, etc.
+ *
+ * @sa rd_kafka_share_consumer_closed()
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_consumer_close_queue(rd_kafka_share_t *rkshare,
+                                                      rd_kafka_queue_t *rkqu);
+
+
+/**
+ * @brief Check whether the share consumer has finished closing.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @returns 1 if the consumer is closed, else 0.
+ *
+ * Should be used in conjunction with rd_kafka_share_consumer_close_queue() to
+ * know when the consumer has been closed.
+ *
+ * @sa rd_kafka_share_consumer_close_queue()
+ */
+RD_EXPORT
+int rd_kafka_share_consumer_closed(rd_kafka_share_t *rkshare);
+
+
+/**
+ * @brief Destroy the share consumer instance and free all associated resources.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @returns NULL on success, otherwise an error object (which must be freed with
+ *          rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently using the
+ *    share consumer.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    call is made from inside the acknowledgement-commit callback, etc.
+ *
+ *          In the error case the instance is NOT destroyed; the application
+ *          must ensure no other thread is using it and call destroy again.
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_destroy(rd_kafka_share_t *rkshare);
+
+/**
+ * @brief Destroy the share consumer instance according to specified destroy
+ * flags.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @param flags Destroy flags (see RD_KAFKA_DESTROY_F_* defines).
+ *
+ * @returns NULL on success, otherwise an error object (which must be freed with
+ *          rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__CONFLICT if another thread is concurrently using the
+ *    share consumer.
+ *  - RD_KAFKA_RESP_ERR__STATE if called in an invalid state — for example the
+ *    call is made from inside the acknowledgement-commit callback, etc.
+ *
+ *          In the error case the instance is NOT destroyed.
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_destroy_flags(rd_kafka_share_t *rkshare,
+                                               int flags);
+
+
+/**
+ * @brief Forward a share consumer's internal log queue onto another queue
+ *        for serving with one of the ..poll() calls.
+ *
+ * Thin wrapper around rd_kafka_set_log_queue() for use with
+ * rd_kafka_share_t handles. Required when `log.queue=true` is
+ * configured on a share consumer — without this call the share
+ * consumer's internal log queue is never drained and log_cb never
+ * fires.
+ *
+ * @param rkshare Share consumer instance.
+ * @param rkqu    Queue to forward logs to. If NULL the logs are forwarded
+ *                to the share consumer's internal rk_rep, which is drained
+ *                by rd_kafka_share_poll() /
+ *                rd_kafka_share_commit_sync() / rd_kafka_share_commit_async()
+ *                on the application's poll thread.
+ *
+ * @remark The configuration property `log.queue` MUST also be set to true.
+ *
+ * @remark librdkafka maintains its own reference to the provided queue.
+ *
+ * @returns NULL on success, otherwise an error object (which must be freed with
+ *          rd_kafka_error_destroy()) with one of:
+ *  - RD_KAFKA_RESP_ERR__INVALID_ARG if \p rkshare is NULL or uninitialized.
+ *  - RD_KAFKA_RESP_ERR__NOT_CONFIGURED if `log.queue` is not set to true.
+ *
+ * @sa rd_kafka_set_log_queue
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_set_log_queue(rd_kafka_share_t *rkshare,
+                                               rd_kafka_queue_t *rkqu);
+
+
+/**
+ * @brief Enable SASL background callbacks for a share consumer.
+ *
+ * This is a convenience wrapper around
+ * rd_kafka_sasl_background_callbacks_enable() for share consumers.
+ * It forwards the SASL queue to the background thread so that
+ * OAUTHBEARER token refresh callbacks are served automatically.
+ *
+ * @param rkshare Share consumer instance.
+ *
+ * @returns NULL on success or an error object on failure.
+ *
+ * @sa rd_kafka_sasl_background_callbacks_enable()
+ * @sa rd_kafka_queue_get_sasl()
+ * @sa rd_kafka_conf_set_oauthbearer_token_refresh_cb()
+ */
+RD_EXPORT
+rd_kafka_error_t *
+rd_kafka_share_sasl_background_callbacks_enable(rd_kafka_share_t *rkshare);
+
+
+/**
+ * @brief Sets SASL credentials used for SASL PLAIN and SCRAM mechanisms by
+ *        this share consumer.
+ *
+ * This function sets or resets the SASL username and password credentials
+ * used by this share consumer. The new credentials will be used the next time
+ * this client needs to authenticate to a broker. This function
+ * will not disconnect existing connections that might have been made using
+ * the old credentials.
+ *
+ * @remark This function only applies to the SASL PLAIN and SCRAM mechanisms.
+ *
+ * @param rkshare Share consumer instance.
+ * @param username New SASL username.
+ * @param password New SASL password.
+ *
+ * @returns NULL on success or an error object on failure.
+ *
+ * @sa rd_kafka_sasl_set_credentials()
+ */
+RD_EXPORT
+rd_kafka_error_t *rd_kafka_share_sasl_set_credentials(rd_kafka_share_t *rkshare,
+                                                      const char *username,
+                                                      const char *password);
+/**@}*/
+
 
 
 /**
