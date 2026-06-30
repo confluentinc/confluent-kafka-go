@@ -1,6 +1,8 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.x.x
+## v2.15.0
+
+This is a feature release:
 
 ### Enhancements
 * Add support for `ResourceTransactionalID` in AdminClient ACL APIs (#1407)
