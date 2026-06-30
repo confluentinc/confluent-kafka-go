@@ -1,7 +1,7 @@
 package kafka
 
 // Copyright 2016-2026 Confluent Inc.
-// AUTOMATICALLY GENERATED ON 2026-06-30 16:47:18.196375 +0530 IST m=+0.000179043 USING librdkafka 2.15.0-RC2
+// AUTOMATICALLY GENERATED ON 2026-06-30 22:49:45.131467 +0530 IST m=+0.000213293 USING librdkafka 2.15.0
 
 /*
 #include "select_rdkafka.h"
