@@ -23,7 +23,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jhump/protoreflect v1.15.6
 	github.com/modern-go/reflect2 v1.0.2
-	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/tink-crypto/tink-go-gcpkms/v2 v2.1.0
 	github.com/tink-crypto/tink-go-hcvault/v2 v2.1.0
 	github.com/tink-crypto/tink-go/v2 v2.1.0
