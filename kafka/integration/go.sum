@@ -46,6 +46,8 @@ github.com/containerd/containerd/api v1.11.1 h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4e
 github.com/containerd/containerd/api v1.11.1/go.mod h1:CaQFRu+N1MtbgL6JDOJLUB1hCKESU1lD6MuTJhgtdlw=
 github.com/containerd/containerd/v2 v2.2.2 h1:mjVQdtfryzT7lOqs5EYUFZm8ioPVjOpkSoG1GJPxEMY=
 github.com/containerd/containerd/v2 v2.2.2/go.mod h1:5Jhevmv6/2J+Iu/A2xXAdUIdI5Ah/hfyO7okJ4AFIdY=
+github.com/containerd/containerd/v2 v2.2.5 h1:KTFzB02LviYmmfRmz8r9UFd+n6YlddVFK+5lbgQXUTU=
+github.com/containerd/containerd/v2 v2.2.5/go.mod h1:5t2+xFv2dGd/iDYp9Z8DXB4cmWrWQi1XqxGJPS2gBzU=
 github.com/containerd/continuity v0.4.5 h1:ZRoN1sXq9u7V6QoHMcVWGhOwDFqZ4B9i5H6un1Wh0x4=
 github.com/containerd/continuity v0.4.5/go.mod h1:/lNJvtJKUQStBzpVQ1+rasXO1LAWtUQssk28EZvJ3nE=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
