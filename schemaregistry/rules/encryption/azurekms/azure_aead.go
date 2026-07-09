@@ -69,8 +69,8 @@ func NewAEAD(keyID string, creds azcore.TokenCredential, algorithm azkeys.Encryp
 
 // Encrypt encrypts the plaintext data using a key stored in Azure Key Vault.
 //
-// Unlike AWS KMS and GCP KMS, Azure Key Vault addresses wrap/unwrap by an explicit key version
-// and does not embed that version in the ciphertext it returns. When saveVersion is enabled (see
+// Unlike AWS KMS and GCP KMS, Azure Key Vault wrap/unwrap operations are scoped to an explicit key
+// version and do not embed that version in the ciphertext. When saveVersion is enabled (see
 // EncryptAzureKeyVersionSave), Encrypt makes its output self-describing by prepending the exact
 // version that produced it: azure:v1: + 32-character key version + : + raw ciphertext bytes.
 //
