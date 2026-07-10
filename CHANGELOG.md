@@ -1,5 +1,11 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.x.0
+
+### Enhancements
+* Add support for saving Azure key version with DEK (#1577)
+
+
 ## v2.15.0
 
 This is a feature release:

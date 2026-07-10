@@ -671,8 +671,9 @@ func (a *AeadWrapper) Encrypt(plaintext, associatedData []byte) ([]byte, error) 
 	var aead tink.AEAD
 	var err error
 	var ciphertext []byte
+	aeadConfig := getAeadConfig(a.Config, a.Kek)
 	for _, kmsKeyID := range a.KmsKeyIds {
-		aead, err = getAead(a.Config, a.Kek.KmsType, kmsKeyID)
+		aead, err = getAead(aeadConfig, a.Kek.KmsType, kmsKeyID)
 		if err != nil {
 			log.Printf("WARN: failed to get AEAD with %s: %v\n", kmsKeyID, err)
 			continue
@@ -691,8 +692,9 @@ func (a *AeadWrapper) Decrypt(ciphertext, associatedData []byte) ([]byte, error)
 	var aead tink.AEAD
 	var err error
 	var plaintext []byte
+	aeadConfig := getAeadConfig(a.Config, a.Kek)
 	for _, kmsKeyID := range a.KmsKeyIds {
-		aead, err = getAead(a.Config, a.Kek.KmsType, kmsKeyID)
+		aead, err = getAead(aeadConfig, a.Kek.KmsType, kmsKeyID)
 		if err != nil {
 			log.Printf("WARN: failed to get AEAD with %s: %v\n", kmsKeyID, err)
 			continue
@@ -704,6 +706,19 @@ func (a *AeadWrapper) Decrypt(ciphertext, associatedData []byte) ([]byte, error)
 		log.Printf("WARN: failed to decrypt with %s: %v\n", kmsKeyID, err)
 	}
 	return nil, err
+}
+
+// getAeadConfig merges the kek's KmsProps (e.g. encrypt.azure.key.version.save) into a copy of
+// the executor-level config, so KMS-specific per-kek settings reach NewKMSClient/GetAEAD.
+func getAeadConfig(config map[string]string, kek deks.Kek) map[string]string {
+	aeadConfig := make(map[string]string, len(config)+len(kek.KmsProps))
+	for k, v := range config {
+		aeadConfig[k] = v
+	}
+	for k, v := range kek.KmsProps {
+		aeadConfig[k] = v
+	}
+	return aeadConfig
 }
 
 func getAead(config map[string]string, kmsType string, kmsKeyID string) (tink.AEAD, error) {
