@@ -80,15 +80,22 @@ func (a *azureAEAD) Encrypt(plaintext, associatedData []byte) ([]byte, error) {
 	if !a.saveVersion {
 		return a.encryptWithVersion(plaintext, a.keyVersion)
 	}
-	keyResp, err := a.client.GetKey(context.Background(), a.keyName, "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve current Azure Key Vault key version for key '%s': %w",
-			a.keyName, err)
+	// If the kek's key URI already pins an explicit version, respect it as-is and don't resolve
+	// "current" -- resolving "latest" here would silently substitute a different key version than
+	// the one the user explicitly configured, and would only matter for a versionless key URI in
+	// the first place (a pinned version never "rotates" from this caller's perspective).
+	version := a.keyVersion
+	if version == "" {
+		keyResp, err := a.client.GetKey(context.Background(), a.keyName, "", nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve current Azure Key Vault key version for key '%s': %w",
+				a.keyName, err)
+		}
+		if keyResp.Key == nil || keyResp.Key.KID == nil {
+			return nil, fmt.Errorf("failed to resolve current Azure Key Vault key version for key '%s'", a.keyName)
+		}
+		version = keyResp.Key.KID.Version()
 	}
-	if keyResp.Key == nil || keyResp.Key.KID == nil {
-		return nil, fmt.Errorf("failed to resolve current Azure Key Vault key version for key '%s'", a.keyName)
-	}
-	version := keyResp.Key.KID.Version()
 	if !isValidVersion(version) {
 		// Mirrors Decrypt's own validation: a DEK this method wraps must always be one this same
 		// type can later unwrap.
