@@ -90,7 +90,24 @@ const (
 
 	// MillisInDay represents number of milliseconds in a day
 	MillisInDay = 24 * 60 * 60 * 1000
+
+	contextDelimiter = ":"
+	contextPrefix    = contextDelimiter + "."
 )
+
+// contextFor returns the context parsed from the given qualified subject (of
+// the form ":.context:subject"), or "" if the subject has no context prefix.
+// Tenant is not handled here as it is a server-side-only concept.
+func contextFor(subject string) string {
+	if strings.HasPrefix(subject, contextPrefix) {
+		rest := subject[len(contextPrefix):]
+		if ix := strings.Index(rest, contextDelimiter); ix >= 0 {
+			return subject[1 : ix+len(contextPrefix)]
+		}
+		return subject[1:]
+	}
+	return ""
+}
 
 // Clock is a clock
 type Clock interface {
@@ -309,6 +326,7 @@ func (f *ExecutorTransform) getOrCreateKek(ctx serde.RuleContext) (*deks.Kek, er
 	kekID := deks.KekID{
 		Name:    f.KekName,
 		Deleted: isRead,
+		Context: contextFor(ctx.Subject),
 	}
 	kmsType := ctx.GetParameter(EncryptKmsType)
 	kmsKeyID := ctx.GetParameter(EncryptKmsKeyID)
@@ -351,7 +369,7 @@ func (f *ExecutorTransform) getOrCreateKek(ctx serde.RuleContext) (*deks.Kek, er
 }
 
 func (f *ExecutorTransform) retrieveKekFromRegistry(key deks.KekID) (*deks.Kek, error) {
-	kek, err := f.Executor.Client.GetKek(key.Name, key.Deleted)
+	kek, err := f.Executor.Client.GetKek(key.Name, key.Deleted, key.Context)
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
@@ -365,7 +383,7 @@ func (f *ExecutorTransform) retrieveKekFromRegistry(key deks.KekID) (*deks.Kek, 
 }
 
 func (f *ExecutorTransform) storeKekToRegistry(key deks.KekID, kmsType string, kmsKeyID string, shared bool) (*deks.Kek, error) {
-	kek, err := f.Executor.Client.RegisterKek(key.Name, kmsType, kmsKeyID, nil, "", shared)
+	kek, err := f.Executor.Client.RegisterKek(key.Name, kmsType, kmsKeyID, nil, "", shared, key.Context)
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {

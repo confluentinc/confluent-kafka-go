@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 )
 
 func TestEncryptionExecutor_Configure(t *testing.T) {
@@ -55,6 +56,56 @@ func TestEncryptionExecutor_Configure(t *testing.T) {
 	}
 	err = executor.Configure(clientConfig, config3)
 	maybeFail(expect(err != nil, true))
+}
+
+func TestGetOrCreateKekUsesContextFromSubject(t *testing.T) {
+	maybeFail = initFailFunc(t)
+
+	executor := NewExecutorWithClock(&clock{})
+	clientConfig := schemaregistry.NewConfig("mock://")
+	err := executor.Configure(clientConfig, map[string]string{})
+	maybeFail(err)
+
+	// Pre-register the same kek name under two different contexts, with a
+	// different kmsKeyID each, so a wrong (or dropped) context shows up as a
+	// mismatched kmsKeyID rather than just "it didn't error".
+	_, err = executor.Client.RegisterKek("kek1", "local-kms", "myctxkey", nil, "", false, ".myctx")
+	maybeFail(err)
+	_, err = executor.Client.RegisterKek("kek1", "local-kms", "defaultkey", nil, "", false, "")
+	maybeFail(err)
+
+	rule := &schemaregistry.Rule{
+		Name:   "rule1",
+		Kind:   "TRANSFORM",
+		Mode:   "WRITE",
+		Type:   "ENCRYPT_PAYLOAD",
+		Params: map[string]string{EncryptKekName: "kek1"},
+	}
+	target := &schemaregistry.SchemaInfo{}
+
+	// Context-qualified subject: the context should be parsed out of the
+	// subject and threaded through to the dek registry client, not dropped.
+	ctx := serde.RuleContext{
+		Target:   target,
+		Subject:  ":.myctx:widget-value",
+		RuleMode: schemaregistry.Write,
+		Rule:     rule,
+	}
+	transform, err := executor.NewTransform(ctx)
+	maybeFail(err)
+	maybeFail(expect(transform.Kek.KmsKeyID, "myctxkey"))
+
+	// Unqualified subject (default context): the context should normalize to
+	// "" rather than being looked up under the literal "." context.
+	ctx2 := serde.RuleContext{
+		Target:   target,
+		Subject:  "widget-value",
+		RuleMode: schemaregistry.Write,
+		Rule:     rule,
+	}
+	transform2, err := executor.NewTransform(ctx2)
+	maybeFail(err)
+	maybeFail(expect(transform2.Kek.KmsKeyID, "defaultkey"))
 }
 
 type failFunc func(...error)
