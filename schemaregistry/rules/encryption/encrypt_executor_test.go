@@ -106,6 +106,19 @@ func TestGetOrCreateKekUsesContextFromSubject(t *testing.T) {
 	transform2, err := executor.NewTransform(ctx2)
 	maybeFail(err)
 	maybeFail(expect(transform2.Kek.KmsKeyID, "defaultkey"))
+
+	// Explicitly-qualified default context (":.:subject"): should behave
+	// identically to an unqualified subject, not be looked up under the
+	// literal "." context.
+	ctx3 := serde.RuleContext{
+		Target:   target,
+		Subject:  ":.:widget-value",
+		RuleMode: schemaregistry.Write,
+		Rule:     rule,
+	}
+	transform3, err := executor.NewTransform(ctx3)
+	maybeFail(err)
+	maybeFail(expect(transform3.Kek.KmsKeyID, "defaultkey"))
 }
 
 type failFunc func(...error)

@@ -96,15 +96,22 @@ const (
 )
 
 // contextFor returns the context parsed from the given qualified subject (of
-// the form ":.context:subject"), or "" if the subject has no context prefix.
+// the form ":.context:subject"), or "" if the subject has no context prefix
+// or is explicitly qualified with the default (".") context.
 // Tenant is not handled here as it is a server-side-only concept.
 func contextFor(subject string) string {
 	if strings.HasPrefix(subject, contextPrefix) {
+		var context string
 		rest := subject[len(contextPrefix):]
 		if ix := strings.Index(rest, contextDelimiter); ix >= 0 {
-			return subject[1 : ix+len(contextPrefix)]
+			context = subject[1 : ix+len(contextPrefix)]
+		} else {
+			context = subject[1:]
 		}
-		return subject[1:]
+		if context == "." {
+			return ""
+		}
+		return context
 	}
 	return ""
 }
