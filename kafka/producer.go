@@ -241,7 +241,7 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	}
 
 	var timestamp int64
-	if !msg.Timestamp.IsZero() {
+	if msg.Timestamp.IsZero() {
 		timestamp = msg.Timestamp.UnixNano() / 1000000
 	}
 
