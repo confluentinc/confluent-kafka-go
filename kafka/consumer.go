@@ -1026,7 +1026,7 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	}
 
-	if channel != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
+	if c.appRebalanceEnable && c.rebalanceCb == nil {
 		// Channel-based consumer with rebalancing enabled,
 		// return the rebalance event and rely on the application
 		// to call *Assign() / *Unassign().
