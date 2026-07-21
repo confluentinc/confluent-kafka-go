@@ -136,6 +136,12 @@ func TestProducerAPIs(t *testing.T) {
 		switch e := ev.(type) {
 		case *Message:
 			msgCnt++
+			if *&e.DeliveryReport.ProducerLatency <= 0 {
+				t.Errorf("Producer Latency should be included in delivery reports, instead got %d", *&e.DeliveryReport.ProducerLatency)
+			}
+			if *&e.DeliveryReport.BrokerID == -1 {
+				t.Errorf("Broker ID should be included in delivery reports, instead got %d", *&e.DeliveryReport.BrokerID)
+			}
 			if (string)(e.Value) == "ProducerChannel" {
 				s := e.Opaque.(*string)
 				if s != &myOpq {
