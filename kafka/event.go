@@ -224,7 +224,7 @@ out:
 			// or to the global Producer.Events channel, or none.
 			rkmessages := make([]*C.rd_kafka_message_t, int(C.rd_kafka_event_message_count(rkev)))
 
-			cnt := int(C.rd_kafka_event_message_array(rkev, (**C.rd_kafka_message_t)(unsafe.Pointer(&rkmessages[0])), C.size_t(len(rkmessages))))
+			cnt := int(C.rd_kafka_event_message_array(rkev, unsafe.SliceData(rkmessages), C.size_t(len(rkmessages))))
 
 			for _, rkmessage := range rkmessages[:cnt] {
 				msg := h.newMessageFromC(rkmessage)
