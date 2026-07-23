@@ -37,7 +37,10 @@ func main() {
 	topic := os.Args[2]
 	totalMsgcnt := 3
 
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
+	p, err := kafka.NewSerializingProducer[string, string](&kafka.ConfigMap{"bootstrap.servers": bootstrapServers},
+		nil,
+		nil,
+	)
 
 	if err != nil {
 		fmt.Printf("Failed to create producer: %s\n", err)
@@ -50,11 +53,7 @@ func main() {
 	go func() {
 		for e := range p.Events() {
 			switch ev := e.(type) {
-			case *kafka.Message:
-				// The message delivery report, indicating success or
-				// permanent failure after retries have been exhausted.
-				// Application level retries won't help since the client
-				// is already configured to do that.
+			case *kafka.SerializableMessage[string, string]:
 				m := ev
 				if m.TopicPartition.Error != nil {
 					fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
@@ -81,9 +80,9 @@ func main() {
 	for msgcnt < totalMsgcnt {
 		value := fmt.Sprintf("Producer example, message #%d", msgcnt)
 
-		err = p.Produce(&kafka.Message{
+		err = p.Produce(&kafka.SerializableMessage[string, string]{
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-			Value:          []byte(value),
+			Value:          value,
 			Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 		}, nil)
 
