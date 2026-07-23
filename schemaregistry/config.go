@@ -129,18 +129,28 @@ func NewConfigWithUAMIAuthentication(url, endpointURL, endpointQuery, resource, 
 	return c
 }
 
-func NewConfigFromKafkaConfigMap(conf *kafka.ConfigMap) (*Config, *kafka.ConfigMap, error) {
-	url, _ := conf.Get("schema.registry.url", "")
-	if url.(string) != "" {
-		filteredConfigMap := make(kafka.ConfigMap)
-		for k, v := range *conf {
-			if k != "schema.registry.url" {
-				filteredConfigMap.SetKey(k, v)
-			}
-		}
-		return NewConfig(url.(string)), &filteredConfigMap, nil
+func NewConfigFromKafkaConfigMap(srConf *Config, conf *kafka.ConfigMap) (*Config, *kafka.ConfigMap, error) {
+	if srConf == nil {
+		srConf = &Config{}
 	}
-	return nil, nil, fmt.Errorf("schema.registry.url is not set in the Kafka ConfigMap")
+	url, _ := conf.Get("schema.registry.url", "")
+	urlString, ok := url.(string)
+	if ok {
+		srConf.SchemaRegistryURL = urlString
+	}
+
+	// Filter out SR properties from the Kafka ConfigMap, since they are not valid Kafka configuration properties.
+	filteredConfigMap := make(kafka.ConfigMap)
+	for k, v := range *conf {
+		if k != "schema.registry.url" {
+			filteredConfigMap.SetKey(k, v)
+			srConf.SchemaRegistryURL = urlString
+		}
+	}
+	if srConf.SchemaRegistryURL == "" {
+		return nil, nil, fmt.Errorf("schema.registry.url is not set in the Kafka ConfigMap")
+	}
+	return srConf, &filteredConfigMap, nil
 }
 
 // ConfigsEqual compares two configurations for approximate equality
