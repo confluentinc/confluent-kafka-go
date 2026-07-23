@@ -45,17 +45,12 @@ func main() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	valueDeserializerBuilder, err := protobuf.NewKafkaDeserializerBuilder(
-		protobuf.NewDeserializerConfig(),
-		func(d *protobuf.Deserializer) {
+	valueDeserializerBuilder := protobuf.NewKafkaDeserializerBuilder().
+		SetDeserializerConfig(protobuf.NewDeserializerConfig()).
+		SetDeserializerInit(func(d *protobuf.Deserializer) {
 			// Register the Protobuf type so that Deserialize can be called.
 			d.ProtoRegistry.RegisterMessage((&User{}).ProtoReflect().Type())
 		})
-
-	if err != nil {
-		fmt.Printf("Failed to create Protobuf deserializer builder: %s\n", err)
-		os.Exit(1)
-	}
 
 	c, err := kafka.NewDeserializingConsumer[any, *User](
 		&kafka.ConfigMap{
