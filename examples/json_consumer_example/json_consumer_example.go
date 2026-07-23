@@ -27,8 +27,6 @@ import (
 	"syscall"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/jsonschema"
 )
 
@@ -47,32 +45,36 @@ func main() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":  bootstrapServers,
-		"group.id":           group,
-		"session.timeout.ms": 6000,
-		"auto.offset.reset":  "earliest"})
+	valueDeserializerBuilder, err := jsonschema.NewKafkaDeserializerBuilder(
+		jsonschema.NewDeserializerConfig(),
+		func(d *jsonschema.Deserializer) {
+			d.MessageFactory = func(subject string, name string) (interface{}, error) {
+				return &User{}, nil
+			}
+		})
 
+	if err != nil {
+		fmt.Printf("Failed to create JSON Schema serializer builder: %s\n", err)
+		os.Exit(1)
+	}
+
+	c, err := kafka.NewDeserializingConsumer[any, *User](
+		&kafka.ConfigMap{
+			"bootstrap.servers":   bootstrapServers,
+			"group.id":            group,
+			"session.timeout.ms":  6000,
+			"auto.offset.reset":   "earliest",
+			"schema.registry.url": url,
+		},
+		nil,
+		valueDeserializerBuilder,
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create consumer: %s\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Created Consumer %v\n", c)
-
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(url))
-
-	if err != nil {
-		fmt.Printf("Failed to create schema registry client: %s\n", err)
-		os.Exit(1)
-	}
-
-	deser, err := jsonschema.NewDeserializer(client, serde.ValueSerde, jsonschema.NewDeserializerConfig())
-
-	if err != nil {
-		fmt.Printf("Failed to create deserializer: %s\n", err)
-		os.Exit(1)
-	}
 
 	err = c.SubscribeTopics(topics, nil)
 
@@ -95,17 +97,16 @@ func main() {
 			}
 
 			switch e := ev.(type) {
-			case *kafka.Message:
-				value := User{}
-				err := deser.DeserializeInto(*e.TopicPartition.Topic, e.Value, &value)
-				if err != nil {
-					fmt.Printf("Failed to deserialize payload: %s\n", err)
-				} else {
-					fmt.Printf("%% Message on %s:\n%+v\n", e.TopicPartition, value)
-				}
+			case *kafka.DeserializedMessage[any, *User]:
+				value := e.Value
+				fmt.Printf("%% Message on %s:\n%+v\n", e.TopicPartition, value)
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
+			case *kafka.KeyDeserializationError:
+				fmt.Fprintf(os.Stderr, "%% Key deserialization error: %v\n", e)
+			case *kafka.ValueDeserializationError:
+				fmt.Fprintf(os.Stderr, "%% Value deserialization error: %v\n", e)
 			case kafka.Error:
 				// Errors should generally be considered
 				// informational, the client will try to

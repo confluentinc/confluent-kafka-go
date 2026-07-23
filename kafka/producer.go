@@ -295,6 +295,10 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	return nil
 }
 
+func (p *Producer) setSendMessageToChannelFunction(f sendMessageToChannelFunc) {
+	p.handle.sendMessageToChannel = f
+}
+
 // Produce single message.
 // This is an asynchronous call that enqueues the message on the internal
 // transmit queue, thus returning immediately.
