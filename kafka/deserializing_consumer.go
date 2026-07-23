@@ -41,33 +41,33 @@ type ValueDeserializationError struct {
 	err            error
 }
 
-func (e *KeyDeserializationError) Error() string {
-	return fmt.Sprintf("Error deserializing key for partition %s-%s at offset %d. If needed, please seek past the record to continue consumption: %v",
-		e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
+func (e KeyDeserializationError) Error() string {
+	return fmt.Sprintf("Error deserializing key for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
+		*e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
 }
 
-func (e *ValueDeserializationError) Error() string {
+func (e ValueDeserializationError) Error() string {
 	return fmt.Sprintf("Error deserializing value for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
 		*e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
 }
 
-func (e *KeyDeserializationError) String() string {
+func (e KeyDeserializationError) String() string {
 	return e.Error()
 }
 
-func (e *ValueDeserializationError) String() string {
+func (e ValueDeserializationError) String() string {
 	return e.Error()
 }
 
-func NewKeyDeserializationError(topicPartition TopicPartition, err error) *KeyDeserializationError {
-	return &KeyDeserializationError{
+func NewKeyDeserializationError(topicPartition TopicPartition, err error) KeyDeserializationError {
+	return KeyDeserializationError{
 		TopicPartition: topicPartition,
 		err:            err,
 	}
 }
 
-func NewValueDeserializationError(topicPartition TopicPartition, err error) *ValueDeserializationError {
-	return &ValueDeserializationError{
+func NewValueDeserializationError(topicPartition TopicPartition, err error) ValueDeserializationError {
+	return ValueDeserializationError{
 		TopicPartition: topicPartition,
 		err:            err,
 	}

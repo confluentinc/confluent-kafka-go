@@ -47,9 +47,9 @@ func main() {
 
 	valueDeserializerBuilder, err := avrov3.NewKafkaDeserializerBuilder(avrov3.NewDeserializerConfig(),
 		func(d *avrov3.Deserializer) {
-			// d.MessageFactory = func(subject string, name string) (interface{}, error) {
-			// 	return &User{}, nil
-			// }
+			d.MessageFactory = func(subject string, name string) (interface{}, error) {
+				return &User{}, nil
+			}
 		})
 
 	c, err := kafka.NewDeserializingConsumer[any, *User](
@@ -96,9 +96,9 @@ func main() {
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
-			case *kafka.KeyDeserializationError:
+			case kafka.KeyDeserializationError:
 				fmt.Fprintf(os.Stderr, "%% Key deserialization error: %v\n", e)
-			case *kafka.ValueDeserializationError:
+			case kafka.ValueDeserializationError:
 				fmt.Fprintf(os.Stderr, "%% Value deserialization error: %v\n", e)
 			case kafka.Error:
 				// Errors should generally be considered
