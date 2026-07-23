@@ -654,6 +654,9 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 			return nil, err
 		}
 		if result == nil {
+			if s.MessageFactory == nil {
+				return nil, fmt.Errorf("MessageFactory is not set")
+			}
 			msg, err = s.MessageFactory(subject, name)
 			if err != nil {
 				return nil, err
@@ -673,6 +676,9 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		}
 	} else {
 		if result == nil {
+			if s.MessageFactory == nil {
+				return nil, fmt.Errorf("MessageFactory is not set")
+			}
 			msg, err = s.MessageFactory(subject, name)
 			if err != nil {
 				return nil, err

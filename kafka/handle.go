@@ -85,6 +85,8 @@ type Handle interface {
 	IsClosed() bool
 }
 
+type sendMessageToChannelFunc func(msg *Message, deliveryChan *chan Event, termChan chan bool) bool
+
 // Common instance handle for both Producer and Consumer
 type handle struct {
 	rk  *C.rd_kafka_t
@@ -130,6 +132,9 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
+
+	// sendMessageToChannel is a function that sends a message to a delivery channel. It can be overridden for additional transformation or processing of the message before sending it to the channel. If not set, the default behavior is to send the message directly to the channel.
+	sendMessageToChannel sendMessageToChannelFunc
 }
 
 func (h *handle) String() string {
