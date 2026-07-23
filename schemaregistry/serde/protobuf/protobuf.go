@@ -328,6 +328,10 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	return s.SchemaIDSerializer(topic, s.SerdeType, msg.([]byte), schemaID)
 }
 
+func (s *Serializer) SetClusterID(clusterID string) {
+	fmt.Printf("Setting cluster ID to %s\n", clusterID)
+}
+
 func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.SchemaInfo, error) {
 	messageDesc, err := desc.LoadMessageDescriptorForMessage(protoV1.MessageV1(protoMsg))
 	if err != nil {
@@ -687,6 +691,10 @@ func (s *Deserializer) DeserializeWithHeadersInto(topic string, headers []kafka.
 		rv.Set(reflect.ValueOf(result).Elem())
 	}
 	return nil
+}
+
+func (s *Deserializer) SetClusterID(clusterID string) {
+	fmt.Printf("Setting cluster ID to %s\n", clusterID)
 }
 
 func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload []byte, result interface{}) (interface{}, error) {

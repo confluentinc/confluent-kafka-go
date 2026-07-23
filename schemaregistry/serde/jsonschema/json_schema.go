@@ -236,6 +236,10 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	return s.SchemaIDSerializer(topic, s.SerdeType, msg.([]byte), schemaID)
 }
 
+func (s *Serializer) SetClusterID(clusterID string) {
+	fmt.Printf("Setting cluster ID to %s\n", clusterID)
+}
+
 // NewDeserializer creates a JSON deserializer for generic objects
 func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *DeserializerConfig) (*Deserializer, error) {
 	schemaToTypeCache, err := cache.NewLRUCache(1000)
@@ -365,6 +369,10 @@ func (s *Deserializer) DeserializeInto(topic string, payload []byte, msg interfa
 func (s *Deserializer) DeserializeWithHeadersInto(topic string, headers []kafka.Header, payload []byte, msg interface{}) error {
 	_, err := s.deserialize(topic, headers, payload, msg)
 	return err
+}
+
+func (s *Deserializer) SetClusterID(clusterID string) {
+	fmt.Printf("Setting cluster ID to %s\n", clusterID)
 }
 
 func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload []byte, result interface{}) (interface{}, error) {
