@@ -78,7 +78,7 @@ func (sp *SerializingProducer[K, V]) sendToChannel(msg *Message, deliveryChan *c
 
 	serializableMessage.Timestamp = msg.Timestamp
 	serializableMessage.TimestampType = msg.TimestampType
-	serializableMessage.TopicPartition.Offset = msg.TopicPartition.Offset
+	serializableMessage.TopicPartition = msg.TopicPartition
 	return sp.producer.handle.sendToChannel(serializableMessage, deliveryChan, termChan)
 }
 
