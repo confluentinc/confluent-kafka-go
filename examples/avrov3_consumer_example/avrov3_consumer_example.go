@@ -45,8 +45,8 @@ func main() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	valueDeserializerBuilder, err := avrov3.NewKafkaDeserializerBuilder(avrov3.NewDeserializerConfig(),
-		func(d *avrov3.Deserializer) {
+	valueDeserializerBuilder := avrov3.NewKafkaDeserializerBuilder().
+		SetDeserializerInit(func(d *avrov3.Deserializer) {
 			d.MessageFactory = func(subject string, name string) (interface{}, error) {
 				return &User{}, nil
 			}

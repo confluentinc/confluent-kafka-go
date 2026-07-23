@@ -45,18 +45,13 @@ func main() {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	valueDeserializerBuilder, err := jsonschema.NewKafkaDeserializerBuilder(
-		jsonschema.NewDeserializerConfig(),
-		func(d *jsonschema.Deserializer) {
+	valueDeserializerBuilder := jsonschema.NewKafkaDeserializerBuilder().
+		SetDeserializerConfig(jsonschema.NewDeserializerConfig()).
+		SetDeserializerInit(func(d *jsonschema.Deserializer) {
 			d.MessageFactory = func(subject string, name string) (interface{}, error) {
 				return &User{}, nil
 			}
 		})
-
-	if err != nil {
-		fmt.Printf("Failed to create JSON Schema serializer builder: %s\n", err)
-		os.Exit(1)
-	}
 
 	c, err := kafka.NewDeserializingConsumer[any, *User](
 		&kafka.ConfigMap{
