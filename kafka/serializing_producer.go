@@ -35,7 +35,9 @@ type Serializer interface {
 	Close() error
 }
 
-type SerializerBuilder func(*ConfigMap, bool) (Serializer, *ConfigMap, error)
+type SerializerBuilder interface {
+	Build(conf *ConfigMap, isKey bool) (Serializer, *ConfigMap, error)
+}
 
 // NewSerializingProducer is the same as [NewProducer], returning a
 // [SerializingProducer] wrapping the created [Producer].
@@ -47,14 +49,14 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 	var filteredConf *ConfigMap = conf
 	var err error
 	if keySerializerBuilder != nil {
-		keySerializer, filteredConf, err = keySerializerBuilder(conf, true)
+		keySerializer, filteredConf, err = keySerializerBuilder.Build(conf, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if valueSerializerBuilder != nil {
-		valueSerializer, filteredConf, err = valueSerializerBuilder(conf, false)
+		valueSerializer, filteredConf, err = valueSerializerBuilder.Build(conf, false)
 		if err != nil {
 			return nil, err
 		}

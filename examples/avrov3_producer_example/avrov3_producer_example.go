@@ -37,19 +37,13 @@ func main() {
 	url := os.Args[2]
 	topic := os.Args[3]
 
-	valueSerializerBuilder, err := avrov3.NewKafkaSerializerBuilder(avrov3.NewSerializerConfig(), nil)
-	if err != nil {
-		fmt.Printf("Failed to create serializer builder: %s\n", err)
-		os.Exit(1)
-	}
-
 	p, err := kafka.NewSerializingProducer[any, *User](
 		&kafka.ConfigMap{
 			"bootstrap.servers":   bootstrapServers,
 			"schema.registry.url": url,
 		},
 		nil,
-		valueSerializerBuilder,
+		avrov3.NewKafkaSerializerBuilder(),
 	)
 
 	if err != nil {

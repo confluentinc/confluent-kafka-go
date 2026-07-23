@@ -73,7 +73,9 @@ func NewValueDeserializationError(topicPartition TopicPartition, err error) Valu
 	}
 }
 
-type DeserializerBuilder func(*ConfigMap, bool) (Deserializer, *ConfigMap, error)
+type DeserializerBuilder interface {
+	Build(conf *ConfigMap, isKey bool) (Deserializer, *ConfigMap, error)
+}
 
 func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	keyDeserializerBuilder DeserializerBuilder,
@@ -83,14 +85,14 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	var filteredConf *ConfigMap = conf
 	var err error
 	if keyDeserializerBuilder != nil {
-		keyDeserializer, filteredConf, err = keyDeserializerBuilder(conf, true)
+		keyDeserializer, filteredConf, err = keyDeserializerBuilder.Build(conf, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if valueDeserializerBuilder != nil {
-		valueDeserializer, filteredConf, err = valueDeserializerBuilder(conf, false)
+		valueDeserializer, filteredConf, err = valueDeserializerBuilder.Build(conf, false)
 		if err != nil {
 			return nil, err
 		}
