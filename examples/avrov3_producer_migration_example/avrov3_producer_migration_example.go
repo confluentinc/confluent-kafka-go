@@ -24,7 +24,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
@@ -43,15 +42,9 @@ func main() {
 	url := os.Args[2]
 	topic := os.Args[3]
 
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
-
-	if err != nil {
-		fmt.Printf("Failed to create producer: %s\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Created Producer %v\n", p)
-
+	// Register the schemas and migration rules before producing. The
+	// SerializingProducer is configured to use the version tagged with
+	// application.major.version=1.
 	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(url))
 
 	if err != nil {
@@ -98,7 +91,7 @@ func main() {
 		SchemaType: "AVRO",
 		RuleSet: &schemaregistry.RuleSet{
 			MigrationRules: []schemaregistry.Rule{
-				schemaregistry.Rule{
+				{
 					Name: "upgrade",
 					Kind: "TRANSFORM",
 					Mode: "UPGRADE",
@@ -138,67 +131,63 @@ func main() {
 		"application.major.version": "1",
 	}
 
-	ser, err := avrov3.NewSerializer(client, serde.ValueSerde, serConfig)
+	valueSerializerBuilder := avrov3.NewKafkaSerializerBuilder().
+		SetSerializerConfig(serConfig)
 
+	p, err := kafka.NewSerializingProducer[any, *User](
+		&kafka.ConfigMap{
+			"bootstrap.servers":   bootstrapServers,
+			"schema.registry.url": url,
+		},
+		nil,
+		valueSerializerBuilder,
+	)
 	if err != nil {
-		fmt.Printf("Failed to create serializer: %s\n", err)
+		fmt.Printf("Failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("Created Producer %v\n", p)
 
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
 	deliveryChan := make(chan kafka.Event)
 
-	value := User{
-		Name:           "First user",
-		FavoriteNumber: 42,
-		FavoriteColor:  "blue",
-	}
-	payload, err := ser.Serialize(topic, &value)
-	if err != nil {
-		fmt.Printf("Failed to serialize payload: %s\n", err)
-		os.Exit(1)
-	}
-
-	err = p.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          payload,
-		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
-	}, deliveryChan)
-	if err != nil {
-		fmt.Printf("Produce failed: %v\n", err)
-		os.Exit(1)
+	users := []User{
+		{
+			Name:           "First user",
+			FavoriteNumber: 42,
+			FavoriteColor:  "blue",
+		},
+		{
+			Name:           "Second user",
+			FavoriteNumber: 42,
+			FavoriteColor:  "blue",
+		},
 	}
 
-	value = User{
-		Name:           "Second user",
-		FavoriteNumber: 42,
-		FavoriteColor:  "blue",
-	}
-	payload, err = ser.Serialize(topic, &value)
-	if err != nil {
-		fmt.Printf("Failed to serialize payload: %s\n", err)
-		os.Exit(1)
-	}
-
-	err = p.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          payload,
-		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
-	}, deliveryChan)
-	if err != nil {
-		fmt.Printf("Produce failed: %v\n", err)
-		os.Exit(1)
+	for i := range users {
+		err = p.Produce(&kafka.SerializableMessage[any, *User]{
+			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+			Value:          &users[i],
+			Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
+		}, deliveryChan)
+		if err != nil {
+			fmt.Printf("Produce failed: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	e := <-deliveryChan
-	m := e.(*kafka.Message)
+	for range users {
+		e := <-deliveryChan
+		m := e.(*kafka.SerializableMessage[any, *User])
 
-	if m.TopicPartition.Error != nil {
-		fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
-	} else {
-		fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
-			*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+		if m.TopicPartition.Error != nil {
+			fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
+		} else {
+			fmt.Printf("Delivered message to topic %s [%d] at offset %v\n",
+				*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+		}
 	}
 
 	close(deliveryChan)
