@@ -37,11 +37,8 @@ func main() {
 	url := os.Args[2]
 	topic := os.Args[3]
 
-	valueSerializerBuilder, err := jsonschema.NewKafkaSerializerBuilder(jsonschema.NewSerializerConfig(), nil)
-	if err != nil {
-		fmt.Printf("Failed to create JSON Schema serializer builder: %s\n", err)
-		os.Exit(1)
-	}
+	valueSerializerBuilder := jsonschema.NewKafkaSerializerBuilder().
+		SetSerializerConfig(jsonschema.NewSerializerConfig())
 
 	p, err := kafka.NewSerializingProducer[any, *User](&kafka.ConfigMap{
 		"bootstrap.servers":   bootstrapServers,

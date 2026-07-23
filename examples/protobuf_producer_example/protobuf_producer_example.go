@@ -37,11 +37,8 @@ func main() {
 	url := os.Args[2]
 	topic := os.Args[3]
 
-	valueSerializerBuilder, err := protobuf.NewKafkaSerializerBuilder(protobuf.NewSerializerConfig(), nil)
-	if err != nil {
-		fmt.Printf("Failed to create Protobuf serializer builder: %s\n", err)
-		os.Exit(1)
-	}
+	valueSerializerBuilder := protobuf.NewKafkaSerializerBuilder().
+		SetSerializerConfig(protobuf.NewSerializerConfig())
 
 	p, err := kafka.NewSerializingProducer[any, *User](&kafka.ConfigMap{
 		"bootstrap.servers":   bootstrapServers,
