@@ -103,9 +103,9 @@ func main() {
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
-			case *kafka.KeyDeserializationError:
+			case kafka.KeyDeserializationError:
 				fmt.Fprintf(os.Stderr, "%% Key deserialization error: %v\n", e)
-			case *kafka.ValueDeserializationError:
+			case kafka.ValueDeserializationError:
 				fmt.Fprintf(os.Stderr, "%% Value deserialization error: %v\n", e)
 			case kafka.Error:
 				// Errors should generally be considered
