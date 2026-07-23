@@ -28,6 +28,7 @@ type DeserializingConsumer[K, V any] struct {
 
 type Deserializer interface {
 	DeserializeWithHeaders(topic string, headers []Header, payload []byte) (interface{}, error)
+	SetClusterID(clusterID string)
 	Close() error
 }
 
@@ -101,6 +102,17 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	c, err := NewConsumer(filteredConf)
 	if err != nil {
 		return nil, err
+	}
+
+	clusterID, err := c.getClusterID(5000)
+	if err != nil {
+		return nil, err
+	}
+	if keyDeserializer != nil {
+		keyDeserializer.SetClusterID(clusterID)
+	}
+	if valueDeserializer != nil {
+		valueDeserializer.SetClusterID(clusterID)
 	}
 	dc := &DeserializingConsumer[K, V]{consumer: c, keyDeserializer: keyDeserializer, valueDeserializer: valueDeserializer}
 	return dc, nil

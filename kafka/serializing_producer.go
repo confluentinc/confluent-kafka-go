@@ -32,6 +32,7 @@ type SerializingProducer[K, V any] struct {
 type Serializer interface {
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	SerializeWithHeaders(topic string, msg interface{}) ([]Header, []byte, error)
+	SetClusterID(clusterID string)
 	Close() error
 }
 
@@ -65,6 +66,17 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 	p, err := NewProducer(filteredConf)
 	if err != nil {
 		return nil, err
+	}
+
+	clusterID, err := p.getClusterID(5000)
+	if err != nil {
+		return nil, err
+	}
+	if keySerializer != nil {
+		keySerializer.SetClusterID(clusterID)
+	}
+	if valueSerializer != nil {
+		valueSerializer.SetClusterID(clusterID)
 	}
 	sp := &SerializingProducer[K, V]{producer: p, keySerializer: keySerializer, valueSerializer: valueSerializer}
 	p.setSendMessageToChannelFunction(sp.sendToChannel)
