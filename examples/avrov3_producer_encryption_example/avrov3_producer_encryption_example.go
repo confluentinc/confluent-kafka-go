@@ -114,12 +114,12 @@ func main() {
 	//}
 
 	valueSerializerBuilder := avrov3.NewKafkaSerializerBuilder().
+		SetSchemaRegistryConfig(schemaregistry.NewConfig(url)).
 		SetSerializerConfig(serConfig)
 
 	p, err := kafka.NewSerializingProducer[any, *User](
 		&kafka.ConfigMap{
-			"bootstrap.servers":   bootstrapServers,
-			"schema.registry.url": url,
+			"bootstrap.servers": bootstrapServers,
 		},
 		nil,
 		valueSerializerBuilder,
