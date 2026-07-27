@@ -160,6 +160,13 @@ func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, ter
 	if channel == nil {
 		maxEvents = 1
 	}
+
+	h.pollLock.RLock()
+	defer h.pollLock.RUnlock()
+	if h.rkq == nil {
+		// Handle is being (or has been) closed.
+		return nil, false
+	}
 out:
 	for evcnt := 0; evcnt < maxEvents; evcnt++ {
 		var evtype C.rd_kafka_event_type_t
