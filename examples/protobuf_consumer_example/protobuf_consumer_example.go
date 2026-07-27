@@ -27,6 +27,7 @@ import (
 	"syscall"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/protobuf"
 )
 
@@ -46,6 +47,7 @@ func main() {
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	valueDeserializerBuilder := protobuf.NewKafkaDeserializerBuilder().
+		SetSchemaRegistryConfig(schemaregistry.NewConfig(url)).
 		SetDeserializerConfig(protobuf.NewDeserializerConfig()).
 		SetDeserializerInit(func(d *protobuf.Deserializer) {
 			// Register the Protobuf type so that Deserialize can be called.
@@ -54,11 +56,10 @@ func main() {
 
 	c, err := kafka.NewDeserializingConsumer[any, *User](
 		&kafka.ConfigMap{
-			"bootstrap.servers":   bootstrapServers,
-			"group.id":            group,
-			"session.timeout.ms":  6000,
-			"auto.offset.reset":   "earliest",
-			"schema.registry.url": url,
+			"bootstrap.servers":  bootstrapServers,
+			"group.id":           group,
+			"session.timeout.ms": 6000,
+			"auto.offset.reset":  "earliest",
 		},
 		nil,
 		valueDeserializerBuilder,

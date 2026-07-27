@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/jsonschema"
 )
 
@@ -38,11 +39,10 @@ func main() {
 	topic := os.Args[3]
 
 	valueSerializerBuilder := jsonschema.NewKafkaSerializerBuilder().
-		SetSerializerConfig(jsonschema.NewSerializerConfig())
+		SetSchemaRegistryConfig(schemaregistry.NewConfig(url))
 
 	p, err := kafka.NewSerializingProducer[any, *User](&kafka.ConfigMap{
-		"bootstrap.servers":   bootstrapServers,
-		"schema.registry.url": url,
+		"bootstrap.servers": bootstrapServers,
 	},
 		nil,
 		valueSerializerBuilder,
