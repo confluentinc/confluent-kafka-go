@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
@@ -39,11 +40,11 @@ func main() {
 
 	p, err := kafka.NewSerializingProducer[any, *User](
 		&kafka.ConfigMap{
-			"bootstrap.servers":   bootstrapServers,
-			"schema.registry.url": url,
+			"bootstrap.servers": bootstrapServers,
 		},
 		nil,
-		avrov3.NewKafkaSerializerBuilder(),
+		avrov3.NewKafkaSerializerBuilder().
+			SetSchemaRegistryConfig(schemaregistry.NewConfig(url)),
 	)
 
 	if err != nil {

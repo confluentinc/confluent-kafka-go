@@ -133,22 +133,11 @@ func NewConfigFromKafkaConfigMap(srConf *Config, conf *kafka.ConfigMap) (*Config
 	if srConf == nil {
 		srConf = &Config{}
 	}
-	url, _ := conf.Get("schema.registry.url", "")
-	urlString, ok := url.(string)
-	if ok {
-		srConf.SchemaRegistryURL = urlString
-	}
 
-	// Filter out SR properties from the Kafka ConfigMap, since they are not valid Kafka configuration properties.
+	// Filter out SR properties from the Kafka ConfigMap, none for the moment.
 	filteredConfigMap := make(kafka.ConfigMap)
 	for k, v := range *conf {
-		if k != "schema.registry.url" {
-			filteredConfigMap.SetKey(k, v)
-			srConf.SchemaRegistryURL = urlString
-		}
-	}
-	if srConf.SchemaRegistryURL == "" {
-		return nil, nil, fmt.Errorf("schema.registry.url is not set in the Kafka ConfigMap")
+		filteredConfigMap.SetKey(k, v)
 	}
 	return srConf, &filteredConfigMap, nil
 }
