@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/protobuf"
 )
 
@@ -37,15 +38,12 @@ func main() {
 	url := os.Args[2]
 	topic := os.Args[3]
 
-	valueSerializerBuilder := protobuf.NewKafkaSerializerBuilder().
-		SetSerializerConfig(protobuf.NewSerializerConfig())
-
 	p, err := kafka.NewSerializingProducer[any, *User](&kafka.ConfigMap{
-		"bootstrap.servers":   bootstrapServers,
-		"schema.registry.url": url,
+		"bootstrap.servers": bootstrapServers,
 	},
 		nil,
-		valueSerializerBuilder,
+		protobuf.NewKafkaSerializerBuilder().
+			SetSchemaRegistryConfig(schemaregistry.NewConfig(url)),
 	)
 
 	if err != nil {
