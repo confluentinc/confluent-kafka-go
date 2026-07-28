@@ -50,6 +50,8 @@ func TestRaceClose(t *testing.T) {
 		t.Fatalf("create mock cluster: %v", err)
 	}
 
+	defer cluster.Close()
+
 	_ = cluster.CreateTopic("test", 16, 1)
 
 	for idx := range 1024 {
