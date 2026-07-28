@@ -173,7 +173,7 @@ func (h *handle) eventPoll(channel chan Event, timeoutMs int, maxEvents int, ter
 
 	h.pollLock.RLock()
 	defer h.pollLock.RUnlock()
-	if h.rkq == nil {
+	if h.rk == nil || h.rkq == nil {
 		// Handle is being (or has been) closed.
 		return nil, false
 	}
