@@ -434,12 +434,14 @@ func (p *Producer) Close() {
 	close(p.produceChannel)
 	p.handle.waitGroup.Wait()
 
-	close(p.events)
-
 	// Prevent any in-flight C call on another goroutine from racing with the
-	// handle destruction, and block new ones.
+	// handle destruction, and block new ones. This must be held before
+	// closing p.events, otherwise a concurrent eventPoll (e.g. from Flush)
+	// sending to p.events could panic with "send on closed channel".
 	p.handle.pollLock.Lock()
 	defer p.handle.pollLock.Unlock()
+
+	close(p.events)
 
 	p.handle.cleanup()
 
