@@ -189,6 +189,9 @@ func (h *handle) cleanup() {
 
 	if h.rkq != nil {
 		C.rd_kafka_queue_destroy(h.rkq)
+		// Nil out so eventPoll's guard detects the closed handle instead
+		// of dereferencing a dangling queue pointer (use-after-free).
+		h.rkq = nil
 	}
 }
 
