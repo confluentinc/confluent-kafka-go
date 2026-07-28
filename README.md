@@ -137,7 +137,7 @@ for use with [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 Getting Started
 ===============
 
-Supports Go 1.17+ and librdkafka 2.15.0+.
+Supports Go 1.25+ and librdkafka 2.15.0+.
 
 Using Go Modules
 ----------------
@@ -263,7 +263,7 @@ CC=/path/to/musl-gcc go build --ldflags '-linkmode external -extldflags "-static
 FIPS 140-3 Compliance
 =====================
 
-This client supports FIPS 140-3 compliance for Schema Registry operations when using Go 1.24.3 or newer.
+This client supports FIPS 140-3 compliance for Schema Registry operations using Go's native FIPS support.
 
 ## Communication between client and Schema Registry
 
