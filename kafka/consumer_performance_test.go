@@ -40,7 +40,18 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 		"session.timeout.ms":       6000,
 		"enable.auto.commit":       false,
 		"debug":                    ",",
-		"auto.offset.reset":        "earliest"}
+		"auto.offset.reset":        "earliest",
+
+		// For benchmarks we want to avoid long fetch stalls when go can't keep
+		// up with librdkafka filling the fetch queue and then backing off by
+		// the default one second. When it's possible to consume all 2M messages
+		// within a second, losing the race with librdkafka and backing off for
+		// a whole second really slows us down and skews the overall timings,
+		// with consecutive runs varying by a whole second due to one
+		// additional backoff. So go lower than the default, but not too low so
+		// we avoid spinning.
+		"fetch.queue.backoff.ms": 10,
+	}
 
 	conf.updateFromTestconf()
 
