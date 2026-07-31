@@ -509,8 +509,15 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 
 	var failure rest.Error
 	if err = json.NewDecoder(resp.Body).Decode(&failure); err != nil {
-		return err
+		// The body is not a Schema Registry error (an empty body, or a response
+		// from a proxy). Report the status rather than the decoding failure, so
+		// that callers can still classify the error.
+		failure = rest.Error{
+			Code:    -1,
+			Message: fmt.Sprintf("unknown schema registry error: %s", resp.Status),
+		}
 	}
+	failure.Status = resp.StatusCode
 
 	return &failure
 }

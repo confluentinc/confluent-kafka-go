@@ -380,7 +380,7 @@ func (f *ExecutorTransform) retrieveKekFromRegistry(key deks.KekID) (*deks.Kek, 
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
-			if strings.HasPrefix(strconv.Itoa(restErr.Code), "404") {
+			if restErr.HasStatus(404) {
 				return nil, nil
 			}
 		}
@@ -394,7 +394,7 @@ func (f *ExecutorTransform) storeKekToRegistry(key deks.KekID, kmsType string, k
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
-			if strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
+			if restErr.HasStatus(409) {
 				return nil, nil
 			}
 		}
@@ -515,7 +515,7 @@ func (f *ExecutorTransform) retrieveDekFromRegistry(key deks.DekID) (*deks.Dek, 
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
-			if strings.HasPrefix(strconv.Itoa(restErr.Code), "404") {
+			if restErr.HasStatus(404) {
 				return nil, nil
 			}
 		}
@@ -539,7 +539,7 @@ func (f *ExecutorTransform) storeDekToRegistry(key deks.DekID, encryptedDek []by
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
-			if strings.HasPrefix(strconv.Itoa(restErr.Code), "409") {
+			if restErr.HasStatus(409) {
 				return nil, nil
 			}
 		}
