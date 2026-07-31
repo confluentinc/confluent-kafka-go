@@ -2,8 +2,6 @@ package rest
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 )
 
 // Error represents a Schema Registry HTTP Error response
@@ -22,13 +20,21 @@ func (err *Error) Error() string {
 	return fmt.Sprintf("schema registry request failed error code: %d: %s", err.Code, err.Message)
 }
 
-// HasStatus reports whether the error corresponds to the given HTTP status,
-// either because the response carried that status, or because the Schema
-// Registry error code refines it (error codes are the HTTP status optionally
-// followed by two more digits, e.g. 40470 for a 404).
+// HasStatus reports whether the error corresponds to the given HTTP status.
+//
+// The status of the response is authoritative when it is known, so that a body
+// whose error code disagrees with it (for example an upstream 404 body returned
+// by a proxy as a 502) is not classified by the error code.
 func (err *Error) HasStatus(status int) bool {
-	if err.Status == status {
+	if err.Status != 0 {
+		return err.Status == status
+	}
+
+	// The error was not built from a response, so fall back to the error code,
+	// which is either the HTTP status itself or the status followed by two more
+	// digits (e.g. 40470 for a 404).
+	if err.Code == status {
 		return true
 	}
-	return strings.HasPrefix(strconv.Itoa(err.Code), strconv.Itoa(status))
+	return err.Code >= 10000 && err.Code/100 == status
 }

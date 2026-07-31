@@ -62,6 +62,24 @@ func TestHasStatus(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:     "status disagreeing with the error code is authoritative",
+			err:      Error{Status: 502, Code: 40470},
+			status:   404,
+			expected: false,
+		},
+		{
+			name:     "status disagreeing with the error code still matches itself",
+			err:      Error{Status: 502, Code: 40470},
+			status:   502,
+			expected: true,
+		},
+		{
+			name:     "error code that is neither a status nor a refined status",
+			err:      Error{Code: 4045},
+			status:   404,
+			expected: false,
+		},
+		{
 			name:     "no status and no error code",
 			err:      Error{},
 			status:   404,
