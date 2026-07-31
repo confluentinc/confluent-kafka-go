@@ -79,9 +79,22 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 
 	topic := testconf.TopicName
 	partition := int32(-1)
-	size := testconf.PerfMsgSize
+	msgValueSize := testconf.PerfMsgSize
 	pattern := "Hello"
-	buf := []byte(strings.Repeat(pattern, size/len(pattern)))
+	msgValue := []byte(strings.Repeat(pattern, msgValueSize/len(pattern)))
+
+	var msgKey []byte
+	if testconf.PerfMsgKey {
+		msgKey = []byte(strings.Repeat(pattern, testconf.PerfMsgKeySize/len(pattern)))
+	}
+
+	var msgHeaders []Header
+	for i := range testconf.PerfMsgHeaderCount {
+		msgHeaders = append(msgHeaders, Header{
+			Key:   fmt.Sprintf("%d", i),
+			Value: []byte(strings.Repeat(pattern, testconf.PerfMsgHeaderSize/len(pattern))),
+		})
+	}
 
 	var doneChan chan int64
 	var drChan chan Event
@@ -104,11 +117,16 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 	rdDelivery := ratedispStart(b, fmt.Sprintf("%s: delivery", testname), displayInterval)
 
 	for i := 0; i < msgcnt; i++ {
-		m := Message{TopicPartition: TopicPartition{Topic: &topic, Partition: partition}, Value: buf}
+		m := Message{
+			TopicPartition: TopicPartition{Topic: &topic, Partition: partition},
+			Key:            msgKey,
+			Value:          msgValue,
+			Headers:        msgHeaders,
+		}
 
 		produceFunc(p, &m, drChan)
 
-		rd.tick(1, int64(size))
+		rd.tick(1, int64(msgValueSize))
 	}
 
 	if !silent {
@@ -134,7 +152,7 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 		deliverySize = <-doneChan
 	} else {
 		deliveryCnt = int64(msgcnt)
-		deliverySize = deliveryCnt * int64(size)
+		deliverySize = deliveryCnt * int64(msgValueSize)
 	}
 	rdDelivery.tick(deliveryCnt, deliverySize)
 
