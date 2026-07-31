@@ -23,7 +23,7 @@ import (
 )
 
 // consumerPerfTest measures the consumer performance using a pre-primed (produced to) topic
-func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool, consumeFunc func(c *Consumer, rd *ratedisp, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool, consumeFunc func(c *Consumer, rd *ratedisp, expCnt int), rebalanceCb func(c *Consumer, event Event) error, extraConfig ConfigMap) {
 
 	r := testconsumerInit(b)
 	if r == -1 {
@@ -54,6 +54,10 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 	}
 
 	conf.updateFromTestconf()
+
+	for k, v := range extraConfig {
+		conf[k] = v
+	}
 
 	c, err := NewConsumer(&conf)
 
@@ -166,12 +170,12 @@ func testconsumerInit(b *testing.B) int {
 
 func BenchmarkConsumerChannelPerformance(b *testing.B) {
 	consumerPerfTest(b, "Channel Consumer",
-		0, true, eventChannelConsumer, nil)
+		0, true, eventChannelConsumer, nil, nil)
 }
 
 func BenchmarkConsumerPollPerformance(b *testing.B) {
 	consumerPerfTest(b, "Poll Consumer",
-		0, false, eventPollConsumer, nil)
+		0, false, eventPollConsumer, nil, nil)
 }
 
 func BenchmarkConsumerPollRebalancePerformance(b *testing.B) {
@@ -180,5 +184,14 @@ func BenchmarkConsumerPollRebalancePerformance(b *testing.B) {
 		func(c *Consumer, event Event) error {
 			b.Logf("Rebalanced: %s", event)
 			return nil
+		}, nil)
+}
+
+func BenchmarkConsumerMessageFieldsConfig(b *testing.B) {
+	for _, variant := range []string{"all", "key", "value", "headers", "none"} {
+		b.Run(fmt.Sprintf("variant=%s", variant), func(b *testing.B) {
+			consumerPerfTest(b, "Poll Consumer", 0, false, eventPollConsumer,
+				nil, ConfigMap{"go.consumer.message.fields": variant})
 		})
+	}
 }
