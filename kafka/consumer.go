@@ -577,6 +577,9 @@ func (c *Consumer) Close() (err error) {
 //	                                     If set to true the app must handle the AssignedPartitions and
 //	                                     RevokedPartitions events and call Assign() and Unassign()
 //	                                     respectively.
+//	go.consumer.message.fields (string, "all") - Comma separated list of fields to copy from C messages.
+//	                                     Allowed values: all, none (or empty string), key, value, headers.
+//	                                     There is a performance penalty to include fields you don't need.
 //	go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
 //	go.events.channel.size (int, 1000) - Events() channel size
 //	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
@@ -628,6 +631,15 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	}
 	eventsChanSize := v.(int)
 
+	v, err = confCopy.extract("go.consumer.message.fields", "all")
+	if err != nil {
+		return nil, err
+	}
+	msgFields, err := newMessageFieldsFrom(v)
+	if err != nil {
+		return nil, err
+	}
+
 	logsChanEnable, logsChan, err := confCopy.extractLogConfig()
 	if err != nil {
 		return nil, err
@@ -650,6 +662,7 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 	C.rd_kafka_poll_set_consumer(c.handle.rk)
 
 	c.handle.c = c
+	c.handle.msgFields = msgFields
 	c.handle.setup()
 	c.readerTermChan = make(chan bool)
 	c.handle.rkq = C.rd_kafka_queue_get_consumer(c.handle.rk)
