@@ -68,8 +68,6 @@ func producerPerfTest(b *testing.B, testname string, msgcnt int, withDr bool, ba
 		"go.batch.producer":            batchProducer,
 		"go.delivery.reports":          withDr,
 		"queue.buffering.max.messages": msgcnt,
-		"api.version.request":          "true",
-		"broker.version.fallback":      "0.9.0.1",
 		"acks":                         1}
 
 	conf.updateFromTestconf()

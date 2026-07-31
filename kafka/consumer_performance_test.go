@@ -41,7 +41,6 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 		"go.events.channel.enable": useChannel,
 		"group.id":                 fmt.Sprintf("go_cperf_%d", rand.Intn(1000000)),
 		"session.timeout.ms":       6000,
-		"api.version.request":      "true",
 		"enable.auto.commit":       false,
 		"debug":                    ",",
 		"auto.offset.reset":        "earliest"}
