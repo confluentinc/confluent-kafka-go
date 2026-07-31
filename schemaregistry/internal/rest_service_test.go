@@ -30,6 +30,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 )
 
 // networkErrorTransport is an http.RoundTripper that returns a network-level
@@ -597,6 +599,112 @@ func TestHandleRequest_UnauthorizedError(t *testing.T) {
 	expectedError := "schema registry request failed error code: 401: Invalid credentials"
 	if err.Error() != expectedError {
 		t.Errorf("Expected error message %q, got %q", expectedError, err.Error())
+	}
+}
+
+// TestHandleRequest_ErrorPreservesStatus verifies that an error response is
+// reported as a *rest.Error carrying the HTTP status, so that callers can
+// classify it (for example treating a 404 as "not registered yet") rather than
+// having to interpret the error code alone.
+func TestHandleRequest_ErrorPreservesStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error_code": 40470, "message": "Key 'test-value' not found"}`))
+	}))
+	defer server.Close()
+
+	rs, err := NewRestService(&ClientConfig{SchemaRegistryURL: server.URL})
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	var response interface{}
+	err = rs.HandleRequest(NewRequest("GET", "/subjects", nil), &response)
+
+	var restErr *rest.Error
+	if !errors.As(err, &restErr) {
+		t.Fatalf("Expected a *rest.Error, got %v", err)
+	}
+	if restErr.Status != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", restErr.Status)
+	}
+	if restErr.Code != 40470 {
+		t.Errorf("Expected error code 40470, got %d", restErr.Code)
+	}
+	if !restErr.HasStatus(http.StatusNotFound) {
+		t.Error("Expected HasStatus(404) to be true")
+	}
+}
+
+// TestHandleRequest_ErrorWithoutErrorBodyPreservesStatus verifies that an error
+// response whose body is not in the Schema Registry format (an empty body, or a
+// response produced by a proxy rather than by Schema Registry) is still reported
+// as a *rest.Error carrying the status, instead of as a JSON decoding failure
+// that discards it.
+func TestHandleRequest_ErrorWithoutErrorBodyPreservesStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("<html>not found</html>"))
+	}))
+	defer server.Close()
+
+	rs, err := NewRestService(&ClientConfig{SchemaRegistryURL: server.URL})
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	var response interface{}
+	err = rs.HandleRequest(NewRequest("GET", "/subjects", nil), &response)
+
+	var restErr *rest.Error
+	if !errors.As(err, &restErr) {
+		t.Fatalf("Expected a *rest.Error, got %v", err)
+	}
+	if restErr.Status != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", restErr.Status)
+	}
+	if restErr.Code != -1 {
+		t.Errorf("Expected error code -1 for an unparseable body, got %d", restErr.Code)
+	}
+	if !restErr.HasStatus(http.StatusNotFound) {
+		t.Error("Expected HasStatus(404) to be true")
+	}
+}
+
+// TestHandleRequest_RetriableErrorPreservesStatus verifies that a retriable
+// error response also carries its status once the retries are exhausted.
+func TestHandleRequest_RetriableErrorPreservesStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"error_code": 50301, "message": "unavailable"}`))
+	}))
+	defer server.Close()
+
+	rs, err := NewRestService(&ClientConfig{
+		SchemaRegistryURL: server.URL,
+		MaxRetries:        1,
+		RetriesWaitMs:     1,
+		RetriesMaxWaitMs:  2,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create RestService: %v", err)
+	}
+
+	var response interface{}
+	err = rs.HandleRequest(NewRequest("GET", "/subjects", nil), &response)
+
+	var restErr *rest.Error
+	if !errors.As(err, &restErr) {
+		t.Fatalf("Expected a *rest.Error, got %v", err)
+	}
+	if restErr.Status != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503, got %d", restErr.Status)
+	}
+	if restErr.HasStatus(http.StatusNotFound) {
+		t.Error("A 503 must not be classified as a 404")
 	}
 }
 
