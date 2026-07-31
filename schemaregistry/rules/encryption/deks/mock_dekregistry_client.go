@@ -91,7 +91,8 @@ func (c *mockclient) GetKek(name string, deleted bool, context string) (kek Kek,
 		}
 	}
 	posErr := rest.Error{
-		Code:    404,
+		Status:  404,
+		Code:    40470,
 		Message: "Key Not Found",
 	}
 	return Kek{}, &posErr
@@ -154,7 +155,8 @@ func (c *mockclient) GetDekVersion(kekName string, subject string, version int, 
 		}
 		if latestVersion == 0 {
 			posErr := rest.Error{
-				Code:    404,
+				Status:  404,
+				Code:    40470,
 				Message: "Key Not Found",
 			}
 			return Dek{}, &posErr
@@ -177,7 +179,8 @@ func (c *mockclient) GetDekVersion(kekName string, subject string, version int, 
 		}
 	}
 	posErr := rest.Error{
-		Code:    404,
+		Status:  404,
+		Code:    40470,
 		Message: "Key Not Found",
 	}
 	return Dek{}, &posErr
