@@ -6,6 +6,9 @@
 * Add support for saving Azure key version with DEK (#1577)
 * Pass context when clients make KEK calls to DEK Registry (#1579)
 
+### Fixes
+* Preserve HTTP status on Schema Registry error responses (#1590)
+
 
 ## v2.15.0
 
