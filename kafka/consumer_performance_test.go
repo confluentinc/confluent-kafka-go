@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 )
 
 // consumerPerfTest measures the consumer performance using a pre-primed (produced to) topic
@@ -34,8 +33,6 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 	if msgcnt == 0 {
 		msgcnt = r
 	}
-
-	rand.Seed(int64(time.Now().Unix()))
 
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": useChannel,
