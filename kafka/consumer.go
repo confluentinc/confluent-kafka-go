@@ -706,6 +706,16 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
+func (c *Consumer) getClusterID(timeout int) (string, error) {
+	cClusterID := C.rd_kafka_clusterid(c.handle.rk, C.int(timeout))
+	if cClusterID == nil {
+		return "", fmt.Errorf("Failed to retrieve cluster ID")
+	}
+	clusterID := C.GoString(cClusterID)
+	C.rd_kafka_mem_free(c.handle.rk, unsafe.Pointer(cClusterID))
+	return clusterID, nil
+}
+
 // QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
 	err = c.verifyClient()
