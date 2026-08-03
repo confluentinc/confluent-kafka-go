@@ -28,6 +28,7 @@ type DeserializingConsumer[K, V any] struct {
 
 type Deserializer interface {
 	DeserializeWithHeaders(topic string, headers []Header, payload []byte) (interface{}, error)
+	NeedsClusterID() bool
 	SetClusterID(clusterID string)
 	Close() error
 }
@@ -104,15 +105,20 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 		return nil, err
 	}
 
-	clusterID, err := c.getClusterID(5000)
-	if err != nil {
-		return nil, err
-	}
-	if keyDeserializer != nil {
-		keyDeserializer.SetClusterID(clusterID)
-	}
-	if valueDeserializer != nil {
-		valueDeserializer.SetClusterID(clusterID)
+	keyNeedsClusterID := keyDeserializer != nil && keyDeserializer.NeedsClusterID()
+	valueNeedsClusterID := valueDeserializer != nil && valueDeserializer.NeedsClusterID()
+	if keyNeedsClusterID || valueNeedsClusterID {
+		// Timeout of 60 seconds corresponds to the default max.block.ms in Java for metadata retrieval.
+		clusterID, err := c.getClusterID(60000)
+		if err != nil {
+			return nil, err
+		}
+		if keyNeedsClusterID {
+			keyDeserializer.SetClusterID(clusterID)
+		}
+		if valueNeedsClusterID {
+			valueDeserializer.SetClusterID(clusterID)
+		}
 	}
 	dc := &DeserializingConsumer[K, V]{consumer: c, keyDeserializer: keyDeserializer, valueDeserializer: valueDeserializer}
 	return dc, nil
