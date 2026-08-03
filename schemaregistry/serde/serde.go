@@ -28,11 +28,10 @@ import (
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/google/uuid"
-
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
+	"github.com/google/uuid"
 )
 
 // Type represents the type of Serde
@@ -246,12 +245,19 @@ type Deserializer interface {
 
 // Serde is a common instance for both the serializers and deserializers
 type Serde struct {
-	Client              schemaregistry.Client
-	SerdeType           Type
-	SubjectNameStrategy SubjectNameStrategyFunc
-	MessageFactory      MessageFactory
-	FieldTransformer    FieldTransformer
-	RuleRegistry        *RuleRegistry
+	Client    schemaregistry.Client
+	SerdeType Type
+	//associatedNameStrategy *associatedNameStrategy
+	subjectNameStrategyInterface subjectNameStrategyInterface
+	SubjectNameStrategy          SubjectNameStrategyFunc
+	MessageFactory               MessageFactory
+	FieldTransformer             FieldTransformer
+	RuleRegistry                 *RuleRegistry
+}
+
+type subjectNameStrategyInterface interface {
+	needsClusterID() bool
+	setClusterID(clusterID string)
 }
 
 // BaseSerializer represents basic serializer info
@@ -641,17 +647,49 @@ func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordName
 	}
 }
 
+func newAssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (*associatedNameStrategy, error) {
+	// Get kafka cluster ID from config, default to wildcard
+	kafkaClusterID := NamespaceWildcard
+	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
+		kafkaClusterID = id
+	}
+
+	// Determine fallback strategy
+	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackTypeConfig])
+	if err != nil {
+		return nil, err
+	}
+	fallbackStrategy, err := StrategyFunc(fallbackType, getRecordName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create LRU cache for subject names
+	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
+	if err != nil {
+		return nil, fmt.Errorf("associated name strategy: failed to create LRU cache: %w", err)
+	}
+
+	return &associatedNameStrategy{
+		client:           client,
+		kafkaClusterID:   kafkaClusterID,
+		fallbackStrategy: fallbackStrategy,
+		subjectNameCache: subjectNameCache,
+	}, nil
+}
+
 // ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
 func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) error {
 	if strategyType == NoStrategyType {
 		strategyType = AssociatedNameStrategyType
 	}
 	if strategyType == AssociatedNameStrategyType {
-		strategy, err := AssociatedNameStrategy(s.Client, config, getRecordName)
+		associatedNameStrategy, err := newAssociatedNameStrategy(s.Client, config, getRecordName)
+		s.subjectNameStrategyInterface = associatedNameStrategy
 		if err != nil {
 			return err
 		}
-		s.SubjectNameStrategy = strategy
+		s.SubjectNameStrategy = associatedNameStrategy.subjectNameStrategy
 	} else {
 		strategy, err := StrategyFunc(strategyType, getRecordName)
 		if err != nil {
@@ -660,6 +698,16 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 		s.SubjectNameStrategy = strategy
 	}
 	return nil
+}
+
+func (s *Serde) NeedsClusterID() bool {
+	return s.subjectNameStrategyInterface != nil && s.subjectNameStrategyInterface.needsClusterID()
+}
+
+func (s *Serde) SetClusterID(clusterID string) {
+	if s.subjectNameStrategyInterface != nil && s.subjectNameStrategyInterface.needsClusterID() {
+		s.subjectNameStrategyInterface.setClusterID(clusterID)
+	}
 }
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
@@ -704,6 +752,60 @@ type subjectCacheKey struct {
 	schema string
 }
 
+type associatedNameStrategy struct {
+	client           schemaregistry.Client
+	kafkaClusterID   string
+	fallbackStrategy SubjectNameStrategyFunc
+	subjectNameCache *cache.LRUCache
+	cacheLock        sync.RWMutex
+}
+
+func (s *associatedNameStrategy) needsClusterID() bool {
+	return s.kafkaClusterID == ""
+}
+
+func (s *associatedNameStrategy) setClusterID(clusterID string) {
+	if s.needsClusterID() {
+		s.kafkaClusterID = clusterID
+	}
+}
+
+func (s *associatedNameStrategy) subjectNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+	if topic == "" {
+		return "", nil
+	}
+
+	isKey := serdeType == KeySerde
+
+	// Create cache key using topic, isKey, and schema string
+	cacheKey := subjectCacheKey{
+		topic:  topic,
+		isKey:  isKey,
+		schema: schema.Schema,
+	}
+
+	// Check cache first with read lock
+	s.cacheLock.RLock()
+	cached, ok := s.subjectNameCache.Get(cacheKey)
+	s.cacheLock.RUnlock()
+	if ok {
+		return cached.(string), nil
+	}
+
+	// Load subject name from schema registry (without holding lock)
+	subject, err := loadAssociatedSubjectName(s.client, topic, s.kafkaClusterID, isKey, schema, s.fallbackStrategy, serdeType)
+	if err != nil {
+		return "", err
+	}
+
+	// Store in cache
+	s.cacheLock.Lock()
+	s.subjectNameCache.Put(cacheKey, subject)
+	s.cacheLock.Unlock()
+
+	return subject, nil
+}
+
 // AssociatedNameStrategy returns a strategy that retrieves the associated subject name from schema registry.
 // The topic is passed as the resource name to schema registry. If there is a configuration property named
 // "subject.name.strategy.kafka.cluster.id", then its value will be passed as the resource namespace; otherwise the value "-"
@@ -713,64 +815,11 @@ type subjectCacheKey struct {
 // unless the configuration property "subject.name.strategy.fallback.type" is set to "RECORD",
 // "TOPIC_RECORD", or "NONE".
 func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (SubjectNameStrategyFunc, error) {
-	// Get kafka cluster ID from config, default to wildcard
-	kafkaClusterID := NamespaceWildcard
-	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
-		kafkaClusterID = id
-	}
-
-	// Determine fallback strategy
-	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackTypeConfig])
+	strategy, err := newAssociatedNameStrategy(client, config, getRecordName)
 	if err != nil {
 		return nil, err
 	}
-	fallbackStrategy, err := StrategyFunc(fallbackType, getRecordName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create LRU cache for subject names
-	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
-	if err != nil {
-		return nil, fmt.Errorf("associated name strategy: failed to create LRU cache: %w", err)
-	}
-	var subjectNameCacheLock sync.RWMutex
-
-	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
-		if topic == "" {
-			return "", nil
-		}
-
-		isKey := serdeType == KeySerde
-
-		// Create cache key using topic, isKey, and schema string
-		cacheKey := subjectCacheKey{
-			topic:  topic,
-			isKey:  isKey,
-			schema: schema.Schema,
-		}
-
-		// Check cache first with read lock
-		subjectNameCacheLock.RLock()
-		cached, ok := subjectNameCache.Get(cacheKey)
-		subjectNameCacheLock.RUnlock()
-		if ok {
-			return cached.(string), nil
-		}
-
-		// Load subject name from schema registry (without holding lock)
-		subject, err := loadAssociatedSubjectName(client, topic, kafkaClusterID, isKey, schema, fallbackStrategy, serdeType)
-		if err != nil {
-			return "", err
-		}
-
-		// Store in cache
-		subjectNameCacheLock.Lock()
-		subjectNameCache.Put(cacheKey, subject)
-		subjectNameCacheLock.Unlock()
-
-		return subject, nil
-	}, nil
+	return strategy.subjectNameStrategy, nil
 }
 
 // loadAssociatedSubjectName loads the subject name from schema registry associations
