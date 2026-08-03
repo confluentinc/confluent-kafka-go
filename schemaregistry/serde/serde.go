@@ -668,8 +668,10 @@ func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordName
 func newAssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (*associatedNameStrategy, error) {
 	// Get kafka cluster ID from config, default to wildcard
 	kafkaClusterID := NamespaceWildcard
+	kafkaClusterIDSet := false
 	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
 		kafkaClusterID = id
+		kafkaClusterIDSet = true
 	}
 
 	// Determine fallback strategy
@@ -689,10 +691,11 @@ func newAssociatedNameStrategy(client schemaregistry.Client, config map[string]s
 	}
 
 	return &associatedNameStrategy{
-		client:           client,
-		kafkaClusterID:   kafkaClusterID,
-		fallbackStrategy: fallbackStrategy,
-		subjectNameCache: subjectNameCache,
+		client:            client,
+		kafkaClusterID:    kafkaClusterID,
+		kafkaClusterIDSet: kafkaClusterIDSet,
+		fallbackStrategy:  fallbackStrategy,
+		subjectNameCache:  subjectNameCache,
 	}, nil
 }
 
@@ -771,20 +774,22 @@ type subjectCacheKey struct {
 }
 
 type associatedNameStrategy struct {
-	client           schemaregistry.Client
-	kafkaClusterID   string
-	fallbackStrategy SubjectNameStrategyFunc
-	subjectNameCache *cache.LRUCache
-	cacheLock        sync.RWMutex
+	client            schemaregistry.Client
+	kafkaClusterID    string
+	kafkaClusterIDSet bool
+	fallbackStrategy  SubjectNameStrategyFunc
+	subjectNameCache  *cache.LRUCache
+	cacheLock         sync.RWMutex
 }
 
 func (s *associatedNameStrategy) needsClusterID() bool {
-	return s.kafkaClusterID == ""
+	return !s.kafkaClusterIDSet
 }
 
 func (s *associatedNameStrategy) setClusterID(clusterID string) {
 	if s.needsClusterID() {
 		s.kafkaClusterID = clusterID
+		s.kafkaClusterIDSet = true
 	}
 }
 
