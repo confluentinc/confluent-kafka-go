@@ -32,6 +32,7 @@ type SerializingProducer[K, V any] struct {
 type Serializer interface {
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	SerializeWithHeaders(topic string, msg interface{}) ([]Header, []byte, error)
+	NeedsClusterID() bool
 	SetClusterID(clusterID string)
 	Close() error
 }
@@ -68,15 +69,20 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 		return nil, err
 	}
 
-	clusterID, err := p.getClusterID(5000)
-	if err != nil {
-		return nil, err
-	}
-	if keySerializer != nil {
-		keySerializer.SetClusterID(clusterID)
-	}
-	if valueSerializer != nil {
-		valueSerializer.SetClusterID(clusterID)
+	keyNeedsClusterID := keySerializer != nil && keySerializer.NeedsClusterID()
+	valueNeedsClusterID := valueSerializer != nil && valueSerializer.NeedsClusterID()
+	if keyNeedsClusterID || valueNeedsClusterID {
+		// Timeout of 60 seconds corresponds to the default max.block.ms in Java for metadata retrieval.
+		clusterID, err := p.getClusterID(60000)
+		if err != nil {
+			return nil, err
+		}
+		if keyNeedsClusterID {
+			keySerializer.SetClusterID(clusterID)
+		}
+		if valueNeedsClusterID {
+			valueSerializer.SetClusterID(clusterID)
+		}
 	}
 	sp := &SerializingProducer[K, V]{producer: p, keySerializer: keySerializer, valueSerializer: valueSerializer}
 	p.setSendMessageToChannelFunction(sp.sendToChannel)
