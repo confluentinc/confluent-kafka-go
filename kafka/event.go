@@ -144,6 +144,16 @@ func (o OAuthBearerTokenRefresh) String() string {
 	return "OAuthBearerTokenRefresh"
 }
 
+func (h *handle) sendToChannel(e Event, deliveryChan *chan Event, termChan chan bool) (term bool) {
+	term = false
+	select {
+	case *deliveryChan <- e:
+	case <-termChan:
+		term = true
+	}
+	return
+}
+
 // eventPoll polls an event from the handler's C rd_kafka_queue_t,
 // translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
 // term_chan is an optional channel to monitor along with producing to channel
@@ -248,14 +258,16 @@ out:
 				}
 
 				if ch != nil {
-					select {
-					case *ch <- msg:
-					case <-termChan:
+					var term bool
+					if h.sendMessageToChannel != nil {
+						term = h.sendMessageToChannel(msg, ch, termChan)
+					} else {
+						term = h.sendToChannel(msg, ch, termChan)
+					}
+					if term {
 						retval = nil
-						term = true
 						break out
 					}
-
 				} else {
 					retval = msg
 					break out
