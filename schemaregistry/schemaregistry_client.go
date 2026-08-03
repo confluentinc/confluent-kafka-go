@@ -151,6 +151,7 @@ type RuleSet struct {
 	MigrationRules []Rule `json:"migrationRules,omitempty"`
 	DomainRules    []Rule `json:"domainRules,omitempty"`
 	EncodingRules  []Rule `json:"encodingRules,omitempty"`
+	EnableAt       string `json:"enableAt,omitempty"`
 }
 
 // HasRules checks if the ruleset has rules for the given mode

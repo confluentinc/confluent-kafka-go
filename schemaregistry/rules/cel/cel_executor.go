@@ -71,8 +71,18 @@ func (c *Executor) Type() string {
 
 // Transform transforms the message using the rule
 func (c *Executor) Transform(ctx serde.RuleContext, msg interface{}) (interface{}, error) {
+	// Dereference pointer for CEL evaluation, but only for non-proto types
+	// since proto.Message is implemented on the pointer receiver.
+	// Use a separate celMsg for args so that the original msg is preserved
+	// for return semantics in execute().
+	celMsg := msg
+	if _, ok := msg.(proto.Message); !ok {
+		if v := reflect.ValueOf(msg); v.Kind() == reflect.Ptr && !v.IsNil() {
+			celMsg = v.Elem().Interface()
+		}
+	}
 	args := map[string]interface{}{
-		"message": msg,
+		"message": celMsg,
 	}
 	return c.execute(ctx, msg, args)
 }

@@ -103,6 +103,7 @@ done
 
 for btype in glibc_linux_amd64 \
                  glibc_linux_arm64 \
+                 glibc_linux_s390x \
                  musl_linux_amd64 \
                  musl_linux_arm64 \
                  darwin_amd64 \

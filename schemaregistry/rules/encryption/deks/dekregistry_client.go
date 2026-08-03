@@ -124,6 +124,8 @@ type KekID struct {
 	Name string
 	// Deleted
 	Deleted bool
+	// Context is the Schema Registry context the KEK belongs to, or "" for the default context.
+	Context string
 }
 
 // DekID represents a Key Encryption Key ID
@@ -158,8 +160,8 @@ var _ Client = new(client)
 // https://github.com/confluentinc/schema-registry/blob/master/client/src/main/java/io/confluent/kafka/schemaregistry/client/SchemaRegistryClient.java
 type Client interface {
 	Config() *schemaregistry.Config
-	RegisterKek(name string, kmsType string, kmsKeyID string, kmsProps map[string]string, doc string, shared bool) (kek Kek, err error)
-	GetKek(name string, deleted bool) (kek Kek, err error)
+	RegisterKek(name string, kmsType string, kmsKeyID string, kmsProps map[string]string, doc string, shared bool, context string) (kek Kek, err error)
+	GetKek(name string, deleted bool, context string) (kek Kek, err error)
 	RegisterDek(kekName string, subject string, algorithm string, encryptedKeyMaterial string) (dek Dek, err error)
 	GetDek(kekName string, subject string, algorithm string, deleted bool) (dek Dek, err error)
 	RegisterDekVersion(kekName string, subject string, version int, algorithm string, encryptedKeyMaterial string) (dek Dek, err error)
@@ -222,10 +224,11 @@ func (c *client) Config() *schemaregistry.Config {
 }
 
 // RegisterKek registers kek
-func (c *client) RegisterKek(name string, kmsType string, kmsKeyID string, kmsProps map[string]string, doc string, shared bool) (kek Kek, err error) {
+func (c *client) RegisterKek(name string, kmsType string, kmsKeyID string, kmsProps map[string]string, doc string, shared bool, context string) (kek Kek, err error) {
 	cacheKey := KekID{
 		Name:    name,
 		Deleted: false,
+		Context: context,
 	}
 	c.kekCacheLock.RLock()
 	cacheValue, ok := c.kekCache.Get(cacheKey)
@@ -242,11 +245,17 @@ func (c *client) RegisterKek(name string, kmsType string, kmsKeyID string, kmsPr
 		Doc:      doc,
 		Shared:   shared,
 	}
+	endpoint := internal.Keks
+	var args []interface{}
+	if context != "" {
+		endpoint += "?context=%s"
+		args = append(args, url.QueryEscape(context))
+	}
 	c.kekCacheLock.Lock()
 	// another goroutine could have already put it in cache
 	cacheValue, ok = c.kekCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("POST", internal.Keks, &input), &kek)
+		err = c.restService.HandleRequest(internal.NewRequest("POST", endpoint, &input, args...), &kek)
 		if err == nil {
 			c.kekCache.Put(cacheKey, &kek)
 		} else {
@@ -261,10 +270,11 @@ func (c *client) RegisterKek(name string, kmsType string, kmsKeyID string, kmsPr
 
 // GetKek returns the kek identified by name
 // Returns kek object on success
-func (c *client) GetKek(name string, deleted bool) (kek Kek, err error) {
+func (c *client) GetKek(name string, deleted bool, context string) (kek Kek, err error) {
 	cacheKey := KekID{
 		Name:    name,
 		Deleted: deleted,
+		Context: context,
 	}
 	c.kekCacheLock.RLock()
 	cacheValue, ok := c.kekCache.Get(cacheKey)
@@ -273,11 +283,17 @@ func (c *client) GetKek(name string, deleted bool) (kek Kek, err error) {
 		return *cacheValue.(*Kek), nil
 	}
 
+	endpoint := internal.KekByName
+	args := []interface{}{url.QueryEscape(name), deleted}
+	if context != "" {
+		endpoint += "&context=%s"
+		args = append(args, url.QueryEscape(context))
+	}
 	c.kekCacheLock.Lock()
 	// another goroutine could have already put it in cache
 	cacheValue, ok = c.kekCache.Get(cacheKey)
 	if !ok {
-		err = c.restService.HandleRequest(internal.NewRequest("GET", internal.KekByName, nil, url.QueryEscape(name), deleted), &kek)
+		err = c.restService.HandleRequest(internal.NewRequest("GET", endpoint, nil, args...), &kek)
 		if err == nil {
 			c.kekCache.Put(cacheKey, &kek)
 		}

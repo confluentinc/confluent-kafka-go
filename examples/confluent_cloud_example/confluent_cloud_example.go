@@ -32,7 +32,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
 // In order to set the constants below, you are going to need
@@ -99,13 +99,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, avrov2.NewSerializerConfig())
+	ser, err := avrov3.NewSerializer(client, serde.ValueSerde, avrov3.NewSerializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create serializer: %s\n", err)
 		os.Exit(1)
 	}
-	deser, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
+	deser, err := avrov3.NewDeserializer(client, serde.ValueSerde, avrov3.NewDeserializerConfig())
 
 	if err != nil {
 		fmt.Printf("Failed to create deserializer: %s\n", err)

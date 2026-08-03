@@ -188,7 +188,24 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
+	err = s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, conf.SubjectNameStrategyConfig, s.GetRecordName)
+	if err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// GetRecordName extracts the message name from a Protobuf schema using toFileDesc
+func (s *Serializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	messages := fd.GetMessageTypes()
+	if len(messages) == 0 {
+		return "", fmt.Errorf("Protobuf schema does not contain any messages")
+	}
+	return messages[0].GetFullyQualifiedName(), nil
 }
 
 // ConfigureDeserializer configures the Protobuf deserializer
@@ -534,7 +551,24 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	if err != nil {
 		return nil, err
 	}
+	err = s.ConfigureSubjectNameStrategy(conf.SubjectNameStrategyType, conf.SubjectNameStrategyConfig, s.GetRecordName)
+	if err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// GetRecordName extracts the message name from a Protobuf schema using toFileDesc
+func (s *Deserializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return "", err
+	}
+	messages := fd.GetMessageTypes()
+	if len(messages) == 0 {
+		return "", fmt.Errorf("Protobuf schema does not contain any messages")
+	}
+	return messages[0].GetFullyQualifiedName(), nil
 }
 
 // Deserialize implements deserialization of Protobuf data
@@ -702,15 +736,23 @@ func toMessageDesc(descriptor desc.Descriptor, msgIndexes []int) (*desc.MessageD
 
 	switch v := descriptor.(type) {
 	case *desc.FileDescriptor:
-		if len(msgIndexes) == 1 {
-			return v.GetMessageTypes()[index], nil
+		msgs := v.GetMessageTypes()
+		if index < 0 || index >= len(msgs) {
+			return nil, fmt.Errorf("message index %d out of range, schema has %d top-level message(s)", index, len(msgs))
 		}
-		return toMessageDesc(v.GetMessageTypes()[index], msgIndexes[1:])
+		if len(msgIndexes) == 1 {
+			return msgs[index], nil
+		}
+		return toMessageDesc(msgs[index], msgIndexes[1:])
 	case *desc.MessageDescriptor:
-		if len(msgIndexes) == 1 {
-			return v.GetNestedMessageTypes()[index], nil
+		nested := v.GetNestedMessageTypes()
+		if index < 0 || index >= len(nested) {
+			return nil, fmt.Errorf("message index %d out of range, message has %d nested message(s)", index, len(nested))
 		}
-		return toMessageDesc(v.GetNestedMessageTypes()[index], msgIndexes[1:])
+		if len(msgIndexes) == 1 {
+			return nested[index], nil
+		}
+		return toMessageDesc(nested[index], msgIndexes[1:])
 	default:
 		return nil, fmt.Errorf("unexpected type")
 	}

@@ -1,5 +1,92 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.x.0
+
+### Enhancements
+* Add support for saving Azure key version with DEK (#1577)
+* Pass context when clients make KEK calls to DEK Registry (#1579)
+
+
+## v2.15.0
+
+This is a feature release:
+
+### Enhancements
+* Add support for `ResourceTransactionalID` in AdminClient ACL APIs (#1407)
+* Add support for union-of-pools/auto pool mapping for Schema Registry (#1519)
+
+### Fixes
+* Handle non-HTTP errors during retries (#1563)
+* `ErrMsgTimedOut` is now counted as a timeout error (#1422, @marcoferrer)
+
+
+## v2.14.2
+
+This is a maintenance release:
+
+### Enhancements
+* Add a new Avro package "avrov3" which uses confluent-avro-go, Confluent's
+  fork of the now-archived hamba/avro library. avrov3 picks up the upstream
+  little-endian decoding fix for floats and doubles (per the Avro spec) and
+  hamba bug fixes accumulated since v2.24.1, including correct unwrapping
+  of union-typed fields when decoding into map[string]interface{}. The
+  existing "avrov2" package remains supported on hamba/avro for backwards
+  compatibility; new code should prefer avrov3.
+* Note: adopting avrov3 bumps this module's `go` directive from 1.24.3 to
+  1.25.0, since `confluent-avro-go/v2 v2.32.0` requires Go 1.25.0+. Users on
+  Go 1.24.x with `GOTOOLCHAIN=auto` (the default since Go 1.21) will fetch a
+  1.25 toolchain transparently; users with `GOTOOLCHAIN=local` must upgrade
+  to Go 1.25.0 or later.
+* Note: `confluent-avro-go/v2 v2.32.0` transitively raises the minimum
+  versions of several dependencies: `github.com/go-viper/mapstructure/v2`
+  (v2.0.0 → v2.5.0), `github.com/klauspost/compress` (v1.17.9 → v1.18.5),
+  `github.com/stretchr/testify` (v1.9.0 → v1.11.1), and `golang.org/x/sync`
+  (v0.8.0 → v0.20.0).
+* Removed integration test dependencies from the kafka module (#1555).
+* Bump golang.org/x/net to v0.55.0 to fix: GO-2026-5026 in idna, GO-2026-4918 in HTTP/2 transport (#1555).
+
+### Fixes
+* Handle anyOf/allOf in JSON transforms #1539
+
+confluent-kafka-go is based on librdkafka v2.14.2, see the
+[librdkafka v2.14.2 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.14.1
+
+This is a maintenance release:
+
+* Bundle prebuilt binaries for linux-s390x (#5365)
+
+confluent-kafka-go is based on librdkafka v2.14.1, see the
+[librdkafka v2.14.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.14.0
+
+This is a feature release:
+
+### Enhancements
+* Add support for Azure User-Assigned Managed Identity (UAMI) authentication in Schema Registry client
+* Add AssociatedNameStrategy (#1515)
+* Add enableAt to RuleSet (#1530)
+* Dereference map ptrs for data quality rules (#1532)
+
+confluent-kafka-go is based on librdkafka v2.14.0, see the
+[librdkafka v2.14.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.13.3
+
+This is a maintenance release:
+
+### Fixes
+* Allow compatibility with librdkafka 2.13.0+ (#1524)
+
+
 ## v2.13.2
 
 This is a maintenance release:
@@ -8,7 +95,10 @@ This is a maintenance release:
 * Allow Azure KMS key version to be optional (#1503)
 * schemaregistry/rules/encryption: fix dropped errors (#1512)
 * Update frozen semantics for associations in mock SR client (#1514)
-* Client side upgrade for union-of-pools (#1511)
+
+confluent-kafka-go is based on librdkafka v2.13.2, see the
+[librdkafka v2.13.2 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.13.0

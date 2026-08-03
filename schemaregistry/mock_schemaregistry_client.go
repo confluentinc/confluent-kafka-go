@@ -232,16 +232,27 @@ func (c *mockclient) generateVersion(subject string, schema SchemaInfo) error {
 // GetBySubjectAndID returns the schema identified by id
 // Returns Schema object on success
 func (c *mockclient) GetBySubjectAndID(subject string, id int) (schema SchemaInfo, err error) {
-	cacheKey := subjectID{
-		subject: subject,
-		id:      id,
-	}
 	c.idToSchemaCacheLock.RLock()
-	cacheEntryValue, ok := c.idToSchemaCache[cacheKey]
-	c.idToSchemaCacheLock.RUnlock()
-	if ok {
-		return *cacheEntryValue.info, nil
+	defer c.idToSchemaCacheLock.RUnlock()
+
+	// If subject is empty, search for any key that matches the id
+	if subject == "" {
+		for key, cacheEntryValue := range c.idToSchemaCache {
+			if key.id == id {
+				return *cacheEntryValue.info, nil
+			}
+		}
+	} else {
+		cacheKey := subjectID{
+			subject: subject,
+			id:      id,
+		}
+		cacheEntryValue, ok := c.idToSchemaCache[cacheKey]
+		if ok {
+			return *cacheEntryValue.info, nil
+		}
 	}
+
 	posErr := url.Error{
 		Op:  "GET",
 		URL: c.url.String() + fmt.Sprintf(internal.SchemasBySubject, id, url.QueryEscape(subject)),

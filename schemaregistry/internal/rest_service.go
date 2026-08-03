@@ -293,16 +293,12 @@ func createUSERINFOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderP
 	return NewBasicAuthenticationHeaderProvider(encodeBasicAuth(auth)), nil
 }
 
-// checkIdentityPoolIDAndLogicalCluster checks if identity pool id and logical cluster are set
-func checkIdentityPoolIDAndLogicalCluster(conf *ClientConfig) error {
-	if conf.BearerAuthIdentityPoolID == "" {
-		return fmt.Errorf("bearer.auth.identity.pool.id must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
-	}
+// checkLogicalCluster checks if logical cluster is set for bearer authentication.
+// Note: bearer.auth.identity.pool.id is optional, as auto pool mapping is supported
+func checkLogicalCluster(conf *ClientConfig) error {
 	if conf.BearerAuthLogicalCluster == "" {
 		return fmt.Errorf("bearer.auth.logical.cluster must be specified when bearer.auth.credentials.source is" +
-			" specified with STATIC_TOKEN or OAUTHBEARER")
-
+			" specified with OAUTHBEARER or UAMI")
 	}
 	return nil
 }
@@ -329,7 +325,7 @@ func checkBearerOAuthFields(conf *ClientConfig) error {
 			" specified with OAUTHBEARER")
 	}
 
-	err := checkIdentityPoolIDAndLogicalCluster(conf)
+	err := checkLogicalCluster(conf)
 	if err != nil {
 		return err
 	}
@@ -353,7 +349,7 @@ func createStaticTokenAuthHeaderProvider(conf *ClientConfig) (AuthenticationHead
 	// TODO: Enable these lines for major version 3 release, since static token does not check for
 	// identity pool id and logical cluster at the moment
 
-	// err := checkIdentityPoolIDAndLogicalCluster(conf)
+	// err := checkLogicalCluster(conf)
 	// if err != nil {
 	// 	return nil, err
 	// }
@@ -387,6 +383,47 @@ func createBearerOAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderPr
 	)
 
 	return authenticationHeaderProvider, nil
+}
+
+// checkUAMIFields checks if the UAMI auth fields are set
+func checkUAMIFields(conf *ClientConfig) error {
+	if conf.AuthenticationHeaderProvider != nil {
+		return fmt.Errorf("cannot have bearer.auth.credentials.source UAMI " +
+			"with custom authentication header provider")
+	}
+
+	if len(conf.BearerAuthScopes) != 1 {
+		return fmt.Errorf("bearer.auth.scopes must specify exactly one resource when bearer.auth.credentials.source is" +
+			" specified with UAMI")
+	}
+
+	return checkLogicalCluster(conf)
+}
+
+// createUAMIAuthHeaderProvider creates a new BearerTokenAuthenticationHeaderProvider using UAMI
+func createUAMIAuthHeaderProvider(conf *ClientConfig) (AuthenticationHeaderProvider, error) {
+	err := checkUAMIFields(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenFetcher, err := NewUAMITokenFetcher(
+		conf.BearerAuthUAMIEndpointURL,
+		conf.BearerAuthUAMIEndpointQuery,
+		conf.BearerAuthScopes,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBearerTokenAuthenticationHeaderProvider(
+		conf.BearerAuthIdentityPoolID,
+		conf.BearerAuthLogicalCluster,
+		tokenFetcher,
+		conf.MaxRetries,
+		conf.RetriesWaitMs,
+		conf.RetriesMaxWaitMs,
+	), nil
 }
 
 // handleCustomAuthenticationHeaderProvider handles custom authentication header provider
@@ -431,6 +468,8 @@ func NewAuthenticationHeaderProvider(service *url.URL, conf *ClientConfig) (Auth
 			provider, err = createStaticTokenAuthHeaderProvider(conf)
 		case "OAUTHBEARER":
 			provider, err = createBearerOAuthHeaderProvider(conf)
+		case "UAMI":
+			provider, err = createUAMIAuthHeaderProvider(conf)
 		case "CUSTOM":
 			provider, err = handleCustomAuthenticationHeaderProvider(conf)
 		default:
@@ -514,42 +553,73 @@ func (rs *RestService) HandleHTTPRequest(url *url.URL, request *API) (*http.Resp
 		return nil, err
 	}
 
-	var outbuf io.Reader
+	// Marshal the body once and create a fresh reader for each attempt below.
+	// Reusing a single reader would send an empty body on retries, since the
+	// reader is drained once the request has been sent.
+	var body []byte
 	if request.body != nil {
-		body, err := json.Marshal(request.body)
+		body, err = json.Marshal(request.body)
 		if err != nil {
 			return nil, err
 		}
-		outbuf = bytes.NewBuffer(body)
 	}
 
 	var req *http.Request
 	var resp *http.Response
 
-	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &rs.headers)
-
+	// Clone base headers before setting auth to avoid concurrent map access
+	// when multiple goroutines call HandleHTTPRequest simultaneously.
+	// Each request gets its own header copy, so no synchronization is needed.
+	headers := rs.headers.Clone()
+	err = SetAuthenticationHeaders(rs.authenticationHeaderProvider, &headers)
 	if err != nil {
 		return nil, err
 	}
 
 	for i := 0; i < rs.maxRetries+1; i++ {
 
+		var bodyReader io.Reader
+		if body != nil {
+			bodyReader = bytes.NewReader(body)
+		}
 		req, err = http.NewRequest(
 			request.method,
 			endpoint.String(),
-			outbuf,
+			bodyReader,
 		)
-		req.Header = rs.headers
+		req.Header = headers
 
 		resp, err = rs.Do(req)
 		if err != nil {
-			return nil, err
+			// Do returns a non-nil resp together with an error only when the
+			// redirect policy fails (e.g. too many redirects). That is not a
+			// transient network failure, so don't retry it: close the (already
+			// closed by http.Client, but closed here defensively) body and
+			// return the error immediately.
+			if resp != nil {
+				resp.Body.Close()
+				return nil, err
+			}
+			// Otherwise the request failed before any response was received
+			// (DNS failure, dial/connection timeout, connection refused/reset,
+			// TLS handshake error, etc.) — a network-level failure worth
+			// retrying, like the Java client retries on IOException.
+			if i >= rs.maxRetries {
+				return nil, err
+			}
+			time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
+			continue
 		}
 
 		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries {
 			return resp, nil
 		}
 
+		// Drain and close the response body before retrying so the underlying
+		// connection can be reused (HTTP keep-alive) and no file descriptors
+		// are leaked across attempts.
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		time.Sleep(fullJitter(i, rs.ceilingRetries, rs.retriesMaxWaitMs, rs.retriesWaitMs))
 	}
 	return nil, fmt.Errorf("failed to send request after %d retries", rs.maxRetries)

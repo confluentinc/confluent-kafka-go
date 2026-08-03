@@ -19,6 +19,7 @@ package jsonschema
 import (
 	"encoding/base64"
 	"errors"
+
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/awskms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/azurekms"
@@ -203,6 +204,27 @@ const (
   }
 }
 `
+	pairASchema = `
+{
+"type": "object",
+"properties": {
+"a": { "type": "string" }
+},
+"required": ["a"],
+"additionalProperties": true
+}
+`
+	pairABSchema = `
+{
+  "type": "object",
+  "properties": {
+    "a": { "type": "string" },
+    "b": { "type": "integer" }
+  },
+  "required": ["a", "b"],
+  "additionalProperties": false
+}
+`
 	defSchema = `
 {
 	"$schema" : "http://json-schema.org/draft-07/schema#",
@@ -304,6 +326,86 @@ const (
         }
     }
 `
+	allOfSchema = `
+{
+    "type": "object",
+    "properties": {
+        "pins": {
+            "type": "object",
+            "allOf": [
+                {
+                    "properties": {
+                        "pin": {
+                            "confluent:tags": ["PII"],
+                            "type": ["string", "null"]
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "npin": {
+                            "confluent:tags": ["PII"],
+                            "type": ["string", "null"]
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+`
+	nestedAnyOfSchema = `
+{
+    "type": "object",
+    "properties": {
+        "pins": {
+            "type": "object",
+            "anyOf": [
+                {
+                    "properties": {
+                        "pin": {
+                            "confluent:tags": ["PII"],
+                            "type": ["string", "null"]
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "npin": {
+                            "confluent:tags": ["PII"],
+                            "type": ["string", "null"]
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+`
+	siblingAnyOfSchema = `
+{
+    "type": "object",
+    "properties": {
+        "pins": {
+            "type": "object",
+            "anyOf": [
+                { "required": ["pin"] },
+                { "required": ["npin"] }
+            ],
+            "properties": {
+                "pin": {
+                    "confluent:tags": ["PII"],
+                    "type": ["string", "null"]
+                },
+                "npin": {
+                    "confluent:tags": ["PII"],
+                    "type": ["string", "null"]
+                }
+            }
+        }
+    }
+}
+`
 )
 
 func testMessageFactory1(subject string, name string) (interface{}, error) {
@@ -316,6 +418,10 @@ func testMessageFactory2(subject string, name string) (interface{}, error) {
 
 func testMessageFactory3(subject string, name string) (interface{}, error) {
 	return &NewerWidget{}, nil
+}
+
+func testMessageFactoryPairA(subject string, name string) (interface{}, error) {
+	return &PairA{}, nil
 }
 
 func TestJSONSchemaSerdeWithSimple(t *testing.T) {
@@ -951,6 +1057,174 @@ func TestJSONSchemaSerdeWithCELFieldTransformWithDef(t *testing.T) {
 	obj2.Address = addr2
 
 	var newobj JSONPerson
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformAllOf(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Tags: []string{"PII"},
+		Expr: "value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     allOfSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := JSONPinsHolder{Pins: JSONPins{Pin: "P123456789", Npin: "NP00012345678"}}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	obj2 := JSONPinsHolder{Pins: JSONPins{Pin: "P123456789-suffix", Npin: "NP00012345678-suffix"}}
+
+	var newobj JSONPinsHolder
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformNestedAnyOf(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Tags: []string{"PII"},
+		Expr: "value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     nestedAnyOfSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := JSONPinsHolder{Pins: JSONPins{Pin: "P123456789", Npin: "NP00012345678"}}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	obj2 := JSONPinsHolder{Pins: JSONPins{Pin: "P123456789-suffix", Npin: "NP00012345678-suffix"}}
+
+	var newobj JSONPinsHolder
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
+}
+
+func TestJSONSchemaSerdeWithCELFieldTransformSiblingAnyOf(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "TRANSFORM",
+		Mode: "WRITE",
+		Type: "CEL_FIELD",
+		Tags: []string{"PII"},
+		Expr: "value + '-suffix'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     siblingAnyOfSchema,
+		SchemaType: "JSON",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := JSONPinsHolder{Pins: JSONPins{Pin: "P123456789", Npin: "NP00012345678"}}
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	obj2 := JSONPinsHolder{Pins: JSONPins{Pin: "P123456789-suffix", Npin: "NP00012345678-suffix"}}
+
+	var newobj JSONPinsHolder
 	err = deser.DeserializeInto("topic1", bytes, &newobj)
 	serde.MaybeFail("deserialization", err, serde.Expect(&newobj, &obj2))
 }
@@ -2018,6 +2292,16 @@ type NewerWidget struct {
 	Version int `json:"version"`
 }
 
+type PairA struct {
+	A string `json:"a"`
+}
+
+type PairAB struct {
+	A string `json:"a"`
+
+	B int `json:"b"`
+}
+
 type Address struct {
 	DoorNumber int `json:"doornumber"`
 
@@ -2028,6 +2312,16 @@ type JSONPerson struct {
 	Name string `json:"name"`
 
 	Address Address `json:"address"`
+}
+
+type JSONPins struct {
+	Pin string `json:"pin"`
+
+	Npin string `json:"npin"`
+}
+
+type JSONPinsHolder struct {
+	Pins JSONPins `json:"pins"`
 }
 
 type Message struct {
@@ -2042,4 +2336,372 @@ type Payload struct {
 	MessageID string `json:"messageId"`
 
 	Timestamp int `json:"timestamp"`
+}
+
+func testMessageFactory(subject string, name string) (interface{}, error) {
+	return &JSONDemoSchema{}, nil
+}
+
+func TestJSONSchemaSerdeWithAssociatedNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("my-custom-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association between topic1 and my-custom-subject
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-custom-subject",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj JSONDemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestJSONSchemaSerdeWithAssociatedNameStrategyFallbackToTopic(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with topic name strategy (no association)
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// No association created - should fall back to TopicNameStrategy
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	// Default fallback is TOPIC
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestJSONSchemaSerdeWithAssociatedNameStrategyFallbackNone(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with some subject (but no association will be created)
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// No association created, and fallback is NONE - should error
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	serConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.FallbackTypeConfig: "NONE",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	_, err = ser.Serialize("topic1", &obj)
+	if err == nil {
+		t.Errorf("Expected error when no association found and fallback is NONE")
+	}
+}
+
+func TestJSONSchemaSerdeWithAssociatedNameStrategyWithKafkaClusterID(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("my-custom-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association with specific namespace (kafka cluster id)
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "lkc-my-cluster",
+		ResourceID:        "lkc-my-cluster:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-custom-subject",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	serConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.KafkaClusterIDConfig: "lkc-my-cluster",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deserConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.KafkaClusterIDConfig: "lkc-my-cluster",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestJSONSchemaSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "JSON",
+	}
+
+	id, err := client.Register("my-cached-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-cached-subject",
+				AssociationType: "value",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := JSONDemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 1})
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	// Serialize multiple times - should use cache after first call
+	for i := 0; i < 5; i++ {
+		bytes, err := ser.Serialize("topic1", &obj)
+		serde.MaybeFail("serialization", err)
+
+		msg, err := deser.Deserialize("topic1", bytes)
+		serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+	}
+}
+
+func TestJSONSchemaSerdeWithBackwardCompatibleFieldRemoval(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	obj := PairAB{
+		A: "x",
+		B: 42,
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     pairABSchema,
+		SchemaType: "JSON",
+		Metadata: &schemaregistry.Metadata{
+			Properties: map[string]string{"application.version": "v1"},
+		},
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	info = schemaregistry.SchemaInfo{
+		Schema:     pairASchema,
+		SchemaType: "JSON",
+		Metadata: &schemaregistry.Metadata{
+			Properties: map[string]string{"application.version": "v2"},
+		},
+	}
+
+	id, err = client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = false
+	serConfig.UseLatestWithMetadata = map[string]string{
+		"application.version": "v1",
+	}
+
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.EnableValidation = true
+	deserConfig.UseLatestWithMetadata = map[string]string{
+		"application.version": "v2",
+	}
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactoryPairA
+
+	newobj, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &PairA{A: "x"}))
 }

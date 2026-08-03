@@ -28,6 +28,12 @@ const (
 	tenantID     = "tenant.id"
 	clientID     = "client.id"
 	clientSecret = "client.secret"
+
+	// EncryptAzureKeyVersionSave enables making a DEK's encrypted key material self-describing
+	// with respect to which exact Azure Key Vault key version wrapped it (see azureAEAD.Encrypt),
+	// matching the same self-description property AWS KMS and GCP KMS ciphertext already provide
+	// natively. Set as a kek KmsProps entry.
+	EncryptAzureKeyVersionSave = "encrypt.azure.key.version.save"
 )
 
 func init() {
@@ -73,5 +79,5 @@ func (l *azureDriver) NewKMSClient(config map[string]string, keyURL *string) (re
 			return nil, err
 		}
 	}
-	return NewClient(uriPrefix, creds, defaultEncryptionAlgorithm)
+	return NewClient(uriPrefix, creds, defaultEncryptionAlgorithm, config)
 }

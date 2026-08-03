@@ -438,10 +438,6 @@ const (
 )
 
 func testMessageFactory(subject string, name string) (interface{}, error) {
-	if subject != "" && subject != "topic1-value" {
-		return nil, errors.New("message factory only handles topic1")
-	}
-
 	switch name {
 	case "DemoSchema":
 		return &DemoSchema{}, nil
@@ -1075,6 +1071,62 @@ func TestAvroSerdeWithCELCondition(t *testing.T) {
 
 	newobj, err := deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(newobj, &obj))
+}
+
+func TestAvroSerdeWithCELConditionSimpleMap(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	encRule := schemaregistry.Rule{
+		Name: "test-cel",
+		Kind: "CONDITION",
+		Mode: "WRITE",
+		Type: "CEL",
+		Expr: "message.StringField == 'hi'",
+	}
+	ruleSet := schemaregistry.RuleSet{
+		DomainRules: []schemaregistry.Rule{encRule},
+	}
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+		RuleSet:    &ruleSet,
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	obj := make(map[string]interface{})
+	obj["IntField"] = 123
+	obj["DoubleField"] = 45.67
+	obj["StringField"] = "hi"
+	obj["BoolField"] = true
+	obj["BytesField"] = []byte{1, 2}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj map[string]interface{}
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
 func TestAvroSerdeWithCELConditionLogicalType(t *testing.T) {
@@ -2315,7 +2367,7 @@ func TestAvroSerdeEncryptionF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false, "")
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "07V2ndh02DA73p+dTybwZFm7DKQSZN1tEwQh+FoX1DZLk4Yj2LLu4omYjp/84tAg3BYlkfGSz+zZacJHIE4="
@@ -2382,7 +2434,7 @@ func TestAvroSerdeEncryptionDeterministicF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false, "")
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "YSx3DTlAHrmpoDChquJMifmPntBzxgRVdMzgYL82rgWBKn7aUSnG+WIu9ozBNS3y2vXd++mBtK07w4/W/G6w0da39X9hfOVZsGnkSvry/QRht84V8yz3dqKxGMOK5A=="
@@ -2449,7 +2501,7 @@ func TestAvroSerdeEncryptionDekRotationF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false, "")
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "W/v6hOQYq1idVAcs1pPWz9UUONMVZW4IrglTnG88TsWjeCjxmtRQ4VaNe/I5dCfm2zyY9Cu0nqdvqImtUk4="
@@ -3201,4 +3253,382 @@ type DemoWithSchemaFunc struct {
 
 func (d *DemoWithSchemaFunc) Schema() avro.Schema {
 	return avro.MustParse(demoWithSchemaFuncSchema)
+}
+
+func TestAvroSerdeWithRecordNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.SubjectNameStrategyType = serde.RecordNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.RecordNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj DemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithTopicRecordNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.SubjectNameStrategyType = serde.TopicRecordNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.TopicRecordNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj DemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithAssociatedNameStrategy(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("my-custom-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association between topic1 and my-custom-subject
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-custom-subject",
+				AssociationType: "value",
+				Lifecycle:       "STRONG",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	var newobj DemoSchema
+	err = deser.DeserializeInto("topic1", bytes, &newobj)
+	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	client.DeleteAssociations("lkc-123:topic1", "topic", []string{"value"}, true)
+}
+
+func TestAvroSerdeWithAssociatedNameStrategyFallbackToTopic(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with topic name strategy (no association)
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// No association created - should fall back to TopicNameStrategy
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	// Default fallback is TOPIC
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithAssociatedNameStrategyFallbackNone(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with some subject (but no association will be created)
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// No association created, and fallback is NONE - should error
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	serConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.FallbackTypeConfig: "NONE",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	_, err = ser.Serialize("topic1", &obj)
+	if err == nil {
+		t.Errorf("Expected error when no association found and fallback is NONE")
+	}
+}
+
+func TestAvroSerdeWithAssociatedNameStrategyWithKafkaClusterID(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("my-custom-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association with specific namespace (kafka cluster id)
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "lkc-my-cluster",
+		ResourceID:        "lkc-my-cluster:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-custom-subject",
+				AssociationType: "value",
+				Lifecycle:       "STRONG",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	serConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.KafkaClusterIDConfig: "lkc-my-cluster",
+	}
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deserConfig.SubjectNameStrategyConfig = map[string]string{
+		serde.KafkaClusterIDConfig: "lkc-my-cluster",
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	msg, err := deser.Deserialize("topic1", bytes)
+	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+
+	client.DeleteAssociations("lkc-my-cluster:topic1", "topic", []string{"value"}, true)
+}
+
+func TestAvroSerdeWithAssociatedNameStrategyCaching(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Register schema with a custom subject name
+	info := schemaregistry.SchemaInfo{
+		Schema:     demoSchema,
+		SchemaType: "AVRO",
+	}
+
+	id, err := client.Register("my-cached-subject", info, false)
+	serde.MaybeFail("Schema registration", err)
+	if id <= 0 {
+		t.Errorf("Expected valid schema id, found %d", id)
+	}
+
+	// Create association
+	assocRequest := schemaregistry.AssociationCreateOrUpdateRequest{
+		ResourceName:      "topic1",
+		ResourceNamespace: "-",
+		ResourceID:        "lkc-123:topic1",
+		ResourceType:      "topic",
+		Associations: []schemaregistry.AssociationCreateOrUpdateInfo{
+			{
+				Subject:         "my-cached-subject",
+				AssociationType: "value",
+				Lifecycle:       "STRONG",
+			},
+		},
+	}
+	_, err = client.CreateAssociation(assocRequest)
+	serde.MaybeFail("Association creation", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	obj := DemoSchema{}
+	obj.IntField = 123
+	obj.DoubleField = 45.67
+	obj.StringField = "hi"
+	obj.BoolField = true
+	obj.BytesField = []byte{1, 2}
+
+	deserConfig := NewDeserializerConfig()
+	deserConfig.SubjectNameStrategyType = serde.AssociatedNameStrategyType
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+
+	// Serialize multiple times - should use cache after first call
+	for i := 0; i < 5; i++ {
+		bytes, err := ser.Serialize("topic1", &obj)
+		serde.MaybeFail("serialization", err)
+
+		msg, err := deser.Deserialize("topic1", bytes)
+		serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+	}
+
+	client.DeleteAssociations("lkc-123:topic1", "topic", []string{"value"}, true)
 }

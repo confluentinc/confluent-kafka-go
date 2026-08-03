@@ -151,6 +151,70 @@ func (m *MockClientCredentialsConfig) Token(ctx context.Context) (*oauth2.Token,
 	return m.mockTokenSource.token, m.mockTokenSource.err
 }
 
+func TestUAMITokenCachingWithMockTokenSource(t *testing.T) {
+	expiryTime := time.Now().Add(time.Second * 1)
+	mockToken := &oauth2.Token{
+		AccessToken: "uami-test-token",
+		TokenType:   "Bearer",
+		Expiry:      expiryTime,
+	}
+
+	mockTokenSource := &MockTokenSource{
+		token: mockToken,
+		err:   nil,
+	}
+
+	mockClient := &MockClientCredentialsConfig{
+		mockTokenSource: mockTokenSource,
+	}
+
+	provider := NewBearerTokenAuthenticationHeaderProvider(
+		testIdentityPoolID,
+		testLogicalCluster,
+		mockClient,
+		maxRetries,
+		retriesWaitMs,
+		retriesMaxWaitMs,
+	)
+
+	// Test initial token fetch
+	token, err := provider.GetToken()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if token != "uami-test-token" {
+		t.Errorf("Expected token to be 'uami-test-token', got '%s'", token)
+	}
+
+	// Wait for token to expire
+	time.Sleep(time.Second * 1)
+
+	refreshedToken := &oauth2.Token{
+		AccessToken: "uami-refreshed-token",
+		TokenType:   "Bearer",
+		Expiry:      time.Now().Add(time.Hour * 1),
+	}
+	mockTokenSource.token = refreshedToken
+
+	token, err = provider.GetToken()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if token != "uami-refreshed-token" {
+		t.Errorf("Expected refreshed token 'uami-refreshed-token', got '%s'", token)
+	}
+
+	// Verify identity pool and logical cluster
+	id, _ := provider.GetIdentityPoolID()
+	if id != testIdentityPoolID {
+		t.Errorf("Expected identity pool ID '%s', got '%s'", testIdentityPoolID, id)
+	}
+	lc, _ := provider.GetLogicalCluster()
+	if lc != testLogicalCluster {
+		t.Errorf("Expected logical cluster '%s', got '%s'", testLogicalCluster, lc)
+	}
+}
+
 func TestBearerTokenAuthenticationHeaderProviderWithMockTokenSource(t *testing.T) {
 	expiryTime := time.Now().Add(time.Second * 1)
 	mockToken := &oauth2.Token{
