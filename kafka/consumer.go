@@ -528,6 +528,10 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 
 // Close Consumer instance.
 // The object is no longer usable after this call.
+//
+// If the consumer has a fatal error (e.g., FENCED_INSTANCE_ID), the close
+// protocol cannot be started by librdkafka. In this case, Close() will
+// force-destroy the handle and return the fatal error to the caller.
 func (c *Consumer) Close() (err error) {
 	// Check if the client is already closed.
 	err = c.verifyClient()
@@ -547,7 +551,19 @@ func (c *Consumer) Close() (err error) {
 		close(c.events)
 	}
 
-	C.rd_kafka_consumer_close_queue(c.handle.rk, c.handle.rkq)
+	// If rd_kafka_consumer_close_queue() returns an error, the close protocol
+	// was never started (e.g., the consumer has a fatal error such as
+	// FENCED_INSTANCE_ID). In this case there is nothing to wait for —
+	// force-destroy the handle and return the error to the caller.
+	if cErr := C.rd_kafka_consumer_close_queue(c.handle.rk, c.handle.rkq); cErr != nil {
+		closeErr := newErrorFromCErrorDestroy(cErr)
+		atomic.StoreUint32(&c.isClosed, 1)
+		C.rd_kafka_queue_destroy(c.handle.rkq)
+		c.handle.rkq = nil
+		c.handle.cleanup()
+		C.rd_kafka_destroy_flags(c.handle.rk, C.RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE)
+		return closeErr
+	}
 
 	for C.rd_kafka_consumer_closed(c.handle.rk) != 1 {
 		c.Poll(100)
