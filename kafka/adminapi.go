@@ -168,6 +168,8 @@ func (a *AdminClient) IsClosed() bool {
 	return atomic.LoadUint32(&a.isClosed) == 1
 }
 
+// verifyClient is required by the Handle interface. AdminClient guards its
+// operations via IsClosed()/isClosed rather than the handle read lock.
 func (a *AdminClient) verifyClient() error {
 	if a.IsClosed() {
 		return getOperationNotAllowedErrorForClosedClient()
