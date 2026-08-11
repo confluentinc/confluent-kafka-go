@@ -148,9 +148,12 @@ func (h *handle) String() string {
 // (typically via defer) once it is done using the C handle. On error the lock
 // is not held.
 //
-// Note: this must only be taken by top-level entry points. Helpers reachable
-// from an already-locked method must NOT call rlock() again, since sync.RWMutex
-// read locks are not reentrant and may deadlock if a writer (Close) is waiting.
+// Note: pollLock is a non-reentrant sync.RWMutex, so a read holder must not
+// call rlock() again on the same goroutine while a writer (Close) may be
+// waiting, or it will deadlock. In particular, code reachable from eventPoll's
+// rebalance dispatch runs with the read lock already held and must use the
+// unlocked internal variants (e.g. getRebalanceProtocol) rather than the
+// public rlock()-taking methods.
 func (h *handle) rlock() error {
 	h.pollLock.RLock()
 	if h.rk == nil {

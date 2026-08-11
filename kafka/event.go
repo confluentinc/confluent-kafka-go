@@ -185,8 +185,20 @@ out:
 			retval = h.newMessageFromGlueMsg(&gMsg)
 
 		case C.RD_KAFKA_EVENT_REBALANCE:
-			// Consumer rebalance event
+			// Consumer rebalance event. handleRebalanceEvent takes ownership
+			// of rkev: it extracts everything it needs and destroys rkev
+			// while the pollLock read lock is still held (before releasing it
+			// around the application callback), so no handle-owned memory is
+			// touched during the lock-released callback window. Clear prevRkev
+			// so it is not destroyed again below.
 			retval = h.c.handleRebalanceEvent(channel, rkev)
+			prevRkev = nil
+			if h.rk == nil || h.rkq == nil {
+				// A concurrent Close() destroyed the handle/queue while the
+				// rebalance callback ran with the lock released. Stop before
+				// polling the (now freed) queue again.
+				break out
+			}
 
 		case C.RD_KAFKA_EVENT_ERROR:
 			// Error event

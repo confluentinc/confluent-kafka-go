@@ -51,6 +51,12 @@ type Consumer struct {
 
 	isClosed  uint32
 	isClosing uint32
+	// tearingDown is set right before Close() acquires the pollLock write
+	// lock, to signal blocking in-flight readers (e.g. commit()) to release
+	// the read lock so Close() is not pinned indefinitely. Unlike isClosing,
+	// it is set only after Close()'s revoke handshake has completed, so
+	// commits issued from the revoke rebalance callback still work.
+	tearingDown uint32
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -232,6 +238,15 @@ func (c *Consumer) GetRebalanceProtocol() string {
 		return ""
 	}
 	defer c.handle.runlock()
+	return c.getRebalanceProtocol()
+}
+
+// getRebalanceProtocol is the unlocked variant of GetRebalanceProtocol. The
+// caller must already hold c.handle.pollLock (via rlock()). It exists so that
+// code reachable from inside eventPoll's rebalance dispatch (which already
+// holds the read lock) can query the protocol without re-locking, since the
+// non-reentrant RWMutex would otherwise deadlock against a pending Close().
+func (c *Consumer) getRebalanceProtocol() string {
 	cStr := C.rd_kafka_rebalance_protocol(c.handle.rk)
 	if cStr == nil {
 		return ""
@@ -279,10 +294,20 @@ func (c *Consumer) commit(offsets []TopicPartition) (committedOffsets []TopicPar
 		return nil, newError(cErr)
 	}
 
-	rkev := C.rd_kafka_queue_poll(rkqu, C.int(-1))
-	if rkev == nil {
-		// shouldn't happen
-		return nil, newError(C.RD_KAFKA_RESP_ERR__DESTROY)
+	// Poll for the commit result in bounded slices instead of a single
+	// blocking -1 poll. A -1 poll here would hold the read lock for the whole
+	// (potentially unbounded) round-trip, and a concurrent Close() waiting for
+	// the write lock would be stuck behind it. Bail out early if the consumer
+	// has started closing.
+	var rkev *C.rd_kafka_event_t
+	for {
+		if atomic.LoadUint32(&c.tearingDown) == 1 {
+			return nil, getOperationNotAllowedErrorForClosedClient()
+		}
+		rkev = C.rd_kafka_queue_poll(rkqu, C.int(100))
+		if rkev != nil {
+			break
+		}
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -575,8 +600,18 @@ func (c *Consumer) Close() (err error) {
 		c.Poll(100)
 	}
 
-	// Wait for any in-flight eventPoll to finish before tearing down the
-	// C handle and queue, then prevent new polls from starting.
+	// Prevent new polls and wait for any in-flight eventPoll to finish before
+	// tearing down the C handle and queue.
+	//
+	// A blocking in-flight call can otherwise hold the read lock for a long
+	// time: ReadMessage(-1) blocks inside the queue poll (unblocked by the
+	// queue yield below), and commit() blocks on its own result queue
+	// (unblocked cooperatively via the tearingDown flag). Both keep this
+	// Close() bounded rather than waiting indefinitely.
+	atomic.StoreUint32(&c.tearingDown, 1)
+	if c.handle.rkq != nil {
+		C.rd_kafka_queue_yield(c.handle.rkq)
+	}
 	c.handle.pollLock.Lock()
 	defer c.handle.pollLock.Unlock()
 
@@ -1068,6 +1103,22 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	}
 
+	// Extract everything we still need from rkev (which is owned by the
+	// handle) into independent memory *now*, while eventPoll still holds the
+	// pollLock read lock, then destroy rkev. This lets us release the lock
+	// around the application callback (which may re-enter locked Consumer
+	// methods and would otherwise deadlock against a concurrent Close on the
+	// non-reentrant RWMutex) without touching any handle-owned memory
+	// afterwards: a concurrent Close may destroy the handle during the
+	// callback window. eventPoll relinquished ownership of rkev to us (it
+	// cleared prevRkev), so we destroy it here.
+	assignPartitions := C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS
+	cParts := C.rd_kafka_topic_partition_list_copy(C.rd_kafka_event_topic_partition_list(rkev))
+	if cParts != nil {
+		defer C.rd_kafka_topic_partition_list_destroy(cParts)
+	}
+	C.rd_kafka_event_destroy(rkev)
+
 	if channel != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
 		// Channel-based consumer with rebalancing enabled,
 		// return the rebalance event and rely on the application
@@ -1081,39 +1132,48 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 		// application called *Assign() / *Unassign().
 		c.appReassigned = false
 
+		// Release the read lock around the callback (foreign code); ev and
+		// cParts are independent of rkev/the handle, so nothing here relies
+		// on the handle staying alive.
+		c.handle.pollLock.RUnlock()
 		c.rebalanceCb(c, ev)
+		c.handle.pollLock.RLock()
 
 		if c.appReassigned {
 			// Rebalance event handled by application.
+			return nil
+		}
+
+		if c.handle.rk == nil {
+			// Handle was closed by a concurrent Close() while the callback
+			// ran; do not touch the C handle.
 			return nil
 		}
 	}
 
 	// Either there was no rebalance callback, or the application
 	// did not call *Assign / *Unassign, so we need to do it.
-
-	isCooperative := c.GetRebalanceProtocol() == "COOPERATIVE"
+	//
+	// The pollLock read lock is held here (by eventPoll), which keeps the C
+	// handle alive during these calls. Use the unlocked getRebalanceProtocol
+	// variant rather than the public one, which would re-lock the
+	// non-reentrant RWMutex and deadlock against a pending Close().
+	isCooperative := c.getRebalanceProtocol() == "COOPERATIVE"
 	var cError *C.rd_kafka_error_t
 	var cErr C.rd_kafka_resp_err_t
 
-	if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
+	if assignPartitions {
 		// Assign partitions
 		if isCooperative {
-			cError = C.rd_kafka_incremental_assign(
-				c.handle.rk,
-				C.rd_kafka_event_topic_partition_list(rkev))
+			cError = C.rd_kafka_incremental_assign(c.handle.rk, cParts)
 		} else {
-			cErr = C.rd_kafka_assign(
-				c.handle.rk,
-				C.rd_kafka_event_topic_partition_list(rkev))
+			cErr = C.rd_kafka_assign(c.handle.rk, cParts)
 		}
 	} else {
 		// Revoke partitions
 
 		if isCooperative {
-			cError = C.rd_kafka_incremental_unassign(
-				c.handle.rk,
-				C.rd_kafka_event_topic_partition_list(rkev))
+			cError = C.rd_kafka_incremental_unassign(c.handle.rk, cParts)
 		} else {
 			cErr = C.rd_kafka_assign(c.handle.rk, nil)
 		}
@@ -1121,10 +1181,20 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	// If the *assign() call returned error, forward it to the
 	// the consumer's Events() channel for visibility.
-	if cError != nil {
-		c.events <- newErrorFromCErrorDestroy(cError)
-	} else if cErr != 0 {
-		c.events <- newError(cErr)
+	//
+	// c.events is nil when the events channel is not enabled; a send on a nil
+	// channel would block forever while holding the read lock and wedge a
+	// concurrent Close(), so only forward when the channel exists.
+	if c.events != nil {
+		if cError != nil {
+			c.events <- newErrorFromCErrorDestroy(cError)
+		} else if cErr != 0 {
+			c.events <- newError(cErr)
+		}
+	} else {
+		if cError != nil {
+			C.rd_kafka_error_destroy(cError)
+		}
 	}
 
 	return nil
@@ -1137,9 +1207,9 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 // existing broker connections that were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (c *Consumer) SetSaslCredentials(username, password string) error {
-	err := c.verifyClient()
-	if err != nil {
+	if err := c.handle.rlock(); err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	return setSaslCredentials(c.handle.rk, username, password)
 }

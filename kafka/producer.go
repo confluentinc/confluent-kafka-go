@@ -402,6 +402,14 @@ func (p *Producer) Flush(timeoutMs int) int {
 	timeoutDuration := time.Duration(timeoutMs) * time.Millisecond
 	tEnd := time.Now().Add(timeoutDuration)
 	for p.Len() > 0 {
+		// Stop spinning once the producer is closed: on a closed handle the
+		// underlying flush/poll become instant no-ops while Len() may still
+		// report buffered channel entries, which would otherwise busy-loop
+		// until the timeout elapses.
+		if p.IsClosed() {
+			return p.Len()
+		}
+
 		remain := time.Until(tEnd).Milliseconds()
 		if remain <= 0 {
 			return p.Len()
@@ -438,6 +446,12 @@ func (p *Producer) Close() {
 	// handle destruction, and block new ones. This must be held before
 	// closing p.events, otherwise a concurrent eventPoll (e.g. from Flush)
 	// sending to p.events could panic with "send on closed channel".
+	//
+	// Yield the queue first so any in-flight blocking poll releases the read
+	// lock promptly and this Close() stays bounded.
+	if p.handle.rkq != nil {
+		C.rd_kafka_queue_yield(p.handle.rkq)
+	}
 	p.handle.pollLock.Lock()
 	defer p.handle.pollLock.Unlock()
 
