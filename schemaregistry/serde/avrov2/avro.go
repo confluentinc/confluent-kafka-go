@@ -147,9 +147,19 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.ValidationEnabled(serde.ValidationRulesBeforeDomainRules) {
+		if err = s.validateInlineRules(avroSchema, msg); err != nil {
+			return nil, nil, err
+		}
+	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, msg)
 	if err != nil {
 		return nil, nil, err
+	}
+	if s.ValidationEnabled(serde.ValidationRulesAfterDomainRules) {
+		if err = s.validateInlineRules(avroSchema, msg); err != nil {
+			return nil, nil, err
+		}
 	}
 	// Convert pointer to non-pointer
 	msg = reflect.ValueOf(msg).Elem().Interface()
@@ -394,6 +404,21 @@ func (s *Serde) RegisterTypeFromMessageFactory(name string, messageFactory serde
 	v := reflect.ValueOf(typ)
 	s.RegisterType(name, v.Elem().Interface())
 	return nil
+}
+
+// validateInlineRules evaluates the schema's inline validation rules against msg,
+// returning a single error listing every violation found.
+func (s *Serializer) validateInlineRules(avroSchema avro.Schema, msg interface{}) error {
+	executor, err := s.ValidationExecutor()
+	if err != nil {
+		return err
+	}
+	val := reflect.ValueOf(msg)
+	violations, err := validateMessage(executor, s.resolver, avroSchema, &val, s.Conf.ValidationRulesFailFast)
+	if err != nil {
+		return err
+	}
+	return serde.ValidationRulesFailed(violations)
 }
 
 // FieldTransform transforms a field value using the given field transform

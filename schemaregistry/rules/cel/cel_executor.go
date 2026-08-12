@@ -38,6 +38,7 @@ func init() {
 func Register() {
 	serde.RegisterRuleExecutor(NewExecutor())
 	serde.RegisterRuleExecutor(NewFieldExecutor())
+	serde.RegisterValidationRuleExecutor(NewValidator())
 }
 
 // NewExecutor creates a new CEL rule executor
@@ -203,6 +204,34 @@ func typeToCELType(arg interface{}) *cel.Type {
 }
 
 func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
+	return buildProgram(c.env, expr, msg, decls)
+}
+
+// schemaFieldName resolves the CEL name of a Go struct field to the field's schema name,
+// so that rules address fields the same way they do in the other clients (`message.age`
+// rather than `message.Age`).
+//
+// Avro structs carry `avro` tags and JSON Schema structs carry `json` tags; either is
+// consulted, with the Go field name as the fallback for untagged fields. Protobuf messages
+// do not go through this path — they are registered with cel.Types, which already exposes
+// proto field names.
+func schemaFieldName(field reflect.StructField) string {
+	for _, tagName := range []string{"avro", "json"} {
+		tag, found := field.Tag.Lookup(tagName)
+		if !found {
+			continue
+		}
+		name := strings.Split(tag, ",")[0]
+		if name != "" && name != "-" {
+			return name
+		}
+	}
+	return field.Name
+}
+
+// buildProgram compiles expr against env, extended with the declarations in decls and
+// with the type of msg registered so that field access on it resolves.
+func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
 	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
 		typ = typ.Elem()
@@ -212,7 +241,7 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 	if ok {
 		declType = cel.Types(protoType)
 	} else if typ.Kind() == reflect.Struct {
-		declType = ext.NativeTypes(typ)
+		declType = ext.NativeTypes(typ, ext.ParseStructField(schemaFieldName))
 	}
 	envOptions := decls
 	if declType != nil {
@@ -220,7 +249,7 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 		copy(envOptions, decls)
 		envOptions = append(envOptions, declType)
 	}
-	env, err := c.env.Extend(envOptions...)
+	env, err := baseEnv.Extend(envOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +265,11 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 }
 
 func (c *Executor) eval(expr string, program cel.Program, args map[string]interface{}) (interface{}, error) {
+	return evalProgram(expr, program, args)
+}
+
+// evalProgram evaluates program against args, converting the result to a native value.
+func evalProgram(expr string, program cel.Program, args map[string]interface{}) (interface{}, error) {
 	out, _, err := program.Eval(args)
 	if err != nil {
 		return nil, fmt.Errorf("CEL expr %s failed: %w", expr, err)
