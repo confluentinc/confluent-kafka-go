@@ -478,7 +478,6 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
-// FieldTransform transforms the field value using the rule
 // validateInlineRules evaluates the descriptor's inline validation rules against msg,
 // returning a single error listing every violation found.
 func (s *Serializer) validateInlineRules(info schemaregistry.SchemaInfo, msg proto.Message) error {
@@ -502,6 +501,7 @@ func (s *Serializer) validateInlineRules(info schemaregistry.SchemaInfo, msg pro
 	return serde.ValidationRulesFailed(violations)
 }
 
+// FieldTransform transforms the field value using the rule
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	fd, err := s.toFileDesc(client, *ctx.Target)
 	if err != nil {
