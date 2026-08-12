@@ -147,3 +147,73 @@ func TestJSONValidationFailFastReportsOneViolation(t *testing.T) {
 		t.Errorf("expected a single violation, got %q", err.Error())
 	}
 }
+
+// A property whose declared type is a union of scalars. The walker has to narrow to the
+// matching type before descending, and must do so without mutating the shared compiled
+// schema.
+const multiTypeValidationSchema = `
+{
+  "type": "object",
+  "title": "Flexible",
+  "properties": {
+    "value": {
+      "type": ["string", "integer"],
+      "confluent:rules": [ { "name": "notForbidden", "expr": "string(this) != 'forbidden'" } ]
+    }
+  }
+}
+`
+
+// ValidationFlexible exercises a multi-type property.
+type ValidationFlexible struct {
+	Value string `json:"value"`
+}
+
+func newMultiTypeSerializer(t *testing.T) *Serializer {
+	t.Helper()
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	info := schemaregistry.SchemaInfo{
+		Schema:     multiTypeValidationSchema,
+		SchemaType: "JSON",
+	}
+	_, err = client.Register("topic1-value", info, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.ValidationRulesExecution = serde.ValidationRulesAfterDomainRules
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	return ser
+}
+
+func TestJSONValidationHandlesMultiTypeProperties(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newMultiTypeSerializer(t)
+
+	bytes, err := ser.Serialize("topic1", &ValidationFlexible{Value: "allowed"})
+	serde.MaybeFail("serialization", err)
+	if len(bytes) == 0 {
+		t.Error("expected a non-empty payload")
+	}
+
+	// Serializing twice exercises the cached compiled schema: narrowing the declared
+	// types must not leave the cached schema modified.
+	_, err = ser.Serialize("topic1", &ValidationFlexible{Value: "forbidden"})
+	if err == nil {
+		t.Fatal("expected the rule on the multi-type property to fail")
+	}
+	if !strings.Contains(err.Error(), "notForbidden") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	bytes, err = ser.Serialize("topic1", &ValidationFlexible{Value: "allowed"})
+	serde.MaybeFail("serialization after a failure", err)
+	if len(bytes) == 0 {
+		t.Error("expected a non-empty payload on the second pass")
+	}
+}

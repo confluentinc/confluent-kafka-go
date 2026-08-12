@@ -58,11 +58,12 @@ func validateWithRules(executor serde.ValidationRuleExecutor, schema *jsonschema
 		return nil
 	}
 	if len(schema.Types) > 1 {
-		originalTypes := schema.Types
-		subschema, err := validateSubtypes(schema, msg)
-		schema.Types = originalTypes // restore original types
+		// Narrow to the type the value actually matches. Unlike transform, which mutates
+		// schema.Types in place, this walks a shallow copy: the compiled schema is cached
+		// and shared across serializations, so mutating it would race with concurrent use.
+		subschema, err := matchSubtype(schema, msg)
 		if err != nil {
-			return nil
+			return err
 		}
 		if subschema != nil {
 			return validateWithRules(executor, subschema, path, msg, failFast, out)
@@ -243,6 +244,24 @@ func getInlineValidationRules(schema *jsonschema2.Schema) []serde.ValidationRule
 		return nil
 	}
 	return rules
+}
+
+// matchSubtype returns a copy of schema narrowed to the first of its declared types that
+// the value satisfies, or nil when it satisfies none. The copy is what keeps this walker
+// read-only with respect to the shared compiled schema.
+func matchSubtype(schema *jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
+	for _, typ := range schema.Types {
+		candidate := *schema
+		candidate.Types = []string{typ}
+		valid, err := validate(&candidate, deref(msg))
+		if err != nil {
+			return nil, err
+		}
+		if valid {
+			return &candidate, nil
+		}
+	}
+	return nil, nil
 }
 
 // isPresent reports whether a value is set, i.e. neither invalid nor a nil pointer or

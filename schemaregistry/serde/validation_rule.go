@@ -226,7 +226,11 @@ func EvaluateValidationRule(executor ValidationRuleExecutor, rule ValidationRule
 			*out = append(*out, ValidationRuleError{Rule: rule, FieldPath: path, Message: typed})
 		}
 	default:
-		return fmt.Errorf("validation rule '%s' resolved to an unexpected type: %T", rule.Name, result)
+		name := rule.Name
+		if name == "" {
+			name = "unnamed"
+		}
+		return fmt.Errorf("validation rule '%s' resolved to an unexpected type: %T", name, result)
 	}
 	return nil
 }
