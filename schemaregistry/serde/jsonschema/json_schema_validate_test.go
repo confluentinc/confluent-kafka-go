@@ -217,3 +217,31 @@ func TestJSONValidationHandlesMultiTypeProperties(t *testing.T) {
 		t.Error("expected a non-empty payload on the second pass")
 	}
 }
+
+// ValidationTagged carries json tag options, which the property lookup has to strip before
+// matching schema property names.
+type ValidationTagged struct {
+	Age  int    `json:"age,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
+func TestJSONValidationHonorsJSONTagOptions(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newValidationSerializer(t, serde.ValidationRulesAfterDomainRules, false)
+
+	bytes, err := ser.Serialize("topic1", &ValidationTagged{Age: 30, Name: "Alice"})
+	serde.MaybeFail("serialization", err)
+	if len(bytes) == 0 {
+		t.Error("expected a non-empty payload")
+	}
+
+	// A tag of `age,omitempty` must still match the `age` property, otherwise the rule is
+	// silently skipped.
+	_, err = ser.Serialize("topic1", &ValidationTagged{Age: -5, Name: "Alice"})
+	if err == nil {
+		t.Fatal("expected agePositive to fail for a field tagged with omitempty")
+	}
+	if !strings.Contains(err.Error(), "agePositive") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

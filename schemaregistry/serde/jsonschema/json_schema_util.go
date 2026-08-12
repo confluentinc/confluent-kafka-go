@@ -22,6 +22,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
 	"reflect"
+	"strings"
 )
 
 func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, msg *reflect.Value,
@@ -157,7 +158,12 @@ func fieldByNames(value *reflect.Value) map[string]*reflect.Value {
 		structField := value.Type().Field(i)
 		fieldName := structField.Name
 		if tag, ok := structField.Tag.Lookup("json"); ok {
-			fieldName = tag
+			// A json tag carries options after the name, e.g. `json:"age,omitempty"`, so
+			// index by the encoded name; otherwise schema properties never line up with
+			// the struct fields. Mirrors schemaFieldName on the CEL side.
+			if name := strings.Split(tag, ",")[0]; name != "" && name != "-" {
+				fieldName = name
+			}
 		}
 		fieldByNames[fieldName] = &field
 	}

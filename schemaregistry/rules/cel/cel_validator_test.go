@@ -156,3 +156,35 @@ func TestValidatorCachesOneProgramPerExpressionAndType(t *testing.T) {
 		t.Errorf("expected 2 cached programs, got %d", len(v.cache))
 	}
 }
+
+// Two record types that share a rule expression. Native structs are all declared as CEL's
+// dyn type, so a cache keyed only on the expression and declaration type would hand the
+// second type a program compiled against the first.
+type sharedExprA struct {
+	Name string `json:"name"`
+}
+
+type sharedExprB struct {
+	Name string `json:"name"`
+}
+
+func TestValidatorDistinguishesTypesSharingAnExpression(t *testing.T) {
+	v := NewValidator()
+	rule := serde.ValidationRule{Name: "r", Expr: "size(this.name) > 0"}
+
+	first, err := v.Execute(rule, nil, sharedExprA{Name: "x"})
+	if err != nil {
+		t.Fatalf("first type: %v", err)
+	}
+	if first != true {
+		t.Errorf("first type: expected true, got %v", first)
+	}
+
+	second, err := v.Execute(rule, nil, sharedExprB{Name: "y"})
+	if err != nil {
+		t.Fatalf("second type reused the first type's program: %v", err)
+	}
+	if second != true {
+		t.Errorf("second type: expected true, got %v", second)
+	}
+}

@@ -78,7 +78,11 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 	}
 
 	thisType := findType(celMsg)
-	cacheKey := rule.Expr + "\n" + thisType.TypeName()
+	// Native Go structs are all declared as CEL's dyn type, so the declaration name alone
+	// does not identify the environment a program was compiled against: buildProgram
+	// registers the concrete struct type, and a program built for one struct cannot adapt
+	// a value of another. Include the concrete type so the two do not share an entry.
+	cacheKey := rule.Expr + "\n" + thisType.TypeName() + "\n" + concreteTypeName(celMsg)
 	v.cacheLock.RLock()
 	program, ok := v.cache[cacheKey]
 	v.cacheLock.RUnlock()
@@ -114,6 +118,17 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 	default:
 		return nil, fmt.Errorf("validation rule '%s' must return bool or string; got %T", name, result)
 	}
+}
+
+// concreteTypeName identifies the Go type of a value for cache-key purposes. Protobuf
+// messages that share a Go type (dynamic messages) are still distinguished by the
+// descriptor name carried in the CEL declaration type.
+func concreteTypeName(msg interface{}) string {
+	typ := reflect.TypeOf(msg)
+	if typ == nil {
+		return ""
+	}
+	return typ.PkgPath() + "." + typ.String()
 }
 
 // Close closes the validator
