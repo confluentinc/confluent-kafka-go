@@ -453,3 +453,33 @@ func parseMessageDescriptor(t *testing.T, schema string,
 	}
 	return md
 }
+
+// A message-level rule binds `this` to the message and its CEL environment is built from the
+// registered schema, so the message it evaluates has to be in the schema's terms too.
+// Otherwise a rule written against a renamed field reads a missing field and rejects a valid
+// message.
+func TestProtobufMessageLevelRuleSeesSchemaNames(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	renamedSchema := `syntax = "proto3";
+package test;
+import "confluent/meta.proto";
+message ValidationPerson {
+  option (.confluent.message_meta) = {
+    rules: [{name: "nameIsAlice", expr: "this.renamed == 'Alice'"}]
+  };
+
+  int32 age = 1;
+  string renamed = 2;
+}
+`
+	// The registered schema calls field 2 "renamed"; the generated message calls it "name".
+	schemaDesc := parseMessageDescriptor(t, renamedSchema, "test.ValidationPerson")
+	msg := &test.ValidationPerson{Age: 30, Name: "Alice"}
+
+	violations, err := validateMessage(cel.NewValidator(), schemaDesc, msg, false)
+	serde.MaybeFail("validation", err)
+
+	if len(violations) != 0 {
+		t.Errorf("expected the rule to hold against the renamed field, got %v", violations)
+	}
+}

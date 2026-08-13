@@ -23,6 +23,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 // validateMessage walks msg against descriptor, evaluating every inline validation rule
@@ -50,6 +51,22 @@ func validateMessage(executor serde.ValidationRuleExecutor, descriptor protorefl
 	m, ok := msg.(proto.Message)
 	if !ok {
 		return violations, nil
+	}
+	// Re-read the message through the registered schema's descriptor. Protobuf pairs fields
+	// by number on the wire, so this carries every value across a rename, and it means a
+	// message-level rule binds `this` to a message whose fields the rule's own environment -
+	// built from the same schema - can resolve. Without it, `this.renamed` reads a missing
+	// field and a valid message is rejected.
+	if m.ProtoReflect().Descriptor() != descriptor {
+		bytes, err := proto.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
+		schemaMsg := dynamicpb.NewMessage(descriptor)
+		if err := proto.Unmarshal(bytes, schemaMsg); err != nil {
+			return nil, err
+		}
+		m = schemaMsg
 	}
 	err := validate(executor, descriptor, "", m, failFast, &violations)
 	if err != nil {
