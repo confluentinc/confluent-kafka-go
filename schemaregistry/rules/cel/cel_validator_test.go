@@ -226,3 +226,23 @@ func TestValidatorUsesSchemaFieldNamesWithoutAffectingDomainRules(t *testing.T) 
 		t.Errorf("expected true, got %v", domainResult)
 	}
 }
+
+// An unsigned value has to be declared unsigned: comparisons survive a signed declaration
+// through cross-type numeric comparison, but arithmetic on it does not.
+func TestValidatorHandlesUnsignedValues(t *testing.T) {
+	v := NewValidator()
+	var big uint64 = 1 << 63 // above math.MaxInt64
+	result, err := v.Execute(rule("this > 0"), nil, big)
+	if err != nil {
+		t.Fatalf("comparison on a uint64: %v", err)
+	}
+	if result != true {
+		t.Errorf("expected a uint64 above int64 max to compare as positive, got %v", result)
+	}
+	if result, err = v.Execute(rule("this % 2u == 0u"), nil, big); err != nil {
+		t.Fatalf("arithmetic on a uint64: %v", err)
+	}
+	if result != true {
+		t.Errorf("expected the modulo to hold, got %v", result)
+	}
+}

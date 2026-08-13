@@ -35,17 +35,16 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 		fieldCtx.Type = getType(schema)
 	}
 	if len(schema.Types) > 1 {
-		originalTypes := schema.Types
-		subschema, err := validateSubtypes(schema, msg)
+		// Narrow to the type the value actually matches, on a shallow copy: the compiled
+		// schema is cached and shared across serializations, so mutating it - even
+		// temporarily - races with concurrent use. Same as the validation walk.
+		subschema, err := matchSubtype(schema, msg)
 		if err != nil {
 			return nil, err
 		}
 		if subschema != nil {
-			result, err := transform(ctx, subschema, path, msg, fieldTransform)
-			schema.Types = originalTypes // restore original types
-			return result, err
+			return transform(ctx, subschema, path, msg, fieldTransform)
 		}
-		schema.Types = originalTypes // restore original types
 	}
 	if len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
 		if len(schema.AllOf) > 0 {
@@ -245,21 +244,6 @@ func transformArray(ctx serde.RuleContext, msg *reflect.Value, sch *jsonschema2.
 	return msg, nil
 }
 
-func validateSubtypes(schema *jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
-	val := deref(msg)
-	for _, typ := range schema.Types {
-		schema.Types = []string{typ}
-		valid, err := validate(schema, val)
-		if err != nil {
-			return nil, err
-		}
-		if valid {
-			return schema, nil
-		}
-	}
-	return nil, nil
-}
-
 func isModernJSONSchema(draft *jsonschema2.Draft) bool {
 	u := draft.URL()
 	return u == "https://json-schema.org/draft/2020-12/schema" ||
@@ -291,7 +275,10 @@ func getType(schema *jsonschema2.Schema) serde.FieldType {
 		return serde.TypeArray
 	case "string":
 		return serde.TypeString
-	case "int":
+	// The JSON Schema keyword is "integer"; "int" is not a JSON Schema type, and mapping
+	// only that left every integer field typed NULL - which the transform walk skips, so
+	// no rule ever reached an integer field even though the validation walk visits it.
+	case "integer":
 		return serde.TypeInt
 	case "number":
 		return serde.TypeDouble

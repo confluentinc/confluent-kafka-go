@@ -17,13 +17,15 @@
 package avrov2
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	"github.com/hamba/avro/v2"
 
-	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 )
 
 // Record-level rule plus two field-level rules, matching the JVM client's test layout.
@@ -165,4 +167,101 @@ func TestAvroValidationBeforeDomainRules(t *testing.T) {
 	if !strings.Contains(err.Error(), "agePositive") {
 		t.Errorf("expected the field rule violation, got %q", err.Error())
 	}
+}
+
+// A record can be used by name after being defined inline, and a record from a referenced
+// subject is always used by name. hamba parses both into a RefSchema, whose rules and
+// inline tags live on the definition it points at - so both walks have to unwrap it.
+const namedReferenceSchema = `
+{
+  "name": "Outer",
+  "type": "record",
+  "namespace": "test",
+  "fields": [
+    {
+      "name": "a",
+      "type": {
+        "type": "record",
+        "name": "Inner",
+        "fields": [
+          {
+            "name": "x",
+            "type": "int",
+            "confluent:tags": [ "PII" ],
+            "confluent:rules": [ { "name": "xPositive", "expr": "this > 0" } ]
+          }
+        ]
+      }
+    },
+    { "name": "b", "type": "test.Inner" }
+  ]
+}
+`
+
+type namedRefInner struct {
+	X int `avro:"x"`
+}
+
+type namedRefOuter struct {
+	A namedRefInner `avro:"a"`
+	B namedRefInner `avro:"b"`
+}
+
+func TestAvroValidationFollowsNamedReferences(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	schema, err := avro.Parse(namedReferenceSchema)
+	serde.MaybeFail("schema parse", err)
+
+	value := reflect.ValueOf(namedRefOuter{A: namedRefInner{X: -1}, B: namedRefInner{X: -1}})
+	violations, err := validateMessage(cel.NewValidator(), avro.NewTypeResolver(), schema,
+		&value, false)
+	serde.MaybeFail("validation", err)
+
+	var paths []string
+	for _, violation := range violations {
+		paths = append(paths, violation.FieldPath)
+	}
+	if len(paths) != 2 || paths[0] != "a.x" || paths[1] != "b.x" {
+		t.Errorf("expected violations at a.x and b.x, got %v", paths)
+	}
+}
+
+func TestAvroInlineTagsFollowNamedReferences(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	schema, err := avro.Parse(namedReferenceSchema)
+	serde.MaybeFail("schema parse", err)
+
+	// The transform walk drives field encryption: a field reached through a named
+	// reference has to be visited with its tags, or it is silently left in the clear.
+	recorder := &taggedFieldRecorder{}
+	value := reflect.ValueOf(&namedRefOuter{A: namedRefInner{X: 1}, B: namedRefInner{X: 2}})
+	rule := schemaregistry.Rule{Name: "t", Type: "TEST", Tags: []string{"PII"}}
+	ctx := serde.RuleContext{
+		Target:  &schemaregistry.SchemaInfo{Schema: namedReferenceSchema, SchemaType: "AVRO"},
+		Subject: "topic1-value",
+		Topic:   "topic1",
+		Rule:    &rule,
+		Rules:   []schemaregistry.Rule{rule},
+	}
+	_, err = transform(ctx, avro.NewTypeResolver(), schema, &value, recorder)
+	serde.MaybeFail("transform", err)
+
+	if len(recorder.visited) != 2 {
+		t.Errorf("expected the tagged field to be visited under both a and b, got %v",
+			recorder.visited)
+	}
+}
+
+// taggedFieldRecorder records every field the transform walk visits that carries the PII
+// tag, which is what an encryption executor would act on.
+type taggedFieldRecorder struct {
+	visited []string
+}
+
+func (r *taggedFieldRecorder) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext,
+	fieldValue interface{}) (interface{}, error) {
+	if fieldCtx.Tags["PII"] {
+		r.visited = append(r.visited, fieldCtx.Name)
+	}
+	return fieldValue, nil
 }

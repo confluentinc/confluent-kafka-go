@@ -247,7 +247,7 @@ func getInlineValidationRules(schema *jsonschema2.Schema) []serde.ValidationRule
 }
 
 // matchSubtype returns a copy of schema narrowed to the first of its declared types that
-// the value satisfies, or nil when it satisfies none. The copy is what keeps this walker
+// the value satisfies, or nil when it satisfies none. The copy is what keeps both walkers
 // read-only with respect to the shared compiled schema.
 func matchSubtype(schema *jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
 	for _, typ := range schema.Types {

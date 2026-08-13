@@ -17,11 +17,13 @@
 package jsonschema
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
 
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 )
@@ -243,5 +245,134 @@ func TestJSONValidationHonorsJSONTagOptions(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "agePositive") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// Narrowing a type array must not touch the compiled schema, which is cached and shared
+// across serializations - in either walk. Restoring it afterwards is not enough: a
+// concurrent serialization observes the narrowing while the walk is still running, so both
+// observers below sample the schema mid-walk.
+func TestJsonSchemaWalksDoNotMutateTheSharedSchema(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	schemaText := `{
+	  "type": ["object", "null"],
+	  "properties": { "x": { "type": "integer", "confluent:rules": [{"name": "r", "expr": "true"}] } }
+	}`
+	compiler := jsonschema2.NewCompiler()
+	// The rules keyword is an extension, so the compiler has to know it - as the serde's
+	// own compiler does.
+	compiler.RegisterExtension("confluent:tags", tagsMeta, tagsCompiler{})
+	compiler.RegisterExtension(serde.ValidationRulesProp, validationRulesMeta,
+		validationRulesCompiler{})
+	if err := compiler.AddResource("main.json", strings.NewReader(schemaText)); err != nil {
+		t.Fatal(err)
+	}
+	schema, err := compiler.Compile("main.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := append([]string(nil), schema.Types...)
+
+	value := reflect.ValueOf(&sharedSchemaValue{X: 5})
+	validator := &typesObserver{schema: schema}
+	if _, err := validateMessage(validator, schema, &value, false); err != nil {
+		t.Fatalf("validation: %v", err)
+	}
+	if len(validator.observed) == 0 {
+		t.Fatal("the validation walk never reached the property rule")
+	}
+	for _, observed := range validator.observed {
+		if !reflect.DeepEqual(observed, expected) {
+			t.Errorf("the validation walk narrowed the shared schema to %v", observed)
+		}
+	}
+
+	rule := schemaregistry.Rule{Name: "t", Type: "TEST"}
+	ctx := serde.RuleContext{
+		Target:  &schemaregistry.SchemaInfo{Schema: schemaText, SchemaType: "JSON"},
+		Subject: "topic1-value",
+		Topic:   "topic1",
+		Rule:    &rule,
+		Rules:   []schemaregistry.Rule{rule},
+	}
+	transformer := &typesObserver{schema: schema}
+	if _, err := transform(ctx, schema, "$", &value, transformer); err != nil {
+		t.Fatalf("transform: %v", err)
+	}
+	if len(transformer.observed) == 0 {
+		t.Fatal("the transform walk never reached the property")
+	}
+	for _, observed := range transformer.observed {
+		if !reflect.DeepEqual(observed, expected) {
+			t.Errorf("the transform walk narrowed the shared schema to %v", observed)
+		}
+	}
+}
+
+// sharedSchemaValue is the struct form of the schema above.
+type sharedSchemaValue struct {
+	X int `json:"x"`
+}
+
+// typesObserver samples the root schema's declared types every time a walk hands it a
+// value, which is what a concurrent serialization would see.
+type typesObserver struct {
+	schema   *jsonschema2.Schema
+	observed [][]string
+}
+
+func (o *typesObserver) sample() {
+	o.observed = append(o.observed, append([]string(nil), o.schema.Types...))
+}
+
+func (o *typesObserver) Execute(rule serde.ValidationRule, schema interface{},
+	msg interface{}) (interface{}, error) {
+	o.sample()
+	return true, nil
+}
+
+func (o *typesObserver) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext,
+	fieldValue interface{}) (interface{}, error) {
+	o.sample()
+	return fieldValue, nil
+}
+
+// An integer property is visited by both walks. The type mapping used to name a type JSON
+// Schema does not have ("int"), which left integer fields typed NULL and skipped by the
+// transform walk while the validation walk still visited them.
+func TestJsonSchemaTransformVisitsIntegerProperties(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	schemaText := `{
+	  "type": "object",
+	  "properties": { "x": { "type": "integer" } }
+	}`
+	compiler := jsonschema2.NewCompiler()
+	compiler.RegisterExtension("confluent:tags", tagsMeta, tagsCompiler{})
+	compiler.RegisterExtension(serde.ValidationRulesProp, validationRulesMeta,
+		validationRulesCompiler{})
+	if err := compiler.AddResource("main.json", strings.NewReader(schemaText)); err != nil {
+		t.Fatal(err)
+	}
+	schema, err := compiler.Compile("main.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	value := reflect.ValueOf(&sharedSchemaValue{X: 5})
+	rule := schemaregistry.Rule{Name: "t", Type: "TEST"}
+	ctx := serde.RuleContext{
+		Target:  &schemaregistry.SchemaInfo{Schema: schemaText, SchemaType: "JSON"},
+		Subject: "topic1-value",
+		Topic:   "topic1",
+		Rule:    &rule,
+		Rules:   []schemaregistry.Rule{rule},
+	}
+	observer := &typesObserver{schema: schema}
+	if _, err := transform(ctx, schema, "$", &value, observer); err != nil {
+		t.Fatalf("transform: %v", err)
+	}
+	if len(observer.observed) != 1 {
+		t.Errorf("expected the integer property to be visited once, got %d visits",
+			len(observer.observed))
 	}
 }

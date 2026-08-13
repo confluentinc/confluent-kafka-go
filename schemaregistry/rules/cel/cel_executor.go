@@ -181,8 +181,13 @@ func typeToCELType(arg interface{}) *cel.Type {
 	switch arg.(type) {
 	case bool:
 		return cel.BoolType
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+	case int, int8, int16, int32, int64:
 		return cel.IntType
+	// Unsigned values are declared unsigned, so that arithmetic on them resolves an
+	// overload: the value bound at evaluation time is a CEL uint either way, and a
+	// declaration of int leaves `this % 2` or `this + 1` with no matching overload.
+	case uint, uint8, uint16, uint32, uint64, uintptr:
+		return cel.UintType
 	case []byte:
 		return cel.BytesType
 	case float32, float64:

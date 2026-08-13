@@ -274,3 +274,72 @@ func TestProtobufFieldRulesOnCollectionsAndMessages(t *testing.T) {
 		}
 	}
 }
+
+// countingTransform records the path of every field value handed to it, so a test can see
+// exactly which fields the transform walk reached.
+type countingTransform struct {
+	visited []string
+}
+
+func (c *countingTransform) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext,
+	fieldValue interface{}) (interface{}, error) {
+	c.visited = append(c.visited, fieldCtx.Name)
+	if s, ok := fieldValue.(string); ok {
+		return s + "-suffix", nil
+	}
+	return fieldValue, nil
+}
+
+// The transform walk drives field-level rules such as CSFLE, and has to descend the same
+// way the validation walk does: into a message-valued field with that field's own
+// descriptor, into every element of a repeated field, and into every value of a
+// message-valued map.
+func TestProtobufTransformDescendsLikeTheValidationWalk(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	msg := &test.ValidationOuter{
+		Inner:  &test.ValidationInner{X: 1},
+		Items:  []*test.ValidationItem{{V: 1}, {V: 2}},
+		Labels: map[string]*test.ValidationItem{"a": {V: 3}},
+		Maybe:  proto.String("hi"),
+		Tags:   []string{"t1", "t2"},
+	}
+	transformer := &countingTransform{}
+	rule := schemaregistry.Rule{Name: "t", Type: "TEST"}
+	ctx := serde.RuleContext{
+		Target:  &schemaregistry.SchemaInfo{Schema: validationPersonSchema, SchemaType: "PROTOBUF"},
+		Subject: "topic1-value",
+		Topic:   "topic1",
+		Rule:    &rule,
+		Rules:   []schemaregistry.Rule{rule},
+	}
+	desc := msg.ProtoReflect().Descriptor()
+	result, err := transform(ctx, desc, msg, transformer)
+	serde.MaybeFail("transform", err)
+
+	// Fields are walked in declaration order - inner, items, maybe, labels, tags - so:
+	// x under inner, v under each item, maybe, v under the map value, and both tags.
+	expected := []string{"x", "v", "v", "maybe", "v", "tags", "tags"}
+	if len(transformer.visited) != len(expected) {
+		t.Fatalf("expected to visit %v, got %v", expected, transformer.visited)
+	}
+	for i, name := range expected {
+		if transformer.visited[i] != name {
+			t.Errorf("visit %d: expected %q, got %q", i, name, transformer.visited[i])
+		}
+	}
+
+	// The transformed values have to be written back through every shape.
+	out, ok := result.(*test.ValidationOuter)
+	if !ok {
+		t.Fatalf("expected a ValidationOuter, got %T", result)
+	}
+	if out.GetMaybe() != "hi-suffix" {
+		t.Errorf("expected the scalar field to be transformed, got %q", out.GetMaybe())
+	}
+	if len(out.GetTags()) != 2 || out.GetTags()[0] != "t1-suffix" || out.GetTags()[1] != "t2-suffix" {
+		t.Errorf("expected both repeated scalars to be transformed, got %v", out.GetTags())
+	}
+	if out.GetInner().GetX() != 1 || len(out.GetItems()) != 2 || out.GetLabels()["a"].GetV() != 3 {
+		t.Errorf("expected nested values to be preserved, got %v", out)
+	}
+}
