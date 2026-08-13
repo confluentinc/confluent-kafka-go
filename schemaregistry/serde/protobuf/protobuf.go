@@ -260,9 +260,21 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.ValidationEnabled(serde.ValidationRulesBeforeDomainRules) {
+		if err = s.validateInlineRules(info, protoMsg); err != nil {
+			return nil, nil, err
+		}
+	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, protoMsg)
 	if err != nil {
 		return nil, nil, err
+	}
+	if s.ValidationEnabled(serde.ValidationRulesAfterDomainRules) {
+		if validated, ok := msg.(proto.Message); ok {
+			if err = s.validateInlineRules(info, validated); err != nil {
+				return nil, nil, err
+			}
+		}
 	}
 	switch t := msg.(type) {
 	case proto.Message:
@@ -464,6 +476,29 @@ func ignoreFile(name string) bool {
 	return strings.HasPrefix(name, "confluent/") ||
 		strings.HasPrefix(name, "google/protobuf/") ||
 		strings.HasPrefix(name, "google/type/")
+}
+
+// validateInlineRules evaluates the descriptor's inline validation rules against msg,
+// returning a single error listing every violation found.
+func (s *Serializer) validateInlineRules(info schemaregistry.SchemaInfo, msg proto.Message) error {
+	executor, err := s.ValidationExecutor()
+	if err != nil {
+		return err
+	}
+	// Resolve the schema-side descriptor, which is the one carrying the Meta options.
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return err
+	}
+	md := fd.FindMessage(string(msg.ProtoReflect().Descriptor().FullName()))
+	if md == nil {
+		return nil
+	}
+	violations, err := validateMessage(executor, md.UnwrapMessage(), msg, s.Conf.ValidationRulesFailFast)
+	if err != nil {
+		return err
+	}
+	return serde.ValidationRulesFailed(violations)
 }
 
 // FieldTransform transforms the field value using the rule
