@@ -51,16 +51,25 @@ func transform(ctx serde.RuleContext, descriptor protoreflect.Descriptor, msg in
 func transformField(ctx serde.RuleContext, fd protoreflect.FieldDescriptor, desc protoreflect.MessageDescriptor,
 	msg interface{}, clone proto.Message, fieldTransform serde.FieldTransform) error {
 	// The schema-side descriptor is the one carrying the inline tags; only the runtime
-	// field can read the value off the message. With use.latest.version the two can
-	// differ, and a field the schema does not declare carries no tags.
-	schemaFd := desc.Fields().ByName(fd.Name())
+	// field can read the value off the message. Resolve it by number, not by name:
+	// protobuf identifies a field by its number, and renaming a field at the same number
+	// is a compatible change, so with use.latest.version the registered schema's name for
+	// a field can differ from the message's. A field the schema does not declare carries
+	// no tags.
+	schemaFd := desc.Fields().ByNumber(fd.Number())
 	if schemaFd == nil {
 		return nil
 	}
 	defer ctx.LeaveField()
-	ctx.EnterField(msg, string(fd.FullName()), string(fd.Name()), getType(fd), getInlineTags(schemaFd))
-	if fd.ContainingOneof() != nil && !clone.ProtoReflect().Has(fd) {
-		// skip oneof fields that are not set
+	// The names come from the registered schema alongside the tags: rules and metadata
+	// tags are written against it. The value is still read through the runtime field.
+	ctx.EnterField(msg, string(schemaFd.FullName()), string(schemaFd.Name()), getType(fd),
+		getInlineTags(schemaFd))
+	// Skip-on-null, as in the validation walk: a field with explicit presence that is
+	// unset has no value to transform, and writing one back would materialize it - turning
+	// an absent message or unset optional scalar into a present one carrying a transformed
+	// default. HasPresence covers oneof members too.
+	if fd.HasPresence() && !clone.ProtoReflect().Has(fd) {
 		return nil
 	}
 	newValue, err := transformFieldValue(ctx, fd, schemaFd, clone, fieldTransform)

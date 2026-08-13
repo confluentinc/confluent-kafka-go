@@ -343,3 +343,113 @@ func TestProtobufTransformDescendsLikeTheValidationWalk(t *testing.T) {
 		t.Errorf("expected nested values to be preserved, got %v", out)
 	}
 }
+
+// A field with explicit presence that is unset has nothing to transform, and writing a
+// value back would materialize it: an absent message or unset optional scalar would become
+// present, carrying a transformed default.
+func TestProtobufTransformLeavesAbsentFieldsAbsent(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	msg := &test.ValidationOuter{Tags: []string{"t"}}
+	transformer := &countingTransform{}
+	rule := schemaregistry.Rule{Name: "t", Type: "TEST"}
+	ctx := serde.RuleContext{
+		Target:  &schemaregistry.SchemaInfo{Schema: validationPersonSchema, SchemaType: "PROTOBUF"},
+		Subject: "topic1-value",
+		Topic:   "topic1",
+		Rule:    &rule,
+		Rules:   []schemaregistry.Rule{rule},
+	}
+	result, err := transform(ctx, msg.ProtoReflect().Descriptor(), msg, transformer)
+	serde.MaybeFail("transform", err)
+
+	out, ok := result.(*test.ValidationOuter)
+	if !ok {
+		t.Fatalf("expected a ValidationOuter, got %T", result)
+	}
+	if out.Inner != nil {
+		t.Errorf("the absent message was materialized: %v", out.Inner)
+	}
+	if out.Maybe != nil {
+		t.Errorf("the unset optional scalar was materialized: %v", out.GetMaybe())
+	}
+	// The field that is present is still transformed.
+	if len(out.GetTags()) != 1 || out.GetTags()[0] != "t-suffix" {
+		t.Errorf("expected the present field to be transformed, got %v", out.GetTags())
+	}
+}
+
+// Protobuf identifies a field by its number, and renaming a field at the same number is a
+// compatible change, so with use.latest.version the registered schema's name for a field can
+// differ from the message's. Resolving the schema-side field by name would find nothing and
+// silently skip that field's rules and tags - for the transform walk, leaving a tagged field
+// untouched.
+func TestProtobufWalksResolveRenamedFieldsByNumber(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	renamedSchema := `syntax = "proto3";
+package test;
+import "confluent/meta.proto";
+message ValidationPerson {
+  int32 age = 1 [(.confluent.field_meta) = {
+    rules: [{name: "agePositive", expr: "this >= 0"}]
+  }];
+  string renamed = 2 [(.confluent.field_meta) = {
+    tags: [ "PII" ]
+    rules: [{name: "renamedNotEmpty", expr: "size(this) > 0"}]
+  }];
+}
+`
+	// The registered schema calls field 2 "renamed"; the generated message calls it "name".
+	schemaDesc := parseMessageDescriptor(t, renamedSchema, "test.ValidationPerson")
+	msg := &test.ValidationPerson{Age: 30, Name: "Alice"}
+
+	violations, err := validateMessage(alwaysFail{}, schemaDesc, msg, false)
+	serde.MaybeFail("validation", err)
+	var fired []string
+	for _, v := range violations {
+		fired = append(fired, v.Rule.Name+"@"+v.FieldPath)
+	}
+	// The rule on field 2 fires, and reports the registered schema's name for it.
+	if len(fired) != 2 || fired[0] != "agePositive@age" || fired[1] != "renamedNotEmpty@renamed" {
+		t.Errorf("expected both rules to fire with registered names, got %v", fired)
+	}
+
+	// The transform walk has to find the tag on field 2 through the same resolution.
+	transformer := &countingTransform{}
+	rule := schemaregistry.Rule{Name: "t", Type: "TEST", Tags: []string{"PII"}}
+	ctx := serde.RuleContext{
+		Target:  &schemaregistry.SchemaInfo{Schema: renamedSchema, SchemaType: "PROTOBUF"},
+		Subject: "topic1-value",
+		Topic:   "topic1",
+		Rule:    &rule,
+		Rules:   []schemaregistry.Rule{rule},
+	}
+	result, err := transform(ctx, schemaDesc, msg, transformer)
+	serde.MaybeFail("transform", err)
+	out, ok := result.(*test.ValidationPerson)
+	if !ok {
+		t.Fatalf("expected a ValidationPerson, got %T", result)
+	}
+	if out.GetName() != "Alice-suffix" {
+		t.Errorf("expected the tagged field to be transformed, got %q", out.GetName())
+	}
+	if len(transformer.visited) != 1 || transformer.visited[0] != "renamed" {
+		t.Errorf("expected the registered name to be reported, got %v", transformer.visited)
+	}
+}
+
+// parseMessageDescriptor parses schema text the way the serde does and returns one message's
+// descriptor, so a test can pair a registered schema against a differently-shaped message.
+func parseMessageDescriptor(t *testing.T, schema string,
+	messageName string) protoreflect.MessageDescriptor {
+	t.Helper()
+	fd, err := parseFileDesc(nil, schemaregistry.SchemaInfo{Schema: schema, SchemaType: "PROTOBUF"})
+	if err != nil {
+		t.Fatalf("parse schema: %v", err)
+	}
+	md := fd.UnwrapFile().Messages().ByName(protoreflect.Name(
+		messageName[strings.LastIndex(messageName, ".")+1:]))
+	if md == nil {
+		t.Fatalf("message %s not found", messageName)
+	}
+	return md
+}

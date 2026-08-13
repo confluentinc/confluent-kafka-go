@@ -78,8 +78,11 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 	fields := reflectMsg.Descriptor().Fields()
 	for i := 0; i < fields.Len(); i++ {
 		fd := fields.Get(i)
-		// Use the schema-side field descriptor, which carries the Meta options.
-		schemaFd := descriptor.Fields().ByName(fd.Name())
+		// Use the schema-side field descriptor, which carries the Meta options. Resolve it
+		// by number, not by name: protobuf identifies a field by its number, and renaming a
+		// field at the same number is a compatible change, so with use.latest.version the
+		// registered schema's name for a field can differ from the message's.
+		schemaFd := descriptor.Fields().ByNumber(fd.Number())
 		if schemaFd == nil {
 			continue
 		}
@@ -89,9 +92,10 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 			continue
 		}
 		value := reflectMsg.Get(fd)
-		childPath := string(fd.Name())
+		// Paths and names come from the registered schema, which is what a rule refers to.
+		childPath := string(schemaFd.Name())
 		if path != "" {
-			childPath = path + "." + string(fd.Name())
+			childPath = path + "." + string(schemaFd.Name())
 		}
 		for _, rule := range getFieldValidationRules(schemaFd) {
 			if err := serde.EvaluateValidationRule(
