@@ -204,12 +204,19 @@ func typeToCELType(arg interface{}) *cel.Type {
 }
 
 func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
-	return buildProgram(c.env, expr, msg, decls)
+	// Domain rules address a Go struct's fields by their Go names, which is how they have
+	// always been written; only validation rules, which come from the schema, use the
+	// schema names.
+	return buildProgram(c.env, expr, msg, decls, nil)
 }
 
 // schemaFieldName resolves the CEL name of a Go struct field to the field's schema name,
-// so that rules address fields the same way they do in the other clients (`message.age`
-// rather than `message.Age`).
+// so that validation rules address fields the same way they do in the other clients
+// (`this.age` rather than `this.Age`). Inline validation rules are written against the
+// schema, so the schema's field names are the only ones they can use.
+//
+// This applies to validation rules alone: a domain rule's expression is written by the
+// user against the Go type, so the Executor keeps addressing fields by their Go names.
 //
 // Avro structs carry `avro` tags and JSON Schema structs carry `json` tags; either is
 // consulted, with the Go field name as the fallback for untagged fields. Protobuf messages
@@ -231,7 +238,11 @@ func schemaFieldName(field reflect.StructField) string {
 
 // buildProgram compiles expr against env, extended with the declarations in decls and
 // with the type of msg registered so that field access on it resolves.
-func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
+//
+// fieldName, when non-nil, names a Go struct's fields for the expression; the Go field
+// names are used when it is nil.
+func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption,
+	fieldName func(reflect.StructField) string) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
 	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
 		typ = typ.Elem()
@@ -241,7 +252,11 @@ func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.En
 	if ok {
 		declType = cel.Types(protoType)
 	} else if typ.Kind() == reflect.Struct {
-		declType = ext.NativeTypes(typ, ext.ParseStructField(schemaFieldName))
+		if fieldName != nil {
+			declType = ext.NativeTypes(typ, ext.ParseStructField(fieldName))
+		} else {
+			declType = ext.NativeTypes(typ)
+		}
 	}
 	envOptions := decls
 	if declType != nil {

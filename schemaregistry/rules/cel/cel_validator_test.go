@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	"github.com/google/cel-go/cel"
 )
 
 type person struct {
@@ -186,5 +187,42 @@ func TestValidatorDistinguishesTypesSharingAnExpression(t *testing.T) {
 	}
 	if second != true {
 		t.Errorf("second type: expected true, got %v", second)
+	}
+}
+
+// A validation rule comes from the schema, so it addresses a Go struct's fields by their
+// schema names. A domain rule is written by the user against the Go type, so it keeps
+// addressing them by their Go names - the two must not be conflated, or existing rule sets
+// break as soon as a struct's tag differs from its field name.
+func TestValidatorUsesSchemaFieldNamesWithoutAffectingDomainRules(t *testing.T) {
+	v := NewValidator()
+	value := person{Age: 30, Name: "Alice"}
+
+	result, err := v.Execute(rule("this.age > 0"), nil, value)
+	if err != nil {
+		t.Fatalf("validation rule with the schema field name: %v", err)
+	}
+	if result != true {
+		t.Errorf("expected true, got %v", result)
+	}
+	if _, err := v.Execute(rule("this.Age > 0"), nil, value); err == nil {
+		t.Error("expected the Go field name to be unavailable to a validation rule")
+	}
+
+	// Through the domain-rule executor's own path, so that its choice of field naming is
+	// what is under test.
+	executor := NewExecutor().(*Executor)
+	decls := []cel.EnvOption{cel.Variable("message", findType(value))}
+	program, err := executor.newProgram("message.Age > 0", value, decls)
+	if err != nil {
+		t.Fatalf("domain rule with the Go field name: %v", err)
+	}
+	domainResult, err := evalProgram("message.Age > 0", program,
+		map[string]interface{}{"message": value})
+	if err != nil {
+		t.Fatalf("domain rule with the Go field name: %v", err)
+	}
+	if domainResult != true {
+		t.Errorf("expected true, got %v", domainResult)
 	}
 }

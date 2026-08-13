@@ -108,7 +108,7 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 			decls = append(decls, cel.TypeDescs(descs...))
 		}
 		var err error
-		program, err = buildProgram(v.env, rule.Expr, celMsg, decls)
+		program, err = buildProgram(v.env, rule.Expr, celMsg, decls, schemaFieldName)
 		if err != nil {
 			return nil, fmt.Errorf("could not compile validation rule '%s': %w", name, err)
 		}
