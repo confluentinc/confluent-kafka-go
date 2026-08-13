@@ -60,10 +60,13 @@ func validateMessage(executor serde.ValidationRuleExecutor, descriptor protorefl
 	// caller's class calls something else. Protobuf pairs fields by number on the wire, so
 	// re-reading the message through the registered descriptor produces exactly that view.
 	//
-	// Re-reading is only worth its cost when the two descriptors actually present values
-	// differently, which is decided once per descriptor pair (see needsSchemaView) rather
-	// than per record: a generated type that matches the registered schema has a distinct
-	// descriptor but the same fields, so no re-read happens at all.
+	// Whether that is needed is decided once per descriptor pair (see needsSchemaView) rather
+	// than per record. A generated type describing the same fields as the registered schema
+	// skips it entirely, even though the two descriptors are distinct. A type that has fallen
+	// behind the schema does not: under use.latest.version the schema may declare a field the
+	// type has never heard of, and a rule that binds `this` can read the schema's default for
+	// it, so those producers re-read every record. That cost is the price of evaluating rules
+	// in the schema's terms, not an accident.
 	var schemaMsg proto.Message
 	if needsSchemaView(descriptor, m.ProtoReflect().Descriptor()) {
 		bytes, err := proto.Marshal(m)
@@ -93,7 +96,9 @@ type descriptorPair struct {
 }
 
 // schemaViewNeeded memoizes needsSchemaView. Both descriptors are stable for the lifetime of
-// a serializer, so this is one lookup per record rather than a tree comparison.
+// a serializer, so this is one lookup per record rather than a tree comparison. The answer is
+// no only for a type that describes the same fields as the registered schema; a type that has
+// fallen behind it re-reads every record.
 var schemaViewNeeded sync.Map
 
 // needsSchemaView reports whether a message whose runtime descriptor is runtimeDesc has to be
@@ -104,6 +109,14 @@ var schemaViewNeeded sync.Map
 // Presence deliberately does not count. Whether an unset field is absent is decided by the
 // producer's field on the producer's message, which the walk reads directly, so a schema that
 // only moved a field into or out of a oneof needs no re-read.
+//
+// A field the schema declares and the caller's type does not does count, which means a type
+// running behind the registered schema - the use.latest.version case - re-reads every record.
+// Only an exact match skips the re-read. Narrowing that to the rules that could actually
+// observe the added field is possible but not simple: a rule binding `this` at any ancestor
+// can traverse into the field, and a field-level rule on a message-valued field binds `this`
+// to a type that need not declare rules of its own, so a per-descriptor test for
+// message-level rules would be wrong in both directions.
 func needsSchemaView(descriptor protoreflect.MessageDescriptor,
 	runtimeDesc protoreflect.MessageDescriptor) bool {
 	if runtimeDesc == descriptor {
@@ -120,8 +133,13 @@ func needsSchemaView(descriptor protoreflect.MessageDescriptor,
 
 // presentsSameValues reports whether the two descriptors present every field they share -
 // paired by number, which is how protobuf identifies a field - under the same name, kind and
-// cardinality, recursively through message-valued fields. Fields only one of them declares
-// are ignored: the walk visits the intersection either way.
+// cardinality, recursively through message-valued fields.
+//
+// A field the registered schema declares and the caller's does not counts as a difference:
+// adding a field is a compatible change, and a message-level rule may reference the added
+// field expecting the schema's default for it, which only a message read through the schema
+// can supply. Fields only the caller declares are ignored - no rule can name them, and the
+// walk skips them.
 //
 // visited holds the descriptor pairs already compared, so a self-referential message type
 // terminates.
@@ -134,6 +152,12 @@ func presentsSameValues(descriptor protoreflect.MessageDescriptor,
 		return true
 	}
 	visited[pair] = true
+	schemaFields := descriptor.Fields()
+	for i := 0; i < schemaFields.Len(); i++ {
+		if runtimeDesc.Fields().ByNumber(schemaFields.Get(i).Number()) == nil {
+			return false
+		}
+	}
 	fields := runtimeDesc.Fields()
 	for i := 0; i < fields.Len(); i++ {
 		runtimeFd := fields.Get(i)

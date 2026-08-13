@@ -606,3 +606,35 @@ message Payload {
 		t.Errorf("expected the rule to match the schema's string value, got %v", violations)
 	}
 }
+
+// Adding a field is the most ordinary compatible change there is, so the registered schema
+// can declare one the producer's type has never heard of - and a message-level rule can
+// reference it, expecting the schema's default. The rule's environment comes from the value it
+// is handed, so that only works if the message is read through the schema: a field with no
+// counterpart is itself a reason to re-read, even when every shared field agrees.
+func TestProtobufFieldOnlyTheSchemaDeclaresIsVisibleToMessageRules(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	registered := `syntax = "proto3";
+package test;
+import "confluent/meta.proto";
+message ValidationPerson {
+  option (.confluent.message_meta) = {
+    rules: [{name: "m", expr: "this.added == ''"}]
+  };
+
+  int32 age = 1;
+  string name = 2;
+  string added = 99;
+}
+`
+	// The generated ValidationPerson has no `added` field.
+	schemaDesc := parseMessageDescriptor(t, registered, "test.ValidationPerson")
+	msg := &test.ValidationPerson{Age: 30, Name: "Alice"}
+
+	violations, err := validateMessage(cel.NewValidator(), schemaDesc, msg, false)
+	serde.MaybeFail("validation", err)
+
+	if len(violations) != 0 {
+		t.Errorf("expected the rule to read the schema's default for the added field, got %v", violations)
+	}
+}
