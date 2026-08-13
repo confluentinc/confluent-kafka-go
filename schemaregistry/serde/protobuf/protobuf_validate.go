@@ -95,7 +95,7 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 		}
 		for _, rule := range getFieldValidationRules(schemaFd) {
 			if err := serde.EvaluateValidationRule(
-				executor, rule, schemaFd, value.Interface(), childPath, out); err != nil {
+				executor, rule, schemaFd, celFieldValue(fd, value), childPath, out); err != nil {
 				return err
 			}
 			if failFast && len(*out) > 0 {
@@ -145,6 +145,39 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 		}
 	}
 	return nil
+}
+
+// celFieldValue converts a field value into the form a rule expects `this` to be in.
+// protoreflect.Value.Interface() hands back reflection wrappers for messages, lists and
+// maps, which an expression cannot index, size or read fields from, so those are unwrapped
+// into a proto.Message and Go slices and maps of already-unwrapped values.
+func celFieldValue(fd protoreflect.FieldDescriptor, value protoreflect.Value) interface{} {
+	switch {
+	case fd.IsMap():
+		result := make(map[interface{}]interface{}, value.Map().Len())
+		value.Map().Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+			result[k.Interface()] = celElementValue(fd.MapValue(), v)
+			return true
+		})
+		return result
+	case fd.IsList():
+		list := value.List()
+		result := make([]interface{}, 0, list.Len())
+		for i := 0; i < list.Len(); i++ {
+			result = append(result, celElementValue(fd, list.Get(i)))
+		}
+		return result
+	default:
+		return celElementValue(fd, value)
+	}
+}
+
+// celElementValue converts a single (non-collection) value of the given field's type.
+func celElementValue(fd protoreflect.FieldDescriptor, value protoreflect.Value) interface{} {
+	if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
+		return value.Message().Interface()
+	}
+	return value.Interface()
 }
 
 func getMessageValidationRules(desc protoreflect.MessageDescriptor) []serde.ValidationRule {

@@ -25,6 +25,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/google/cel-go/cel"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // NewValidator creates a new CEL validation rule executor
@@ -78,11 +79,19 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 	}
 
 	thisType := findType(celMsg)
+	// A protobuf message reached through a list or a map arrives as an ordinary Go value,
+	// so the type it belongs to has to be declared for its fields to resolve. The schema
+	// hint names the declaring file, and every type that file can reach is registered.
+	schemaFiles := filesReachableFrom(schemaFile(schema))
 	// Native Go structs are all declared as CEL's dyn type, so the declaration name alone
 	// does not identify the environment a program was compiled against: buildProgram
 	// registers the concrete struct type, and a program built for one struct cannot adapt
-	// a value of another. Include the concrete type so the two do not share an entry.
-	cacheKey := rule.Expr + "\n" + thisType.TypeName() + "\n" + concreteTypeName(celMsg)
+	// a value of another. Include the concrete type so the two do not share an entry, and
+	// the schema's identity so that two schemas declaring the same type names - two
+	// versions of one subject, or two subjects - cannot share a plan built from the
+	// other's types.
+	cacheKey := rule.Expr + "\n" + thisType.TypeName() + "\n" + concreteTypeName(celMsg) +
+		"\n" + filesKey(schemaFiles)
 	v.cacheLock.RLock()
 	program, ok := v.cache[cacheKey]
 	v.cacheLock.RUnlock()
@@ -90,6 +99,13 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 		decls := []cel.EnvOption{
 			cel.Variable("this", thisType),
 			cel.Variable("now", cel.TimestampType),
+		}
+		if len(schemaFiles) > 0 {
+			descs := make([]interface{}, 0, len(schemaFiles))
+			for _, file := range schemaFiles {
+				descs = append(descs, file)
+			}
+			decls = append(decls, cel.TypeDescs(descs...))
 		}
 		var err error
 		program, err = buildProgram(v.env, rule.Expr, celMsg, decls)
@@ -118,6 +134,52 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 	default:
 		return nil, fmt.Errorf("validation rule '%s' must return bool or string; got %T", name, result)
 	}
+}
+
+// schemaFile is the descriptor file the walker's schema hint belongs to: the message
+// descriptor for message-level rules and the field descriptor for field-level ones.
+func schemaFile(schema interface{}) protoreflect.FileDescriptor {
+	switch desc := schema.(type) {
+	case protoreflect.FieldDescriptor:
+		return desc.ParentFile()
+	case protoreflect.MessageDescriptor:
+		return desc.ParentFile()
+	}
+	return nil
+}
+
+// filesReachableFrom returns the file plus every file it imports, transitively, so that a
+// field whose type is declared in an imported file also resolves.
+func filesReachableFrom(file protoreflect.FileDescriptor) []protoreflect.FileDescriptor {
+	if file == nil {
+		return nil
+	}
+	var files []protoreflect.FileDescriptor
+	seen := map[string]bool{}
+	var visit func(protoreflect.FileDescriptor)
+	visit = func(current protoreflect.FileDescriptor) {
+		if current == nil || seen[current.Path()] {
+			return
+		}
+		seen[current.Path()] = true
+		files = append(files, current)
+		imports := current.Imports()
+		for i := 0; i < imports.Len(); i++ {
+			visit(imports.Get(i).FileDescriptor)
+		}
+	}
+	visit(file)
+	return files
+}
+
+// filesKey identifies a set of descriptor files for cache-key purposes. The path alone is
+// not enough - two schemas can declare the same path with different contents - so the
+// descriptor's identity is part of the key.
+func filesKey(files []protoreflect.FileDescriptor) string {
+	if len(files) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s@%p", files[0].Path(), files[0])
 }
 
 // concreteTypeName identifies the Go type of a value for cache-key purposes. Protobuf

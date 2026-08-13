@@ -24,8 +24,9 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
-	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 )
 
 // Message-level rule plus two field-level rules, matching the JVM client's test layout.
@@ -231,5 +232,45 @@ func TestProtobufDynamicFailureMessage(t *testing.T) {
 	}
 	if violations[0].Error() != "age: ageMsg: age must be positive, got -5" {
 		t.Errorf("unexpected rendering: %q", violations[0].Error())
+	}
+}
+
+// Field-level rules on message, list and map fields bind a protobuf value to `this`.
+// Both halves have to hold for those to work: the walker has to hand CEL a Go value
+// rather than a protoreflect wrapper, and the validator has to know the types the
+// schema declares so that a message reached through a collection resolves its fields.
+func TestProtobufFieldRulesOnCollectionsAndMessages(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	validator := cel.NewValidator()
+	outer := &test.ValidationOuter{
+		Inner:  &test.ValidationInner{X: 5},
+		Items:  []*test.ValidationItem{{V: 1}},
+		Labels: map[string]*test.ValidationItem{"a": {V: 2}},
+		Tags:   []string{"t"},
+	}
+	reflectMsg := outer.ProtoReflect()
+	cases := []struct {
+		field string
+		expr  string
+	}{
+		{"inner", "this.x > 0"},
+		{"items", "this[0].v > 0"},
+		{"labels", "this['a'].v > 0"},
+		{"tags", "size(this) > 0"},
+	}
+	for _, c := range cases {
+		fd := reflectMsg.Descriptor().Fields().ByName(protoreflect.Name(c.field))
+		if fd == nil {
+			t.Fatalf("no field %q", c.field)
+		}
+		value := celFieldValue(fd, reflectMsg.Get(fd))
+		result, err := validator.Execute(serde.ValidationRule{Name: "r", Expr: c.expr}, fd, value)
+		if err != nil {
+			t.Errorf("%s: %v", c.field, err)
+			continue
+		}
+		if result != true {
+			t.Errorf("%s: expected true, got %v", c.field, result)
+		}
 	}
 }
