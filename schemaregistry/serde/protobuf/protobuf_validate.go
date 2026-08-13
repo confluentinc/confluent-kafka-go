@@ -18,6 +18,7 @@ package protobuf
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
@@ -52,39 +53,127 @@ func validateMessage(executor serde.ValidationRuleExecutor, descriptor protorefl
 	if !ok {
 		return violations, nil
 	}
-	// Re-read the message through the registered schema's descriptor. Protobuf pairs fields
-	// by number on the wire, so this carries every value across a rename, and it means a
-	// message-level rule binds `this` to a message whose fields the rule's own environment -
-	// built from the same schema - can resolve. Without it, `this.renamed` reads a missing
-	// field and a valid message is rejected.
-	if m.ProtoReflect().Descriptor() != descriptor {
+	// The walk is driven by the caller's message throughout: it decides which fields exist,
+	// which are absent, and what the values are. A rule that binds `this` to a message needs
+	// one more thing - a view of that message in the schema's terms, since a rule's CEL
+	// environment is built from the schema and `this.renamed` cannot read a field the
+	// caller's class calls something else. Protobuf pairs fields by number on the wire, so
+	// re-reading the message through the registered descriptor produces exactly that view.
+	//
+	// Re-reading is only worth its cost when the two descriptors actually present values
+	// differently, which is decided once per descriptor pair (see needsSchemaView) rather
+	// than per record: a generated type that matches the registered schema has a distinct
+	// descriptor but the same fields, so no re-read happens at all.
+	var schemaMsg proto.Message
+	if needsSchemaView(descriptor, m.ProtoReflect().Descriptor()) {
 		bytes, err := proto.Marshal(m)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not read message %s through the registered schema: %w",
+				descriptor.FullName(), err)
 		}
-		schemaMsg := dynamicpb.NewMessage(descriptor)
-		if err := proto.Unmarshal(bytes, schemaMsg); err != nil {
-			return nil, err
+		dynMsg := dynamicpb.NewMessage(descriptor)
+		if err := proto.Unmarshal(bytes, dynMsg); err != nil {
+			return nil, fmt.Errorf("could not read message %s through the registered schema: %w",
+				descriptor.FullName(), err)
 		}
-		m = schemaMsg
+		schemaMsg = dynMsg
 	}
-	err := validate(executor, descriptor, "", m, failFast, &violations)
+	err := validate(executor, descriptor, "", m, schemaMsg, failFast, &violations)
 	if err != nil {
 		return nil, err
 	}
 	return violations, nil
 }
 
-// validate mirrors transform's dispatch shape, walking the descriptor's fields and
-// descending into message-valued fields, map values and repeated elements.
+// descriptorPair keys the memo below: the registered schema's descriptor paired with the
+// runtime descriptor of a message handed to validateMessage.
+type descriptorPair struct {
+	schema  protoreflect.MessageDescriptor
+	runtime protoreflect.MessageDescriptor
+}
+
+// schemaViewNeeded memoizes needsSchemaView. Both descriptors are stable for the lifetime of
+// a serializer, so this is one lookup per record rather than a tree comparison.
+var schemaViewNeeded sync.Map
+
+// needsSchemaView reports whether a message whose runtime descriptor is runtimeDesc has to be
+// re-read through descriptor before rules can bind `this` to it - true when the two disagree
+// about any field a rule could observe: its name, its kind, or whether it is a list or a map,
+// at any depth.
+//
+// Presence deliberately does not count. Whether an unset field is absent is decided by the
+// producer's field on the producer's message, which the walk reads directly, so a schema that
+// only moved a field into or out of a oneof needs no re-read.
+func needsSchemaView(descriptor protoreflect.MessageDescriptor,
+	runtimeDesc protoreflect.MessageDescriptor) bool {
+	if runtimeDesc == descriptor {
+		return false
+	}
+	key := descriptorPair{schema: descriptor, runtime: runtimeDesc}
+	if cached, ok := schemaViewNeeded.Load(key); ok {
+		return cached.(bool)
+	}
+	needed := !presentsSameValues(descriptor, runtimeDesc, map[string]bool{})
+	schemaViewNeeded.Store(key, needed)
+	return needed
+}
+
+// presentsSameValues reports whether the two descriptors present every field they share -
+// paired by number, which is how protobuf identifies a field - under the same name, kind and
+// cardinality, recursively through message-valued fields. Fields only one of them declares
+// are ignored: the walk visits the intersection either way.
+//
+// visited holds the descriptor pairs already compared, so a self-referential message type
+// terminates.
+func presentsSameValues(descriptor protoreflect.MessageDescriptor,
+	runtimeDesc protoreflect.MessageDescriptor, visited map[string]bool) bool {
+	pair := string(descriptor.FullName()) + "\x00" + string(runtimeDesc.FullName())
+	if visited[pair] {
+		// Already compared on another path, or cycling back to it. Either way this pair
+		// contributes no new disagreement.
+		return true
+	}
+	visited[pair] = true
+	fields := runtimeDesc.Fields()
+	for i := 0; i < fields.Len(); i++ {
+		runtimeFd := fields.Get(i)
+		schemaFd := descriptor.Fields().ByNumber(runtimeFd.Number())
+		if schemaFd == nil {
+			continue
+		}
+		if schemaFd.Name() != runtimeFd.Name() || schemaFd.Kind() != runtimeFd.Kind() ||
+			schemaFd.IsList() != runtimeFd.IsList() || schemaFd.IsMap() != runtimeFd.IsMap() {
+			return false
+		}
+		if runtimeFd.Kind() == protoreflect.MessageKind && schemaFd.Kind() == protoreflect.MessageKind {
+			if !presentsSameValues(schemaFd.Message(), runtimeFd.Message(), visited) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// validate mirrors transform's dispatch shape, walking the message's fields and descending
+// into message-valued fields, map values and repeated elements.
+//
+// The walk is driven by msg, the caller's message: it decides which fields exist, which are
+// absent, and what the values are. Each field is paired to descriptor by number, and the
+// schema's field supplies the rules and the name used in the reported path. schemaMsg is the
+// same message read through descriptor, or nil when the two descriptors present it
+// identically; where it exists, it is what rules see.
 func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.MessageDescriptor, path string,
-	msg proto.Message, failFast bool, out *[]serde.ValidationRuleError) error {
+	msg proto.Message, schemaMsg proto.Message, failFast bool, out *[]serde.ValidationRuleError) error {
 	if descriptor == nil || msg == nil {
 		return nil
 	}
-	// Message-level rules: this = the message.
+	// Message-level rules: this = the message, read as the schema names it.
+	thisMsg := msg
+	if schemaMsg != nil {
+		thisMsg = schemaMsg
+	}
 	for _, rule := range getMessageValidationRules(descriptor) {
-		if err := serde.EvaluateValidationRule(executor, rule, descriptor, msg, path, out); err != nil {
+		if err := serde.EvaluateValidationRule(executor, rule, descriptor, thisMsg, path, out); err != nil {
 			return err
 		}
 		if failFast && len(*out) > 0 {
@@ -105,10 +194,22 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 		}
 		// Skip-on-null: a field with explicit presence that is unset does not invoke the
 		// executor. Repeated and map fields have no presence and are never unset.
+		//
+		// Both halves are read from the caller's message: whether an unset field counts as
+		// absent is decided by the type that wrote it, not by the registered schema, and the
+		// two can disagree - moving a field into or out of a oneof is a compatible change.
 		if fd.HasPresence() && !reflectMsg.Has(fd) {
 			continue
 		}
 		value := reflectMsg.Get(fd)
+		// Where a schema view exists, values come from it: the two descriptors can disagree
+		// about representation as well as naming. bytes and string are interchangeable at the
+		// same number - a compatible change - and a rule authored as `this == 'hello'` cannot
+		// match a []byte.
+		schemaValue := value
+		if schemaMsg != nil {
+			schemaValue = schemaMsg.ProtoReflect().Get(schemaFd)
+		}
 		// Paths and names come from the registered schema, which is what a rule refers to.
 		childPath := string(schemaFd.Name())
 		if path != "" {
@@ -116,7 +217,7 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 		}
 		for _, rule := range getFieldValidationRules(schemaFd) {
 			if err := serde.EvaluateValidationRule(
-				executor, rule, schemaFd, celFieldValue(fd, value), childPath, out); err != nil {
+				executor, rule, schemaFd, celFieldValue(schemaFd, schemaValue), childPath, out); err != nil {
 				return err
 			}
 			if failFast && len(*out) > 0 {
@@ -125,7 +226,8 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 		}
 		switch {
 		case fd.IsMap():
-			if fd.MapValue().Kind() != protoreflect.MessageKind {
+			if fd.MapValue().Kind() != protoreflect.MessageKind ||
+				schemaFd.MapValue().Kind() != protoreflect.MessageKind {
 				continue
 			}
 			var mapErr error
@@ -133,21 +235,34 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 				if failFast && len(*out) > 0 {
 					return false
 				}
+				// Map values pair by key rather than position.
+				var schemaEntry proto.Message
+				if schemaMsg != nil {
+					if entry := schemaValue.Map().Get(k); entry.IsValid() {
+						schemaEntry = entry.Message().Interface()
+					}
+				}
 				mapErr = validate(executor, schemaFd.MapValue().Message(),
-					fmt.Sprintf("%s[%q]", childPath, k.String()), v.Message().Interface(), failFast, out)
+					fmt.Sprintf("%s[%q]", childPath, k.String()), v.Message().Interface(), schemaEntry,
+					failFast, out)
 				return mapErr == nil
 			})
 			if mapErr != nil {
 				return mapErr
 			}
 		case fd.IsList():
-			if fd.Kind() != protoreflect.MessageKind {
+			if fd.Kind() != protoreflect.MessageKind || schemaFd.Kind() != protoreflect.MessageKind {
 				continue
 			}
 			list := value.List()
 			for j := 0; j < list.Len(); j++ {
+				// Both lists came from the same bytes, so they line up; the guard is for safety.
+				var schemaElement proto.Message
+				if schemaMsg != nil && j < schemaValue.List().Len() {
+					schemaElement = schemaValue.List().Get(j).Message().Interface()
+				}
 				err := validate(executor, schemaFd.Message(), fmt.Sprintf("%s[%d]", childPath, j),
-					list.Get(j).Message().Interface(), failFast, out)
+					list.Get(j).Message().Interface(), schemaElement, failFast, out)
 				if err != nil {
 					return err
 				}
@@ -156,7 +271,15 @@ func validate(executor serde.ValidationRuleExecutor, descriptor protoreflect.Mes
 				}
 			}
 		case fd.Kind() == protoreflect.MessageKind:
-			err := validate(executor, schemaFd.Message(), childPath, value.Message().Interface(), failFast, out)
+			if schemaFd.Kind() != protoreflect.MessageKind {
+				continue
+			}
+			var schemaNested proto.Message
+			if schemaMsg != nil {
+				schemaNested = schemaValue.Message().Interface()
+			}
+			err := validate(executor, schemaFd.Message(), childPath, value.Message().Interface(),
+				schemaNested, failFast, out)
 			if err != nil {
 				return err
 			}

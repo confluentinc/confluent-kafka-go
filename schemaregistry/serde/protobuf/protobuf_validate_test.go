@@ -25,6 +25,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 )
@@ -481,5 +482,127 @@ message ValidationPerson {
 
 	if len(violations) != 0 {
 		t.Errorf("expected the rule to hold against the renamed field, got %v", violations)
+	}
+}
+
+// A rule that binds `this` to a nested message needs that message in the schema's terms, not
+// just the top-level one - on the singular, repeated and map paths alike. The repeated
+// elements also have to be paired positionally, and map values by key.
+func TestProtobufNestedMessageRulesSeeSchemaNamesUnderARename(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	renamedSchema := `syntax = "proto3";
+package test;
+import "confluent/meta.proto";
+message ValidationInner {
+  option (.confluent.message_meta) = {
+    rules: [{name: "innerRule", expr: "this.renamed_x > 0"}]
+  };
+
+  int32 renamed_x = 1;
+}
+message ValidationItem {
+  option (.confluent.message_meta) = {
+    rules: [{name: "itemRule", expr: "this.renamed_v > 0"}]
+  };
+
+  int32 renamed_v = 1;
+}
+message ValidationOuter {
+  ValidationInner inner = 1;
+  repeated ValidationItem items = 2;
+  map<string, ValidationItem> labels = 4;
+}
+`
+	// The registered schema renames the nested types' fields; the generated types still call
+	// them x and v. Renaming a field at the same number is a compatible change.
+	schemaDesc := parseMessageDescriptor(t, renamedSchema, "test.ValidationOuter")
+	msg := &test.ValidationOuter{
+		Inner: &test.ValidationInner{X: 5},
+		Items: []*test.ValidationItem{{V: 1}, {V: -5}},
+		Labels: map[string]*test.ValidationItem{
+			"a": {V: 2},
+		},
+	}
+
+	violations, err := validateMessage(cel.NewValidator(), schemaDesc, msg, false)
+	serde.MaybeFail("validation", err)
+
+	var fired []string
+	for _, v := range violations {
+		fired = append(fired, v.Rule.Name+"@"+v.FieldPath)
+	}
+	if len(fired) != 1 || fired[0] != "itemRule@items[1]" {
+		t.Errorf("expected only the second item to violate, got %v", fired)
+	}
+}
+
+// A generated type's descriptor is never the same object as the one built from the registered
+// schema, so an identity check alone would re-read every record. When the two describe the
+// same fields there is nothing to gain from it - and something to lose: re-reading has to
+// marshal the message first, which a proto2 message missing a required field cannot do.
+func TestProtobufDescriptorsThatAgreeAreNotReRead(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	proto2Schema := `syntax = "proto2";
+package test;
+import "confluent/meta.proto";
+message Proto2Required {
+  required string a = 1;
+  optional string b = 2 [(.confluent.field_meta) = {
+    rules: [{name: "r", expr: "size(this) > 0"}]
+  }];
+}
+`
+	// Two parses of the same text: distinct descriptors describing the same fields.
+	schemaDesc := parseMessageDescriptor(t, proto2Schema, "test.Proto2Required")
+	producerDesc := parseMessageDescriptor(t, proto2Schema, "test.Proto2Required")
+	msg := dynamicpb.NewMessage(producerDesc)
+	msg.Set(producerDesc.Fields().ByName("b"), protoreflect.ValueOfString("set"))
+	if _, err := proto.Marshal(msg); err == nil {
+		t.Fatal("the fixture must be missing its required field")
+	}
+
+	violations, err := validateMessage(alwaysFail{}, schemaDesc, msg, false)
+	serde.MaybeFail("validation", err)
+
+	var fired []string
+	for _, v := range violations {
+		fired = append(fired, v.Rule.Name+"@"+v.FieldPath)
+	}
+	if len(fired) != 1 || fired[0] != "r@b" {
+		t.Errorf("expected the rule on b to fire, got %v", fired)
+	}
+}
+
+// bytes and string are interchangeable at the same number - a compatible change - so a
+// producer can write bytes against a schema that declares a string. The rule is authored
+// against the schema, so it has to be handed the string: naming is not the only thing the
+// schema's view fixes.
+func TestProtobufScalarFieldRuleSeesTheSchemasRepresentation(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	registered := `syntax = "proto3";
+package test;
+import "confluent/meta.proto";
+message Payload {
+  string payload = 1 [(.confluent.field_meta) = {
+    rules: [{name: "r", expr: "this == 'hello'"}]
+  }];
+}
+`
+	producer := `syntax = "proto3";
+package test;
+message Payload {
+  bytes payload = 1;
+}
+`
+	schemaDesc := parseMessageDescriptor(t, registered, "test.Payload")
+	producerDesc := parseMessageDescriptor(t, producer, "test.Payload")
+	msg := dynamicpb.NewMessage(producerDesc)
+	msg.Set(producerDesc.Fields().ByName("payload"), protoreflect.ValueOfBytes([]byte("hello")))
+
+	violations, err := validateMessage(cel.NewValidator(), schemaDesc, msg, false)
+	serde.MaybeFail("validation", err)
+
+	if len(violations) != 0 {
+		t.Errorf("expected the rule to match the schema's string value, got %v", violations)
 	}
 }
