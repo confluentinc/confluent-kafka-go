@@ -49,14 +49,42 @@ func validateMessage(executor serde.ValidationRuleExecutor, schema *jsonschema2.
 	return violations, nil
 }
 
-// validateWithRules mirrors transform's dispatch shape: type arrays, then the combined
-// keywords (allOf/anyOf/oneOf) with their sibling properties/items, then items, then $ref,
-// then object properties.
+// validateWithRules evaluates the rules declared on schema against msg, then walks into
+// whatever schema describes.
+//
+// This is the only place rules are read. A property's schema and the schema the walk
+// recurses into for that property are the same schema, so reading them in the property loop
+// as well would charge every rule on an object-valued property twice - which is why
+// validateProperties only recurses. Matches the JVM client.
 func validateWithRules(executor serde.ValidationRuleExecutor, schema *jsonschema2.Schema, path string,
 	msg *reflect.Value, failFast bool, out *[]serde.ValidationRuleError) error {
 	if msg == nil || (msg.Kind() == reflect.Pointer && msg.IsNil()) || schema == nil {
 		return nil
 	}
+	// Skip-on-null: an absent or nil value does not invoke the executor. The walk below
+	// still runs and no-ops.
+	if isPresent(msg) {
+		if val := deref(msg); val.IsValid() && val.CanInterface() {
+			for _, rule := range getInlineValidationRules(schema) {
+				if err := serde.EvaluateValidationRule(
+					executor, rule, schema, val.Interface(), path, out); err != nil {
+					return err
+				}
+				if failFast && len(*out) > 0 {
+					return nil
+				}
+			}
+		}
+	}
+	return validateSchemaBody(executor, schema, path, msg, failFast, out)
+}
+
+// validateSchemaBody mirrors transform's dispatch shape: type arrays, then the combined
+// keywords (allOf/anyOf/oneOf) with their sibling properties/items, then items, then $ref,
+// then object properties. Rules for this node have already been evaluated by
+// validateWithRules.
+func validateSchemaBody(executor serde.ValidationRuleExecutor, schema *jsonschema2.Schema, path string,
+	msg *reflect.Value, failFast bool, out *[]serde.ValidationRuleError) error {
 	if len(schema.Types) > 1 {
 		// Narrow to the type the value actually matches. Unlike transform, which mutates
 		// schema.Types in place, this walks a shallow copy: the compiled schema is cached
@@ -66,7 +94,9 @@ func validateWithRules(executor serde.ValidationRuleExecutor, schema *jsonschema
 			return err
 		}
 		if subschema != nil {
-			return validateWithRules(executor, subschema, path, msg, failFast, out)
+			// The narrowed schema is a copy of this one and carries the same rules, so
+			// only its body is walked.
+			return validateSchemaBody(executor, subschema, path, msg, failFast, out)
 		}
 		return nil
 	}
@@ -164,25 +194,14 @@ func validateArray(executor serde.ValidationRuleExecutor, sch *jsonschema2.Schem
 	return nil
 }
 
-// validateProperties evaluates object-level rules, then each declared property's rules,
-// then recurses into the property values. Undeclared properties are not walked, matching
-// the JVM client.
+// validateProperties recurses into each declared property value. Undeclared properties are
+// not walked, matching the JVM client. Rules are not read here - see validateWithRules,
+// which each property value goes through.
 func validateProperties(executor serde.ValidationRuleExecutor, schema *jsonschema2.Schema, path string,
 	msg *reflect.Value, failFast bool, out *[]serde.ValidationRuleError) error {
 	val := deref(msg)
 	if val.Kind() != reflect.Struct && val.Kind() != reflect.Map {
 		return nil
-	}
-	// Object-level rules: this = the object value.
-	if val.IsValid() && val.CanInterface() {
-		for _, rule := range getInlineValidationRules(schema) {
-			if err := serde.EvaluateValidationRule(executor, rule, schema, val.Interface(), path, out); err != nil {
-				return err
-			}
-			if failFast && len(*out) > 0 {
-				return nil
-			}
-		}
 	}
 	var fieldsByName map[string]*reflect.Value
 	if val.Kind() == reflect.Struct {
@@ -208,21 +227,6 @@ func validateProperties(executor serde.ValidationRuleExecutor, schema *jsonschem
 			propVal = &mapField
 		}
 		fullName := path + "." + propName
-		// Skip-on-null: an absent or nil property does not invoke the executor.
-		if isPresent(propVal) {
-			value := deref(propVal)
-			if value.IsValid() && value.CanInterface() {
-				for _, rule := range getInlineValidationRules(propSchema) {
-					err := serde.EvaluateValidationRule(executor, rule, propSchema, value.Interface(), fullName, out)
-					if err != nil {
-						return err
-					}
-					if failFast && len(*out) > 0 {
-						return nil
-					}
-				}
-			}
-		}
 		if err := validateWithRules(executor, propSchema, fullName, propVal, failFast, out); err != nil {
 			return err
 		}

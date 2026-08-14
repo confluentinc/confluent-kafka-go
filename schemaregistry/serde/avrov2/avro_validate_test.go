@@ -445,3 +445,80 @@ func TestAvroValidationSkipsMapsWithUnusableKeys(t *testing.T) {
 		t.Errorf("the rule should not have been reachable: %v", err)
 	}
 }
+
+// A message need not be a pointer. The writer takes the value, and dereferencing whatever
+// arrives used to panic with "reflect: call of reflect.Value.Elem on map Value" for a
+// plain map or struct - a crash in the caller's goroutine rather than an error.
+func TestAvroSerializesNonPointerMessages(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema: validationSchema, SchemaType: "AVRO"}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+
+	want := Person{Age: 30, Name: "Alice"}
+	for name, msg := range map[string]interface{}{
+		"pointer to struct": &want,
+		"struct":            want,
+		"pointer to map":    &map[string]interface{}{"age": 30, "name": "Alice"},
+		"map":               map[string]interface{}{"age": 30, "name": "Alice"},
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s: panicked: %v", name, r)
+				}
+			}()
+			bytes, err := ser.Serialize("topic1", msg)
+			if err != nil {
+				t.Errorf("%s: %v", name, err)
+				return
+			}
+			// The payload has to be real, not merely produced without crashing.
+			var got Person
+			if err := deser.DeserializeInto("topic1", bytes, &got); err != nil {
+				t.Errorf("%s: round trip: %v", name, err)
+				return
+			}
+			if got != want {
+				t.Errorf("%s: round-tripped to %+v, want %+v", name, got, want)
+			}
+		}()
+	}
+}
+
+func TestAvroRejectsNilPointerMessages(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema: validationSchema, SchemaType: "AVRO"}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("panicked on a nil pointer instead of erroring: %v", r)
+		}
+	}()
+	if _, err := ser.Serialize("topic1", (*Person)(nil)); err == nil {
+		t.Error("expected an error for a nil pointer message")
+	}
+}

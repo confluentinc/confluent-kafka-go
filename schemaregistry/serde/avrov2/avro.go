@@ -161,8 +161,15 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 			return nil, nil, err
 		}
 	}
-	// Convert pointer to non-pointer
-	msg = reflect.ValueOf(msg).Elem().Interface()
+	// The writer takes the value, not a handle to it. Callers normally pass a pointer, but
+	// a plain struct or map is just as valid a message and dereferencing it would panic, so
+	// unwrap only what is actually a pointer.
+	if val := reflect.ValueOf(msg); val.Kind() == reflect.Pointer {
+		if val.IsNil() {
+			return nil, nil, fmt.Errorf("cannot serialize a nil %T", msg)
+		}
+		msg = val.Elem().Interface()
+	}
 	var msgBytes []byte
 	// Check if the schema is bytes type
 	if avroSchema.Type() == avro.Bytes {

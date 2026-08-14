@@ -696,3 +696,86 @@ func TestJsonSchemaTransformWalksMapsWithNonStringKeys(t *testing.T) {
 		}()
 	}
 }
+
+// A rule on an object-valued property is declared once and must fire once. The property's
+// schema and the schema the walk recurses into for it are the same object, so a walk that
+// read rules both in the property loop and on arrival would report every such rule twice.
+const nestedObjectRuleSchema = `
+{
+  "type": "object",
+  "confluent:rules": [ { "name": "rootRule", "expr": "has(this.child)" } ],
+  "properties": {
+    "child": {
+      "type": "object",
+      "confluent:rules": [ { "name": "childRule", "expr": "this.code == 'ok'" } ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "confluent:rules": [ { "name": "codeRule", "expr": "size(this) > 0" } ]
+        }
+      }
+    }
+  }
+}
+`
+
+func countViolations(t *testing.T, msg interface{}) map[string]int {
+	t.Helper()
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema: nestedObjectRuleSchema, SchemaType: "JSON"}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.ValidationRulesExecution = serde.ValidationRulesAfterDomainRules
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	_, err = ser.Serialize("topic1", msg)
+	counts := map[string]int{}
+	if err == nil {
+		return counts
+	}
+	for _, name := range []string{"rootRule", "childRule", "codeRule"} {
+		counts[name] = strings.Count(err.Error(), name)
+	}
+	return counts
+}
+
+func TestJsonSchemaValidationEvaluatesEachRuleExactlyOnce(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+
+	// Both the object-valued property's rule and the scalar property's rule are violated.
+	counts := countViolations(t, map[string]interface{}{
+		"child": map[string]interface{}{"code": ""}})
+	for _, name := range []string{"childRule", "codeRule"} {
+		if counts[name] != 1 {
+			t.Errorf("%s fired %d times, want exactly 1", name, counts[name])
+		}
+	}
+	if counts["rootRule"] != 0 {
+		t.Errorf("rootRule fired %d times, want 0", counts["rootRule"])
+	}
+}
+
+func TestJsonSchemaValidationStillEvaluatesRootAndScalarRules(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+
+	// An object with no "child" violates the root rule and nothing else - proof that
+	// moving rule evaluation did not drop the root level.
+	counts := countViolations(t, map[string]interface{}{})
+	if counts["rootRule"] != 1 {
+		t.Errorf("rootRule fired %d times, want exactly 1", counts["rootRule"])
+	}
+
+	// A well-formed message violates nothing.
+	counts = countViolations(t, map[string]interface{}{
+		"child": map[string]interface{}{"code": "ok"}})
+	if len(counts) != 0 {
+		t.Errorf("expected no violations, got %v", counts)
+	}
+}
