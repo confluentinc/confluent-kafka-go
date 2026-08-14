@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+import "confluent/meta.proto";
+
+message ValidationPerson {
+  option (.confluent.message_meta) = {
+    rules: [{name: "ageNotInsane", expr: "this.age <= 150"}]
+  };
+
+  int32 age = 1 [(.confluent.field_meta) = {
+    rules: [{name: "agePositive", doc: "age must not be negative", expr: "this >= 0"}]
+  }];
+  string name = 2 [(.confluent.field_meta) = {
+    rules: [{name: "nameNotEmpty", expr: "size(this) > 0"}]
+  }];
+}
+
+message ValidationInner {
+  int32 x = 1 [(.confluent.field_meta) = {
+    rules: [{name: "r", expr: "this > 0"}]
+  }];
+}
+
+message ValidationItem {
+  option (.confluent.message_meta) = {
+    rules: [{name: "itemRule", expr: "this.v > 0"}]
+  };
+
+  int32 v = 1;
+}
+
+message ValidationOuter {
+  ValidationInner inner = 1;
+  repeated ValidationItem items = 2;
+  optional string maybe = 3 [(.confluent.field_meta) = {
+    rules: [{name: "maybeNotEmpty", expr: "size(this) > 0"}]
+  }];
+  map<string, ValidationItem> labels = 4;
+  repeated string tags = 5 [(.confluent.field_meta) = {
+    rules: [{name: "tagsNotEmpty", expr: "size(this) > 0"}]
+  }];
+}
+
+message ValidationDynamicMessage {
+  int32 age = 1 [(.confluent.field_meta) = {
+    rules: [{name: "ageMsg", expr: "this >= 0 ? '' : 'age must be positive, got ' + string(this)"}]
+  }];
+}

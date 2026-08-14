@@ -36,6 +36,11 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		fieldCtx.Type = getType(schema)
 	}
 	switch schema.(type) {
+	case *avro.RefSchema:
+		// As in the validation walk: a reference to a named type has to be unwrapped, or
+		// the inline tags on the record it points at - and so the fields they mark for
+		// encryption - are never seen.
+		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform)
 	case *avro.UnionSchema:
 		val := deref(msg)
 		subschema, submsg, err := resolveUnion(resolver, schema, val)
@@ -294,10 +299,17 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 	return nil, nil, fmt.Errorf("avro: unknown union type %s", names[0])
 }
 
+// deref unwraps every pointer and interface layer, not just one. A value read out of a
+// map[string]interface{} arrives as an interface, so a nested record held as a pointer
+// needs two unwraps to reach the struct; stopping at one leaves a reflect.Pointer, which
+// every caller's Kind check rejects, and the record's fields are never walked.
+//
+// Terminates on nil without a guard: Elem() of a nil pointer or nil interface is the zero
+// Value, whose Kind is Invalid.
 func deref(val *reflect.Value) *reflect.Value {
-	if val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
-		v := val.Elem()
-		return &v
+	v := *val
+	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+		v = v.Elem()
 	}
-	return val
+	return &v
 }
