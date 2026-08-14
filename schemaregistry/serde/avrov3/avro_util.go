@@ -21,8 +21,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	avro "github.com/confluentinc/confluent-avro-go/v2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/modern-go/reflect2"
 )
 
