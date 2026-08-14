@@ -41,8 +41,11 @@ type SerializerConfig struct {
 	// that violation. When false (the default), every node is visited and all violations
 	// are reported.
 	ValidationRulesFailFast bool
-	// ValidationRuleExecutor overrides the executor used to evaluate inline validation
-	// rules. Defaults to the CEL-backed executor.
+	// ValidationRuleExecutor is the executor used to evaluate inline validation rules.
+	// When nil, the executor is taken from the global registry, which importing
+	// schemaregistry/rules/cel populates with the CEL-backed one - as with every other
+	// rule executor here, nothing is linked in on your behalf. Setting this field is the
+	// alternative to that import; with neither, enabling validation is an error.
 	ValidationRuleExecutor ValidationRuleExecutor
 }
 
