@@ -38,6 +38,7 @@ func init() {
 func Register() {
 	serde.RegisterRuleExecutor(NewExecutor())
 	serde.RegisterRuleExecutor(NewFieldExecutor())
+	serde.RegisterValidationRuleExecutor(NewValidator())
 }
 
 // NewExecutor creates a new CEL rule executor
@@ -180,8 +181,13 @@ func typeToCELType(arg interface{}) *cel.Type {
 	switch arg.(type) {
 	case bool:
 		return cel.BoolType
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+	case int, int8, int16, int32, int64:
 		return cel.IntType
+	// Unsigned values are declared unsigned, so that arithmetic on them resolves an
+	// overload: the value bound at evaluation time is a CEL uint either way, and a
+	// declaration of int leaves `this % 2` or `this + 1` with no matching overload.
+	case uint, uint8, uint16, uint32, uint64, uintptr:
+		return cel.UintType
 	case []byte:
 		return cel.BytesType
 	case float32, float64:
@@ -203,6 +209,45 @@ func typeToCELType(arg interface{}) *cel.Type {
 }
 
 func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOption) (cel.Program, error) {
+	// Domain rules address a Go struct's fields by their Go names, which is how they have
+	// always been written; only validation rules, which come from the schema, use the
+	// schema names.
+	return buildProgram(c.env, expr, msg, decls, nil)
+}
+
+// schemaFieldName resolves the CEL name of a Go struct field to the field's schema name,
+// so that validation rules address fields the same way they do in the other clients
+// (`this.age` rather than `this.Age`). Inline validation rules are written against the
+// schema, so the schema's field names are the only ones they can use.
+//
+// This applies to validation rules alone: a domain rule's expression is written by the
+// user against the Go type, so the Executor keeps addressing fields by their Go names.
+//
+// Avro structs carry `avro` tags and JSON Schema structs carry `json` tags; either is
+// consulted, with the Go field name as the fallback for untagged fields. Protobuf messages
+// do not go through this path — they are registered with cel.Types, which already exposes
+// proto field names.
+func schemaFieldName(field reflect.StructField) string {
+	for _, tagName := range []string{"avro", "json"} {
+		tag, found := field.Tag.Lookup(tagName)
+		if !found {
+			continue
+		}
+		name := strings.Split(tag, ",")[0]
+		if name != "" && name != "-" {
+			return name
+		}
+	}
+	return field.Name
+}
+
+// buildProgram compiles expr against env, extended with the declarations in decls and
+// with the type of msg registered so that field access on it resolves.
+//
+// fieldName, when non-nil, names a Go struct's fields for the expression; the Go field
+// names are used when it is nil.
+func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption,
+	fieldName func(reflect.StructField) string) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
 	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
 		typ = typ.Elem()
@@ -212,7 +257,11 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 	if ok {
 		declType = cel.Types(protoType)
 	} else if typ.Kind() == reflect.Struct {
-		declType = ext.NativeTypes(typ)
+		if fieldName != nil {
+			declType = ext.NativeTypes(typ, ext.ParseStructField(fieldName))
+		} else {
+			declType = ext.NativeTypes(typ)
+		}
 	}
 	envOptions := decls
 	if declType != nil {
@@ -220,7 +269,7 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 		copy(envOptions, decls)
 		envOptions = append(envOptions, declType)
 	}
-	env, err := c.env.Extend(envOptions...)
+	env, err := baseEnv.Extend(envOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +285,11 @@ func (c *Executor) newProgram(expr string, msg interface{}, decls []cel.EnvOptio
 }
 
 func (c *Executor) eval(expr string, program cel.Program, args map[string]interface{}) (interface{}, error) {
+	return evalProgram(expr, program, args)
+}
+
+// evalProgram evaluates program against args, converting the result to a native value.
+func evalProgram(expr string, program cel.Program, args map[string]interface{}) (interface{}, error) {
 	out, _, err := program.Eval(args)
 	if err != nil {
 		return nil, fmt.Errorf("CEL expr %s failed: %w", expr, err)
