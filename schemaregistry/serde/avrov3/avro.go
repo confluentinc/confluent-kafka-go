@@ -436,8 +436,11 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toType(client schemaregistry.Client, schema schemaregistry.SchemaInfo) (avro.Schema, string, error) {
+	// Keyed on the whole schema: resolveAvroReferences inlines what the
+	// references resolve to, so the references are part of its identity.
+	cacheKey := serde.SchemaCacheKey(schema)
 	s.schemaToTypeCacheLock.RLock()
-	value, ok := s.schemaToTypeCache.Get(schema.Schema)
+	value, ok := s.schemaToTypeCache.Get(cacheKey)
 	s.schemaToTypeCacheLock.RUnlock()
 	if ok {
 		avroType := value.(avro.Schema)
@@ -448,7 +451,7 @@ func (s *Serde) toType(client schemaregistry.Client, schema schemaregistry.Schem
 		return nil, "", err
 	}
 	s.schemaToTypeCacheLock.Lock()
-	s.schemaToTypeCache.Put(schema.Schema, avroType)
+	s.schemaToTypeCache.Put(cacheKey, avroType)
 	s.schemaToTypeCacheLock.Unlock()
 	return avroType, name(avroType), nil
 }

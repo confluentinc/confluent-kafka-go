@@ -376,3 +376,107 @@ func TestJsonSchemaTransformVisitsIntegerProperties(t *testing.T) {
 			len(observer.observed))
 	}
 }
+
+// A root whose text is the same whichever schema it references. What its "$ref"
+// resolves to is decided entirely by the reference list on the SchemaInfo.
+const sharedRootSchema = `
+{
+  "type": "object",
+  "properties": { "payload": { "$ref": "ref" } }
+}
+`
+
+// Two referenced schemas differing only in the rule they declare.
+func refSchemaRequiring(prefix string, ruleName string) string {
+	return `
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "confluent:rules": [
+        { "name": "` + ruleName + `", "expr": "this.startsWith('` + prefix + `')" }
+      ]
+    }
+  }
+}
+`
+}
+
+func rootReferencing(subject string) schemaregistry.SchemaInfo {
+	return schemaregistry.SchemaInfo{
+		Schema:     sharedRootSchema,
+		SchemaType: "JSON",
+		References: []schemaregistry.Reference{
+			{Name: "ref", Subject: subject, Version: 1},
+		},
+	}
+}
+
+func TestJsonSchemaCacheSeparatesSchemasByTheirReferences(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	for _, ref := range []struct{ subject, prefix, rule string }{
+		{"ref-a", "A", "code_a"},
+		{"ref-b", "B", "code_b"},
+	} {
+		_, err = client.Register(ref.subject, schemaregistry.SchemaInfo{
+			Schema:     refSchemaRequiring(ref.prefix, ref.rule),
+			SchemaType: "JSON",
+		}, false)
+		serde.MaybeFail("reference registration", err)
+	}
+
+	// One serde, so both lookups go through the same cache. The two schemas
+	// agree on every byte of their text and differ only in what they reference,
+	// which is exactly the pair a text-keyed cache would conflate.
+	ser, err := NewSerializer(client, serde.ValueSerde, NewSerializerConfig())
+	serde.MaybeFail("Serializer configuration", err)
+
+	typeA, err := ser.toJSONSchema(client, rootReferencing("ref-a"))
+	serde.MaybeFail("compiling the schema referencing ref-a", err)
+	typeB, err := ser.toJSONSchema(client, rootReferencing("ref-b"))
+	serde.MaybeFail("compiling the schema referencing ref-b", err)
+
+	if typeA == typeB {
+		t.Fatal("the second schema was served the first one's compiled schema")
+	}
+	if got := ruleNamesOf(typeA); got != "code_a" {
+		t.Errorf("schema referencing ref-a carries rule %q, want code_a", got)
+	}
+	if got := ruleNamesOf(typeB); got != "code_b" {
+		t.Errorf("schema referencing ref-b carries rule %q, want code_b", got)
+	}
+
+	// The same schema still hits the cache rather than recompiling.
+	again, err := ser.toJSONSchema(client, rootReferencing("ref-a"))
+	serde.MaybeFail("recompiling the schema referencing ref-a", err)
+	if again != typeA {
+		t.Error("an identical schema missed the cache")
+	}
+}
+
+// Name of the single rule reachable under the root's "payload" property.
+func ruleNamesOf(schema *jsonschema2.Schema) string {
+	payload := schema.Properties["payload"]
+	if payload == nil {
+		return "<no payload property>"
+	}
+	// A "$ref" compiles to a schema that points at the resolved one, which is
+	// where the referenced schema's rules live.
+	if payload.Ref != nil {
+		payload = payload.Ref
+	}
+	code := payload.Properties["code"]
+	if code == nil {
+		return "<no code property>"
+	}
+	rules, ok := code.Extensions[serde.ValidationRulesProp].(validationRulesSchema)
+	if !ok || len(rules) != 1 {
+		return "<no rules>"
+	}
+	return rules[0].Name
+}

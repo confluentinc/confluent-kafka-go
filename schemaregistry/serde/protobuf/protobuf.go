@@ -513,8 +513,12 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+	// Keyed on the whole schema: parseFileDesc feeds the referenced .proto
+	// files to the parser, so two roots with the same text but different
+	// references do not parse to the same descriptor.
+	cacheKey := serde.SchemaCacheKey(info)
 	s.schemaToDescCacheLock.RLock()
-	value, ok := s.schemaToDescCache.Get(info.Schema)
+	value, ok := s.schemaToDescCache.Get(cacheKey)
 	s.schemaToDescCacheLock.RUnlock()
 	if ok {
 		return value.(*desc.FileDescriptor), nil
@@ -524,7 +528,7 @@ func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.Sch
 		return nil, err
 	}
 	s.schemaToDescCacheLock.Lock()
-	s.schemaToDescCache.Put(info.Schema, fd)
+	s.schemaToDescCache.Put(cacheKey, fd)
 	s.schemaToDescCacheLock.Unlock()
 	return fd, nil
 }

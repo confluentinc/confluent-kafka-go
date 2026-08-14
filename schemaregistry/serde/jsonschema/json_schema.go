@@ -371,8 +371,11 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*jsonschema2.Schema, error) {
+	// Keyed on the whole schema: what gets compiled below is the schema with
+	// its references resolved in, so the references are part of its identity.
+	cacheKey := serde.SchemaCacheKey(schema)
 	s.schemaToTypeCacheLock.RLock()
-	value, ok := s.schemaToTypeCache.Get(schema.Schema)
+	value, ok := s.schemaToTypeCache.Get(cacheKey)
 	s.schemaToTypeCacheLock.RUnlock()
 	if ok {
 		jsonType := value.(*jsonschema2.Schema)
@@ -398,7 +401,7 @@ func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.Sche
 		return nil, err
 	}
 	s.schemaToTypeCacheLock.Lock()
-	s.schemaToTypeCache.Put(schema.Schema, jsonType)
+	s.schemaToTypeCache.Put(cacheKey, jsonType)
 	s.schemaToTypeCacheLock.Unlock()
 	return jsonType, nil
 }
