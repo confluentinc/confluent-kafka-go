@@ -9,6 +9,14 @@ message Meta {
   string doc = 1;
   map<string, string> params = 2;
   repeated string tags = 3;
+  repeated Rule rules = 4;
+}
+
+message Rule {
+  string name = 1;
+  string doc = 2;
+  string expr = 3;
+  string sql = 4;
 }
 
 extend google.protobuf.FileOptions {
