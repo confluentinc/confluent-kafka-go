@@ -480,3 +480,90 @@ func ruleNamesOf(schema *jsonschema2.Schema) string {
 	}
 	return rules[0].Name
 }
+
+// A nested object whose value the caller holds as a pointer inside an interface - the
+// shape a generic map[string]interface{} produces. deref has to unwrap both the interface
+// and the pointer to reach the struct; stopping at one leaves a reflect.Pointer, and every
+// rule inside the child is silently skipped while the message still serializes, since
+// encoding/json marshals a pointer in a map perfectly well.
+const nestedValidationSchema = `
+{
+  "type": "object",
+  "properties": {
+    "child": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "confluent:rules": [ { "name": "codeNotEmpty", "expr": "size(this) > 0" } ]
+        }
+      }
+    }
+  }
+}
+`
+
+type NestedChild struct {
+	Code string `json:"code"`
+}
+
+type NestedParent struct {
+	Child NestedChild `json:"child"`
+}
+
+func newNestedValidationSerializer(t *testing.T) *Serializer {
+	t.Helper()
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema:     nestedValidationSchema,
+		SchemaType: "JSON",
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.ValidationRulesExecution = serde.ValidationRulesAfterDomainRules
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	return ser
+}
+
+func nestedShapes(child NestedChild, code string) map[string]interface{} {
+	return map[string]interface{}{
+		"typed struct":     &NestedParent{Child: child},
+		"pointer in field": map[string]interface{}{"child": &child},
+		"value in field":   map[string]interface{}{"child": child},
+		"map in field":     map[string]interface{}{"child": map[string]interface{}{"code": code}},
+		"pointer to map":   map[string]interface{}{"child": &map[string]interface{}{"code": code}},
+	}
+}
+
+func TestJsonSchemaValidationReachesNestedObjectsThroughEveryIndirection(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newNestedValidationSerializer(t)
+
+	for name, msg := range nestedShapes(NestedChild{Code: ""}, "") {
+		_, err := ser.Serialize("topic1", msg)
+		if err == nil {
+			t.Errorf("%s: codeNotEmpty was not evaluated; the nested object was skipped", name)
+			continue
+		}
+		if !strings.Contains(err.Error(), "codeNotEmpty") {
+			t.Errorf("%s: expected codeNotEmpty to fire, got: %v", name, err)
+		}
+	}
+}
+
+func TestJsonSchemaValidationPassesForNestedObjectsThroughEveryIndirection(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newNestedValidationSerializer(t)
+
+	for name, msg := range nestedShapes(NestedChild{Code: "abc"}, "abc") {
+		if _, err := ser.Serialize("topic1", msg); err != nil {
+			t.Errorf("%s: expected no violation, got: %v", name, err)
+		}
+	}
+}

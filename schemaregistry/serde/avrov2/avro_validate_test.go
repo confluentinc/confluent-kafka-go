@@ -265,3 +265,99 @@ func (r *taggedFieldRecorder) Transform(ctx serde.RuleContext, fieldCtx serde.Fi
 	}
 	return fieldValue, nil
 }
+
+// A nested record whose value the caller holds as a pointer inside an interface - the
+// shape a generic map[string]interface{} record produces. deref has to unwrap both the
+// interface and the pointer to reach the struct; stopping at one leaves a reflect.Pointer,
+// and every rule inside the child is silently skipped while the record still serializes.
+const nestedValidationSchema = `
+{
+  "name": "Parent",
+  "type": "record",
+  "fields": [
+    {
+      "name": "child",
+      "type": {
+        "name": "Child",
+        "type": "record",
+        "fields": [
+          {
+            "name": "code",
+            "type": "string",
+            "confluent:rules": [ { "name": "codeNotEmpty", "expr": "size(this) > 0" } ]
+          }
+        ]
+      }
+    }
+  ]
+}
+`
+
+type NestedChild struct {
+	Code string `avro:"code"`
+}
+
+type NestedParent struct {
+	Child NestedChild `avro:"child"`
+}
+
+func newNestedValidationSerializer(t *testing.T) *Serializer {
+	t.Helper()
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema:     nestedValidationSchema,
+		SchemaType: "AVRO",
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.ValidationRulesExecution = serde.ValidationRulesAfterDomainRules
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	return ser
+}
+
+func TestAvroValidationReachesNestedRecordsThroughEveryIndirection(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newNestedValidationSerializer(t)
+
+	empty := NestedChild{Code: ""}
+	shapes := map[string]interface{}{
+		"typed struct":     &NestedParent{Child: empty},
+		"pointer in field": &map[string]interface{}{"child": &empty},
+		"value in field":   &map[string]interface{}{"child": empty},
+		"map in field":     &map[string]interface{}{"child": map[string]interface{}{"code": ""}},
+	}
+	for name, msg := range shapes {
+		_, err := ser.Serialize("topic1", msg)
+		if err == nil {
+			t.Errorf("%s: codeNotEmpty was not evaluated; the nested record was skipped", name)
+			continue
+		}
+		if !strings.Contains(err.Error(), "codeNotEmpty") {
+			t.Errorf("%s: expected codeNotEmpty to fire, got: %v", name, err)
+		}
+	}
+}
+
+func TestAvroValidationPassesForNestedRecordsThroughEveryIndirection(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newNestedValidationSerializer(t)
+
+	ok := NestedChild{Code: "abc"}
+	shapes := map[string]interface{}{
+		"typed struct":     &NestedParent{Child: ok},
+		"pointer in field": &map[string]interface{}{"child": &ok},
+		"value in field":   &map[string]interface{}{"child": ok},
+		"map in field":     &map[string]interface{}{"child": map[string]interface{}{"code": "abc"}},
+	}
+	for name, msg := range shapes {
+		if _, err := ser.Serialize("topic1", msg); err != nil {
+			t.Errorf("%s: expected no violation, got: %v", name, err)
+		}
+	}
+}
