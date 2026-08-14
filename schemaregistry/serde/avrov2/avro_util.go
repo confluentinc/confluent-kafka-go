@@ -113,7 +113,11 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			return msg, nil
 		} else if val.Kind() == reflect.Map {
 			for _, avroField := range recordSchema.Fields() {
-				mapField := val.MapIndex(reflect.ValueOf(avroField.Name()))
+				key, ok := serde.MapKeyForName(*val, avroField.Name())
+				if !ok {
+					continue
+				}
+				mapField := val.MapIndex(key)
 				err := transformField(ctx, resolver, recordSchema, avroField, &mapField, val, fieldTransform)
 				if err != nil {
 					return nil, err
@@ -177,7 +181,9 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 				return err
 			}
 		} else {
-			val.SetMapIndex(reflect.ValueOf(avroField.Name()), *newVal)
+			if key, ok := serde.MapKeyForName(*val, avroField.Name()); ok {
+				val.SetMapIndex(key, *newVal)
+			}
 		}
 	}
 	return nil

@@ -567,3 +567,132 @@ func TestJsonSchemaValidationPassesForNestedObjectsThroughEveryIndirection(t *te
 		}
 	}
 }
+
+// A key type other than plain string. encoding/json marshals such a map, so a caller can
+// hand it to the serializer; reflect's MapIndex panics on it unless the property name is
+// converted to the map's own key type first.
+type NamedPropKey string
+
+const mapKeyValidationSchema = `
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "confluent:rules": [ { "name": "codeNotEmpty", "expr": "size(this) > 0" } ]
+    }
+  }
+}
+`
+
+func newMapKeyValidationSerializer(t *testing.T) *Serializer {
+	t.Helper()
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema:     mapKeyValidationSchema,
+		SchemaType: "JSON",
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.ValidationRulesExecution = serde.ValidationRulesAfterDomainRules
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	return ser
+}
+
+func TestJsonSchemaValidationWalksMapsWithNonStringKeys(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newMapKeyValidationSerializer(t)
+
+	// The rule is violated, so reaching it produces a violation; not reaching it either
+	// panics or silently passes, both of which fail here.
+	for name, msg := range map[string]interface{}{
+		"map[string]any":       map[string]interface{}{"code": ""},
+		"map[NamedPropKey]any": map[NamedPropKey]interface{}{"code": ""},
+		"map[interface{}]any":  map[interface{}]interface{}{"code": ""},
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s: panicked instead of walking the map: %v", name, r)
+				}
+			}()
+			_, err := ser.Serialize("topic1", msg)
+			if err == nil {
+				t.Errorf("%s: codeNotEmpty was not evaluated", name)
+			} else if !strings.Contains(err.Error(), "codeNotEmpty") {
+				t.Errorf("%s: expected codeNotEmpty to fire, got: %v", name, err)
+			}
+		}()
+	}
+}
+
+// A key type the property name cannot address must be skipped, not panicked on.
+func TestJsonSchemaValidationSkipsMapsWithUnusableKeys(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newMapKeyValidationSerializer(t)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("panicked on an unusable key type: %v", r)
+		}
+	}()
+	// "code" is not a number, so it addresses no key of this map. The rule cannot run;
+	// serialization must still complete rather than crash.
+	if _, err := ser.Serialize("topic1", map[int]interface{}{1: ""}); err != nil {
+		t.Errorf("expected the property to be skipped, got: %v", err)
+	}
+}
+
+// The shipped transform path indexes maps by property name the same way, so it needs the
+// same key conversion - both to read the field and to write the result back.
+func TestJsonSchemaTransformWalksMapsWithNonStringKeys(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	rules := &schemaregistry.RuleSet{DomainRules: []schemaregistry.Rule{{
+		Name: "suffix", Kind: "TRANSFORM", Mode: "WRITE", Type: "CEL_FIELD",
+		Tags: []string{"PII"}, Expr: "value + '-x'",
+	}}}
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema:     `{"type":"object","properties":{"code":{"type":"string","confluent:tags":["PII"]}}}`,
+		SchemaType: "JSON", RuleSet: rules,
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+
+	for name, msg := range map[string]interface{}{
+		"map[string]any":       map[string]interface{}{"code": "a"},
+		"map[NamedPropKey]any": map[NamedPropKey]interface{}{"code": "a"},
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s: panicked instead of transforming the map: %v", name, r)
+				}
+			}()
+			bytes, err := ser.Serialize("topic1", msg)
+			if err != nil {
+				t.Errorf("%s: %v", name, err)
+				return
+			}
+			// The result is written back under the map's own key type, so it survives
+			// into the payload.
+			if got := string(bytes[5:]); !strings.Contains(got, `"code":"a-x"`) {
+				t.Errorf("%s: transform did not reach the field: %s", name, got)
+			}
+		}()
+	}
+}

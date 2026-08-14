@@ -361,3 +361,87 @@ func TestAvroValidationPassesForNestedRecordsThroughEveryIndirection(t *testing.
 		}
 	}
 }
+
+// A key type other than plain string. The generic Avro record form is map[string]any by
+// convention, but nothing enforces it, and reflect's MapIndex panics on any other key type
+// unless the field name is converted to it first.
+type NamedFieldKey string
+
+const mapKeyValidationSchema = `
+{
+  "name": "Holder",
+  "type": "record",
+  "fields": [
+    {
+      "name": "code",
+      "type": "string",
+      "confluent:rules": [ { "name": "codeNotEmpty", "expr": "size(this) > 0" } ]
+    }
+  ]
+}
+`
+
+func newMapKeyValidationSerializer(t *testing.T) *Serializer {
+	t.Helper()
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema:     mapKeyValidationSchema,
+		SchemaType: "AVRO",
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	serConfig.ValidationRulesExecution = serde.ValidationRulesAfterDomainRules
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	return ser
+}
+
+func TestAvroValidationWalksMapsWithNonStringKeys(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newMapKeyValidationSerializer(t)
+
+	// The rule is violated, so reaching it produces a violation; not reaching it either
+	// panics or silently passes, both of which fail here.
+	for name, msg := range map[string]interface{}{
+		"map[string]any":        &map[string]interface{}{"code": ""},
+		"map[NamedFieldKey]any": &map[NamedFieldKey]interface{}{"code": ""},
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s: panicked instead of walking the map: %v", name, r)
+				}
+			}()
+			_, err := ser.Serialize("topic1", msg)
+			if err == nil {
+				t.Errorf("%s: codeNotEmpty was not evaluated", name)
+			} else if !strings.Contains(err.Error(), "codeNotEmpty") {
+				t.Errorf("%s: expected codeNotEmpty to fire, got: %v", name, err)
+			}
+		}()
+	}
+}
+
+// A key type the field name cannot address must be skipped, not panicked on.
+func TestAvroValidationSkipsMapsWithUnusableKeys(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	ser := newMapKeyValidationSerializer(t)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("panicked on an unusable key type: %v", r)
+		}
+	}()
+	// "code" is not a number, so it addresses no key of this map. The rule cannot run,
+	// and the walk must simply skip the field. The write itself is expected to fail,
+	// since the value does not match the schema.
+	_, err := ser.Serialize("topic1", &map[int]interface{}{1: ""})
+	if err != nil && strings.Contains(err.Error(), "codeNotEmpty") {
+		t.Errorf("the rule should not have been reachable: %v", err)
+	}
+}

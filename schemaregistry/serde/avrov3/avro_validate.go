@@ -135,7 +135,11 @@ func validate(executor serde.ValidationRuleExecutor, resolver *avro.TypeResolver
 				}
 				fieldVal = structField
 			} else {
-				mapField := val.MapIndex(reflect.ValueOf(avroField.Name()))
+				key, ok := serde.MapKeyForName(*val, avroField.Name())
+				if !ok {
+					continue
+				}
+				mapField := val.MapIndex(key)
 				fieldVal = &mapField
 			}
 			childPath := avroField.Name()

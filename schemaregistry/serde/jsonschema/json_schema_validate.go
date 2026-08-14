@@ -197,7 +197,11 @@ func validateProperties(executor serde.ValidationRuleExecutor, schema *jsonschem
 			}
 			propVal = structField
 		} else {
-			mapField := val.MapIndex(reflect.ValueOf(propName))
+			key, ok := serde.MapKeyForName(*val, propName)
+			if !ok {
+				continue
+			}
+			mapField := val.MapIndex(key)
 			if !mapField.IsValid() {
 				continue
 			}
