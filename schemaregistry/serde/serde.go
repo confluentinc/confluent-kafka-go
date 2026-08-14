@@ -1372,6 +1372,23 @@ func (s *BaseDeserializer) GetReaderSchema(subject string) (*schemaregistry.Sche
 	return nil, nil
 }
 
+// SchemaCacheKey returns a key identifying schema in a parsed-schema cache.
+//
+// The whole schema, not just its text. Parsing resolves the schema's references
+// and inlines what they contain, so two schemas whose text is identical but
+// whose references point at different subjects or versions parse to different
+// things - and inline validation rules can come entirely from a referenced
+// schema. Keying on the text alone would hand the second schema the first one's
+// resolution. Falls back to the text if the schema cannot be marshaled, which
+// is no worse than the text-only key it replaces.
+func SchemaCacheKey(schema schemaregistry.SchemaInfo) string {
+	key, err := schema.MarshalJSON()
+	if err != nil {
+		return schema.Schema
+	}
+	return string(key)
+}
+
 // ResolveReferences resolves schema references
 func ResolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo, deps map[string]string) error {
 	for _, ref := range schema.References {
