@@ -258,6 +258,14 @@ func isModernJSONSchema(draft *jsonschema2.Draft) bool {
 
 func getType(schema *jsonschema2.Schema) serde.FieldType {
 	types := schema.Types
+	// An enumeration is typed by its values, and JSON Schema does not require it to declare a
+	// type as well - {"enum": ["a", "b"]} is the ordinary form. Checked before the typeless
+	// case so that form is not read as a typeless node: the JVM client answers ENUM for it,
+	// and ENUM is not primitive, so a field rule that would otherwise be charged against it
+	// is skipped there and has to be here too.
+	if len(schema.Constant) > 0 || len(schema.Enum) > 0 {
+		return serde.TypeEnum
+	}
 	if len(types) == 0 {
 		if len(schema.Properties) > 0 {
 			return serde.TypeRecord
@@ -266,9 +274,6 @@ func getType(schema *jsonschema2.Schema) serde.FieldType {
 	}
 	if len(types) > 1 || len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
 		return serde.TypeCombined
-	}
-	if len(schema.Constant) > 0 || len(schema.Enum) > 0 {
-		return serde.TypeEnum
 	}
 	typ := types[0]
 	switch typ {

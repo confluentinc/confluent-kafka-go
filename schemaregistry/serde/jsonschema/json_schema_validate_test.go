@@ -779,3 +779,42 @@ func TestJsonSchemaValidationStillEvaluatesRootAndScalarRules(t *testing.T) {
 		t.Errorf("expected no violations, got %v", counts)
 	}
 }
+
+// compileForType compiles a bare schema so getType can be exercised on it directly.
+func compileForType(t *testing.T, schemaStr string) *jsonschema2.Schema {
+	t.Helper()
+	compiler := jsonschema2.NewCompiler()
+	if err := compiler.AddResource("test.json", strings.NewReader(schemaStr)); err != nil {
+		t.Fatalf("adding %s: %v", schemaStr, err)
+	}
+	schema, err := compiler.Compile("test.json")
+	if err != nil {
+		t.Fatalf("compiling %s: %v", schemaStr, err)
+	}
+	return schema
+}
+
+// An enumeration is typed by its values, and JSON Schema does not require it to declare a
+// type as well - {"enum": ["a", "b"]} is the ordinary form. Read as a typeless node it came
+// out TypeNull, which is primitive, so a field rule ran against it and reported its type as
+// NULL; the JVM client answers ENUM, which is not primitive, and skips it.
+func TestJSONEnumIsTypedAsEnumWithoutADeclaredType(t *testing.T) {
+	cases := []struct {
+		schema string
+		want   serde.FieldType
+	}{
+		{`{"enum":["a","b"]}`, serde.TypeEnum},
+		{`{"const":"a"}`, serde.TypeEnum},
+		// Already the answer before, and still is.
+		{`{"type":"string","enum":["a","b"]}`, serde.TypeEnum},
+		// Unaffected: a typeless node that is not an enumeration.
+		{`{"properties":{"a":{"type":"string"}}}`, serde.TypeRecord},
+		{`{}`, serde.TypeNull},
+		{`{"type":"string"}`, serde.TypeString},
+	}
+	for _, c := range cases {
+		if got := getType(compileForType(t, c.schema)); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.schema, got, c.want)
+		}
+	}
+}
