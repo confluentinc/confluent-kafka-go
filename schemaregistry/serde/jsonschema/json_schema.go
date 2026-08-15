@@ -149,9 +149,19 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.ValidationEnabled(serde.ValidationRulesBeforeDomainRules) {
+		if err = s.validateInlineRules(info, msg); err != nil {
+			return nil, nil, err
+		}
+	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, msg)
 	if err != nil {
 		return nil, nil, err
+	}
+	if s.ValidationEnabled(serde.ValidationRulesAfterDomainRules) {
+		if err = s.validateInlineRules(info, msg); err != nil {
+			return nil, nil, err
+		}
 	}
 	raw, err := json.Marshal(msg)
 	if err != nil {
@@ -361,8 +371,11 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.SchemaInfo) (*jsonschema2.Schema, error) {
+	// Keyed on the whole schema: what gets compiled below is the schema with
+	// its references resolved in, so the references are part of its identity.
+	cacheKey := serde.SchemaCacheKey(schema)
 	s.schemaToTypeCacheLock.RLock()
-	value, ok := s.schemaToTypeCache.Get(schema.Schema)
+	value, ok := s.schemaToTypeCache.Get(cacheKey)
 	s.schemaToTypeCacheLock.RUnlock()
 	if ok {
 		jsonType := value.(*jsonschema2.Schema)
@@ -375,6 +388,7 @@ func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.Sche
 	}
 	compiler := jsonschema2.NewCompiler()
 	compiler.RegisterExtension("confluent:tags", tagsMeta, tagsCompiler{})
+	compiler.RegisterExtension(serde.ValidationRulesProp, validationRulesMeta, validationRulesCompiler{})
 	compiler.LoadURL = func(url string) (io.ReadCloser, error) {
 		url = strings.TrimPrefix(url, defaultBaseURL)
 		return io.NopCloser(strings.NewReader(deps[url])), nil
@@ -387,9 +401,28 @@ func (s *Serde) toJSONSchema(c schemaregistry.Client, schema schemaregistry.Sche
 		return nil, err
 	}
 	s.schemaToTypeCacheLock.Lock()
-	s.schemaToTypeCache.Put(schema.Schema, jsonType)
+	s.schemaToTypeCache.Put(cacheKey, jsonType)
 	s.schemaToTypeCacheLock.Unlock()
 	return jsonType, nil
+}
+
+// validateInlineRules evaluates the schema's inline validation rules against msg,
+// returning a single error listing every violation found.
+func (s *Serializer) validateInlineRules(info schemaregistry.SchemaInfo, msg interface{}) error {
+	executor, err := s.ValidationExecutor()
+	if err != nil {
+		return err
+	}
+	jschema, err := s.toJSONSchema(s.Client, info)
+	if err != nil {
+		return err
+	}
+	val := reflect.ValueOf(msg)
+	violations, err := validateMessage(executor, jschema, &val, s.Conf.ValidationRulesFailFast)
+	if err != nil {
+		return err
+	}
+	return serde.ValidationRulesFailed(violations)
 }
 
 var tagsMeta = jsonschema2.MustCompileString("tags.json", `{
@@ -420,5 +453,43 @@ func (tagsCompiler) Compile(ctx jsonschema2.CompilerContext, m map[string]interf
 type tagsSchema []string
 
 func (s tagsSchema) Validate(ctx jsonschema2.ValidationContext, v interface{}) error {
+	return nil
+}
+
+// validationRulesMeta describes the shape of the "confluent:rules" keyword. Unknown
+// keywords are dropped unless registered as an extension, so inline validation rules have
+// to be compiled into the schema like tags are.
+var validationRulesMeta = jsonschema2.MustCompileString("validationRules.json", `{
+	"properties" : {
+		"confluent:rules": {
+			"type": "array",
+            "items": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string" },
+					"doc": { "type": "string" },
+					"expr": { "type": "string" },
+					"sql": { "type": "string" }
+				}
+			}
+		}
+	}
+}`)
+
+type validationRulesCompiler struct{}
+
+func (validationRulesCompiler) Compile(ctx jsonschema2.CompilerContext, m map[string]interface{}) (jsonschema2.ExtSchema, error) {
+	if prop, ok := m[serde.ValidationRulesProp]; ok {
+		rules := serde.ParseValidationRules(prop)
+		if len(rules) > 0 {
+			return validationRulesSchema(rules), nil
+		}
+	}
+	return nil, nil
+}
+
+type validationRulesSchema []serde.ValidationRule
+
+func (s validationRulesSchema) Validate(ctx jsonschema2.ValidationContext, v interface{}) error {
 	return nil
 }

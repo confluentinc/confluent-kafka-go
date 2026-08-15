@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	avro "github.com/confluentinc/confluent-avro-go/v2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
