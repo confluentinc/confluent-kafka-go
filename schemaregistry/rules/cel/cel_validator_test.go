@@ -246,3 +246,44 @@ func TestValidatorHandlesUnsignedValues(t *testing.T) {
 		t.Errorf("expected the modulo to hold, got %v", result)
 	}
 }
+
+// The JVM client registers both CEL extensions - strings and math - so a rule written
+// against either resolves there. The string extension was already registered here; the math
+// one supplies math.greatest/least, the rounding and sign functions, and the bit operations.
+func TestValidatorResolvesBothCelExtensions(t *testing.T) {
+	v := NewValidator()
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		// math
+		{"math.greatest(1, 5, 3) == 5", true},
+		{"math.least(1, 5, 3) == 1", true},
+		{"math.abs(-4) == 4", true},
+		{"math.ceil(1.2) == 2.0", true},
+		{"math.floor(1.8) == 1.0", true},
+		{"math.round(1.5) == 2.0", true},
+		{"math.trunc(1.9) == 1.0", true},
+		{"math.sign(-3) == -1", true},
+		{"math.isNaN(0.0/0.0)", true},
+		{"math.bitAnd(12, 10) == 8", true},
+		{"math.bitOr(12, 10) == 14", true},
+		{"math.bitXor(12, 10) == 6", true},
+		{"math.bitShiftLeft(1, 3) == 8", true},
+		{"math.bitShiftRight(8, 3) == 1", true},
+		// strings, unchanged
+		{"'abc'.charAt(1) == 'b'", true},
+		{"'a-b'.split('-') == ['a', 'b']", true},
+		{"'AbC'.lowerAscii() == 'abc'", true},
+	}
+	for _, c := range cases {
+		result, err := v.Execute(rule(c.expr), nil, "ignored")
+		if err != nil {
+			t.Errorf("expr %q: unexpected error: %v", c.expr, err)
+			continue
+		}
+		if result != c.expected {
+			t.Errorf("expr %q: expected %v, got %v", c.expr, c.expected, result)
+		}
+	}
+}
