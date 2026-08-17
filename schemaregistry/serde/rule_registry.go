@@ -161,6 +161,28 @@ func RegisterRuleExecutor(ruleExecutor RuleExecutor) {
 	globalInstance.RegisterExecutor(ruleExecutor)
 }
 
+var (
+	validationRuleExecutorMu sync.RWMutex
+	validationRuleExecutor   ValidationRuleExecutor
+)
+
+// RegisterValidationRuleExecutor is used to register the global executor that evaluates
+// inline validation rules. Validation rule executors are not keyed by type, so there is a
+// single global slot rather than a map.
+func RegisterValidationRuleExecutor(executor ValidationRuleExecutor) {
+	validationRuleExecutorMu.Lock()
+	defer validationRuleExecutorMu.Unlock()
+	validationRuleExecutor = executor
+}
+
+// GetValidationRuleExecutor fetches the globally registered validation rule executor,
+// which is nil when no rules package has been imported.
+func GetValidationRuleExecutor() ValidationRuleExecutor {
+	validationRuleExecutorMu.RLock()
+	defer validationRuleExecutorMu.RUnlock()
+	return validationRuleExecutor
+}
+
 // RegisterRuleAction is used to register a new global rule action.
 func RegisterRuleAction(ruleAction RuleAction) {
 	globalInstance.RegisterAction(ruleAction)

@@ -25,11 +25,11 @@ import (
 	"sync"
 	"time"
 
+	avro "github.com/confluentinc/confluent-avro-go/v2"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	avro "github.com/confluentinc/confluent-avro-go/v2"
 )
 
 // SchemaType is the type of the Avro schema
@@ -147,12 +147,29 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.ValidationEnabled(serde.ValidationRulesBeforeDomainRules) {
+		if err = s.validateInlineRules(avroSchema, msg); err != nil {
+			return nil, nil, err
+		}
+	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, msg)
 	if err != nil {
 		return nil, nil, err
 	}
-	// Convert pointer to non-pointer
-	msg = reflect.ValueOf(msg).Elem().Interface()
+	if s.ValidationEnabled(serde.ValidationRulesAfterDomainRules) {
+		if err = s.validateInlineRules(avroSchema, msg); err != nil {
+			return nil, nil, err
+		}
+	}
+	// The writer takes the value, not a handle to it. Callers normally pass a pointer, but
+	// a plain struct or map is just as valid a message and dereferencing it would panic, so
+	// unwrap only what is actually a pointer.
+	if val := reflect.ValueOf(msg); val.Kind() == reflect.Pointer {
+		if val.IsNil() {
+			return nil, nil, fmt.Errorf("cannot serialize a nil %T", msg)
+		}
+		msg = val.Elem().Interface()
+	}
 	var msgBytes []byte
 	// Check if the schema is bytes type
 	if avroSchema.Type() == avro.Bytes {
@@ -396,6 +413,21 @@ func (s *Serde) RegisterTypeFromMessageFactory(name string, messageFactory serde
 	return nil
 }
 
+// validateInlineRules evaluates the schema's inline validation rules against msg,
+// returning a single error listing every violation found.
+func (s *Serializer) validateInlineRules(avroSchema avro.Schema, msg interface{}) error {
+	executor, err := s.ValidationExecutor()
+	if err != nil {
+		return err
+	}
+	val := reflect.ValueOf(msg)
+	violations, err := validateMessage(executor, s.resolver, avroSchema, &val, s.Conf.ValidationRulesFailFast)
+	if err != nil {
+		return err
+	}
+	return serde.ValidationRulesFailed(violations)
+}
+
 // FieldTransform transforms a field value using the given field transform
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	schema, _, err := s.toType(client, *ctx.Target)
@@ -411,8 +443,11 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toType(client schemaregistry.Client, schema schemaregistry.SchemaInfo) (avro.Schema, string, error) {
+	// Keyed on the whole schema: resolveAvroReferences inlines what the
+	// references resolve to, so the references are part of its identity.
+	cacheKey := serde.SchemaCacheKey(schema)
 	s.schemaToTypeCacheLock.RLock()
-	value, ok := s.schemaToTypeCache.Get(schema.Schema)
+	value, ok := s.schemaToTypeCache.Get(cacheKey)
 	s.schemaToTypeCacheLock.RUnlock()
 	if ok {
 		avroType := value.(avro.Schema)
@@ -423,7 +458,7 @@ func (s *Serde) toType(client schemaregistry.Client, schema schemaregistry.Schem
 		return nil, "", err
 	}
 	s.schemaToTypeCacheLock.Lock()
-	s.schemaToTypeCache.Put(schema.Schema, avroType)
+	s.schemaToTypeCache.Put(cacheKey, avroType)
 	s.schemaToTypeCacheLock.Unlock()
 	return avroType, name(avroType), nil
 }

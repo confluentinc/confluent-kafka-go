@@ -5,6 +5,7 @@
 ### Enhancements
 * Add support for saving Azure key version with DEK (#1577)
 * Pass context when clients make KEK calls to DEK Registry (#1579)
+* Add support for inline validation rules (#1592)
 
 ### Fixes
 * Preserve HTTP status on Schema Registry error responses (#1590)
