@@ -41,7 +41,7 @@ type lib struct {
 }
 
 func (l lib) CompileOptions() []cel.EnvOption {
-	return []cel.EnvOption{
+	opts := []cel.EnvOption{
 		cel.CrossTypeNumericComparisons(true),
 		cel.EagerlyValidateDeclarations(true),
 		ext.Strings(ext.StringsValidateFormatCalls(true)),
@@ -148,6 +148,9 @@ func (l lib) CompileOptions() []cel.EnvOption {
 			),
 		),
 	}
+	opts = append(opts, decimalOptions()...)
+	opts = append(opts, timestampOptions()...)
+	return opts
 }
 
 func (l lib) ProgramOptions() []cel.ProgramOption {
