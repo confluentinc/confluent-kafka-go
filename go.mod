@@ -12,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.10
 	github.com/aws/aws-sdk-go-v2/service/kms v1.30.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6
+	github.com/cockroachdb/apd/v3 v3.2.3
 	github.com/confluentinc/confluent-avro-go/v2 v2.32.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/cel-go v0.31.0
