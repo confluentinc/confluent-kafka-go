@@ -150,6 +150,7 @@ func (l lib) CompileOptions() []cel.EnvOption {
 	}
 	opts = append(opts, decimalOptions()...)
 	opts = append(opts, timestampOptions()...)
+	opts = append(opts, variantOptions()...)
 	return opts
 }
 
