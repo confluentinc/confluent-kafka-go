@@ -15,6 +15,8 @@
 package variant
 
 import (
+	"encoding/binary"
+	"math"
 	"math/big"
 	"testing"
 )
@@ -142,8 +144,8 @@ func TestVariantScalarGetters(t *testing.T) {
 
 func TestVariantObjectNavigation(t *testing.T) {
 	v := mustParse(t, `{"a":1,"b":2,"c":"three"}`)
-	if got := v.NumObjectElements(); got != 3 {
-		t.Fatalf("NumObjectElements = %d, want 3", got)
+	if got := v.NumObjectFields(); got != 3 {
+		t.Fatalf("NumObjectFields = %d, want 3", got)
 	}
 	fa := v.GetFieldByKey("a")
 	if fa == nil {
@@ -189,8 +191,8 @@ func TestVariantObjectManyFieldsBinarySearch(t *testing.T) {
 	}
 	sb = append(sb, '}')
 	v := mustParse(t, string(sb))
-	if v.NumObjectElements() != 40 {
-		t.Fatalf("NumObjectElements = %d", v.NumObjectElements())
+	if v.NumObjectFields() != 40 {
+		t.Fatalf("NumObjectFields = %d", v.NumObjectFields())
 	}
 	f := v.GetFieldByKey("k37")
 	if f == nil {
@@ -405,5 +407,200 @@ func TestVariantDecimalOverflowError(t *testing.T) {
 	big40 := "1234567890123456789012345678901234567890"
 	if _, err := ParseJSON(big40); err == nil {
 		t.Error("ParseJSON of 40-digit integer should error (exceeds precision)")
+	}
+}
+
+func floatBytes(f float32) []byte {
+	val := []byte{primitiveHeader(tFloat)}
+	var b [4]byte
+	binary.LittleEndian.PutUint32(b[:], math.Float32bits(f))
+	return append(val, b[:]...)
+}
+
+func doubleBytes(f float64) []byte {
+	val := []byte{primitiveHeader(tDouble)}
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], math.Float64bits(f))
+	return append(val, b[:]...)
+}
+
+func TestVariantIntGetters(t *testing.T) {
+	// GetByte: INT8 only.
+	if n, err := mustParse(t, `1`).GetByte(); err != nil || n != 1 {
+		t.Errorf("GetByte(1) = %v %v", n, err)
+	}
+	if _, err := mustParse(t, `300`).GetByte(); err == nil {
+		t.Error("GetByte on short should error")
+	}
+	// GetShort: <=INT16, widens.
+	if n, err := mustParse(t, `1`).GetShort(); err != nil || n != 1 {
+		t.Errorf("GetShort(1) = %v %v", n, err)
+	}
+	if n, err := mustParse(t, `300`).GetShort(); err != nil || n != 300 {
+		t.Errorf("GetShort(300) = %v %v", n, err)
+	}
+	if _, err := mustParse(t, `100000`).GetShort(); err == nil {
+		t.Error("GetShort on int should error")
+	}
+	// GetInt: <=INT32, widens.
+	if n, err := mustParse(t, `1`).GetInt(); err != nil || n != 1 {
+		t.Errorf("GetInt(1) = %v %v", n, err)
+	}
+	if n, err := mustParse(t, `300`).GetInt(); err != nil || n != 300 {
+		t.Errorf("GetInt(300) = %v %v", n, err)
+	}
+	if n, err := mustParse(t, `100000`).GetInt(); err != nil || n != 100000 {
+		t.Errorf("GetInt(100000) = %v %v", n, err)
+	}
+	if _, err := mustParse(t, `10000000000`).GetInt(); err == nil {
+		t.Error("GetInt on long should error")
+	}
+	// GetLong: widens any int width.
+	if n, err := mustParse(t, `10000000000`).GetLong(); err != nil || n != 10000000000 {
+		t.Errorf("GetLong = %v %v", n, err)
+	}
+}
+
+func TestVariantFloatAndDoubleExact(t *testing.T) {
+	// GetFloat accepts FLOAT exactly.
+	if f, err := New(floatBytes(1.5), emptyMetadata).GetFloat(); err != nil || f != 1.5 {
+		t.Errorf("GetFloat(FLOAT) = %v %v", f, err)
+	}
+	// GetFloat rejects DOUBLE.
+	if _, err := New(doubleBytes(1.5), emptyMetadata).GetFloat(); err == nil {
+		t.Error("GetFloat on double should error")
+	}
+	// GetDouble accepts DOUBLE exactly.
+	if d, err := New(doubleBytes(3.5), emptyMetadata).GetDouble(); err != nil || d != 3.5 {
+		t.Errorf("GetDouble(DOUBLE) = %v %v", d, err)
+	}
+	// GetDouble rejects FLOAT (no longer widens).
+	if _, err := New(floatBytes(1.5), emptyMetadata).GetDouble(); err == nil {
+		t.Error("GetDouble on float should error (exact double only)")
+	}
+}
+
+func TestVariantUuidGetter(t *testing.T) {
+	v := New(uuidBytes(), emptyMetadata)
+	s, err := v.GetUuid()
+	if err != nil || s != "00112233-4455-6677-8899-aabbccddeeff" {
+		t.Errorf("GetUuid = %q %v", s, err)
+	}
+}
+
+func TestVariantBuilderNestedMatchesParseJSON(t *testing.T) {
+	// Build a nested document with the flat streaming API. The int widths are
+	// chosen so each value's encoding matches ParseJSON of the equivalent JSON.
+	b := NewVariantBuilder()
+	mustNoErr := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("builder step failed: %v", err)
+		}
+	}
+	mustNoErr(b.StartObject())
+	mustNoErr(b.AppendKey("id"))
+	mustNoErr(b.AppendLong(10000000000)) // INT64 == "10000000000"
+	mustNoErr(b.AppendKey("count"))
+	mustNoErr(b.AppendInt(100000)) // INT32 == "100000"
+	mustNoErr(b.AppendKey("tags"))
+	mustNoErr(b.StartArray())
+	mustNoErr(b.AppendString("x"))
+	mustNoErr(b.AppendString("y"))
+	mustNoErr(b.EndArray())
+	mustNoErr(b.AppendKey("nested"))
+	mustNoErr(b.StartObject())
+	mustNoErr(b.AppendKey("flag"))
+	mustNoErr(b.AppendBoolean(true))
+	mustNoErr(b.AppendKey("pi"))
+	mustNoErr(b.AppendDouble(3.14))
+	mustNoErr(b.EndObject())
+	mustNoErr(b.EndObject())
+	built, err := b.Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	// Key order in the document is chosen so both the builder (append order) and
+	// ParseJSON (document order) assign the same metadata dictionary IDs.
+	const equivalent = `{"id":10000000000,"count":100000,"tags":["x","y"],"nested":{"flag":true,"pi":3.14}}`
+	parsed := mustParse(t, equivalent)
+
+	if got, want := mustJSON(t, built), mustJSON(t, parsed); got != want {
+		t.Errorf("ToJSON: built = %q, parsed = %q", got, want)
+	}
+	if !bytesEqual(built.ValueBytes(), parsed.ValueBytes()) {
+		t.Errorf("value bytes differ:\n built  = %v\n parsed = %v", built.ValueBytes(), parsed.ValueBytes())
+	}
+	if !bytesEqual(built.MetadataBytes(), parsed.MetadataBytes()) {
+		t.Errorf("metadata bytes differ:\n built  = %v\n parsed = %v", built.MetadataBytes(), parsed.MetadataBytes())
+	}
+}
+
+func TestVariantBuilderRootScalar(t *testing.T) {
+	b := NewVariantBuilder()
+	if err := b.AppendByte(42); err != nil {
+		t.Fatalf("AppendByte: %v", err)
+	}
+	built, err := b.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	parsed := mustParse(t, "42")
+	if !bytesEqual(built.ValueBytes(), parsed.ValueBytes()) {
+		t.Errorf("root scalar value bytes differ: %v vs %v", built.ValueBytes(), parsed.ValueBytes())
+	}
+	if n, err := built.GetByte(); err != nil || n != 42 {
+		t.Errorf("GetByte = %v %v", n, err)
+	}
+}
+
+func TestVariantBuilderErrors(t *testing.T) {
+	// AppendKey outside an object.
+	if err := NewVariantBuilder().AppendKey("k"); err == nil {
+		t.Error("AppendKey outside an object should error")
+	}
+	// Value appended to an object without a preceding AppendKey.
+	b := NewVariantBuilder()
+	if err := b.StartObject(); err != nil {
+		t.Fatalf("StartObject: %v", err)
+	}
+	if err := b.AppendLong(1); err == nil {
+		t.Error("value in object without AppendKey should error")
+	}
+	// Build with an open container.
+	b2 := NewVariantBuilder()
+	if err := b2.StartArray(); err != nil {
+		t.Fatalf("StartArray: %v", err)
+	}
+	if _, err := b2.Build(); err == nil {
+		t.Error("Build with an open container should error")
+	}
+	// Build with nothing appended.
+	if _, err := NewVariantBuilder().Build(); err == nil {
+		t.Error("Build with no value should error")
+	}
+}
+
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestVariantFloatToJSON(t *testing.T) {
+	// A FLOAT value renders through GetFloat in ToJSON.
+	v := New(floatBytes(1.5), emptyMetadata)
+	if v.GetType() != Float {
+		t.Fatalf("type = %d, want Float", v.GetType())
+	}
+	if got := mustJSON(t, v); got != "1.5" {
+		t.Errorf("ToJSON(FLOAT) = %q, want 1.5", got)
 	}
 }
