@@ -238,6 +238,64 @@ func (v Variant) GetBoolean() (bool, error) {
 	return ti == tTrue, nil
 }
 
+// GetByte returns the value of an INT8-backed variant. It does not widen: only a
+// byte (INT8) value is accepted.
+func (v Variant) GetByte() (int8, error) {
+	ti, err := v.primitiveInfo()
+	if err != nil {
+		return 0, err
+	}
+	if ti != tInt1 {
+		return 0, fmt.Errorf("variant: not a byte")
+	}
+	n, err := readSignedLong(v.value, v.pos+1, 1)
+	if err != nil {
+		return 0, err
+	}
+	return int8(n), nil
+}
+
+// GetShort returns the value of an integer-backed variant no wider than INT16
+// (byte/short), widening narrower widths.
+func (v Variant) GetShort() (int16, error) {
+	ti, err := v.primitiveInfo()
+	if err != nil {
+		return 0, err
+	}
+	switch ti {
+	case tInt1:
+		n, err := readSignedLong(v.value, v.pos+1, 1)
+		return int16(n), err
+	case tInt2:
+		n, err := readSignedLong(v.value, v.pos+1, 2)
+		return int16(n), err
+	default:
+		return 0, fmt.Errorf("variant: not a short")
+	}
+}
+
+// GetInt returns the value of an integer-backed variant no wider than INT32
+// (byte/short/int), widening narrower widths.
+func (v Variant) GetInt() (int32, error) {
+	ti, err := v.primitiveInfo()
+	if err != nil {
+		return 0, err
+	}
+	switch ti {
+	case tInt1:
+		n, err := readSignedLong(v.value, v.pos+1, 1)
+		return int32(n), err
+	case tInt2:
+		n, err := readSignedLong(v.value, v.pos+1, 2)
+		return int32(n), err
+	case tInt4:
+		n, err := readSignedLong(v.value, v.pos+1, 4)
+		return int32(n), err
+	default:
+		return 0, fmt.Errorf("variant: not an int")
+	}
+}
+
 // GetLong returns the raw integer for any integer-backed type (byte/short/int/
 // long, date days, timestamp micros, time micros, timestamp-nanos) - mirrors
 // Java getLong.
@@ -260,19 +318,30 @@ func (v Variant) GetLong() (int64, error) {
 	}
 }
 
-// GetDouble returns the float/double value.
+// GetFloat returns the FLOAT value. It is exact-typed: only a FLOAT value is
+// accepted (a DOUBLE is not narrowed).
+func (v Variant) GetFloat() (float32, error) {
+	ti, err := v.primitiveInfo()
+	if err != nil {
+		return 0, err
+	}
+	if ti != tFloat {
+		return 0, fmt.Errorf("variant: not a float")
+	}
+	return readFloatLE(v.value, v.pos+1)
+}
+
+// GetDouble returns the DOUBLE value. It is exact-typed: only a DOUBLE value is
+// accepted (a FLOAT is not widened; use GetFloat for that).
 func (v Variant) GetDouble() (float64, error) {
 	ti, err := v.primitiveInfo()
 	if err != nil {
 		return 0, err
 	}
-	if ti == tFloat {
-		return readFloatLE(v.value, v.pos+1)
+	if ti != tDouble {
+		return 0, fmt.Errorf("variant: not a double")
 	}
-	if ti == tDouble {
-		return readDoubleLE(v.value, v.pos+1)
-	}
-	return 0, fmt.Errorf("variant: not a float/double")
+	return readDoubleLE(v.value, v.pos+1)
 }
 
 // GetDecimalParts returns the unscaled integer (as big-endian two's-complement
@@ -341,9 +410,9 @@ func (v Variant) GetBinary() ([]byte, error) {
 	return result, nil
 }
 
-// GetUUIDString returns the UUID as its canonical big-endian hex string
+// GetUuid returns the UUID as its canonical big-endian hex string
 // (e.g. "00112233-4455-6677-8899-aabbccddeeff").
-func (v Variant) GetUUIDString() (string, error) {
+func (v Variant) GetUuid() (string, error) {
 	ti, err := v.primitiveInfo()
 	if err != nil {
 		return "", err
@@ -451,8 +520,8 @@ func (v Variant) arrayInfo() (arrayInfo, error) {
 	return a, nil
 }
 
-// NumObjectElements returns the number of fields in an object (0 on error).
-func (v Variant) NumObjectElements() int {
+// NumObjectFields returns the number of fields in an object (0 on error).
+func (v Variant) NumObjectFields() int {
 	o, err := v.objectInfo()
 	if err != nil {
 		return 0
@@ -700,7 +769,17 @@ func (v Variant) writeJSON(sb *strings.Builder) error {
 			return err
 		}
 		sb.WriteString(strconv.FormatInt(n, 10))
-	case Float, Double:
+	case Float:
+		f, err := v.GetFloat()
+		if err != nil {
+			return err
+		}
+		s, err := formatDouble(float64(f))
+		if err != nil {
+			return err
+		}
+		sb.WriteString(s)
+	case Double:
 		d, err := v.GetDouble()
 		if err != nil {
 			return err
@@ -773,7 +852,7 @@ func (v Variant) writeJSON(sb *strings.Builder) error {
 		sb.WriteString(base64.StdEncoding.EncodeToString(b))
 		sb.WriteByte('"')
 	case Uuid:
-		s, err := v.GetUUIDString()
+		s, err := v.GetUuid()
 		if err != nil {
 			return err
 		}
@@ -829,12 +908,12 @@ func readSignedLong(data []byte, pos, numBytes int) (int64, error) {
 	return int64(result), nil
 }
 
-func readFloatLE(data []byte, pos int) (float64, error) {
+func readFloatLE(data []byte, pos int) (float32, error) {
 	if err := checkIndex(pos+3, len(data)); err != nil {
 		return 0, err
 	}
 	bits := binary.LittleEndian.Uint32(data[pos : pos+4])
-	return float64(math.Float32frombits(bits)), nil
+	return math.Float32frombits(bits), nil
 }
 
 func readDoubleLE(data []byte, pos int) (float64, error) {

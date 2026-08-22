@@ -214,7 +214,14 @@ func variantAs(a, b ref.Val, nullOnError bool) ref.Val {
 			return types.Int(n)
 		}
 	case "double":
-		if vt == variant.Float || vt == variant.Double {
+		if vt == variant.Float {
+			f, err := vv.GetFloat()
+			if err != nil {
+				return types.NewErr("variants.as: %v", err)
+			}
+			return types.Double(float64(f))
+		}
+		if vt == variant.Double {
 			d, err := vv.GetDouble()
 			if err != nil {
 				return types.NewErr("variants.as: %v", err)
