@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -592,6 +593,53 @@ func bytesEqual(a, b []byte) bool {
 		}
 	}
 	return true
+}
+
+// TestLargeDataRegionUses4ByteOffsets is a regression test for Bug #1: the
+// integerSize helper capped at 3 bytes and never returned 4, so a container
+// whose data/offset region exceeds 0xFFFFFF (16777215) bytes produced a corrupt
+// Variant. This builds an array holding a single string of 16777216 bytes so the
+// data region exceeds 16 MiB, forcing the 4-byte offset-size path, then verifies
+// it round-trips.
+func TestLargeDataRegionUses4ByteOffsets(t *testing.T) {
+	const size = 16777216 // 0x1000000, one byte past the 3-byte offset limit
+	big := strings.Repeat("a", size)
+
+	b := NewVariantBuilder()
+	if err := b.StartArray(); err != nil {
+		t.Fatalf("StartArray: %v", err)
+	}
+	if err := b.AppendString(big); err != nil {
+		t.Fatalf("AppendString: %v", err)
+	}
+	if err := b.EndArray(); err != nil {
+		t.Fatalf("EndArray: %v", err)
+	}
+	built, err := b.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	if built.GetType() != Array {
+		t.Fatalf("GetType = %d, want Array", built.GetType())
+	}
+	if n := built.NumArrayElements(); n != 1 {
+		t.Fatalf("NumArrayElements = %d, want 1", n)
+	}
+	el := built.GetElementAtIndex(0)
+	if el == nil {
+		t.Fatal("GetElementAtIndex(0) = nil")
+	}
+	if el.GetType() != String {
+		t.Fatalf("element type = %d, want String", el.GetType())
+	}
+	s, err := el.GetString()
+	if err != nil {
+		t.Fatalf("GetString: %v", err)
+	}
+	if len(s) != size {
+		t.Fatalf("element string length = %d, want %d", len(s), size)
+	}
 }
 
 func TestVariantFloatToJSON(t *testing.T) {
