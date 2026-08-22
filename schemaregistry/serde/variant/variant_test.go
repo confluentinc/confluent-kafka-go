@@ -207,6 +207,64 @@ func TestVariantObjectManyFieldsBinarySearch(t *testing.T) {
 	}
 }
 
+func TestVariantDuplicateKeysLastWins(t *testing.T) {
+	// The streaming JSON decoder does not collapse duplicate keys, so the builder must
+	// deduplicate them last-wins. The duplicate "a" has a different value size than its first
+	// occurrence, exercising the value-repacking path; "b" and "c" (written before and after
+	// the duplicate) must survive with correct values after compaction.
+	v := mustParse(t, `{"b": 1, "a": "x", "a": "second-longer-value", "c": 3}`)
+	if got := v.NumObjectFields(); got != 3 {
+		t.Fatalf("NumObjectFields = %d, want 3", got)
+	}
+	fa := v.GetFieldByKey("a")
+	if fa == nil {
+		t.Fatal("GetFieldByKey(a) = nil")
+	}
+	if s, err := fa.GetString(); err != nil || s != "second-longer-value" {
+		t.Errorf("a = %q %v, want last-wins value", s, err)
+	}
+	if fb := v.GetFieldByKey("b"); fb == nil {
+		t.Fatal("GetFieldByKey(b) = nil")
+	} else if n, err := fb.GetLong(); err != nil || n != 1 {
+		t.Errorf("b = %v %v, want 1", n, err)
+	}
+	if fc := v.GetFieldByKey("c"); fc == nil {
+		t.Fatal("GetFieldByKey(c) = nil")
+	} else if n, err := fc.GetLong(); err != nil || n != 3 {
+		t.Errorf("c = %v %v, want 3", n, err)
+	}
+}
+
+func TestVariantBuilderDuplicateKeysLastWins(t *testing.T) {
+	// The programmatic builder path (repeated AppendKey) must also deduplicate last-wins.
+	vb := NewVariantBuilder()
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(vb.StartObject())
+	must(vb.AppendKey("a"))
+	must(vb.AppendLong(1))
+	must(vb.AppendKey("a"))
+	must(vb.AppendLong(2))
+	must(vb.EndObject())
+	v, err := vb.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := v.NumObjectFields(); got != 1 {
+		t.Fatalf("NumObjectFields = %d, want 1", got)
+	}
+	fa := v.GetFieldByKey("a")
+	if fa == nil {
+		t.Fatal("GetFieldByKey(a) = nil")
+	}
+	if n, err := fa.GetLong(); err != nil || n != 2 {
+		t.Errorf("a = %v %v, want 2 (last-wins)", n, err)
+	}
+}
+
 func itoa(i int) string {
 	if i == 0 {
 		return "0"
