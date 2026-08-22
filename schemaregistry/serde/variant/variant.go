@@ -774,7 +774,7 @@ func (v Variant) writeJSON(sb *strings.Builder) error {
 		if err != nil {
 			return err
 		}
-		s, err := formatDouble(float64(f))
+		s, err := formatFloat(f)
 		if err != nil {
 			return err
 		}
@@ -997,6 +997,20 @@ func formatDouble(d float64) (string, error) {
 		return strconv.FormatInt(int64(d), 10) + ".0", nil
 	}
 	return strconv.FormatFloat(d, 'g', -1, 64), nil
+}
+
+// formatFloat mirrors formatDouble but formats at float32 precision so that
+// 32-bit floats render with their shortest round-tripping decimal (matching
+// Java's Float.toString and Apache Arrow) rather than the f64-widened form.
+func formatFloat(f float32) (string, error) {
+	d := float64(f)
+	if math.IsNaN(d) || math.IsInf(d, 0) {
+		return "", fmt.Errorf("variant: cannot render non-finite float as JSON")
+	}
+	if d == math.Floor(d) && math.Abs(d) < 1e16 {
+		return strconv.FormatInt(int64(d), 10) + ".0", nil
+	}
+	return strconv.FormatFloat(d, 'g', -1, 32), nil
 }
 
 func formatUUID(data []byte, start int) string {
