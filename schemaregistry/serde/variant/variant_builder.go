@@ -394,7 +394,10 @@ func integerSize(v int) int {
 	if v <= 0xFFFF {
 		return 2
 	}
-	return 3
+	if v <= 0xFFFFFF {
+		return 3
+	}
+	return 4
 }
 
 func appendUintLE(out *[]byte, v, numBytes int) {
