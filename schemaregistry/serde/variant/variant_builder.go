@@ -316,8 +316,14 @@ func (b *builder) finishWritingArray(start int, offsets []int) {
 }
 
 func (b *builder) finishWritingObject(start int, fields []fieldEntry) {
-	numFields := len(fields)
 	sort.Slice(fields, func(i, j int) bool { return fields[i].key < fields[j].key })
+
+	// Deduplicate keys, keeping the last-written value (last-wins), mirroring the reference
+	// builder. Duplicate keys reach here from a JSON object literal (the streaming decoder
+	// does not collapse them) or from repeated AppendKey calls.
+	fields = b.dedupObjectFields(start, fields)
+
+	numFields := len(fields)
 	maxID := 0
 	for _, f := range fields {
 		if f.id > maxID {
@@ -349,6 +355,71 @@ func (b *builder) finishWritingObject(start int, fields []fieldEntry) {
 	}
 	appendUintLE(&header, dataSize, offsetSize)
 	b.insertAt(start, header)
+}
+
+// dedupObjectFields removes duplicate keys from a key-sorted field list, keeping the
+// last-written occurrence of each key (the entry with the greatest data offset). When a
+// duplicate is dropped, the retained values are compacted leftward in the data region,
+// their offsets are recomputed, and the data region is truncated. `fields` must already be
+// sorted by key. Values are laid out contiguously in insertion order, so a field's value
+// spans from its offset to the next-inserted field's offset.
+func (b *builder) dedupObjectFields(start int, fields []fieldEntry) []fieldEntry {
+	numFields := len(fields)
+	if numFields <= 1 {
+		return fields
+	}
+
+	// Value byte length of each field, keyed by its (unique) data offset.
+	dataSize := len(b.value) - start
+	offsets := make([]int, numFields)
+	for i, f := range fields {
+		offsets[i] = f.offset
+	}
+	sort.Ints(offsets)
+	lenAt := make(map[int]int, numFields)
+	for i, o := range offsets {
+		end := dataSize
+		if i+1 < numFields {
+			end = offsets[i+1]
+		}
+		lenAt[o] = end - o
+	}
+
+	// Collapse adjacent equal keys, keeping the entry with the greater offset (last write).
+	distinctPos := 0
+	for i := 1; i < numFields; i++ {
+		if fields[i].id == fields[distinctPos].id {
+			if fields[distinctPos].offset < fields[i].offset {
+				fields[distinctPos] = fields[i]
+			}
+		} else {
+			distinctPos++
+			fields[distinctPos] = fields[i]
+		}
+	}
+	if distinctPos+1 == numFields {
+		return fields // no duplicates
+	}
+	fields = fields[:distinctPos+1]
+
+	// Compact retained values leftward (ascending source offset keeps the copy safe) and
+	// recompute offsets, then truncate the now-shorter data region.
+	sort.Slice(fields, func(i, j int) bool { return fields[i].offset < fields[j].offset })
+	curr := 0
+	for i := range fields {
+		o := fields[i].offset
+		l := lenAt[o]
+		if curr != o {
+			copy(b.value[start+curr:], b.value[start+o:start+o+l])
+		}
+		fields[i].offset = curr
+		curr += l
+	}
+	b.value = b.value[:start+curr]
+
+	// Restore key order for header emission.
+	sort.Slice(fields, func(i, j int) bool { return fields[i].key < fields[j].key })
+	return fields
 }
 
 // insertAt inserts header bytes into b.value at the given index.
