@@ -710,3 +710,23 @@ func TestVariantFloatToJSON(t *testing.T) {
 		t.Errorf("ToJSON(FLOAT) = %q, want 1.5", got)
 	}
 }
+
+// TestVariantFloatToJSONShortest verifies FLOAT values render with the shortest
+// float32 decimal (matching Java Float.toString / Apache Arrow) rather than the
+// f64-widened form (e.g. 0.1f must not become "0.10000000149011612").
+func TestVariantFloatToJSONShortest(t *testing.T) {
+	cases := []struct {
+		f    float32
+		want string
+	}{
+		{0.1, "0.1"},
+		{0.3, "0.3"},
+		{2.0, "2.0"},
+	}
+	for _, c := range cases {
+		v := New(floatBytes(c.f), emptyMetadata)
+		if got := mustJSON(t, v); got != c.want {
+			t.Errorf("ToJSON(FLOAT %v) = %q, want %q", c.f, got, c.want)
+		}
+	}
+}
