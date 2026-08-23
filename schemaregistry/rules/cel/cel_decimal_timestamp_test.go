@@ -77,6 +77,15 @@ func TestDecimalStringForms(t *testing.T) {
 		{`string(decimals.div(decimal("1"), decimal("99")))`, "0.010101010101010101010101010101010101010"},
 		{`string(decimals.div(decimal("2"), decimal("3")))`, "0.66666666666666666666666666666666666667"},
 		{`string(decimals.sqrt(decimal("2")))`, "1.4142135623730950488016887242096980786"},
+		// Exact div/sqrt adopt Java BigDecimal's preferred scale rather than over-stripping
+		// trailing zeros: 6.0/3 -> "2.0" (not "2"), keeping parity with the other clients.
+		{`string(decimals.div(decimal("6.0"), decimal("3")))`, "2.0"},
+		{`string(decimals.div(decimal("10.00"), decimal("2")))`, "5.00"},
+		{`string(decimals.div(decimal("2000"), decimal("10")))`, "200"},
+		{`string(decimals.div(decimal("-6.0"), decimal("3")))`, "-2.0"},
+		{`string(decimals.sqrt(decimal("4.00")))`, "2.0"},
+		{`string(decimals.sqrt(decimal("100.0000")))`, "10.00"},
+		{`string(decimals.sqrt(decimal("144")))`, "12"},
 		// Rounding family (Flink-aligned).
 		{`string(decimals.round(decimal("2.567"), 2))`, "2.57"},
 		{`string(decimals.trunc(decimal("2.567"), 2))`, "2.56"},
@@ -84,6 +93,11 @@ func TestDecimalStringForms(t *testing.T) {
 		{`string(decimals.ceil(decimal("2.1")))`, "3"},
 		// string(Decimal) is plain (never scientific), scale preserved from the literal.
 		{`string(decimal("1.50"))`, "1.50"},
+		// add/sub/mul are exact and keep their natural scales (unaffected by the div/sqrt
+		// preferred-scale fix): add/sub -> max input scale, mul -> sum of input scales.
+		{`string(decimals.add(decimal("1.50"), decimal("2.50")))`, "4.00"},
+		{`string(decimals.sub(decimal("5.00"), decimal("3.0")))`, "2.00"},
+		{`string(decimals.mul(decimal("1.5"), decimal("2.0")))`, "3.00"},
 	}
 	for _, c := range cases {
 		expr := c.expr + ` == "` + c.expected + `"`
@@ -91,6 +105,25 @@ func TestDecimalStringForms(t *testing.T) {
 			// Re-run to surface the actual string in the failure message.
 			got, _ := NewValidator().Execute(rule(c.expr), nil, 1)
 			t.Errorf("expr %q: expected %q, got %q", c.expr, c.expected, got)
+		}
+	}
+}
+
+// TestDecimalScaleOutOfInt32Range verifies that a scale argument outside the int32 range is
+// rejected with a CEL error rather than silently narrowed to the low 32 bits, matching
+// Java's requireIntScale (Math.toIntExact). Covers decimals.round/trunc and decimal(bytes,
+// scale). 3000000000 > math.MaxInt32; naive int32() truncation would wrap it to a small,
+// wrong scale.
+func TestDecimalScaleOutOfInt32Range(t *testing.T) {
+	exprs := []string{
+		`decimals.round(decimal("1.5"), 3000000000)`,
+		`decimals.trunc(decimal("1.5"), 3000000000)`,
+		`decimals.round(decimal("1.5"), -3000000000)`,
+		`decimal(b"\x04\xd2", 3000000000)`,
+	}
+	for _, e := range exprs {
+		if _, err := NewValidator().Execute(rule(e), nil, 1); err == nil {
+			t.Errorf("expr %q: expected an error for an out-of-int32 scale, got nil", e)
 		}
 	}
 }

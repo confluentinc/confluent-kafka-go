@@ -985,13 +985,31 @@ func formatDate(days int64) string {
 	return fmt.Sprintf("%04d-%02d-%02d", dt.Year(), int(dt.Month()), dt.Day())
 }
 
+// nonFiniteJSON renders NaN/Infinity/-Infinity as bareword JSON tokens (matching
+// Java's Double.toString / Float.toString, which the cross-language contract
+// adopts deliberately - Spark quotes these, this contract does not). It returns
+// ("", false) for finite values.
+func nonFiniteJSON(d float64) (string, bool) {
+	switch {
+	case math.IsNaN(d):
+		return "NaN", true
+	case math.IsInf(d, 1):
+		return "Infinity", true
+	case math.IsInf(d, -1):
+		return "-Infinity", true
+	default:
+		return "", false
+	}
+}
+
 // formatDouble renders integral doubles as N.0 and everything else with the
-// shortest round-tripping decimal representation. (Scientific-notation edge cases
-// for very large/small magnitudes are a known minor divergence from Java's
-// Double.toString.)
+// shortest round-tripping decimal representation. Non-finite values render as the
+// barewords NaN/Infinity/-Infinity (the cross-language contract). (Scientific-
+// notation edge cases for very large/small magnitudes are a known minor
+// divergence from Java's Double.toString.)
 func formatDouble(d float64) (string, error) {
-	if math.IsNaN(d) || math.IsInf(d, 0) {
-		return "", fmt.Errorf("variant: cannot render non-finite double as JSON")
+	if s, ok := nonFiniteJSON(d); ok {
+		return s, nil
 	}
 	if d == math.Floor(d) && math.Abs(d) < 1e16 {
 		return strconv.FormatInt(int64(d), 10) + ".0", nil
@@ -1002,10 +1020,11 @@ func formatDouble(d float64) (string, error) {
 // formatFloat mirrors formatDouble but formats at float32 precision so that
 // 32-bit floats render with their shortest round-tripping decimal (matching
 // Java's Float.toString and Apache Arrow) rather than the f64-widened form.
+// Non-finite values render as the barewords NaN/Infinity/-Infinity.
 func formatFloat(f float32) (string, error) {
 	d := float64(f)
-	if math.IsNaN(d) || math.IsInf(d, 0) {
-		return "", fmt.Errorf("variant: cannot render non-finite float as JSON")
+	if s, ok := nonFiniteJSON(d); ok {
+		return s, nil
 	}
 	if d == math.Floor(d) && math.Abs(d) < 1e16 {
 		return strconv.FormatInt(int64(d), 10) + ".0", nil
