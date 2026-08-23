@@ -159,9 +159,13 @@ func receiverVariant(v ref.Val, fn string) (variant.Variant, ref.Val) {
 	return variant.Variant{}, types.NewErr("%s: expected a Variant, got %s", fn, v.Type().TypeName())
 }
 
-// toVariant is the runtime dispatch backing variant(dyn). Rejects strings (use parseJson)
-// and null.
+// toVariant is the runtime dispatch backing variant(dyn). CEL null passes through
+// (returns types.NullValue, aligning with the Java reference variant(null) -> null).
+// Rejects strings (use parseJson).
 func toVariant(v ref.Val) ref.Val {
+	if v == nil || v.Type() == types.NullType {
+		return types.NullValue
+	}
 	if vv, ok := v.(variantVal); ok {
 		return vv
 	}
@@ -179,9 +183,6 @@ func toVariant(v ref.Val) ref.Val {
 		return types.NewErr("variant: map missing 'metadata'/'value' byte entries")
 	case string:
 		return types.NewErr("variant: cannot convert string to Variant; use variants.parseJson(s)")
-	}
-	if v == nil || v.Type() == types.NullType {
-		return types.NewErr("variant: cannot convert null to Variant")
 	}
 	return types.NewErr("variant: cannot convert %s to Variant", v.Type().TypeName())
 }
@@ -255,11 +256,19 @@ func variantAs(a, b ref.Val, nullOnError bool) ref.Val {
 			if err != nil {
 				return types.NewErr("variants.as: %v", err)
 			}
-			micros := raw
+			// Match Java's variantGetTimestamp: NANOS variants store nanoseconds since
+			// epoch and are split with floor division (Math.floorDiv/floorMod), which
+			// preserves sub-microsecond precision and rounds toward negative infinity for
+			// pre-epoch instants. Go's time.Time holds nanoseconds, so parity is exact.
+			// time.Unix / time.UnixMicro normalize a negative fractional part by
+			// borrowing a whole second, exactly as floorDiv/floorMod do.
+			var t time.Time
 			if vt == variant.TimestampNanosTz || vt == variant.TimestampNanosNtz {
-				micros = raw / 1000
+				t = time.Unix(0, raw)
+			} else {
+				t = time.UnixMicro(raw)
 			}
-			return types.Timestamp{Time: time.UnixMicro(micros).UTC()}
+			return types.Timestamp{Time: t.UTC()}
 		}
 	case "bytes":
 		if vt == variant.Binary {
