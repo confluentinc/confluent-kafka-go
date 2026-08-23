@@ -17,8 +17,10 @@
 package cel
 
 import (
+	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -272,8 +274,36 @@ func TestAvroLogicalTimestampIntoCel(t *testing.T) {
 		Ts time.Time `avro:"ts"`
 	}
 	rec := tsRecord{Ts: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}
-	if !evalBool(t, `timestamp.of(this.ts) < now`, rec) {
+	if !evalBool(t, `timestamp(this.ts) < now`, rec) {
 		t.Errorf("avro logical timestamp (time.Time) did not marshal into CEL correctly")
+	}
+}
+
+// TestAvroLogicalTimestampNeedsNoConstructor is the cross-client parity test: an Avro timestamp
+// logical type is usable as a timestamp with **no constructor call at all**. cel-go's type
+// adapter maps time.Time to CEL's timestamp, so the value is already one — comparable against
+// `now` and carrying the timestamp accessors. Every one of the seven clients has this test; the
+// constructor is only needed for a plain numeric field whose unit the schema cannot supply.
+func TestAvroLogicalTimestampNeedsNoConstructor(t *testing.T) {
+	type tsRecord struct {
+		Ts time.Time `avro:"ts"`
+	}
+	past := tsRecord{Ts: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}
+	if !evalBool(t, `this.ts < now`, past) {
+		t.Error("bare `this.ts < now` did not hold for a past Avro timestamp")
+	}
+	// Negative control: a future value must be false, so the comparison really happens.
+	future := tsRecord{Ts: time.Now().Add(time.Hour)}
+	if evalBool(t, `this.ts < now`, future) {
+		t.Error("bare `this.ts < now` held for a future Avro timestamp")
+	}
+	// The instant is exact, not merely timestamp-shaped, and the accessors work directly.
+	exact := tsRecord{Ts: time.UnixMilli(1700000000123).UTC()}
+	if !evalBool(t, `this.ts == timestamp("2023-11-14T22:13:20.123Z")`, exact) {
+		t.Error("bare Avro timestamp did not equal the expected instant")
+	}
+	if !evalBool(t, `this.ts.getFullYear() == 2023`, exact) {
+		t.Error("timestamp accessor did not work on a bare Avro timestamp")
 	}
 }
 
@@ -291,6 +321,13 @@ func evalString(t *testing.T, expr string, value interface{}) string {
 		t.Fatalf("expr %q: expected string result, got %T (%v)", expr, result, result)
 	}
 	return s
+}
+
+// evalRaw runs a CEL rule and hands back both the result and any error, for the cases where the
+// error is the thing under test.
+func evalRaw(t *testing.T, expr string, value interface{}) (interface{}, error) {
+	t.Helper()
+	return NewValidator().Execute(rule(expr), nil, value)
 }
 
 // TestBareIntToTimestampIsEpochSeconds pins the cross-client contract: the stdlib one-arg
@@ -332,26 +369,57 @@ func TestNegativeBareIntToTimestampIsPreEpochSeconds(t *testing.T) {
 	}
 }
 
-// TestTimestampOfWithUnitUnaffectedByEpochSeconds shows the custom timestamp.of(int, unit)
-// surface is unaffected by the above: it honors the explicit unit, so the same integer means
-// different instants through the two surfaces. Keeps the two entry points distinguishable.
-func TestTimestampOfWithUnitUnaffectedByEpochSeconds(t *testing.T) {
+// TestTimestampPrecisionUnaffectedByEpochSeconds shows the two-argument form is unaffected by
+// the epoch-seconds contract above: it honors the explicit precision, so the same integer means
+// different instants through the two arities. Keeps them distinguishable now they share a name.
+func TestTimestampPrecisionUnaffectedByEpochSeconds(t *testing.T) {
 	// Same instant as timestamp(1700000000), reached with an explicit millis value.
-	if got := evalString(t, `string(timestamp.of(1700000000000, "millis"))`, 1); got != "2023-11-14T22:13:20Z" {
-		t.Errorf(`timestamp.of(1700000000000, "millis"): expected 2023-11-14T22:13:20Z, got %q`, got)
+	if got := evalString(t, `string(timestamp(1700000000000, 3))`, 1); got != "2023-11-14T22:13:20Z" {
+		t.Errorf(`timestamp(1700000000000, 3): expected 2023-11-14T22:13:20Z, got %q`, got)
 	}
-	if !evalBool(t, `timestamp.of(1700000000000, "millis") == timestamp(1700000000)`, 1) {
-		t.Error(`timestamp.of(1700000000000, "millis") did not equal timestamp(1700000000)`)
+	if !evalBool(t, `timestamp(1700000000000, 3) == timestamp(1700000000)`, 1) {
+		t.Error(`timestamp(1700000000000, 3) did not equal timestamp(1700000000)`)
 	}
 	// The same integer differs between the two surfaces: seconds vs. millis.
-	if got := evalString(t, `string(timestamp.of(1700000000, "millis"))`, 1); got != "1970-01-20T16:13:20Z" {
-		t.Errorf(`timestamp.of(1700000000, "millis"): expected 1970-01-20T16:13:20Z, got %q`, got)
+	if got := evalString(t, `string(timestamp(1700000000, 3))`, 1); got != "1970-01-20T16:13:20Z" {
+		t.Errorf(`timestamp(1700000000, 3): expected 1970-01-20T16:13:20Z, got %q`, got)
 	}
-	if evalBool(t, `timestamp.of(1700000000, "millis") == timestamp(1700000000)`, 1) {
-		t.Error(`timestamp.of(int, "millis") collapsed onto the bare-int (seconds) reading`)
+	if evalBool(t, `timestamp(1700000000, 3) == timestamp(1700000000)`, 1) {
+		t.Error(`timestamp(int, 3) collapsed onto the bare-int (seconds) reading`)
 	}
-	// "seconds" explicitly agrees with the bare-int conversion.
-	if !evalBool(t, `timestamp.of(1700000000, "seconds") == timestamp(1700000000)`, 1) {
-		t.Error(`timestamp.of(1700000000, "seconds") did not equal timestamp(1700000000)`)
+	// Precision 0 explicitly agrees with the bare-int conversion.
+	if !evalBool(t, `timestamp(1700000000, 0) == timestamp(1700000000)`, 1) {
+		t.Error(`timestamp(1700000000, 0) did not equal timestamp(1700000000)`)
+	}
+	// Sub-second precision survives.
+	for _, expr := range []string{
+		`timestamp(1700000000123, 3) == timestamp("2023-11-14T22:13:20.123Z")`,
+		`timestamp(1700000000123456, 6) == timestamp("2023-11-14T22:13:20.123456Z")`,
+		`timestamp(1700000000123456789, 9) == timestamp("2023-11-14T22:13:20.123456789Z")`,
+	} {
+		if !evalBool(t, expr, 1) {
+			t.Errorf("%s was false", expr)
+		}
+	}
+}
+
+// TestTimestampRejectsPrecisionOutsideTheSet pins the guard that replaced the unit string: with
+// the unit a number, rejecting anything outside {0, 3, 6, 9} is the only thing between a typo
+// and a silently wrong instant.
+func TestTimestampRejectsPrecisionOutsideTheSet(t *testing.T) {
+	for _, precision := range []int{1, 2, 4, 5, 7, 8, 10, -3} {
+		expr := fmt.Sprintf(`timestamp(1700000000, %d) == now`, precision)
+		if _, err := evalRaw(t, expr, 1); err == nil {
+			t.Errorf("precision %d was accepted", precision)
+		} else if !strings.Contains(err.Error(), "unknown precision") {
+			t.Errorf("precision %d: expected an unknown-precision error, got %v", precision, err)
+		}
+	}
+}
+
+// TestTimestampOfNamespaceIsGone pins the removal: the namespaced form must no longer resolve.
+func TestTimestampOfNamespaceIsGone(t *testing.T) {
+	if _, err := evalRaw(t, `timestamp.of(1700000000000, 3) == now`, 1); err == nil {
+		t.Error("timestamp.of still resolves")
 	}
 }

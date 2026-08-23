@@ -96,13 +96,35 @@ func (v decimalVal) Type() ref.Type { return decimalType }
 
 func (v decimalVal) Value() any { return v.d }
 
-// asDecimal unwraps an argument the checker has already typed as a Decimal.
+// asDecimal coerces a decimals.* argument. Beyond an already-constructed decimal it accepts the
+// shapes a decimal-typed *field* decodes to — Avro's *big.Rat and a confluent.type.Decimal
+// message — so such a field can be used without a decimal(...) call, matching the other clients.
+//
+// Deliberately narrower than toDecimal, which also parses strings and widens integers: those
+// belong to the explicit decimal(dyn) constructor. Keeping them out means `decimals.gt("1", x)`
+// still fails here, as it does at compile time on the clients whose checker can see the
+// argument's type.
 func asDecimal(v ref.Val) (*apd.Decimal, ref.Val) {
-	d, ok := v.(decimalVal)
-	if !ok {
-		return nil, types.NewErr("expected a decimal, got %s", v.Type().TypeName())
+	if d, ok := v.(decimalVal); ok {
+		return d.d, nil
 	}
-	return d.d, nil
+	switch x := v.Value().(type) {
+	case *apd.Decimal:
+		return x, nil
+	case *big.Rat:
+		d, err := decimalFromRat(x)
+		if err != nil {
+			return nil, types.NewErr("decimal: %v", err)
+		}
+		return d, nil
+	case *prototypes.Decimal:
+		d, err := decimalFromProto(x)
+		if err != nil {
+			return nil, types.NewErr("decimal: %v", err)
+		}
+		return d, nil
+	}
+	return nil, types.NewErr("expected a decimal, got %s", v.Type().TypeName())
 }
 
 // toDecimal is the runtime dispatch backing decimal(dyn). It accepts whatever shape an
@@ -279,7 +301,7 @@ func decimalOptions() []cel.EnvOption {
 		decimalsUnary("decimals.ceil", func(res, a *apd.Decimal) error { return quantize(res, a, 0, apd.RoundCeiling) }),
 
 		cel.Function("decimals.sign",
-			cel.Overload("decimals_sign_decimal", []*cel.Type{decimalType}, cel.IntType,
+			cel.Overload("decimals_sign_decimal", []*cel.Type{cel.DynType}, cel.IntType,
 				cel.UnaryBinding(func(v ref.Val) ref.Val {
 					d, err := asDecimal(v)
 					if err != nil {
@@ -290,13 +312,13 @@ func decimalOptions() []cel.EnvOption {
 		),
 
 		cel.Function("decimals.round",
-			cel.Overload("decimals_round_unary", []*cel.Type{decimalType}, decimalType,
+			cel.Overload("decimals_round_unary", []*cel.Type{cel.DynType}, decimalType,
 				cel.UnaryBinding(roundBinding(0))),
-			cel.Overload("decimals_round_scale", []*cel.Type{decimalType, cel.IntType}, decimalType,
+			cel.Overload("decimals_round_scale", []*cel.Type{cel.DynType, cel.IntType}, decimalType,
 				cel.BinaryBinding(roundScaleBinding(apd.RoundHalfUp))),
 		),
 		cel.Function("decimals.trunc",
-			cel.Overload("decimals_trunc_unary", []*cel.Type{decimalType}, decimalType,
+			cel.Overload("decimals_trunc_unary", []*cel.Type{cel.DynType}, decimalType,
 				cel.UnaryBinding(func(v ref.Val) ref.Val {
 					d, errv := asDecimal(v)
 					if errv != nil {
@@ -304,7 +326,7 @@ func decimalOptions() []cel.EnvOption {
 					}
 					return truncTo(d, 0)
 				})),
-			cel.Overload("decimals_trunc_scale", []*cel.Type{decimalType, cel.IntType}, decimalType,
+			cel.Overload("decimals_trunc_scale", []*cel.Type{cel.DynType, cel.IntType}, decimalType,
 				cel.BinaryBinding(func(a, s ref.Val) ref.Val {
 					d, errv := asDecimal(a)
 					if errv != nil {
@@ -351,7 +373,7 @@ func decimalOptions() []cel.EnvOption {
 func decimalsCompare(name string, cmp func(int) bool) cel.EnvOption {
 	return cel.Function(name,
 		cel.Overload(strings.ReplaceAll(name, ".", "_")+"_decimal_decimal",
-			[]*cel.Type{decimalType, decimalType}, cel.BoolType,
+			[]*cel.Type{cel.DynType, cel.DynType}, cel.BoolType,
 			cel.BinaryBinding(func(a, b ref.Val) ref.Val {
 				x, errv := asDecimal(a)
 				if errv != nil {
@@ -369,7 +391,7 @@ func decimalsCompare(name string, cmp func(int) bool) cel.EnvOption {
 func decimalsArith(name string, fn func(res, a, b *apd.Decimal) error) cel.EnvOption {
 	return cel.Function(name,
 		cel.Overload(strings.ReplaceAll(name, ".", "_")+"_decimal_decimal",
-			[]*cel.Type{decimalType, decimalType}, decimalType,
+			[]*cel.Type{cel.DynType, cel.DynType}, decimalType,
 			cel.BinaryBinding(func(a, b ref.Val) ref.Val {
 				x, errv := asDecimal(a)
 				if errv != nil {
@@ -391,7 +413,7 @@ func decimalsArith(name string, fn func(res, a, b *apd.Decimal) error) cel.EnvOp
 func decimalsUnary(name string, fn func(res, a *apd.Decimal) error) cel.EnvOption {
 	return cel.Function(name,
 		cel.Overload(strings.ReplaceAll(name, ".", "_")+"_decimal",
-			[]*cel.Type{decimalType}, decimalType,
+			[]*cel.Type{cel.DynType}, decimalType,
 			cel.UnaryBinding(func(v ref.Val) ref.Val {
 				d, errv := asDecimal(v)
 				if errv != nil {
