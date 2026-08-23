@@ -276,3 +276,82 @@ func TestAvroLogicalTimestampIntoCel(t *testing.T) {
 		t.Errorf("avro logical timestamp (time.Time) did not marshal into CEL correctly")
 	}
 }
+
+// ---- stdlib timestamp(int): bare ints are epoch SECONDS ----
+
+// evalString runs a string-valued CEL rule against value and fails the test on error.
+func evalString(t *testing.T, expr string, value interface{}) string {
+	t.Helper()
+	result, err := NewValidator().Execute(rule(expr), nil, value)
+	if err != nil {
+		t.Fatalf("expr %q: unexpected error: %v", expr, err)
+	}
+	s, ok := result.(string)
+	if !ok {
+		t.Fatalf("expr %q: expected string result, got %T (%v)", expr, result, result)
+	}
+	return s
+}
+
+// TestBareIntToTimestampIsEpochSeconds pins the cross-client contract: the stdlib one-arg
+// timestamp(int) conversion treats a bare integer as Unix epoch SECONDS, never millis.
+// cel-go declares this as overloads.IntToTimestamp in common/stdlib/standard.go with the
+// documented example `timestamp(1) // timestamp('1970-01-01T00:00:01Z')`. All seven Schema
+// Registry clients agree on seconds here; this test is the Go anchor for that.
+func TestBareIntToTimestampIsEpochSeconds(t *testing.T) {
+	if got := evalString(t, `string(timestamp(1700000000))`, 1); got != "2023-11-14T22:13:20Z" {
+		t.Errorf("timestamp(1700000000): expected 2023-11-14T22:13:20Z (epoch seconds), got %q", got)
+	}
+	if !evalBool(t, `timestamp(1700000000) == timestamp("2023-11-14T22:13:20Z")`, 1) {
+		t.Error("timestamp(1700000000) did not equal timestamp(\"2023-11-14T22:13:20Z\")")
+	}
+	// Not millis: if the int were read as millis this would be 1970-01-20T16:13:20Z.
+	if evalBool(t, `timestamp(1700000000) == timestamp("1970-01-20T16:13:20Z")`, 1) {
+		t.Error("timestamp(1700000000) was read as epoch MILLIS; the contract is seconds")
+	}
+	// Epoch itself, and one second past it.
+	if got := evalString(t, `string(timestamp(0))`, 1); got != "1970-01-01T00:00:00Z" {
+		t.Errorf("timestamp(0): expected 1970-01-01T00:00:00Z, got %q", got)
+	}
+	if got := evalString(t, `string(timestamp(1))`, 1); got != "1970-01-01T00:00:01Z" {
+		t.Errorf("timestamp(1): expected 1970-01-01T00:00:01Z, got %q", got)
+	}
+}
+
+// TestNegativeBareIntToTimestampIsPreEpochSeconds checks that negative bare ints are pre-epoch
+// seconds -- neither an error nor millis.
+func TestNegativeBareIntToTimestampIsPreEpochSeconds(t *testing.T) {
+	if got := evalString(t, `string(timestamp(-1))`, 1); got != "1969-12-31T23:59:59Z" {
+		t.Errorf("timestamp(-1): expected 1969-12-31T23:59:59Z, got %q", got)
+	}
+	if got := evalString(t, `string(timestamp(-86400))`, 1); got != "1969-12-31T00:00:00Z" {
+		t.Errorf("timestamp(-86400): expected 1969-12-31T00:00:00Z, got %q", got)
+	}
+	if !evalBool(t, `timestamp(-86400) == timestamp("1969-12-31T00:00:00Z")`, 1) {
+		t.Error("timestamp(-86400) did not equal timestamp(\"1969-12-31T00:00:00Z\")")
+	}
+}
+
+// TestTimestampOfWithUnitUnaffectedByEpochSeconds shows the custom timestamp.of(int, unit)
+// surface is unaffected by the above: it honors the explicit unit, so the same integer means
+// different instants through the two surfaces. Keeps the two entry points distinguishable.
+func TestTimestampOfWithUnitUnaffectedByEpochSeconds(t *testing.T) {
+	// Same instant as timestamp(1700000000), reached with an explicit millis value.
+	if got := evalString(t, `string(timestamp.of(1700000000000, "millis"))`, 1); got != "2023-11-14T22:13:20Z" {
+		t.Errorf(`timestamp.of(1700000000000, "millis"): expected 2023-11-14T22:13:20Z, got %q`, got)
+	}
+	if !evalBool(t, `timestamp.of(1700000000000, "millis") == timestamp(1700000000)`, 1) {
+		t.Error(`timestamp.of(1700000000000, "millis") did not equal timestamp(1700000000)`)
+	}
+	// The same integer differs between the two surfaces: seconds vs. millis.
+	if got := evalString(t, `string(timestamp.of(1700000000, "millis"))`, 1); got != "1970-01-20T16:13:20Z" {
+		t.Errorf(`timestamp.of(1700000000, "millis"): expected 1970-01-20T16:13:20Z, got %q`, got)
+	}
+	if evalBool(t, `timestamp.of(1700000000, "millis") == timestamp(1700000000)`, 1) {
+		t.Error(`timestamp.of(int, "millis") collapsed onto the bare-int (seconds) reading`)
+	}
+	// "seconds" explicitly agrees with the bare-int conversion.
+	if !evalBool(t, `timestamp.of(1700000000, "seconds") == timestamp(1700000000)`, 1) {
+		t.Error(`timestamp.of(1700000000, "seconds") did not equal timestamp(1700000000)`)
+	}
+}
