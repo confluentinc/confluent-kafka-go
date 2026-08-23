@@ -700,6 +700,120 @@ func TestLargeDataRegionUses4ByteOffsets(t *testing.T) {
 	}
 }
 
+// TestVariantNonFiniteToJSON verifies that a binary variant holding a non-finite
+// double/float renders as the bareword NaN/Infinity/-Infinity tokens (the
+// cross-language contract, matching Java's Double.toString/Float.toString - this
+// deliberately diverges from Spark, which quotes them).
+func TestVariantNonFiniteToJSON(t *testing.T) {
+	doubleCases := []struct {
+		d    float64
+		want string
+	}{
+		{math.NaN(), "NaN"},
+		{math.Inf(1), "Infinity"},
+		{math.Inf(-1), "-Infinity"},
+	}
+	for _, c := range doubleCases {
+		v := New(doubleBytes(c.d), emptyMetadata)
+		if v.GetType() != Double {
+			t.Fatalf("type = %d, want Double", v.GetType())
+		}
+		if got := mustJSON(t, v); got != c.want {
+			t.Errorf("ToJSON(DOUBLE %v) = %q, want %q", c.d, got, c.want)
+		}
+	}
+
+	floatCases := []struct {
+		f    float32
+		want string
+	}{
+		{float32(math.NaN()), "NaN"},
+		{float32(math.Inf(1)), "Infinity"},
+		{float32(math.Inf(-1)), "-Infinity"},
+	}
+	for _, c := range floatCases {
+		v := New(floatBytes(c.f), emptyMetadata)
+		if v.GetType() != Float {
+			t.Fatalf("type = %d, want Float", v.GetType())
+		}
+		if got := mustJSON(t, v); got != c.want {
+			t.Errorf("ToJSON(FLOAT %v) = %q, want %q", c.f, got, c.want)
+		}
+	}
+}
+
+// TestVariantParseJSONOverflowInfinity verifies that a JSON magnitude overflow
+// (1e400) parses to +Infinity and is stored as a DOUBLE (rather than rejected),
+// and that toJson(parseJson("1e400")) round-trips to the Infinity bareword.
+func TestVariantParseJSONOverflowInfinity(t *testing.T) {
+	v := mustParse(t, "1e400")
+	if v.GetType() != Double {
+		t.Fatalf("type = %d, want Double", v.GetType())
+	}
+	d, err := v.GetDouble()
+	if err != nil {
+		t.Fatalf("GetDouble: %v", err)
+	}
+	if !math.IsInf(d, 1) {
+		t.Errorf("GetDouble = %v, want +Inf", d)
+	}
+	if got := mustJSON(t, v); got != "Infinity" {
+		t.Errorf("toJson(parseJson(\"1e400\")) = %q, want Infinity", got)
+	}
+	// Negative overflow -> -Infinity.
+	if got := mustJSON(t, mustParse(t, "-1e400")); got != "-Infinity" {
+		t.Errorf("toJson(parseJson(\"-1e400\")) = %q, want -Infinity", got)
+	}
+}
+
+// TestVariantParseJSONEmptyIsSoftError verifies that empty or whitespace-only
+// input returns a normal typed parse error (never a panic or leak), so the CEL
+// layer's tryParseJson can turn it into CEL null.
+func TestVariantParseJSONEmptyIsSoftError(t *testing.T) {
+	for _, in := range []string{"", "   ", "\t\n ", "\n"} {
+		if _, err := ParseJSON(in); err == nil {
+			t.Errorf("ParseJSON(%q) = nil error, want a parse error", in)
+		}
+	}
+}
+
+// TestVariantNonFiniteBinaryRoundTrip verifies the builder accepts and stores a
+// non-finite double/float (no reject guard on the append path) and that the
+// stored bits survive read-back.
+func TestVariantNonFiniteBinaryRoundTrip(t *testing.T) {
+	b := NewVariantBuilder()
+	if err := b.AppendDouble(math.Inf(1)); err != nil {
+		t.Fatalf("AppendDouble(+Inf): %v", err)
+	}
+	built, err := b.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	d, err := built.GetDouble()
+	if err != nil {
+		t.Fatalf("GetDouble: %v", err)
+	}
+	if !math.IsInf(d, 1) {
+		t.Errorf("stored double = %v, want +Inf", d)
+	}
+
+	bf := NewVariantBuilder()
+	if err := bf.AppendFloat(float32(math.NaN())); err != nil {
+		t.Fatalf("AppendFloat(NaN): %v", err)
+	}
+	builtF, err := bf.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	f, err := builtF.GetFloat()
+	if err != nil {
+		t.Fatalf("GetFloat: %v", err)
+	}
+	if !math.IsNaN(float64(f)) {
+		t.Errorf("stored float = %v, want NaN", f)
+	}
+}
+
 func TestVariantFloatToJSON(t *testing.T) {
 	// A FLOAT value renders through GetFloat in ToJSON.
 	v := New(floatBytes(1.5), emptyMetadata)
