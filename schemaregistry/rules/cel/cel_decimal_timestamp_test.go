@@ -17,6 +17,7 @@
 package cel
 
 import (
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -114,6 +115,85 @@ func TestDecimalStringForms(t *testing.T) {
 // Java's requireIntScale (Math.toIntExact). Covers decimals.round/trunc and decimal(bytes,
 // scale). 3000000000 > math.MaxInt32; naive int32() truncation would wrap it to a small,
 // wrong scale.
+// TestDecimalLargeMagnitudeRounding is a regression test for the rounding family and mod
+// silently returning NaN for values whose digit count exceeds 38. Java uses
+// BigDecimal.setScale / BigDecimal.remainder (both exact, unlimited precision), so the
+// results must be exact regardless of magnitude. Previously these routed through a
+// precision-38 apd context, so apd's Quantize/Rem set the result to NaN (and, with
+// Traps==0, returned no error), and string(...) yielded "NaN".
+func TestDecimalLargeMagnitudeRounding(t *testing.T) {
+	// A 39-digit integer — one more digit than the old precision-38 cap.
+	const big39 = "123456789012345678901234567890123456789"
+	cases := []struct {
+		expr     string
+		expected string
+	}{
+		{`string(decimals.floor(decimal("` + big39 + `")))`, big39},
+		{`string(decimals.ceil(decimal("` + big39 + `")))`, big39},
+		{`string(decimals.round(decimal("` + big39 + `")))`, big39},
+		// A 39-digit integer part plus a fractional half exercises the quantize path
+		// (rather than the trunc no-op) at >38 digits.
+		{`string(decimals.trunc(decimal("` + big39 + `.5")))`, big39},
+		// HALF_UP on the .5 rounds the 39-digit integer up by one.
+		{`string(decimals.round(decimal("` + big39 + `.5")))`, "123456789012345678901234567890123456790"},
+		// mod with a 40-digit dividend: 10^40 mod 3 == 1 (10 ≡ 1 mod 3).
+		{`string(decimals.mod(decimal("1e40"), decimal("3")))`, "1"},
+	}
+	for _, c := range cases {
+		expr := c.expr + ` == "` + c.expected + `"`
+		if !evalBool(t, expr, 1) {
+			got, _ := NewValidator().Execute(rule(c.expr), nil, 1)
+			t.Errorf("expr %q: expected %q, got %q", c.expr, c.expected, got)
+		}
+	}
+}
+
+// TestDecimalRejectsNonFinite is a regression test for decimal() accepting NaN/Infinity
+// special values that Java rejects. Java's new BigDecimal(String) and
+// BigDecimal.valueOf(double) both throw NumberFormatException on non-finite inputs; apd's
+// NewFromString instead parses "NaN"/"Infinity"/"inf"/"sNaN" into special-value decimals
+// with no error. decimal(...) must surface a CEL error for these.
+func TestDecimalRejectsNonFinite(t *testing.T) {
+	// String arm: these all parse into special-value apd decimals, so they must error.
+	for _, e := range []string{
+		`decimal("NaN")`,
+		`decimal("Infinity")`,
+		`decimal("-inf")`,
+		`decimal("sNaN")`,
+	} {
+		if _, err := NewValidator().Execute(rule(e), nil, 1); err == nil {
+			t.Errorf("expr %q: expected an error for a non-finite decimal, got nil", e)
+		}
+	}
+	// Double arm: a NaN/Inf float64 flowing through decimal(this) must error too.
+	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if _, err := NewValidator().Execute(rule(`decimal(this)`), nil, v); err == nil {
+			t.Errorf("decimal(this) with %v: expected an error for a non-finite double, got nil", v)
+		}
+	}
+	// Finite values (including scientific notation and finite doubles) must still
+	// succeed and round-trip.
+	finite := []struct {
+		expr     string
+		expected string
+	}{
+		{`string(decimal("1e40"))`, "10000000000000000000000000000000000000000"},
+		{`string(decimal("123.45"))`, "123.45"},
+		{`string(decimal(1.5))`, "1.5"},
+	}
+	for _, c := range finite {
+		expr := c.expr + ` == "` + c.expected + `"`
+		if !evalBool(t, expr, 1) {
+			got, err := NewValidator().Execute(rule(c.expr), nil, 1)
+			t.Errorf("expr %q: expected %q, got %q (err=%v)", c.expr, c.expected, got, err)
+		}
+	}
+	// "-0" is finite and must not be rejected (apd keeps negative zero as "-0").
+	if _, err := NewValidator().Execute(rule(`string(decimal("-0"))`), nil, 1); err != nil {
+		t.Errorf(`decimal("-0"): expected no error for finite negative zero, got %v`, err)
+	}
+}
+
 func TestDecimalScaleOutOfInt32Range(t *testing.T) {
 	exprs := []string{
 		`decimals.round(decimal("1.5"), 3000000000)`,
