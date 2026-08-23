@@ -17,6 +17,7 @@ package variant
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -243,7 +244,14 @@ func (b *builder) appendNumber(s string) error {
 	}
 	d, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return fmt.Errorf("variant: invalid number literal %q: %w", s, err)
+		// A magnitude overflow (e.g. 1e400) is syntactically valid: ParseFloat
+		// returns ±Inf with ErrRange. Store the non-finite double rather than
+		// rejecting it (the cross-language contract; toJson emits the Infinity
+		// bareword). Underflow returns a signed zero, also fine to store. Only a
+		// genuine syntax error is a hard failure.
+		if !errors.Is(err, strconv.ErrRange) {
+			return fmt.Errorf("variant: invalid number literal %q: %w", s, err)
+		}
 	}
 	b.appendDouble(d)
 	return nil

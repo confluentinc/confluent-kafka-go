@@ -18,6 +18,7 @@ package cel
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -173,7 +174,11 @@ func decimalOptions() []cel.EnvOption {
 					if !ok {
 						return types.NewErr("decimal: scale must be an int")
 					}
-					d, err := decimalFromBytesScale(bytes, int32(scale))
+					sc, errv := requireIntScale(scale, "decimal(bytes, scale)")
+					if errv != nil {
+						return errv
+					}
+					d, err := decimalFromBytesScale(bytes, sc)
 					if err != nil {
 						return types.NewErr("decimal: %v", err)
 					}
@@ -198,10 +203,11 @@ func decimalOptions() []cel.EnvOption {
 			if err != nil {
 				return err
 			}
-			// An exact quotient keeps its minimal form (0.125, not 0.12500…), matching Java's
-			// BigDecimal.divide; a non-terminating one keeps all 38 significant digits.
+			// An exact quotient adopts Java BigDecimal.divide's preferred scale
+			// (dividend.scale - divisor.scale), so 6.0/3 -> "2.0" and 10.00/2 -> "5.00";
+			// a non-terminating one keeps all 38 significant digits.
 			if !cond.Inexact() {
-				res.Reduce(res)
+				return applyPreferredScale(res, a.Exponent-b.Exponent)
 			}
 			return nil
 		}),
@@ -238,8 +244,11 @@ func decimalOptions() []cel.EnvOption {
 			if err != nil {
 				return err
 			}
+			// An exact root adopts Java BigDecimal.sqrt's preferred scale (this.scale/2),
+			// so sqrt(4.00) -> "2.0" and sqrt(100.0000) -> "10.00"; a non-terminating one
+			// keeps all 38 significant digits.
 			if !cond.Inexact() {
-				res.Reduce(res)
+				return applyPreferredScale(res, -((-a.Exponent) / 2))
 			}
 			return nil
 		}),
@@ -284,7 +293,11 @@ func decimalOptions() []cel.EnvOption {
 					if !ok {
 						return types.NewErr("decimals.trunc: scale must be an int")
 					}
-					return truncTo(d, int32(scale))
+					sc, errv := requireIntScale(scale, "decimals.trunc")
+					if errv != nil {
+						return errv
+					}
+					return truncTo(d, sc)
 				})),
 		),
 
@@ -396,8 +409,12 @@ func roundScaleBinding(rounder apd.Rounder) functionBinary {
 		if !ok {
 			return types.NewErr("decimals.round: scale must be an int")
 		}
+		sc, errv := requireIntScale(scale, "decimals.round")
+		if errv != nil {
+			return errv
+		}
 		res := new(apd.Decimal)
-		if err := quantize(res, d, int32(scale), rounder); err != nil {
+		if err := quantize(res, d, sc, rounder); err != nil {
 			return types.NewErr("decimals.round: %v", err)
 		}
 		return newDecimal(res)
@@ -427,4 +444,32 @@ func quantize(res, d *apd.Decimal, scale int32, rounder apd.Rounder) error {
 	ctx := &apd.Context{Precision: divContext.Precision, Rounding: rounder, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
 	_, err := ctx.Quantize(res, d, -scale)
 	return err
+}
+
+// applyPreferredScale rewrites an exact div/sqrt result to Java BigDecimal's preferred
+// scale: strip to the minimal representation, then, when that is coarser than the preferred
+// exponent, pad with trailing zeros back out to it. apd's Quo/Sqrt otherwise pad exact
+// results out to the full 38-digit precision, and a bare Reduce would over-strip (6.0/3 ->
+// "2" instead of Java's "2.0"). The preferred exponent is dividend.exp - divisor.exp for
+// division and -(this.scale/2) for square root, mirroring BigDecimal.
+func applyPreferredScale(res *apd.Decimal, preferredExp int32) error {
+	res.Reduce(res)
+	if res.Exponent > preferredExp {
+		ctx := &apd.Context{Precision: divContext.Precision, Rounding: apd.RoundHalfUp, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
+		if _, err := ctx.Quantize(res, res, preferredExp); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// requireIntScale narrows a CEL int (i64) scale argument to the i32 that apd (and Java's
+// BigDecimal) scales use. It returns a CEL error when the value does not fit rather than
+// silently taking the low 32 bits (e.g. 2^32 -> 0), mirroring Java's requireIntScale
+// (Math.toIntExact).
+func requireIntScale(scale int64, fn string) (int32, ref.Val) {
+	if scale < math.MinInt32 || scale > math.MaxInt32 {
+		return 0, types.NewErr("%s: scale out of int range: %d", fn, scale)
+	}
+	return int32(scale), nil
 }
