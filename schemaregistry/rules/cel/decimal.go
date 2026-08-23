@@ -138,6 +138,12 @@ func toDecimal(v ref.Val) ref.Val {
 		}
 		return newDecimal(d)
 	case float64:
+		// Java's BigDecimal.valueOf(double) throws on NaN/Infinity; reject them before
+		// formatting so decimal(<NaN or Inf double>) errors instead of parsing to a
+		// special-value decimal.
+		if math.IsNaN(x) || math.IsInf(x, 0) {
+			return types.NewErr("decimal: cannot convert non-finite double %v to Decimal", x)
+		}
 		// Shortest round-tripping form, matching Java's BigDecimal.valueOf(double).
 		d, _, err := apd.NewFromString(strconv.FormatFloat(x, 'g', -1, 64))
 		if err != nil {
@@ -148,6 +154,12 @@ func toDecimal(v ref.Val) ref.Val {
 		d, _, err := apd.NewFromString(x)
 		if err != nil {
 			return types.NewErr("decimal: cannot parse %q: %v", x, err)
+		}
+		// apd.NewFromString parses "NaN"/"Infinity"/"inf"/"sNaN" into special-value
+		// decimals with no error; Java's new BigDecimal(String) rejects them. Match Java
+		// by accepting only finite values.
+		if d.Form != apd.Finite {
+			return types.NewErr("decimal: cannot parse %q: not a finite number", x)
 		}
 		return newDecimal(d)
 	case []byte:
@@ -215,8 +227,17 @@ func decimalOptions() []cel.EnvOption {
 			if b.Sign() == 0 {
 				return fmt.Errorf("division by zero")
 			}
-			// Rem requires a nonzero precision; the remainder itself is exact.
-			_, err := divContext.Rem(res, a, b)
+			// Java's BigDecimal.remainder is exact. apd's Rem returns NaN (silently,
+			// since Traps==0) when the integer quotient exceeds the context precision, so
+			// a precision-38 Rem drops >38-digit quotients to NaN. Size the precision to
+			// hold that quotient: bounded by the dividend's digit count plus the gap
+			// between the operands' exponents. The remainder itself is exact.
+			prec := a.NumDigits()
+			if a.Exponent > b.Exponent {
+				prec += int64(a.Exponent - b.Exponent)
+			}
+			ctx := &apd.Context{Precision: uint32(prec) + 2, Rounding: apd.RoundHalfUp, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
+			_, err := ctx.Rem(res, a, b)
 			return err
 		}),
 		decimalsArith("decimals.greatest", func(res, a, b *apd.Decimal) error {
@@ -441,7 +462,17 @@ func truncTo(d *apd.Decimal, scale int32) ref.Val {
 // quantize sets res to d rounded to the given scale (number of fractional digits) with the
 // given rounder — the apd analog of BigDecimal.setScale(scale, mode).
 func quantize(res, d *apd.Decimal, scale int32, rounder apd.Rounder) error {
-	ctx := &apd.Context{Precision: divContext.Precision, Rounding: rounder, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
+	// Java's BigDecimal.setScale(scale, mode) is exact (unlimited precision). apd's
+	// Quantize instead returns NaN (silently, since Traps==0) when the result exceeds the
+	// context precision, so a precision-38 Quantize drops >38-digit results to NaN. Size
+	// the precision to hold the full result: the input's digit count plus any fractional
+	// digits added when scaling to a finer scale, with a small buffer for rounding
+	// roll-over (e.g. 9.9 -> 10).
+	prec := d.NumDigits()
+	if scale > 0 {
+		prec += int64(scale)
+	}
+	ctx := &apd.Context{Precision: uint32(prec) + 2, Rounding: rounder, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
 	_, err := ctx.Quantize(res, d, -scale)
 	return err
 }
