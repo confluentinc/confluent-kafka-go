@@ -22,74 +22,59 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// Flink-style decimal precisions for the two-argument timestamp constructor.
 const (
-	unitMillis  = "millis"
-	unitMicros  = "micros"
-	unitNanos   = "nanos"
-	unitSeconds = "seconds"
+	precisionSeconds = 0
+	precisionMillis  = 3
+	precisionMicros  = 6
+	precisionNanos   = 9
 )
 
-// timestampOptions declares timestamp.of, mirroring the other clients. The result uses CEL's
-// built-in timestamp type (backed by time.Time), so no new type is introduced.
+// timestampOptions adds one overload to the *standard* timestamp constructor, rather than a
+// timestamp.of namespace of our own: timestamp(int, int), an epoch value at a decimal
+// precision. cel-go merges the declaration into the stdlib function, so timestamp(string),
+// timestamp(int) (epoch seconds) and timestamp(timestamp) all keep their stdlib bindings.
+//
+// Nothing is needed for the one-argument non-int cases: cel-go's type adapter already maps
+// time.Time and *timestamppb.Timestamp to CEL's timestamp, so an Avro or Protobuf timestamp
+// field satisfies the stdlib identity overload with no wrapper at all.
 func timestampOptions() []cel.EnvOption {
 	return []cel.EnvOption{
-		cel.Function("timestamp.of",
-			cel.Overload("timestamp_of_dyn", []*cel.Type{cel.DynType}, cel.TimestampType,
-				cel.UnaryBinding(toTimestamp)),
-			cel.Overload("timestamp_of_int_string", []*cel.Type{cel.IntType, cel.StringType}, cel.TimestampType,
-				cel.BinaryBinding(fromEpoch)),
+		cel.Function("timestamp",
+			cel.Overload("timestamp_int_int", []*cel.Type{cel.IntType, cel.IntType}, cel.TimestampType,
+				cel.BinaryBinding(fromEpochPrecision)),
 		),
 	}
 }
 
-// toTimestamp is the runtime dispatch backing timestamp.of(dyn). It accepts the shapes
-// Avro (time.Time) and Protobuf (google.protobuf.Timestamp) decoders produce, plus RFC 3339
-// strings. A raw int lacks a unit and must use timestamp.of(value, unit).
-func toTimestamp(v ref.Val) ref.Val {
-	switch x := v.Value().(type) {
-	case time.Time:
-		return types.Timestamp{Time: x}
-	case *timestamppb.Timestamp:
-		return types.Timestamp{Time: x.AsTime()}
-	case string:
-		t, err := time.Parse(time.RFC3339Nano, x)
-		if err != nil {
-			return types.NewErr("timestamp.of: cannot parse %q as RFC 3339: %v", x, err)
-		}
-		return types.Timestamp{Time: t}
-	case int64:
-		return types.NewErr("timestamp.of: raw int needs a unit; use " +
-			"timestamp.of(value, \"millis\"|\"micros\"|\"nanos\"|\"seconds\")")
-	default:
-		return types.NewErr("timestamp.of: cannot convert %s to Timestamp", v.Type().TypeName())
-	}
-}
-
-// fromEpoch builds a timestamp from an epoch numeric value plus a unit string.
-func fromEpoch(v, unit ref.Val) ref.Val {
+// fromEpochPrecision builds a timestamp from an epoch numeric value at a decimal precision.
+// Precisions outside {0, 3, 6, 9} are rejected rather than generalized to "any p means 10^-p":
+// with the unit a number rather than a name, that check is the only thing between a typo and a
+// silently wrong instant.
+func fromEpochPrecision(v, precision ref.Val) ref.Val {
 	val, ok := v.Value().(int64)
 	if !ok {
-		return types.NewErr("timestamp.of: value must be an int")
+		return types.NewErr("timestamp: the epoch value must be an int")
 	}
-	unitStr, ok := unit.Value().(string)
+	p, ok := precision.Value().(int64)
 	if !ok {
-		return types.NewErr("timestamp.of: unit must be a string")
+		return types.NewErr("timestamp: the precision must be an int")
 	}
 	var t time.Time
-	switch unitStr {
-	case unitMillis:
-		t = time.UnixMilli(val)
-	case unitMicros:
-		t = time.UnixMicro(val)
-	case unitNanos:
-		t = time.Unix(0, val)
-	case unitSeconds:
+	switch p {
+	case precisionSeconds:
 		t = time.Unix(val, 0)
+	case precisionMillis:
+		t = time.UnixMilli(val)
+	case precisionMicros:
+		t = time.UnixMicro(val)
+	case precisionNanos:
+		t = time.Unix(0, val)
 	default:
-		return types.NewErr("timestamp.of: unknown unit %q; expected millis, micros, nanos, seconds", unitStr)
+		return types.NewErr(
+			"timestamp: unknown precision %d; expected 0 (seconds), 3 (millis), 6 (micros) or 9 (nanos)", p)
 	}
 	return types.Timestamp{Time: t.UTC()}
 }
