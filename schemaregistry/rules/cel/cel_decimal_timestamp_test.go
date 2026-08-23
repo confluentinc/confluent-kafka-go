@@ -67,6 +67,29 @@ func TestDecimalOperators(t *testing.T) {
 	}
 }
 
+// TestDecimalEqualityOperatorIsNumeric pins the CEL `==`/`!=` contract on Decimal values:
+// equality is numeric (scale-insensitive), routed through decimalVal.Equal (Cmp == 0), so
+// two decimals that differ only in trailing-zero scale compare equal. This mirrors the
+// cross-language contract and the decimals.eq function, and guards against a regression to
+// identity/representation-sensitive equality.
+func TestDecimalEqualityOperatorIsNumeric(t *testing.T) {
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		{`decimal("2.0") == decimal("2.00")`, true},  // differ only in scale -> numerically equal
+		{`decimal("2.0") == decimal("2.0")`, true},   // identical
+		{`decimal("2.0") == decimal("2.1")`, false},  // different value
+		{`decimal("2.0") != decimal("2.00")`, false}, // != negates numeric equality
+		{`decimal("2.0") != decimal("2.1")`, true},
+	}
+	for _, c := range cases {
+		if got := evalBool(t, c.expr, 1); got != c.expected {
+			t.Errorf("expr %q: expected %v, got %v", c.expr, c.expected, got)
+		}
+	}
+}
+
 func TestDecimalStringForms(t *testing.T) {
 	cases := []struct {
 		expr     string
