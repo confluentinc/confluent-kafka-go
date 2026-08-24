@@ -766,6 +766,60 @@ func TestVariantParseJSONOverflowInfinity(t *testing.T) {
 	}
 }
 
+// TestVariantParseJSONNonFiniteBarewords verifies that the bare NaN/Infinity/-Infinity tokens
+// parse to non-finite DOUBLEs, matching Jackson (Java, under ALLOW_NON_NUMERIC_NUMBERS), Python's
+// json module, System.Text.Json (C#) and serde_json (Rust). Go's encoding/json rejects them
+// outright, so ParseJSON rewrites them to a placeholder and restores them by input offset; the
+// cases below pin the two things that rewrite must not get wrong - a bareword that is string
+// content or an object key stays exactly that, and a near-miss spelling is still an error.
+func TestVariantParseJSONNonFiniteBarewords(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"NaN", "NaN"},
+		{"Infinity", "Infinity"},
+		{"-Infinity", "-Infinity"},
+		{`{"a":NaN}`, `{"a":NaN}`},
+		{"[NaN,Infinity,-Infinity]", "[NaN,Infinity,-Infinity]"},
+		{`{"a":{"b":[Infinity]}}`, `{"a":{"b":[Infinity]}}`},
+		// Surrounding whitespace, and a real number alongside a rewritten one.
+		{"[ NaN , 1 ]", "[NaN,1]"},
+	} {
+		if got := mustJSON(t, mustParse(t, c.in)); got != c.want {
+			t.Errorf("toJson(parseJson(%q)) = %q, want %q", c.in, got, c.want)
+		}
+	}
+
+	// A bareword is a DOUBLE, like any other non-finite value.
+	v := mustParse(t, "NaN")
+	if v.GetType() != Double {
+		t.Errorf(`type of parseJson("NaN") = %d, want Double`, v.GetType())
+	}
+	if d, err := v.GetDouble(); err != nil || !math.IsNaN(d) {
+		t.Errorf(`GetDouble(parseJson("NaN")) = %v, %v; want NaN, nil`, d, err)
+	}
+
+	// The rewrite is string-aware: none of these barewords is a number.
+	for _, c := range []struct{ in, want string }{
+		{`"NaN"`, `"NaN"`},
+		{`{"a":"Infinity"}`, `{"a":"Infinity"}`},
+		{`{"NaN":1}`, `{"NaN":1}`},
+		{`"he said \"NaN\""`, `"he said \"NaN\""`},
+		{`["NaN",NaN]`, `["NaN",NaN]`},
+	} {
+		if got := mustJSON(t, mustParse(t, c.in)); got != c.want {
+			t.Errorf("toJson(parseJson(%q)) = %q, want %q", c.in, got, c.want)
+		}
+	}
+
+	// Spelling and case are exact, matching Jackson: every one of these stays a parse error.
+	for _, in := range []string{
+		"nan", "NAN", "INFINITY", "inf", "Inf", "NaNny", "Infinityx", "+Infinity",
+	} {
+		if _, err := ParseJSON(in); err == nil {
+			t.Errorf("ParseJSON(%q) = nil error, want a parse error", in)
+		}
+	}
+}
+
 // TestVariantParseJSONEmptyIsSoftError verifies that empty or whitespace-only
 // input returns a normal typed parse error (never a panic or leak), so the CEL
 // layer's tryParseJson can turn it into CEL null.
