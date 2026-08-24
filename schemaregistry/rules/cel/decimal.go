@@ -26,9 +26,12 @@ import (
 
 	"github.com/cockroachdb/apd/v3"
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
+	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/common/operators"
+	"cel.dev/cel-go/common/overloads"
+	"cel.dev/cel-go/common/types"
+	"cel.dev/cel-go/common/types/ref"
+	"cel.dev/cel-go/common/types/traits"
 )
 
 // decimalTypeName is the cross-language CEL type label for a decimal. Every client
@@ -36,10 +39,17 @@ import (
 // apd.Decimal, mirroring Java's BigDecimal.
 const decimalTypeName = "confluent.type.Decimal"
 
-// decimalType is the opaque CEL type used in function declarations. cel-go supports opaque
-// types natively (unlike @bufbuild/cel or cel.net), so this mirrors the Java client's
-// OpaqueType approach directly.
-var decimalType = cel.OpaqueType(decimalTypeName)
+// decimalType is the CEL type used in function declarations and as decimalVal's runtime type.
+//
+// An *object* type, not an opaque one, and deliberately so: cel-go types a protobuf
+// confluent.type.Decimal field as cel.ObjectType under exactly this name, and a type mismatch
+// there is not recoverable — the two names are equal but the kinds are not, so
+// `this.amount == decimal("1.5")` failed to check with the unhelpful "no matching overload for
+// '_==_' applied to '(confluent.type.Decimal, confluent.type.Decimal)'". Declaring one kind for
+// both makes a decimal-typed proto field accepted by every decimals.* declaration and comparable
+// against a constructed decimal, matching the Java client, whose CelTypeLabels.DECIMAL is a
+// StructTypeReference for the same reason.
+var decimalType = cel.ObjectType(decimalTypeName)
 
 // divContext rounds division and square root to 38 significant digits, HALF_UP — matching
 // Java's MathContext(38, HALF_UP) used across the other clients. exactContext (Precision 0)
@@ -95,6 +105,40 @@ func (v decimalVal) Equal(other ref.Val) ref.Val {
 func (v decimalVal) Type() ref.Type { return decimalType }
 
 func (v decimalVal) Value() any { return v.d }
+
+// decimalBoundaryValue presents a decimal-shaped native value as this package's CEL decimal.
+//
+// Without it a bare decimal field and decimal(...) are two different CEL types under one name:
+// findType maps a confluent.type.Decimal message to cel.ObjectType, while decimalType is a
+// cel.OpaqueType, so `this == decimal("12.34")` fails to type-check with the unhelpful
+// "no matching overload for '_==_' applied to '(confluent.type.Decimal, confluent.type.Decimal)'"
+// - the two names are equal but the kinds are not. Converting at the boundary collapses them to
+// one type whose Equal is numeric, which is also what makes `==` scale-insensitive: comparing the
+// protobuf encoding field by field would call 12.34 and 12.340 unequal.
+//
+// The Avro *big.Rat arm matters for the same reason. It is typed dyn, so `==` compiles, but a
+// *big.Rat never equals a decimalVal and the comparison silently answered false.
+func decimalBoundaryValue(v interface{}) (ref.Val, bool) {
+	switch x := v.(type) {
+	case decimalVal:
+		return x, true
+	case *prototypes.Decimal:
+		if d, err := decimalFromProto(x); err == nil {
+			return newDecimal(d), true
+		}
+	case *big.Rat:
+		if d, err := decimalFromRat(x); err == nil {
+			return newDecimal(d), true
+		}
+	case big.Rat:
+		// The callers dereference a non-proto pointer before binding, so an Avro decimal
+		// arrives here by value rather than as the *big.Rat hamba produced.
+		if d, err := decimalFromRat(&x); err == nil {
+			return newDecimal(d), true
+		}
+	}
+	return nil, false
+}
 
 // asDecimal coerces a decimals.* argument. Beyond an already-constructed decimal it accepts the
 // shapes a decimal-typed *field* decodes to — Avro's *big.Rat and a confluent.type.Decimal
@@ -188,6 +232,150 @@ func toDecimal(v ref.Val) ref.Val {
 		return types.NewErr("decimal: raw bytes need a scale; use decimal(bytes, scale)")
 	default:
 		return types.NewErr("decimal: cannot convert %s to Decimal", v.Type().TypeName())
+	}
+}
+
+// hasDecimal reports whether v is a decimal or holds one, at any depth. Only consulted once both
+// operands are containers, so it never runs on the scalar comparison path.
+func hasDecimal(v ref.Val) bool {
+	if _, ok := asDecimalValue(v); ok {
+		return true
+	}
+	switch t := v.(type) {
+	case traits.Lister:
+		it := t.Iterator()
+		for it.HasNext() == types.True {
+			if hasDecimal(it.Next()) {
+				return true
+			}
+		}
+	case traits.Mapper:
+		it := t.Iterator()
+		for it.HasNext() == types.True {
+			val := t.Get(it.Next())
+			if hasDecimal(val) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// asDecimalValue coerces an operand to this package's decimal, accepting both a decimalVal and
+// the raw confluent.type.Decimal message a protobuf field selection yields.
+func asDecimalValue(v ref.Val) (decimalVal, bool) {
+	if d, ok := v.(decimalVal); ok {
+		return d, true
+	}
+	if dv, ok := decimalBoundaryValue(v.Value()); ok {
+		if d, ok := dv.(decimalVal); ok {
+			return d, true
+		}
+	}
+	return decimalVal{}, false
+}
+
+// decimalAwareEqual is CEL == with decimals compared numerically, at any depth.
+//
+// A decimal reached by *selection* is a raw confluent.type.Decimal message - the boundary that
+// converts bound values cannot see it - and comparing two of those structurally, field by field
+// over unscaled bytes and scale, calls 1.50 and 1.5 unequal even though they are the same number.
+//
+// Containers are handled too, but only when a decimal is actually inside one: the standard
+// implementation recurses with its own equality, so a decimal nested in a list or map was
+// compared structurally and `[a] == [b]` disagreed with `a == b` on the same values. Gating on
+// hasDecimal leaves every decimal-free comparison on the standard path exactly as it was, and
+// each element pair recurses back through here so a non-decimal element inside a decimal-bearing
+// container still gets standard semantics.
+func decimalAwareEqual(a, b ref.Val) ref.Val {
+	da, aok := asDecimalValue(a)
+	db, bok := asDecimalValue(b)
+	if aok && bok {
+		return types.Bool(da.d.Cmp(db.d) == 0)
+	}
+	if aok != bok {
+		// A decimal is never equal to a non-decimal.
+		return types.False
+	}
+	al, aIsList := a.(traits.Lister)
+	bl, bIsList := b.(traits.Lister)
+	if aIsList && bIsList && (hasDecimal(a) || hasDecimal(b)) {
+		if al.Size() != bl.Size() {
+			return types.False
+		}
+		size, ok := al.Size().Value().(int64)
+		if !ok {
+			return types.False
+		}
+		for i := int64(0); i < size; i++ {
+			idx := types.Int(i)
+			if decimalAwareEqual(al.Get(idx), bl.Get(idx)) != types.True {
+				return types.False
+			}
+		}
+		return types.True
+	}
+	am, aIsMap := a.(traits.Mapper)
+	bm, bIsMap := b.(traits.Mapper)
+	if aIsMap && bIsMap && (hasDecimal(a) || hasDecimal(b)) {
+		if am.Size() != bm.Size() {
+			return types.False
+		}
+		it := am.Iterator()
+		for it.HasNext() == types.True {
+			key := it.Next()
+			found, ok := bm.Find(key)
+			if !ok || found == nil {
+				return types.False
+			}
+			if decimalAwareEqual(am.Get(key), found) != types.True {
+				return types.False
+			}
+		}
+		return types.True
+	}
+	return a.Equal(b)
+}
+
+// decimalEqualityOptions re-declares the three standard functions DefaultEnv excludes, with
+// decimal-aware implementations. Every non-decimal comparison delegates to the standard
+// behaviour, so this is a pre-filter rather than a reimplementation.
+func decimalEqualityOptions() []cel.EnvOption {
+	paramA := cel.TypeParamType("A")
+	paramB := cel.TypeParamType("B")
+	return []cel.EnvOption{
+		// No == / != here: cel-go's planner intercepts both before the dispatcher is consulted
+		// (see DefaultEnv), so they are handled by decimalAdapter on the value side instead.
+		// `in` has to follow ==, or the two contradict each other: `a in [b]` was false for 1.50
+		// against 1.5 while `a == b` was true. The map overload is re-declared unchanged - a CEL
+		// map key can only be int, uint, bool or string, so a decimal can never be one.
+		cel.Function(operators.In,
+			cel.Overload(overloads.InList, []*cel.Type{paramA, cel.ListType(paramA)}, cel.BoolType,
+				cel.BinaryBinding(func(value, list ref.Val) ref.Val {
+					lister, ok := list.(traits.Lister)
+					if !ok {
+						return types.ValOrErr(list, "no such overload")
+					}
+					if !hasDecimal(value) && !hasDecimal(list) {
+						return lister.Contains(value)
+					}
+					it := lister.Iterator()
+					for it.HasNext() == types.True {
+						if decimalAwareEqual(value, it.Next()) == types.True {
+							return types.True
+						}
+					}
+					return types.False
+				})),
+			cel.Overload(overloads.InMap, []*cel.Type{paramA, cel.MapType(paramA, paramB)},
+				cel.BoolType,
+				cel.BinaryBinding(func(key, m ref.Val) ref.Val {
+					mapper, ok := m.(traits.Mapper)
+					if !ok {
+						return types.ValOrErr(m, "no such overload")
+					}
+					return mapper.Contains(key)
+				}))),
 	}
 }
 

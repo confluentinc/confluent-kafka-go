@@ -17,6 +17,7 @@
 package cel
 
 import (
+	"fmt"
 	"testing"
 
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
@@ -151,6 +152,83 @@ func TestProtoConfluentTypeVariantIntoCel(t *testing.T) {
 	msg := &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
 	if !evalBool(t, "variants.as(variants.field(variant(this), 'age'), 'int') == 30", msg) {
 		t.Errorf("proto confluent.type.Variant did not marshal into CEL correctly")
+	}
+}
+
+// TestVariantIsNullCoercesBareReceiver pins that variants.isNull coerces its receiver like every
+// other accessor. It is declared over dyn, so a bare variant field reaches it. A bare *object*
+// cannot catch a missing coercion - isNull on an object is false either way - so only a variant
+// that is itself null discriminates.
+func TestVariantIsNullCoercesBareReceiver(t *testing.T) {
+	for _, tc := range []struct {
+		json     string
+		expected bool
+	}{{"null", true}, {"5", false}} {
+		pv, err := variant.ParseJSON(tc.json)
+		if err != nil {
+			t.Fatalf("ParseJSON(%s): %v", tc.json, err)
+		}
+		msg := &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
+		for _, expr := range []string{
+			"variants.isNull(this)",
+			// The wrapped form has always worked and must keep working.
+			"variants.isNull(variant(this))",
+		} {
+			if got := evalBool(t, expr, msg); got != tc.expected {
+				t.Errorf("%s on %s: expected %v, got %v", expr, tc.json, tc.expected, got)
+			}
+		}
+	}
+}
+
+// TestVariantNeedsNoConstructor is the cross-client parity test: a variant value is usable with
+// the variants.* accessors with **no variant(...) call**, in both formats, and the wrapped form
+// keeps working alongside it. The accessors are declared over cel.DynType and coerce inside, so
+// they take whatever the decoder produced — a proto confluent.type.Variant message, or the map
+// an Avro variant record decodes to.
+func TestVariantNeedsNoConstructor(t *testing.T) {
+	pv, err := variant.ParseJSON(`{"name":"alice","age":30}`)
+	if err != nil {
+		t.Fatalf("ParseJSON: %v", err)
+	}
+	type holder struct {
+		Data map[string]interface{} `avro:"data"`
+	}
+	subjects := map[string]interface{}{
+		// Protobuf: a confluent.type.Variant message bound as `this`.
+		"proto": &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()},
+		// Avro: a variant record, which decodes generically to a metadata/value map.
+		"avro": holder{Data: map[string]interface{}{
+			"metadata": pv.MetadataBytes(),
+			"value":    pv.ValueBytes(),
+		}},
+	}
+	for kind, subject := range subjects {
+		// `this` for the proto message, `this.data` for the Avro holder's field.
+		self := "this"
+		if kind == "avro" {
+			self = "this.data"
+		}
+		for _, tmpl := range []string{
+			// Bare: no constructor call.
+			"variants.type(%s) == 'object'",
+			"variants.as(variants.field(%s, 'name'), 'string') == 'alice'",
+			"variants.as(variants.path(%s, '$.age'), 'int') == 30",
+			// The wrapped form must keep working (variant(...) re-entry).
+			"variants.as(variants.field(variant(%s), 'name'), 'string') == 'alice'",
+			// A missing key is CEL null, not an error.
+			"variants.field(%s, 'nope') == null",
+		} {
+			expr := fmt.Sprintf(tmpl, self)
+			if !evalBool(t, expr, subject) {
+				t.Errorf("%s: %s was false", kind, expr)
+			}
+		}
+		// Negative control.
+		expr := fmt.Sprintf("variants.as(variants.field(%s, 'name'), 'string') == 'bob'", self)
+		if evalBool(t, expr, subject) {
+			t.Errorf("%s: %s should have been false", kind, expr)
+		}
 	}
 }
 

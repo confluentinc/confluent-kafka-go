@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/ext"
+	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/common/types"
+	"cel.dev/cel-go/ext"
 	"google.golang.org/protobuf/proto"
 	"reflect"
 	"strings"
@@ -113,6 +113,7 @@ func (c *Executor) execute(ctx serde.RuleContext, msg interface{}, args map[stri
 }
 
 func (c *Executor) executeRule(ctx serde.RuleContext, expr string, obj interface{}, args map[string]interface{}) (interface{}, error) {
+	args = boundaryArgs(args)
 	msg, ok := args["message"]
 	if !ok {
 		msg = obj
@@ -167,11 +168,42 @@ func findType(arg interface{}) *cel.Type {
 	if arg == nil {
 		return cel.NullType
 	}
+	// Before the proto.Message branch: a confluent.type.Decimal message would otherwise be
+	// declared as an object type, which is a different CEL type from the opaque decimalType
+	// that decimal(...) returns even though both carry the same name. See
+	// decimalBoundaryValue.
+	if _, ok := decimalBoundaryValue(arg); ok {
+		return decimalType
+	}
 	msg, ok := arg.(proto.Message)
 	if ok {
 		return cel.ObjectType(string(msg.ProtoReflect().Descriptor().FullName()))
 	}
 	return typeToCELType(arg)
+}
+
+// boundaryArgs presents each bound value the way this client's CEL surface expects. Only
+// decimal-shaped leaf values are rewritten; a record or map passes through untouched, so this is
+// a no-op for every binding other than a decimal field's value.
+func boundaryArgs(args map[string]interface{}) map[string]interface{} {
+	var out map[string]interface{}
+	for name, v := range args {
+		dv, ok := decimalBoundaryValue(v)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]interface{}, len(args))
+			for n, val := range args {
+				out[n] = val
+			}
+		}
+		out[name] = dv
+	}
+	if out == nil {
+		return args
+	}
+	return out
 }
 
 func typeToCELType(arg interface{}) *cel.Type {
@@ -270,6 +302,11 @@ func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.En
 		envOptions = append(envOptions, declType)
 	}
 	env, err := baseEnv.Extend(envOptions...)
+	if err != nil {
+		return nil, err
+	}
+	// After the type registrations above, so the wrapped adapter is the one that knows them.
+	env, err = env.Extend(cel.CustomTypeAdapter(decimalAdapter{inner: env.CELTypeAdapter()}))
 	if err != nil {
 		return nil, err
 	}

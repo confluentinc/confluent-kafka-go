@@ -19,7 +19,7 @@ package cel
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 )
 
 // NewFieldExecutor creates a new CEL field rule executor
