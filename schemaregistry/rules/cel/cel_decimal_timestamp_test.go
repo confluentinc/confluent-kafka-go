@@ -25,6 +25,7 @@ import (
 	"time"
 
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -250,6 +251,88 @@ func TestProtoConfluentTypeDecimalIntoCel(t *testing.T) {
 	}
 }
 
+// TestProtoDecimalNeedsNoConstructor is the cross-client parity test: a bare
+// confluent.type.Decimal field is usable with decimals.*, ==, string() and double() with **no
+// decimal(...) call** on it. The discriminating case is the scale-differing equality below: a
+// client that compares decimals by their protobuf encoding (unscaled bytes plus scale, field by
+// field) answers false for decimal("12.340"), because 12.34 and 12.340 are the same number in
+// two different encodings.
+func TestProtoDecimalNeedsNoConstructor(t *testing.T) {
+	// 12.34 = unscaled 1234 (0x04D2) at scale 2.
+	dec := &prototypes.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2}
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		// Bare: no constructor call on the field.
+		{`decimals.eq(this, decimal("12.34"))`, true},
+		{`decimals.gt(this, decimal("10.00"))`, true},
+		// The wrapped form must keep working (decimal(...) re-entry).
+		{`decimals.eq(decimal(this), decimal("12.34"))`, true},
+		// `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+		{`this == decimal("12.340")`, true},
+		{`this != decimal("12.340")`, false},
+		{`decimals.lt(this, decimal("100"))`, true},
+		// Negative control: a false comparison must still be false.
+		{`decimals.gt(this, decimal("100"))`, false},
+		{`string(this) == "12.34"`, true},
+		{`double(this) == 12.34`, true},
+	}
+	for _, c := range cases {
+		if got := evalBool(t, c.expr, dec); got != c.expected {
+			t.Errorf("expr %q: expected %v, got %v", c.expr, c.expected, got)
+		}
+	}
+}
+
+// TestNestedProtoDecimalEquality covers a decimal reached by *selection* rather than bound
+// directly. The boundary that converts bound values cannot see `this.a`, so the fix is on the
+// value side: decimalAdapter presents a confluent.type.Decimal as this package's decimal wherever
+// it appears, and cel-go's planner routes == to the value's own Equal. Without it the operands
+// stayed protobuf messages and == compared them field by field over unscaled bytes and scale,
+// calling 1.50 and 1.5 unequal.
+func TestNestedProtoDecimalEquality(t *testing.T) {
+	// 1.50 (unscaled 150, scale 2) and 1.5 (unscaled 15, scale 1) - one number, two encodings.
+	msg := &test.NestedDecimals{
+		A: &prototypes.Decimal{Value: []byte{0x00, 0x96}, Scale: 2},
+		B: &prototypes.Decimal{Value: []byte{0x00, 0x0f}, Scale: 1},
+	}
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		// Accessors through a selection.
+		{`decimals.eq(this.a, this.b)`, true},
+		{`decimals.eq(decimal(this.a), decimal(this.b))`, true},
+		// `==` through a selection.
+		{`this.a == this.b`, true},
+		{`this.a != this.b`, false},
+		{`this.a == this.a`, true},
+		// Mixed with a constructed decimal.
+		{`this.a == decimal("1.500")`, true},
+		// Containers and membership follow the same equality.
+		{`[this.a] == [this.b]`, true},
+		{`{'k': this.a} == {'k': this.b}`, true},
+		{`this.a in [this.b]`, true},
+		// Negative controls.
+		{`this.a == decimal("9")`, false},
+		{`[this.a] == [decimal("9")]`, false},
+		{`this.a in [decimal("9")]`, false},
+		// Decimal-free comparisons are unaffected.
+		{`[1, 2] == [1, 2]`, true},
+		{`[1, 2] == [2, 1]`, false},
+		{`2 in [1, 2]`, true},
+		{`3 in [1, 2]`, false},
+		{`'a' == 'a'`, true},
+		{`{'a': 1} == {'a': 1}`, true},
+	}
+	for _, c := range cases {
+		if got := evalBool(t, c.expr, msg); got != c.expected {
+			t.Errorf("expr %q: expected %v, got %v", c.expr, c.expected, got)
+		}
+	}
+}
+
 func TestProtoWktTimestampIntoCel(t *testing.T) {
 	ts := timestamppb.New(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 	if !evalBool(t, `this < now`, ts) {
@@ -265,6 +348,47 @@ func TestAvroLogicalDecimalIntoCel(t *testing.T) {
 	rec := decimalRecord{Amount: new(big.Rat).SetFrac64(1234, 100)}
 	if !evalBool(t, `decimals.gt(decimal(this.amount), decimal("10.00"))`, rec) {
 		t.Errorf("avro logical decimal (*big.Rat) did not marshal into CEL correctly")
+	}
+}
+
+// TestAvroDecimalNeedsNoConstructor is the Avro half of the cross-client parity pair: a bare
+// decimal logical-type value is usable with decimals.*, ==, string() and double() with **no
+// decimal(...) call**. hamba decodes the logical type to *big.Rat, which the boundary presents as
+// this package's CEL decimal - without that, == compiles (the value is typed dyn) but a *big.Rat
+// never equals a decimalVal, so the comparison silently answered false.
+//
+// `this` is the decimal itself, which is what a field-level rule binds. A decimal reached by
+// selection instead (`this.amount`) is resolved inside CEL, past any boundary, and its == is
+// still the underlying structural comparison.
+func TestAvroDecimalNeedsNoConstructor(t *testing.T) {
+	// 12.34 = 1234/100.
+	amount := new(big.Rat).SetFrac64(1234, 100)
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		// Bare: no constructor call on the field.
+		{`decimals.eq(this, decimal("12.34"))`, true},
+		{`decimals.gt(this, decimal("10.00"))`, true},
+		// The wrapped form must keep working (decimal(...) re-entry).
+		{`decimals.eq(decimal(this), decimal("12.34"))`, true},
+		// `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+		{`this == decimal("12.340")`, true},
+		{`this != decimal("12.340")`, false},
+		{`decimals.lt(this, decimal("100"))`, true},
+		// Negative control: a false comparison must still be false.
+		{`decimals.gt(this, decimal("100"))`, false},
+		// No string(this) assertion here, unlike the protobuf half: hamba decodes the logical
+		// type to *big.Rat, which carries no scale, so the schema's scale cannot be recovered
+		// and string() renders 12.34 as "12.3400...0" to the division context's 38 digits.
+		// Comparisons are unaffected - they are numeric - and the protobuf form, which does
+		// carry a scale, renders exactly.
+		{`double(this) == 12.34`, true},
+	}
+	for _, c := range cases {
+		if got := evalBool(t, c.expr, amount); got != c.expected {
+			t.Errorf("expr %q: expected %v, got %v", c.expr, c.expected, got)
+		}
 	}
 }
 

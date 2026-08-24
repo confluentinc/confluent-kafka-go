@@ -24,17 +24,57 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
-	"github.com/google/cel-go/ext"
+	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/common/types"
+	"cel.dev/cel-go/common/types/ref"
+	"cel.dev/cel-go/common/env"
+	"cel.dev/cel-go/common/operators"
+	"cel.dev/cel-go/ext"
 )
 
 // DefaultEnv produces a cel.Env with the necessary cel.EnvOption and
 // cel.ProgramOption values preconfigured for usage throughout the
 // module.
 func DefaultEnv() (*cel.Env, error) {
-	return cel.NewEnv(cel.Lib(lib{}))
+	// NewCustomEnv rather than NewEnv, so the standard library can be subsetted: NewEnv extends a
+	// cached, fully-populated standard environment, which leaves no way to take a standard
+	// function over. The three excluded here are re-declared by decimalOptions with decimal-aware
+	// implementations that delegate to the standard behaviour for everything else - see
+	// decimalEqualityOptions. This mirrors the Java client's
+	// setStandardFunctions().excludeFunctions(EQUALS, NOT_EQUALS, IN).
+	base, err := cel.NewCustomEnv(
+		cel.StdLib(cel.StdLibSubset(&env.LibrarySubset{
+			// Only @in is excluded. == and != cannot be taken over from the registry at all:
+			// cel-go's planner switches on the function name before it consults the dispatcher
+			// (interpreter/planner.go, planCallEqual/planCallNotEqual) and emits an interpretable
+			// that calls a.Equal(b) directly, so a re-declared binding is never reached. @in is
+			// not in that switch, so it is subsettable. Equality is handled on the value side
+			// instead, by the adapter below.
+			ExcludeFunctions: []*env.Function{{Name: operators.In}},
+		})),
+		cel.Lib(lib{}),
+	)
+	return base, err
+}
+
+// decimalAdapter presents a decimal-shaped native value as this package's CEL decimal, so that
+// its Equal is numeric rather than a structural comparison of the protobuf encoding. This is what
+// makes `this.amount == other` numeric for a decimal reached by *selection*, which no boundary
+// conversion can see: cel-go's planner routes == to the value's own Equal.
+//
+// Installed by buildProgram rather than here, and deliberately: it wraps the adapter of the env
+// it is installed on, and the per-program env is extended with cel.Types(...) first. Wrapping the
+// base env's adapter instead would capture a registry that never learns those descriptors, and
+// every message would fail to adapt with "unknown type".
+type decimalAdapter struct {
+	inner types.Adapter
+}
+
+func (a decimalAdapter) NativeToValue(value any) ref.Val {
+	if dv, ok := decimalBoundaryValue(value); ok {
+		return dv
+	}
+	return a.inner.NativeToValue(value)
 }
 
 type lib struct {
@@ -149,6 +189,7 @@ func (l lib) CompileOptions() []cel.EnvOption {
 		),
 	}
 	opts = append(opts, decimalOptions()...)
+	opts = append(opts, decimalEqualityOptions()...)
 	opts = append(opts, timestampOptions()...)
 	opts = append(opts, variantOptions()...)
 	return opts
