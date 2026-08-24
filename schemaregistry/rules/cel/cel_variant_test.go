@@ -135,6 +135,22 @@ func TestVariantNonFiniteToJsonThroughCel(t *testing.T) {
 	cases := []string{
 		"variants.toJson(variants.parseJson('1e400')) == 'Infinity'",
 		"variants.toJson(variants.parseJson('-1e400')) == '-Infinity'",
+		// The bare tokens, which Go's encoding/json rejects outright and ParseJSON rewrites.
+		// Java (Jackson), Python, C# and Rust all accept these, so Go must too.
+		"variants.type(variants.parseJson('NaN')) == 'double'",
+		"variants.type(variants.parseJson('Infinity')) == 'double'",
+		"variants.type(variants.parseJson('-Infinity')) == 'double'",
+		"variants.toJson(variants.parseJson('NaN')) == 'NaN'",
+		"variants.toJson(variants.parseJson('Infinity')) == 'Infinity'",
+		"variants.toJson(variants.parseJson('-Infinity')) == '-Infinity'",
+		`variants.toJson(variants.parseJson('{"a":NaN}')) == '{"a":NaN}'`,
+		`variants.toJson(variants.parseJson('[NaN,Infinity,-Infinity]')) == '[NaN,Infinity,-Infinity]'`,
+		`variants.type(variants.field(variants.parseJson('{"a":NaN}'), 'a')) == 'double'`,
+		// A bareword is a successful parse, not a soft failure.
+		"variants.tryParseJson('NaN') != null",
+		// Spelling and case are exact, matching Jackson, so these stay soft failures.
+		"variants.tryParseJson('nan') == null",
+		"variants.tryParseJson('INFINITY') == null",
 	}
 	for _, expr := range cases {
 		if !evalBool(t, expr, variantDoc) {
