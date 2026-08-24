@@ -34,8 +34,9 @@ import (
 // document order for the metadata dictionary; the object header itself is
 // key-sorted (matching VariantBuilder.cs).
 func ParseJSON(jsonStr string) (Variant, error) {
-	b := &builder{dictionary: map[string]int{}}
-	dec := json.NewDecoder(strings.NewReader(jsonStr))
+	rewritten, nonFinite := rewriteNonFinite(jsonStr)
+	b := &builder{dictionary: map[string]int{}, nonFinite: nonFinite}
+	dec := json.NewDecoder(strings.NewReader(rewritten))
 	dec.UseNumber()
 	if err := b.process(dec); err != nil {
 		return Variant{}, err
@@ -49,6 +50,100 @@ func ParseJSON(jsonStr string) (Variant, error) {
 	return New(value, metadata), nil
 }
 
+// The bare non-finite tokens every other client's JSON parser accepts: Jackson (Java) under
+// ALLOW_NON_NUMERIC_NUMBERS, Python's json module, System.Text.Json (C#) and serde_json (Rust)
+// all read these, and every client's toJson writes them back out (see nonFiniteJSON). Go's
+// encoding/json rejects them outright and exposes no option to allow them, so they are rewritten
+// to a placeholder number before decoding and restored afterwards.
+//
+// Matching is case-sensitive and whole-token, exactly as Jackson has it: `nan` and `INFINITY` are
+// rejected by Java, so they must be rejected here too.
+var nonFiniteLiterals = []struct {
+	text  string
+	value float64
+}{
+	{"-Infinity", math.Inf(-1)},
+	{"Infinity", math.Inf(1)},
+	{"NaN", math.NaN()},
+}
+
+// nonFinitePlaceholder stands in for a non-finite bareword while encoding/json tokenizes the
+// document. Its own value never reaches the variant: every occurrence produced by the rewrite is
+// recorded by offset and replaced with the value it stands for, and an occurrence that was in the
+// document to begin with has no recorded offset and so decodes normally.
+const nonFinitePlaceholder = "0"
+
+// rewriteNonFinite replaces each non-finite bareword appearing outside a string literal with
+// nonFinitePlaceholder, returning the rewritten document plus a map from the *end* offset of each
+// placeholder to the value it stands for. End offsets are what json.Decoder.InputOffset reports
+// once it has returned a token, which makes the association exact — a placeholder is never
+// confused with an identical literal the document really contained. Returns (s, nil) when there
+// is nothing to rewrite, which is the overwhelmingly common case.
+func rewriteNonFinite(s string) (string, map[int64]float64) {
+	// Every one of the three barewords contains an 'N' or an 'I'; a document with neither cannot
+	// need rewriting, and is handed back untouched without allocating.
+	if !strings.ContainsAny(s, "NI") {
+		return s, nil
+	}
+	var sb strings.Builder
+	var subs map[int64]float64
+	inString := false
+	for i := 0; i < len(s); {
+		c := s[i]
+		switch {
+		case inString:
+			// A backslash escape is copied whole so that an escaped quote does not read as the
+			// end of the string.
+			if c == '\\' && i+1 < len(s) {
+				sb.WriteString(s[i : i+2])
+				i += 2
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+		case c == '"':
+			inString = true
+		default:
+			if lit, value, ok := matchNonFinite(s[i:]); ok {
+				sb.WriteString(nonFinitePlaceholder)
+				if subs == nil {
+					subs = make(map[int64]float64)
+				}
+				subs[int64(sb.Len())] = value
+				i += len(lit)
+				continue
+			}
+		}
+		sb.WriteByte(c)
+		i++
+	}
+	if subs == nil {
+		return s, nil
+	}
+	return sb.String(), subs
+}
+
+// matchNonFinite reports whether s begins with one of the non-finite barewords as a whole token.
+// A trailing letter or digit means this is some longer (and invalid) literal such as `NaNny`,
+// which must be left alone for the decoder to reject rather than silently truncated.
+func matchNonFinite(s string) (string, float64, bool) {
+	for _, lit := range nonFiniteLiterals {
+		if !strings.HasPrefix(s, lit.text) {
+			continue
+		}
+		if rest := s[len(lit.text):]; rest != "" && isBarewordByte(rest[0]) {
+			continue
+		}
+		return lit.text, lit.value, true
+	}
+	return "", 0, false
+}
+
+func isBarewordByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_'
+}
+
 type fieldEntry struct {
 	key    string
 	id     int
@@ -59,6 +154,9 @@ type builder struct {
 	value          []byte
 	dictionary     map[string]int
 	dictionaryKeys [][]byte
+	// nonFinite maps the end offset of a rewritten bareword to the value it stands for; nil when
+	// the document contained none.
+	nonFinite map[int64]float64
 }
 
 // process reads one JSON value from the decoder and appends its encoding.
@@ -85,6 +183,12 @@ func (b *builder) processToken(dec *json.Decoder, tok json.Token) error {
 		b.appendString(t)
 		return nil
 	case json.Number:
+		// InputOffset is the end of the token just returned, which is how a placeholder written by
+		// rewriteNonFinite is told apart from an identical literal the document really held.
+		if value, ok := b.nonFinite[dec.InputOffset()]; ok {
+			b.appendDouble(value)
+			return nil
+		}
 		return b.appendNumber(string(t))
 	case bool:
 		b.appendBoolean(t)
