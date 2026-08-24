@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+import "confluent/types/decimal.proto";
+
+// Two decimal fields, so a rule can compare one against the other and exercise a decimal
+// reached by *selection* rather than one bound directly as `this`. Used by
+// TestNestedProtoDecimalEquality.
+message NestedDecimals {
+  confluent.type.Decimal a = 1;
+  confluent.type.Decimal b = 2;
+}
