@@ -29,6 +29,7 @@ import (
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/env"
 	"cel.dev/cel-go/common/operators"
+	"cel.dev/cel-go/common/overloads"
 	"cel.dev/cel-go/ext"
 )
 
@@ -50,7 +51,18 @@ func DefaultEnv() (*cel.Env, error) {
 			// that calls a.Equal(b) directly, so a re-declared binding is never reached. @in is
 			// not in that switch, so it is subsettable. Equality is handled on the value side
 			// instead, by the adapter below.
-			ExcludeFunctions: []*env.Function{{Name: operators.In}},
+			//
+			// string(timestamp) is excluded at the *overload* level (a subset entry need only
+			// name the overload id). cel-go's builtin renders with time.RFC3339Nano, which
+			// strips trailing zeros from the fraction - `.1Z` where Java, C++ and JS give
+			// `.100Z`. Re-declared by timestampStringOption below to emit whole 3/6/9-digit
+			// groups like protobuf's Timestamps.toString.
+			ExcludeFunctions: []*env.Function{
+				{Name: operators.In},
+				{Name: overloads.TypeConvertString, Overloads: []*env.Overload{
+					{ID: overloads.TimestampToString},
+				}},
+			},
 		})),
 		cel.Lib(lib{}),
 	)
