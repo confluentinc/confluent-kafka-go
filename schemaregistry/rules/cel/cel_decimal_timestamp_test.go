@@ -547,3 +547,40 @@ func TestTimestampOfNamespaceIsGone(t *testing.T) {
 		t.Error("timestamp.of still resolves")
 	}
 }
+
+// TestStringTimestampPadsFraction verifies that string(timestamp) emits the fractional second in
+// whole 3-digit groups, matching protobuf's Timestamps.toString (the Java reference) and the C++
+// and JS clients. cel-go's builtin formats with time.RFC3339Nano, which strips trailing zeros -
+// ".1Z" where Java gives ".100Z" - so DefaultEnv excludes the standard timestamp_to_string
+// overload and timestampOptions re-declares it over formatTimestamp.
+//
+// Every expectation below is the verbatim output of the Java reference for the same expression.
+func TestStringTimestampPadsFraction(t *testing.T) {
+	for _, tc := range []struct {
+		expr string
+		want string
+	}{
+		{`string(timestamp(1700000000, 0))`, "2023-11-14T22:13:20Z"},
+		{`string(timestamp(1700000000123, 3))`, "2023-11-14T22:13:20.123Z"},
+		{`string(timestamp(1700000000123456, 6))`, "2023-11-14T22:13:20.123456Z"},
+		{`string(timestamp(1700000000123456789, 9))`, "2023-11-14T22:13:20.123456789Z"},
+		// A whole millisecond keeps its trailing zeros, rather than collapsing to ".1Z".
+		{`string(timestamp(1700000000100, 3))`, "2023-11-14T22:13:20.100Z"},
+		{`string(timestamp('2023-11-14T22:13:20.5Z'))`, "2023-11-14T22:13:20.500Z"},
+		// A zero fraction emits no decimal point at all.
+		{`string(timestamp(1700000000000, 3))`, "2023-11-14T22:13:20Z"},
+		{`string(timestamp(0))`, "1970-01-01T00:00:00Z"},
+		// Pre-epoch, where the fraction is a non-negative nano-of-second.
+		{`string(timestamp(-1500, 3))`, "1969-12-31T23:59:58.500Z"},
+		// Rendered in UTC with a Z suffix whatever offset the literal carried.
+		{`string(timestamp('2020-01-01T00:00:00+05:00'))`, "2019-12-31T19:00:00Z"},
+	} {
+		result, err := NewValidator().Execute(rule(tc.expr), nil, 1)
+		if err != nil {
+			t.Fatalf("expr %q: unexpected error: %v", tc.expr, err)
+		}
+		if got, ok := result.(string); !ok || got != tc.want {
+			t.Errorf("expr %q = %v, want %q", tc.expr, result, tc.want)
+		}
+	}
+}

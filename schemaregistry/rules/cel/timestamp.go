@@ -17,9 +17,11 @@
 package cel
 
 import (
+	"fmt"
 	"time"
 
 	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/common/overloads"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 )
@@ -46,7 +48,44 @@ func timestampOptions() []cel.EnvOption {
 			cel.Overload("timestamp_int_int", []*cel.Type{cel.IntType, cel.IntType}, cel.TimestampType,
 				cel.BinaryBinding(fromEpochPrecision)),
 		),
+		// Replaces the standard string(timestamp), which DefaultEnv excludes at the overload
+		// level. See formatTimestamp for why.
+		cel.Function(overloads.TypeConvertString,
+			cel.Overload(overloads.TimestampToString, []*cel.Type{cel.TimestampType}, cel.StringType,
+				cel.UnaryBinding(func(v ref.Val) ref.Val {
+					t, ok := v.Value().(time.Time)
+					if !ok {
+						return types.NewErr("string: not a timestamp")
+					}
+					return types.String(formatTimestamp(t))
+				})),
+		),
 	}
+}
+
+// formatTimestamp renders a timestamp the way every other client's string(...) does.
+//
+// cel-go's builtin formats with time.RFC3339Nano, which strips trailing zeros from the
+// fractional second: an instant at .100 rendered as ".1Z" and .500 as ".5Z", where Java, C++ and
+// JS all give ".100Z" and ".500Z". The value was never wrong - only its rendering - which made it
+// a silent divergence rather than an error.
+//
+// The fraction is emitted in whole 3-digit groups, matching protobuf's Timestamps.toString (the
+// Java reference): none when it is zero, then 3, 6 or 9 digits for a value that is a whole
+// millisecond, microsecond, or neither. Always rendered in UTC with a Z suffix, as Java does.
+func formatTimestamp(t time.Time) string {
+	utc := t.UTC()
+	text := utc.Format("2006-01-02T15:04:05")
+	switch nanos := utc.Nanosecond(); {
+	case nanos == 0:
+	case nanos%1e6 == 0:
+		text += fmt.Sprintf(".%03d", nanos/1e6)
+	case nanos%1e3 == 0:
+		text += fmt.Sprintf(".%06d", nanos/1e3)
+	default:
+		text += fmt.Sprintf(".%09d", nanos)
+	}
+	return text + "Z"
 }
 
 // fromEpochPrecision builds a timestamp from an epoch numeric value at a decimal precision.
