@@ -800,24 +800,36 @@ func (v Variant) writeJSON(sb *strings.Builder) error {
 		if err != nil {
 			return err
 		}
+		text, err := formatDate(n)
+		if err != nil {
+			return err
+		}
 		sb.WriteByte('"')
-		sb.WriteString(formatDate(n))
+		sb.WriteString(text)
 		sb.WriteByte('"')
 	case TimestampTz:
 		n, err := v.GetLong()
 		if err != nil {
 			return err
 		}
+		text, err := formatInstantMicros(n)
+		if err != nil {
+			return err
+		}
 		sb.WriteByte('"')
-		sb.WriteString(formatInstant(n * 1000))
+		sb.WriteString(text)
 		sb.WriteByte('"')
 	case TimestampNtz:
 		n, err := v.GetLong()
 		if err != nil {
 			return err
 		}
+		text, err := formatLocalDateTimeMicros(n)
+		if err != nil {
+			return err
+		}
 		sb.WriteByte('"')
-		sb.WriteString(formatLocalDateTime(n * 1000))
+		sb.WriteString(text)
 		sb.WriteByte('"')
 	case TimestampNanosTz:
 		n, err := v.GetLong()
@@ -840,8 +852,12 @@ func (v Variant) writeJSON(sb *strings.Builder) error {
 		if err != nil {
 			return err
 		}
+		text, err := formatLocalTime(n)
+		if err != nil {
+			return err
+		}
 		sb.WriteByte('"')
-		sb.WriteString(formatLocalTime(n))
+		sb.WriteString(text)
 		sb.WriteByte('"')
 	case Binary:
 		b, err := v.GetBinary()
@@ -955,34 +971,126 @@ func frac(nano int64) string {
 	return fmt.Sprintf(".%09d", nano)
 }
 
-func formatInstant(totalNanos int64) string {
-	sec := floorDiv(totalNanos, 1000000000)
-	nano := floorMod(totalNanos, 1000000000)
+// The range a timestamp may occupy when rendered to JSON, in microseconds since the epoch:
+// 0001-01-01T00:00:00 through 9999-12-31T23:59:59.999999. That is the four-digit-year form every
+// client renders: for the zone-aware types it is RFC 3339 - also google.protobuf.Timestamp's range,
+// and the range timestamp(...) enforces when constructing a CEL timestamp. The zone-less types
+// carry no offset, so they are ISO-8601 local date-times rather than RFC 3339 (which has no
+// zone-less form); they share the range so both stay readable by the same date parsers.
+//
+// A variant TIMESTAMP_TZ / TIMESTAMP_NTZ is an arbitrary int64 of microseconds - roughly
+// +/-292,471 years - so it can hold instants outside that form. Those are refused rather than
+// rendered: ISO-8601's expanded year ("+10000-01-01T00:00:00Z") is not RFC 3339 and would not parse
+// back through ParseJSON. It is also exactly what Python's datetime and .NET's DateTime can hold,
+// so every client can enforce it natively. The nanosecond-based types need no check, because an
+// int64 of nanoseconds spans only 1677-2262, inside this range at both ends.
+const (
+	minTimestampMicros = -62135596800000000
+	maxTimestampMicros = 253402300799999999
+)
+
+// The range a DATE may occupy when rendered to JSON, in days since the epoch: 0001-01-01 through
+// 9999-12-31. RFC 3339's full-date requires date-fullyear = 4DIGIT, so an expanded or negative year
+// ("+10000-01-01", "-0044-01-01") is not a valid full-date. A variant DATE is an int32 of days -
+// roughly +/-5.8 million years - so those are reachable, and are refused rather than rendered.
+const (
+	minDateEpochDay = -719162
+	maxDateEpochDay = 2932896
+)
+
+func checkDateRange(epochDay int64) error {
+	if epochDay < minDateEpochDay || epochDay > maxDateEpochDay {
+		return fmt.Errorf("variant: date epoch day (%d) must be in range [%d, %d]",
+			epochDay, int64(minDateEpochDay), int64(maxDateEpochDay))
+	}
+	return nil
+}
+
+// The range a TIME may occupy, in microseconds since midnight: 00:00:00 through 23:59:59.999999.
+// RFC 3339's partial-time requires time-hour = 2DIGIT in 00-23, so a value at or past 24 hours (or
+// negative) has no valid form. Checking also removes an overflow, since micros * 1000 wraps for a
+// large enough value.
+const (
+	minTimeMicros = 0
+	maxTimeMicros = 86400000000 - 1
+)
+
+func checkTimeRange(micros int64) error {
+	if micros < minTimeMicros || micros > maxTimeMicros {
+		return fmt.Errorf("variant: time microseconds of day (%d) must be in range [%d, %d]",
+			micros, int64(minTimeMicros), int64(maxTimeMicros))
+	}
+	return nil
+}
+
+func checkMicrosRange(micros int64) error {
+	if micros < minTimestampMicros || micros > maxTimestampMicros {
+		return fmt.Errorf(
+			"variant: timestamp microseconds (%d) must be in range [%d, %d]",
+			micros, int64(minTimestampMicros), int64(maxTimestampMicros))
+	}
+	return nil
+}
+
+func formatInstantParts(sec, nano int64) string {
 	dt := time.Unix(sec, 0).UTC()
 	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d%sZ",
 		dt.Year(), int(dt.Month()), dt.Day(), dt.Hour(), dt.Minute(), dt.Second(), frac(nano))
 }
 
-func formatLocalDateTime(totalNanos int64) string {
-	sec := floorDiv(totalNanos, 1000000000)
-	nano := floorMod(totalNanos, 1000000000)
+func formatLocalDateTimeParts(sec, nano int64) string {
 	dt := time.Unix(sec, 0).UTC()
 	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d%s",
 		dt.Year(), int(dt.Month()), dt.Day(), dt.Hour(), dt.Minute(), dt.Second(), frac(nano))
 }
 
-func formatLocalTime(micros int64) string {
+func formatInstant(totalNanos int64) string {
+	return formatInstantParts(floorDiv(totalNanos, 1000000000), floorMod(totalNanos, 1000000000))
+}
+
+func formatLocalDateTime(totalNanos int64) string {
+	return formatLocalDateTimeParts(
+		floorDiv(totalNanos, 1000000000), floorMod(totalNanos, 1000000000))
+}
+
+// formatInstantMicros and formatLocalDateTimeMicros split microseconds into whole seconds before
+// scaling the remainder to nanoseconds. Converting to nanoseconds first would overflow int64 past
+// 9223372036854775 micros (2262-04-11T23:47:16.854775Z) and wrap silently to a plausible-looking
+// date in the past - year 10000 rendered as 1816. Note the whole renderable range cannot be
+// expressed in nanoseconds at all, so the split is required, not merely safer.
+func formatInstantMicros(micros int64) (string, error) {
+	if err := checkMicrosRange(micros); err != nil {
+		return "", err
+	}
+	return formatInstantParts(floorDiv(micros, 1000000), floorMod(micros, 1000000)*1000), nil
+}
+
+func formatLocalDateTimeMicros(micros int64) (string, error) {
+	if err := checkMicrosRange(micros); err != nil {
+		return "", err
+	}
+	return formatLocalDateTimeParts(
+		floorDiv(micros, 1000000), floorMod(micros, 1000000)*1000), nil
+}
+
+func formatLocalTime(micros int64) (string, error) {
+	if err := checkTimeRange(micros); err != nil {
+		return "", err
+	}
 	nanoOfDay := micros * 1000
 	secs := floorDiv(nanoOfDay, 1000000000)
 	nano := floorMod(nanoOfDay, 1000000000)
 	hour := secs / 3600
 	rem := secs % 3600
-	return fmt.Sprintf("%02d:%02d:%02d%s", hour, rem/60, rem%60, frac(nano))
+	return fmt.Sprintf("%02d:%02d:%02d%s", hour, rem/60, rem%60, frac(nano)), nil
 }
 
-func formatDate(days int64) string {
+func formatDate(days int64) (string, error) {
+	if err := checkDateRange(days); err != nil {
+		return "", err
+	}
 	dt := time.Unix(days*86400, 0).UTC()
-	return fmt.Sprintf("%04d-%02d-%02d", dt.Year(), int(dt.Month()), dt.Day())
+	return fmt.Sprintf("%04d-%02d-%02d", dt.Year(), int(dt.Month()), dt.Day()), nil
 }
 
 // nonFiniteJSON renders NaN/Infinity/-Infinity as bareword JSON tokens (matching
