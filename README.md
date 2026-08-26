@@ -159,7 +159,7 @@ func main() {
 
 Avro and Protocol Buffers serializers are also available; see
 [json_producer_example](examples/json_producer_example),
-[avro_generic_producer_example](examples/avro_generic_producer_example), and
+[avrov3_producer_example](examples/avrov3_producer_example), and
 [protobuf_producer_example](examples/protobuf_producer_example).
 
 More elaborate examples are available in the [examples](examples) directory,
