@@ -96,6 +96,73 @@ func TestIdWithMessageIndexes(t *testing.T) {
 	MaybeFail("same bytes", err, Expect(output, input))
 }
 
+func TestFromBytesTruncatedPrefix(t *testing.T) {
+	// A truncated wire format prefix must return an error rather than panic:
+	// FromBytes used to slice the schema id or guid before checking that those
+	// bytes were present, so a record value holding only a magic byte took down
+	// the caller instead of failing deserialization.
+	guid := []byte{
+		0x89, 0x79, 0x17, 0x62, 0x23, 0x36, 0x41, 0x86, 0x96, 0x74, 0x29, 0x9b, 0x90,
+		0xa8, 0x02, 0xe2,
+	}
+	tests := []struct {
+		name    string
+		payload []byte
+	}{
+		{"empty payload", []byte{}},
+		{"magic byte v0 only", []byte{MagicByteV0}},
+		{"partial id", []byte{MagicByteV0, 0x00, 0x00}},
+		{"one byte short of an id", []byte{MagicByteV0, 0x00, 0x00, 0x00}},
+		{"magic byte v1 only", []byte{MagicByteV1}},
+		{"partial guid", append([]byte{MagicByteV1}, guid[:8]...)},
+		{"one byte short of a guid", append([]byte{MagicByteV1}, guid[:15]...)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("FromBytes panicked on %v: %v", tc.payload, r)
+				}
+			}()
+
+			schemaID := SchemaID{SchemaType: "AVRO"}
+			if _, err := schemaID.FromBytes(tc.payload); err == nil {
+				t.Errorf("expected an error for %v, got nil", tc.payload)
+			}
+		})
+	}
+}
+
+func TestGetSchemaTruncatedPrefix(t *testing.T) {
+	// The deprecated GetSchema path carries its own copy of the prefix parsing
+	// and needs the same guard; the legacy avro deserializer reaches it with an
+	// ordinary zero length record value.
+	tests := []struct {
+		name    string
+		payload []byte
+	}{
+		{"empty payload", []byte{}},
+		{"magic byte only", []byte{MagicByteV0}},
+		{"one byte short of an id", []byte{MagicByteV0, 0x00, 0x00, 0x00}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("GetSchema panicked on %v: %v", tc.payload, r)
+				}
+			}()
+
+			deser := BaseDeserializer{}
+			if _, err := deser.GetSchema("topic1", tc.payload); err == nil {
+				t.Errorf("expected an error for %v, got nil", tc.payload)
+			}
+		})
+	}
+}
+
 func TestReadMessageIndexes(t *testing.T) {
 	MaybeFail = InitFailFunc(t)
 
