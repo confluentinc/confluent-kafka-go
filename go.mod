@@ -3,35 +3,35 @@ module github.com/confluentinc/confluent-kafka-go/v2
 go 1.25.0
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.5.0
 	github.com/actgardner/gogen-avro/v10 v10.2.1
-	github.com/aws/aws-sdk-go-v2 v1.26.1
-	github.com/aws/aws-sdk-go-v2/config v1.27.10
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.10
-	github.com/aws/aws-sdk-go-v2/service/kms v1.30.1
-	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6
+	github.com/aws/aws-sdk-go-v2 v1.43.7
+	github.com/aws/aws-sdk-go-v2/config v1.32.38
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.37
+	github.com/aws/aws-sdk-go-v2/service/kms v1.55.7
+	github.com/aws/aws-sdk-go-v2/service/sts v1.45.7
 	github.com/confluentinc/confluent-avro-go/v2 v2.32.0
 	github.com/golang/protobuf v1.5.4
-	github.com/google/cel-go v0.31.0
+	github.com/google/cel-go v0.32.0
 	github.com/google/uuid v1.6.0
-	github.com/hamba/avro/v2 v2.24.0
+	github.com/hamba/avro/v2 v2.31.0
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/api/auth/approle v0.12.0
 	github.com/heetch/avro v0.4.79
 	github.com/invopop/jsonschema v0.14.0
-	github.com/jhump/protoreflect v1.15.6
+	github.com/jhump/protoreflect v1.18.0
 	github.com/modern-go/reflect2 v1.0.2
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/tink-crypto/tink-go-gcpkms/v2 v2.1.0
-	github.com/tink-crypto/tink-go-hcvault/v2 v2.1.0
-	github.com/tink-crypto/tink-go/v2 v2.1.0
+	github.com/tink-crypto/tink-go-gcpkms/v2 v2.4.0
+	github.com/tink-crypto/tink-go-hcvault/v2 v2.5.0
+	github.com/tink-crypto/tink-go/v2 v2.8.0
 	github.com/xiatechs/jsonata-go v1.8.8
 	golang.org/x/oauth2 v0.36.0
-	google.golang.org/api v0.169.0
+	google.golang.org/api v0.293.0
 	google.golang.org/genproto v0.0.0-20240325203815-454cdb8f5daa
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
