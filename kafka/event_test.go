@@ -44,3 +44,32 @@ func TestEventAPIs(t *testing.T) {
 	oauthBearerTokenRefresh := OAuthBearerTokenRefresh{"some=config"}
 	t.Logf("%s\n", oauthBearerTokenRefresh.String())
 }
+
+// TestHandleSendToChannel tests the default delivery channel handler used by
+// eventPoll(), which a SerializingProducer replaces with its own.
+func TestHandleSendToChannel(t *testing.T) {
+	p, err := NewProducer(&ConfigMap{"socket.timeout.ms": 10})
+	if err != nil {
+		t.Fatalf("Failed to create producer: %s", err)
+	}
+	defer p.Close()
+
+	topic := "gotest"
+	msg := &Message{TopicPartition: TopicPartition{Topic: &topic}}
+
+	deliveryChan := make(chan Event, 1)
+	termChan := make(chan bool)
+	if term := p.handle.sendToChannel(msg, &deliveryChan, termChan); term {
+		t.Errorf("Expected the event to be sent, not terminated")
+	}
+	if ev := <-deliveryChan; ev != any(msg) {
+		t.Errorf("Expected the message on the channel, got %v", ev)
+	}
+
+	// A termination signal on a channel nobody reads from is reported back.
+	blockedChan := make(chan Event)
+	close(termChan)
+	if term := p.handle.sendToChannel(msg, &blockedChan, termChan); !term {
+		t.Errorf("Expected termination to be reported")
+	}
+}

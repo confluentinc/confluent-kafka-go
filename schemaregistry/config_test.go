@@ -18,6 +18,8 @@ package schemaregistry
 
 import (
 	"testing"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 func TestConfigWithAuthentication(t *testing.T) {
@@ -35,4 +37,40 @@ func TestConfigWithBearerAuth(t *testing.T) {
 	maybeFail("BearerAuthCredentialsSource", expect(c.BearerAuthCredentialsSource, "STATIC_TOKEN"))
 	maybeFail("BearerAuthLogicalCluster", expect(c.BearerAuthLogicalCluster, "lsrc-123"))
 	maybeFail("BearerAuthIdentityPoolID", expect(c.BearerAuthIdentityPoolID, "poolID"))
+}
+
+// TestNewConfigFromKafkaConfigMap verifies that a Schema Registry config is
+// derived from a Kafka ConfigMap, and that the returned ConfigMap keeps the
+// Kafka properties while being a copy of the original one.
+func TestNewConfigFromKafkaConfigMap(t *testing.T) {
+	maybeFail = initFailFunc(t)
+
+	kafkaConf := &kafka.ConfigMap{
+		"bootstrap.servers": "localhost:9092",
+		"acks":              "all",
+	}
+
+	// Without a Schema Registry config, an empty one is returned.
+	srConf, filteredConf, err := NewConfigFromKafkaConfigMap(nil, kafkaConf)
+	maybeFail("NewConfigFromKafkaConfigMap", err)
+	maybeFail("SchemaRegistryURL", expect(srConf.SchemaRegistryURL, ""))
+	maybeFail("filtered length", expect(len(*filteredConf), len(*kafkaConf)))
+	for key, value := range *kafkaConf {
+		filteredValue, err := filteredConf.Get(key, nil)
+		maybeFail("filtered value", err, expect(filteredValue, value))
+	}
+
+	// The returned ConfigMap is a copy: modifying it leaves the original
+	// ConfigMap untouched.
+	err = filteredConf.SetKey("linger.ms", 100)
+	maybeFail("SetKey", err)
+	if _, ok := (*kafkaConf)["linger.ms"]; ok {
+		t.Errorf("Expected the original ConfigMap not to be modified")
+	}
+
+	// An existing Schema Registry config is passed through.
+	conf := NewConfig("mock://")
+	srConf, filteredConf, err = NewConfigFromKafkaConfigMap(conf, kafkaConf)
+	maybeFail("NewConfigFromKafkaConfigMap", err,
+		expect(srConf, conf), expect(len(*filteredConf), len(*kafkaConf)))
 }

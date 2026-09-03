@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 )
 
 // SerializingProducer wraps a [Producer] and exposes all of its public
@@ -92,8 +93,13 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 func (sp *SerializingProducer[K, V]) sendToChannel(msg *Message, deliveryChan *chan Event, termChan chan bool) bool {
 	serializableMessage, ok := msg.Opaque.(*SerializableMessage[K, V])
 	if !ok {
-		// If the message is not a SerializableMessage, ignore it and return false to indicate that processing should continue.
-		return false
+		// Produce() is the only path producing on this producer, and it always
+		// sets the produced SerializableMessage as the message opaque, so
+		// anything else means the delivery report cannot be mapped back to the
+		// message it belongs to.
+		panic(fmt.Sprintf(
+			"SerializingProducer: expected a *SerializableMessage delivery report opaque, got %T",
+			msg.Opaque))
 	}
 
 	serializableMessage.Timestamp = msg.Timestamp
@@ -114,6 +120,11 @@ func (sp *SerializingProducer[K, V]) String() string {
 
 // Produce is the same as [Producer.Produce].
 func (sp *SerializingProducer[K, V]) Produce(serializableMessage *SerializableMessage[K, V], deliveryChan chan Event) error {
+	if serializableMessage == nil || serializableMessage.TopicPartition.Topic == nil ||
+		len(*serializableMessage.TopicPartition.Topic) == 0 {
+		return newErrorFromString(ErrInvalidArg, "")
+	}
+
 	var err error
 	if sp.keySerializer != nil {
 		serializableMessage.keyBytes, err = sp.keySerializer.Serialize(*serializableMessage.TopicPartition.Topic, serializableMessage.Key)
@@ -175,9 +186,17 @@ func (sp *SerializingProducer[K, V]) Flush(timeoutMs int) int {
 	return sp.producer.Flush(timeoutMs)
 }
 
-// Close is the same as [Producer.Close].
+// Close is the same as [Producer.Close], and also closes the key and the value
+// serializers. Errors returned by the serializers are ignored, as
+// [Producer.Close] does not report errors either.
 func (sp *SerializingProducer[K, V]) Close() {
 	sp.producer.Close()
+	if sp.keySerializer != nil {
+		_ = sp.keySerializer.Close()
+	}
+	if sp.valueSerializer != nil {
+		_ = sp.valueSerializer.Close()
+	}
 }
 
 // Purge is the same as [Producer.Purge].
