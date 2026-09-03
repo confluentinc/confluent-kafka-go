@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -210,6 +211,11 @@ func (dc *DeserializingConsumer[K, V]) SeekPartitions(partitions []TopicPartitio
 }
 
 // Poll is the same as [Consumer.Poll].
+//
+// A [*Message] is returned as a [*DeserializedMessage] with its key and value
+// deserialized. If deserialization fails, a [KeyDeserializationError] or a
+// [ValueDeserializationError] is returned instead. Any other event is returned
+// as-is.
 func (dc *DeserializingConsumer[K, V]) Poll(timeoutMs int) (event Event) {
 	ev := dc.consumer.Poll(timeoutMs)
 	if ev == nil {
@@ -218,44 +224,49 @@ func (dc *DeserializingConsumer[K, V]) Poll(timeoutMs int) (event Event) {
 
 	switch e := ev.(type) {
 	case *Message:
-		var deserializedKey K
-		var deserializedValue V
-		var ok bool
-
-		msg := e
-		if msg.TopicPartition.Topic == nil {
-			return msg
-		}
-
-		if msg.Key != nil && dc.keyDeserializer != nil {
-			deserializedKeyInterface, err := dc.keyDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Key)
-			if err != nil {
-				return NewKeyDeserializationError(msg.TopicPartition, err)
-			}
-
-			deserializedKey, ok = deserializedKeyInterface.(K)
-			if !ok {
-				return NewKeyDeserializationError(msg.TopicPartition,
-					fmt.Errorf("Wrong deserialized key type: %T", deserializedKeyInterface))
-			}
-		}
-		if msg.Value != nil && dc.valueDeserializer != nil {
-			deserializedValueInterface, err := dc.valueDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Value)
-			if err != nil {
-				return NewValueDeserializationError(msg.TopicPartition, err)
-			}
-
-			deserializedValue, ok = deserializedValueInterface.(V)
-			if !ok {
-				return NewValueDeserializationError(msg.TopicPartition,
-					fmt.Errorf("Wrong deserialized value type: %T", deserializedValueInterface))
-			}
-		}
-
-		return newDeserializedMessage(msg, deserializedKey, deserializedValue)
+		return dc.deserializeMessage(e)
 	default:
 		return e
 	}
+}
+
+// deserializeMessage deserializes the key and the value of msg and returns the
+// resulting [*DeserializedMessage], or a deserialization error event.
+func (dc *DeserializingConsumer[K, V]) deserializeMessage(msg *Message) Event {
+	var deserializedKey K
+	var deserializedValue V
+	var ok bool
+
+	if msg.TopicPartition.Topic == nil {
+		return msg
+	}
+
+	if msg.Key != nil && dc.keyDeserializer != nil {
+		deserializedKeyInterface, err := dc.keyDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Key)
+		if err != nil {
+			return NewKeyDeserializationError(msg.TopicPartition, err)
+		}
+
+		deserializedKey, ok = deserializedKeyInterface.(K)
+		if !ok {
+			return NewKeyDeserializationError(msg.TopicPartition,
+				fmt.Errorf("Wrong deserialized key type: %T", deserializedKeyInterface))
+		}
+	}
+	if msg.Value != nil && dc.valueDeserializer != nil {
+		deserializedValueInterface, err := dc.valueDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Value)
+		if err != nil {
+			return NewValueDeserializationError(msg.TopicPartition, err)
+		}
+
+		deserializedValue, ok = deserializedValueInterface.(V)
+		if !ok {
+			return NewValueDeserializationError(msg.TopicPartition,
+				fmt.Errorf("Wrong deserialized value type: %T", deserializedValueInterface))
+		}
+	}
+
+	return newDeserializedMessage(msg, deserializedKey, deserializedValue)
 }
 
 // Logs is the same as [Consumer.Logs].
@@ -263,9 +274,17 @@ func (dc *DeserializingConsumer[K, V]) Logs() chan LogEvent {
 	return dc.consumer.Logs()
 }
 
-// Close is the same as [Consumer.Close].
+// Close is the same as [Consumer.Close], and also closes the key and the value
+// deserializers. The errors of all three are joined.
 func (dc *DeserializingConsumer[K, V]) Close() (err error) {
-	return dc.consumer.Close()
+	err = dc.consumer.Close()
+	if dc.keyDeserializer != nil {
+		err = errors.Join(err, dc.keyDeserializer.Close())
+	}
+	if dc.valueDeserializer != nil {
+		err = errors.Join(err, dc.valueDeserializer.Close())
+	}
+	return err
 }
 
 // GetMetadata is the same as [Consumer.GetMetadata].
