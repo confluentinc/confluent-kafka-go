@@ -94,6 +94,76 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	return s, nil
 }
 
+type KafkaSerializerBuilder struct {
+	schemaRegistryConf   *schemaregistry.Config
+	schemaRegistryClient schemaregistry.Client
+	serializerConf       *SerializerConfig
+	serializerInit       func(*Serializer)
+}
+
+func (b *KafkaSerializerBuilder) SetSerializerInit(serializerInit func(*Serializer)) *KafkaSerializerBuilder {
+	b.serializerInit = serializerInit
+	return b
+}
+
+func (b *KafkaSerializerBuilder) SetSerializerConfig(serializerConf *SerializerConfig) *KafkaSerializerBuilder {
+	b.serializerConf = serializerConf
+	return b
+}
+
+func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaSerializerBuilder {
+	b.schemaRegistryConf = schemaRegistryConf
+	return b
+}
+
+func (b *KafkaSerializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaSerializerBuilder {
+	b.schemaRegistryClient = client
+	return b
+}
+
+func (b *KafkaSerializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Serializer, *kafka.ConfigMap, error) {
+	var serdeType serde.Type
+	var serializerConf *SerializerConfig = b.serializerConf
+	var client schemaregistry.Client
+	var filteredConfigMap *kafka.ConfigMap = conf
+	var err error
+	client = b.schemaRegistryClient
+	if client == nil {
+		var srConfig *schemaregistry.Config
+		srConfig, filteredConfigMap, err = schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		client, err = schemaregistry.NewClient(srConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if isKey {
+		serdeType = serde.KeySerde
+	} else {
+		serdeType = serde.ValueSerde
+	}
+	if serializerConf == nil {
+		serializerConf = NewSerializerConfig()
+	}
+	s, err := NewSerializer(client, serdeType, serializerConf)
+	if err != nil {
+		return nil, nil, err
+	}
+	if b.serializerInit != nil {
+		b.serializerInit(s)
+	}
+	return s, filteredConfigMap, nil
+}
+
+// NewKafkaSerializerBuilder creates a JSON Schema serializer builder for generic objects
+func NewKafkaSerializerBuilder() *KafkaSerializerBuilder {
+	return &KafkaSerializerBuilder{}
+}
+
 // GetRecordName extracts the title from a JSON schema using toJSONSchema for validation
 func (s *Serializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
 	// Validate schema by calling toJSONSchema (also populates cache)
@@ -223,6 +293,76 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	return s, nil
 }
 
+type KafkaDeserializerBuilder struct {
+	schemaRegistryConf   *schemaregistry.Config
+	schemaRegistryClient schemaregistry.Client
+	deserializerConf     *DeserializerConfig
+	deserializerInit     func(*Deserializer)
+}
+
+func (b *KafkaDeserializerBuilder) SetDeserializerInit(deserializerInit func(*Deserializer)) *KafkaDeserializerBuilder {
+	b.deserializerInit = deserializerInit
+	return b
+}
+
+func (b *KafkaDeserializerBuilder) SetDeserializerConfig(deserializerConf *DeserializerConfig) *KafkaDeserializerBuilder {
+	b.deserializerConf = deserializerConf
+	return b
+}
+
+func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaDeserializerBuilder {
+	b.schemaRegistryConf = schemaRegistryConf
+	return b
+}
+
+func (b *KafkaDeserializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaDeserializerBuilder {
+	b.schemaRegistryClient = client
+	return b
+}
+
+func (b *KafkaDeserializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Deserializer, *kafka.ConfigMap, error) {
+	var serdeType serde.Type
+	var deserializerConf *DeserializerConfig = b.deserializerConf
+	var client schemaregistry.Client
+	var filteredConfigMap *kafka.ConfigMap = conf
+	var err error
+	client = b.schemaRegistryClient
+	if client == nil {
+		var srConfig *schemaregistry.Config
+		srConfig, filteredConfigMap, err = schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		client, err = schemaregistry.NewClient(srConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if isKey {
+		serdeType = serde.KeySerde
+	} else {
+		serdeType = serde.ValueSerde
+	}
+	if deserializerConf == nil {
+		deserializerConf = NewDeserializerConfig()
+	}
+	d, err := NewDeserializer(client, serdeType, deserializerConf)
+	if err != nil {
+		return nil, nil, err
+	}
+	if b.deserializerInit != nil {
+		b.deserializerInit(d)
+	}
+	return d, filteredConfigMap, nil
+}
+
+// NewKafkaDeserializerBuilder creates a JSON Schema deserializer builder for generic objects
+func NewKafkaDeserializerBuilder() *KafkaDeserializerBuilder {
+	return &KafkaDeserializerBuilder{}
+}
+
 // GetRecordName extracts the title from a JSON schema using toJSONSchema for validation
 func (s *Deserializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
 	// Validate schema by calling toJSONSchema (also populates cache)
@@ -312,6 +452,9 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		}
 	}
 	if result == nil {
+		if s.MessageFactory == nil {
+			return nil, fmt.Errorf("MessageFactory is not set")
+		}
 		msg, err = s.MessageFactory(subject, "")
 		if err != nil {
 			return nil, err
