@@ -196,9 +196,10 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 }
 
 type KafkaSerializerBuilder struct {
-	schemaRegistryConf *schemaregistry.Config
-	serializerConf     *SerializerConfig
-	serializerInit     func(*Serializer)
+	schemaRegistryConf   *schemaregistry.Config
+	schemaRegistryClient schemaregistry.Client
+	serializerConf       *SerializerConfig
+	serializerInit       func(*Serializer)
 }
 
 func (b *KafkaSerializerBuilder) SetSerializerInit(serializerInit func(*Serializer)) *KafkaSerializerBuilder {
@@ -216,16 +217,31 @@ func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *sch
 	return b
 }
 
+func (b *KafkaSerializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaSerializerBuilder {
+	b.schemaRegistryClient = client
+	return b
+}
+
 func (b *KafkaSerializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Serializer, *kafka.ConfigMap, error) {
 	var serdeType serde.Type
 	var serializerConf *SerializerConfig = b.serializerConf
-	srConfig, filteredConfigMap, err := schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
-	if err != nil {
-		fmt.Printf("Failed to create schema registry config: %s\n", err)
-		return nil, nil, err
+	var client schemaregistry.Client
+	var filteredConfigMap *kafka.ConfigMap = conf
+	var err error
+	client = b.schemaRegistryClient
+	if client == nil {
+		var srConfig *schemaregistry.Config
+		srConfig, filteredConfigMap, err = schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		client, err = schemaregistry.NewClient(srConfig)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
-	client, err := schemaregistry.NewClient(srConfig)
 	if isKey {
 		serdeType = serde.KeySerde
 	} else {
@@ -652,9 +668,10 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 }
 
 type KafkaDeserializerBuilder struct {
-	schemaRegistryConf *schemaregistry.Config
-	deserializerConf   *DeserializerConfig
-	deserializerInit   func(*Deserializer)
+	schemaRegistryConf   *schemaregistry.Config
+	schemaRegistryClient schemaregistry.Client
+	deserializerConf     *DeserializerConfig
+	deserializerInit     func(*Deserializer)
 }
 
 func (b *KafkaDeserializerBuilder) SetDeserializerInit(deserializerInit func(*Deserializer)) *KafkaDeserializerBuilder {
@@ -672,25 +689,39 @@ func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *s
 	return b
 }
 
+func (b *KafkaDeserializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaDeserializerBuilder {
+	b.schemaRegistryClient = client
+	return b
+}
+
 func (b *KafkaDeserializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Deserializer, *kafka.ConfigMap, error) {
 	var serdeType serde.Type
 	var deserializerConf *DeserializerConfig = b.deserializerConf
-	srConfig, filteredConfigMap, err := schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
+	var client schemaregistry.Client
+	var filteredConfigMap *kafka.ConfigMap = conf
+	var err error
+	client = b.schemaRegistryClient
+	if client == nil {
+		var srConfig *schemaregistry.Config
+		srConfig, filteredConfigMap, err = schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		client, err = schemaregistry.NewClient(srConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 
 	if isKey {
 		serdeType = serde.KeySerde
 	} else {
 		serdeType = serde.ValueSerde
 	}
-	if err != nil {
-		fmt.Printf("Failed to create schema registry config: %s\n", err)
-		return nil, nil, err
-	}
-
 	if deserializerConf == nil {
 		deserializerConf = NewDeserializerConfig()
 	}
-	client, err := schemaregistry.NewClient(srConfig)
 	d, err := NewDeserializer(client, serdeType, deserializerConf)
 	if err != nil {
 		return nil, nil, err
