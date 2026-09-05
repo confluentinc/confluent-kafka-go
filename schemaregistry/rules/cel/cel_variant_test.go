@@ -266,3 +266,48 @@ func TestAvroVariantMapIntoCel(t *testing.T) {
 		t.Errorf("avro variant map did not marshal into CEL correctly")
 	}
 }
+
+// TestAbsentVariantReadsAsNull pins that an *absent* variant - a Protobuf field left unset, or
+// an Avro variant record whose byte fields are empty - carries no metadata, so there is nothing
+// to read. It reads as CEL null and every accessor propagates that, rather than variant.New
+// accepting it and a later read failing on a metadata version byte that isn't there.
+func TestAbsentVariantReadsAsNull(t *testing.T) {
+	exprs := []string{
+		"variants.type(this) == null",
+		// isNull is false, not an error: an absent variant is not a JSON null.
+		"!variants.isNull(this)",
+		"variants.field(this, 'name') == null",
+		"variants.path(this, '$.name') == null",
+		"variants.toJson(this) == null",
+		// The explicit constructor reports it as CEL null too, like variant(null).
+		"variant(this) == null",
+	}
+	// Both decode shapes: the Protobuf message, and the map an Avro variant record yields.
+	subjects := map[string]interface{}{
+		"proto": &prototypes.Variant{Metadata: []byte{}, Value: []byte{}},
+		"avro":  map[string]interface{}{"metadata": []byte{}, "value": []byte{}},
+	}
+	for name, subject := range subjects {
+		for _, expr := range exprs {
+			if !evalBool(t, expr, subject) {
+				t.Errorf("%s (%s): expected true", expr, name)
+			}
+		}
+	}
+}
+
+// TestExplicitNullVariantIsNotAbsent pins that absent stays distinguishable from a variant that
+// genuinely holds JSON null: the former is CEL null, the latter a present variant of type NULL.
+func TestExplicitNullVariantIsNotAbsent(t *testing.T) {
+	pv, err := variant.ParseJSON("null")
+	if err != nil {
+		t.Fatalf("ParseJSON: %v", err)
+	}
+	msg := &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
+	if !evalBool(t, "variants.isNull(this)", msg) {
+		t.Errorf("an explicit JSON null must report isNull")
+	}
+	if !evalBool(t, "variants.type(this) != null", msg) {
+		t.Errorf("an explicit JSON null is a present variant, so its type is not CEL null")
+	}
+}

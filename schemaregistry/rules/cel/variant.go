@@ -146,14 +146,25 @@ func asVariantFromValue(v ref.Val) (variant.Variant, bool) {
 	return variant.Variant{}, false
 }
 
-// receiverVariant is a variants.* navigation receiver: CEL null passes through (returns
-// types.NullValue as the second result), a variant is returned, anything else is a hard
-// error. The caller returns the second result directly when it is non-nil.
+// isAbsent reports whether a variant carries no metadata at all: a Protobuf field left unset,
+// or an Avro variant record whose byte fields are empty. There is nothing to read, so callers
+// treat it as CEL null. variant.New accepts such bytes -- the version byte is only read later --
+// so the check has to happen here rather than at construction.
+func isAbsent(v variant.Variant) bool {
+	return len(v.MetadataBytes()) == 0
+}
+
+// receiverVariant is a variants.* navigation receiver: CEL null (and an absent variant) pass
+// through (returns types.NullValue as the second result), a variant is returned, anything else
+// is a hard error. The caller returns the second result directly when it is non-nil.
 func receiverVariant(v ref.Val, fn string) (variant.Variant, ref.Val) {
 	if v == nil || v.Type() == types.NullType {
 		return variant.Variant{}, types.NullValue
 	}
 	if vv, ok := asVariantFromValue(v); ok {
+		if isAbsent(vv) {
+			return variant.Variant{}, types.NullValue
+		}
 		return vv, nil
 	}
 	return variant.Variant{}, types.NewErr("%s: expected a Variant, got %s", fn, v.Type().TypeName())
@@ -166,20 +177,15 @@ func toVariant(v ref.Val) ref.Val {
 	if v == nil || v.Type() == types.NullType {
 		return types.NullValue
 	}
-	if vv, ok := v.(variantVal); ok {
-		return vv
-	}
-	switch x := v.Value().(type) {
-	case variant.Variant:
-		return newVariant(x)
-	case *prototypes.Variant:
-		return newVariant(variant.New(x.Value, x.Metadata))
-	case map[string]interface{}:
-		md, mok := x["metadata"].([]byte)
-		val, vok := x["value"].([]byte)
-		if mok && vok {
-			return newVariant(variant.New(val, md))
+	if vv, ok := asVariantFromValue(v); ok {
+		if isAbsent(vv) {
+			// An absent variant reports as CEL null, like the null input above.
+			return types.NullValue
 		}
+		return newVariant(vv)
+	}
+	switch v.Value().(type) {
+	case map[string]interface{}:
 		return types.NewErr("variant: map missing 'metadata'/'value' byte entries")
 	case string:
 		return types.NewErr("variant: cannot convert string to Variant; use variants.parseJson(s)")
@@ -314,6 +320,12 @@ func variantOptions() []cel.EnvOption {
 					if !ok {
 						return types.NewErr("variant: second argument must be bytes")
 					}
+					if len(md) == 0 {
+						// Passing empty metadata explicitly is a rule-authoring mistake
+						// rather than an absent field, so it is reported, not nulled.
+						return types.NewErr(
+							"variant: metadata is empty, so there is no variant to read")
+					}
 					return newVariant(variant.New(value, md))
 				})),
 		),
@@ -347,7 +359,7 @@ func variantOptions() []cel.EnvOption {
 				}))),
 
 		cel.Function("variants.type",
-			cel.Overload("variants_type", []*cel.Type{cel.DynType}, cel.StringType,
+			cel.Overload("variants_type", []*cel.Type{cel.DynType}, cel.DynType,
 				cel.UnaryBinding(func(v ref.Val) ref.Val {
 					vv, status := receiverVariant(v, "variants.type")
 					if status != nil {
@@ -433,7 +445,7 @@ func variantOptions() []cel.EnvOption {
 				}))),
 
 		cel.Function("variants.toJson",
-			cel.Overload("variants_to_json", []*cel.Type{cel.DynType}, cel.StringType,
+			cel.Overload("variants_to_json", []*cel.Type{cel.DynType}, cel.DynType,
 				cel.UnaryBinding(func(v ref.Val) ref.Val {
 					vv, status := receiverVariant(v, "variants.toJson")
 					if status != nil {
