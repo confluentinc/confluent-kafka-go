@@ -17,6 +17,11 @@
 package protobuf
 
 import (
+	"fmt"
+	"math/big"
+	"time"
+
+	"github.com/cockroachdb/apd/v3"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"google.golang.org/protobuf/proto"
@@ -133,6 +138,12 @@ func transformFieldValue(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
 			newList.Append(newValue)
 		}
 		return protoreflect.ValueOfList(newList), nil
+	case isMessageKind(fd) && isCelLeafMessage(fd.Message()):
+		// A decimal or a timestamp is a single value to a rule, not a record to descend
+		// into. Without this the walk reached value/scale and seconds/nanos one at a time,
+		// so a rule tagged for the field never fired and the message came back unchanged
+		// with no error. Ported from the JVM client's #4538.
+		return transformValueTypeLeaf(ctx, fd, value, fieldTransform)
 	case isMessageKind(fd) && isMessageKind(schemaFd):
 		return transformMessage(ctx, schemaFd.Message(), value, fieldTransform)
 	default:
@@ -152,6 +163,150 @@ func transformMessage(ctx serde.RuleContext, desc protoreflect.MessageDescriptor
 		return value, nil
 	}
 	return protoreflect.ValueOfMessage(newMessage.ProtoReflect()), nil
+}
+
+// Message types a CEL rule works with as a single value rather than as a record.
+//
+// Avro carries the same concepts as logical types on a primitive, so the field is a leaf there
+// and a CEL_FIELD rule reaches it. Variant is deliberately not included: it is a record in Avro
+// too, so skipping it is the behaviour that matches, and a variant is reached with a
+// message-level CEL rule instead.
+const (
+	celDecimalTypeName   = "confluent.type.Decimal"
+	celTimestampTypeName = "google.protobuf.Timestamp"
+)
+
+func isCelLeafMessage(desc protoreflect.MessageDescriptor) bool {
+	if desc == nil {
+		return false
+	}
+	name := string(desc.FullName())
+	return name == celDecimalTypeName || name == celTimestampTypeName
+}
+
+// transformValueTypeLeaf hands the whole decimal or timestamp message to the field transform
+// and encodes whatever the rule returns back into it.
+func transformValueTypeLeaf(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
+	value protoreflect.Value, fieldTransform serde.FieldTransform) (protoreflect.Value, error) {
+	fieldCtx := ctx.CurrentField()
+	if fieldCtx == nil {
+		return value, nil
+	}
+	ruleTags := ctx.Rule.Tags
+	if len(ruleTags) != 0 && disjoint(ruleTags, fieldCtx.Tags) {
+		return value, nil
+	}
+	// The concrete message, not the protoreflect wrapper: the CEL boundary switches on
+	// *types.Decimal and *timestamppb.Timestamp.
+	newValue, err := fieldTransform.Transform(ctx, *fieldCtx, value.Message().Interface())
+	if err != nil {
+		return value, err
+	}
+	if ctx.Rule.Kind == "CONDITION" {
+		// A verdict on the value, not a replacement for it, so the value is returned
+		// unchanged - but a false verdict is a violation, exactly as on the scalar path.
+		if newBool, ok := newValue.(bool); ok && !newBool {
+			return value, serde.RuleConditionErr{Rule: ctx.Rule}
+		}
+		return value, nil
+	}
+	rebuilt, err := rebuildValueType(ctx, fd, value.Message(), newValue)
+	if err != nil {
+		return value, err
+	}
+	return rebuilt, nil
+}
+
+// rebuildValueType encodes what a CEL_FIELD rule returned back into the field's message.
+//
+// An identity rule hands back the message it was given; a computed rule hands back an
+// *apd.Decimal or a time.Time. Anything else is a rule-authoring mistake and is named as one
+// rather than written back as a default.
+func rebuildValueType(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
+	existing protoreflect.Message, value interface{}) (protoreflect.Value, error) {
+	desc := fd.Message()
+	if value == nil {
+		return protoreflect.Value{}, valueTypeError(ctx, fd, "null", "a decimal or timestamp")
+	}
+	if pm, ok := value.(proto.Message); ok &&
+		pm.ProtoReflect().Descriptor().FullName() == desc.FullName() {
+		// Already the right message, which is what an identity rule produces.
+		return protoreflect.ValueOfMessage(pm.ProtoReflect()), nil
+	}
+
+	// A new message of the *field's own* kind, taken from the value already there: a message
+	// parsed dynamically from a registered schema must be written back as a dynamic message,
+	// and a generated one as its generated type - the parent's reflection rejects the other.
+	// This is what the JVM client gets from parent.newBuilderForField(fd).
+	out := existing.New()
+	setNamed := func(name string, v protoreflect.Value) {
+		if f := desc.Fields().ByName(protoreflect.Name(name)); f != nil {
+			out.Set(f, v)
+		}
+	}
+
+	if string(desc.FullName()) == celDecimalTypeName {
+		dec, ok := value.(*apd.Decimal)
+		if !ok {
+			return protoreflect.Value{}, valueTypeError(
+				ctx, fd, fmt.Sprintf("%T", value), "a decimal")
+		}
+		encoded, err := decimalToProtoParts(dec)
+		if err != nil {
+			return protoreflect.Value{}, err
+		}
+		setNamed("value", protoreflect.ValueOfBytes(encoded.unscaled))
+		setNamed("precision", protoreflect.ValueOfUint32(encoded.precision))
+		setNamed("scale", protoreflect.ValueOfInt32(encoded.scale))
+		return protoreflect.ValueOfMessage(out), nil
+	}
+
+	ts, ok := value.(time.Time)
+	if !ok {
+		return protoreflect.Value{}, valueTypeError(
+			ctx, fd, fmt.Sprintf("%T", value), "a timestamp")
+	}
+	setNamed("seconds", protoreflect.ValueOfInt64(ts.Unix()))
+	setNamed("nanos", protoreflect.ValueOfInt32(int32(ts.Nanosecond())))
+	return protoreflect.ValueOfMessage(out), nil
+}
+
+type decimalParts struct {
+	unscaled  []byte
+	precision uint32
+	scale     int32
+}
+
+// decimalToProtoParts encodes a decimal the way confluent.type.Decimal stores one. Precision
+// and scale describe the value itself rather than a declared column width, matching the JVM
+// client's DecimalUtils.fromBigDecimal and the reverse of how a decimal is read back.
+func decimalToProtoParts(d *apd.Decimal) (decimalParts, error) {
+	if d.Form != apd.Finite {
+		return decimalParts{}, fmt.Errorf("cannot write a non-finite decimal to %s",
+			celDecimalTypeName)
+	}
+	scale := -d.Exponent
+	unscaled := new(big.Int).Set(d.Coeff.MathBigInt())
+	if d.Negative {
+		unscaled.Neg(unscaled)
+	}
+	if scale < 0 {
+		// A positive exponent (1E+3) has no scale of its own; normalise it into the digits
+		// rather than writing a negative scale.
+		unscaled.Mul(unscaled, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-scale)), nil))
+		scale = 0
+	}
+	return decimalParts{
+		unscaled:  signedBytes(unscaled),
+		precision: uint32(len(d.Coeff.MathBigInt().String())),
+		scale:     scale,
+	}, nil
+}
+
+func valueTypeError(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
+	actual string, expected string) error {
+	return fmt.Errorf("rule %s returned %s for field '%s', which is a %s; expected %s",
+		ctx.Rule.Name, actual, fd.FullName(), fd.Message().FullName(), expected)
 }
 
 // transformLeaf hands a scalar value to the field transform, when the rule's tags overlap
@@ -194,6 +349,14 @@ func getType(fd protoreflect.FieldDescriptor) serde.FieldType {
 	}
 	switch fd.Kind() {
 	case protoreflect.MessageKind:
+		// Report the same primitive type the Avro counterpart does, so that CEL_FIELD applies
+		// to the field and a rule written against one format ports to the other.
+		if isCelLeafMessage(fd.Message()) {
+			if string(fd.Message().FullName()) == celDecimalTypeName {
+				return serde.TypeBytes
+			}
+			return serde.TypeLong
+		}
 		return serde.TypeRecord
 	case protoreflect.EnumKind:
 		return serde.TypeEnum
