@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+import "confluent/meta.proto";
+import "confluent/types/decimal.proto";
+import "confluent/types/variant.proto";
+import "google/protobuf/timestamp.proto";
+
+// The three value types protobuf carries as messages, plus a scalar. Tagged so a CEL_FIELD
+// rule can be scoped to one field at a time. Used by the message-level CEL transform tests
+// and by the CEL_FIELD value-type tests.
+message ValueTypes {
+  confluent.type.Decimal amount = 1 [(confluent.field_meta) = { tags: "AMOUNT" }];
+  google.protobuf.Timestamp ts = 2 [(confluent.field_meta) = { tags: "TS" }];
+  confluent.type.Variant data = 3 [(confluent.field_meta) = { tags: "DATA" }];
+  string label = 4 [(confluent.field_meta) = { tags: "LABEL" }];
+  int32 count = 5;
+}
