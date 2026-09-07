@@ -1,7 +1,7 @@
 package cel
 
 // A CEL_FIELD rule over the *null* branch of an Avro ["null", T] union must be evaluated, not
-// skipped (capability C8, C4/C5).
+// skipped.
 //
 // Avro's null is a first-class value, and the reference binds it as CEL null so a rule can guard
 // with `value == null`. Skipping the field instead removes that capability and is *silent*: a

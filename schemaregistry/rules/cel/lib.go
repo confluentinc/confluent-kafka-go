@@ -26,12 +26,12 @@ import (
 	"strings"
 
 	"cel.dev/cel-go/cel"
-	"cel.dev/cel-go/common/types"
-	"cel.dev/cel-go/common/types/ref"
-	"cel.dev/cel-go/common/types/traits"
 	"cel.dev/cel-go/common/env"
 	"cel.dev/cel-go/common/operators"
 	"cel.dev/cel-go/common/overloads"
+	"cel.dev/cel-go/common/types"
+	"cel.dev/cel-go/common/types/ref"
+	"cel.dev/cel-go/common/types/traits"
 	"cel.dev/cel-go/ext"
 )
 
@@ -114,6 +114,25 @@ func (a decimalAdapter) NativeToValue(value any) ref.Val {
 		rv = rv.Elem()
 	}
 	if rv.Kind() == reflect.Struct {
+		// A container is not a record, whatever its Go representation happens to look
+		// like - and two different representations reach here as struct pointers, so the
+		// Kind test above admits both and the Indexer test below does too, because cel-go's
+		// list and map values are Indexers:
+		//
+		//   Avro:     an already-adapted CEL value, *types.baseList or *types.baseMap.
+		//             cel-go passes a ref.Val back through NativeToValue unchanged, and the
+		//             interpreter re-adapts as it qualifies each step of a selection.
+		//   protobuf: the native field value, *impl.listReflect (a protoreflect.List) or
+		//             cel-go's own *pb.Map.
+		//
+		// Wrapping either is a regression, not a refinement: Get below understands only a
+		// *string* key, so `amounts[0]` answered "no such overload", and Size was lost
+		// outright, taking `size(amounts)` with it. Selection on a record is the only thing
+		// this wrapper exists for.
+		switch inner.(type) {
+		case traits.Lister, traits.Mapper:
+			return inner
+		}
 		if _, ok := inner.(traits.Indexer); ok {
 			return nullAwareObj{Val: inner, value: rv, fieldName: a.fieldName, adapter: a}
 		}
@@ -196,7 +215,6 @@ func (o nullAwareObj) lookup(name string) (reflect.Value, bool) {
 	}
 	return reflect.Value{}, false
 }
-
 
 // isNilPointer reports whether value is a nil pointer or nil interface, the two shapes an
 // absent Avro union branch takes in a Go struct.

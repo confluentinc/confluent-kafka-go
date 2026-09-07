@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// CEL_FIELD rules over protobuf decimal and timestamp fields (capabilities C4 and C5).
+// CEL_FIELD rules over protobuf decimal and timestamp fields .
 //
 // Avro carries these two as logical types on a primitive, so the field is a leaf and a field
 // rule reaches it. Protobuf carries them as messages, so the walk used to descend *past* the
@@ -115,7 +115,7 @@ func TestValueTypeFieldTypesMatchAvro(t *testing.T) {
 	}
 }
 
-// C4. Before the port this reported nothing because the rule never ran.
+// Before the port this reported nothing because the rule never ran.
 func TestValueTypeDecimalCondition(t *testing.T) {
 	if _, err := vtRun(t, `decimals.gt(decimal(value), decimal("10.00"))`,
 		"CONDITION", "AMOUNT", vtMessage(t)); err != nil {
@@ -146,7 +146,7 @@ func TestValueTypeTimestampConditionFails(t *testing.T) {
 	}
 }
 
-// C5. The rule returns an *apd.Decimal; it has to be encoded back into the message.
+// The rule returns an *apd.Decimal; it has to be encoded back into the message.
 func TestValueTypeDecimalTransform(t *testing.T) {
 	out, err := vtRun(t, `decimals.add(decimal(value), decimal("1.00"))`,
 		"TRANSFORM", "AMOUNT", vtMessage(t))
@@ -210,5 +210,180 @@ func TestValueTypeWrongResultTypeIsReported(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "expected a decimal") {
 		t.Errorf("error should name what was expected, got %v", err)
+	}
+}
+
+// A *repeated* value-type field is a list of single values, not a list of records. The list
+// branch of the walk descended into each element as a message, so the walk reached value/scale
+// one at a time, the rule tagged for the field never fired, and the field came back **unchanged
+// with no error** — a silent no-op, and the worst of the three possible outcomes. #4538 gave the
+// scalar case its leaf handling; a list never reached it. The reference answers `[2.11, 3.22]`.
+
+// c9Containers: amounts = [1.11, 2.22], nested.inner = 4.44, one map entry a = 3.33.
+func vtContainerMessage(t *testing.T) *test.ValueTypeContainers {
+	t.Helper()
+	d := func(unscaled int64) *prototypes.Decimal {
+		// Two's-complement, not magnitude: big.Int.Bytes() drops the sign, so 222 (0xDE)
+		// would be read back as -34 and every arithmetic assertion below would be measuring
+		// the wrong input. `decimals.add(-0.34, 1.00)` is 0.66, which looks indistinguishable
+		// from a client dropping a byte.
+		raw := new(big.Int).SetInt64(unscaled).Bytes()
+		if len(raw) > 0 && raw[0]&0x80 != 0 {
+			raw = append([]byte{0}, raw...)
+		}
+		return &prototypes.Decimal{Value: raw, Precision: 8, Scale: 2}
+	}
+	return &test.ValueTypeContainers{
+		Amounts:   []*prototypes.Decimal{d(111), d(222)},
+		AmountMap: map[string]*prototypes.Decimal{"a": d(333)},
+		Nested:    &test.ValueTypeNested{Inner: d(444)},
+		Label:     "hi",
+		// A repeated *scalar*, tagged CODES: the element type decides which arm of the list
+		// branch runs, and no client's fixture had one.
+		Codes: []string{"a", "b"},
+	}
+}
+
+func vtRunContainer(t *testing.T, expr, kind, tag string) (*test.ValueTypeContainers, error) {
+	t.Helper()
+	msg := vtContainerMessage(t)
+	rule := schemaregistry.Rule{Name: "r", Kind: kind, Mode: "WRITE", Type: "CEL_FIELD",
+		Expr: expr, Tags: []string{tag}}
+	ctx := serde.RuleContext{
+		Target: &schemaregistry.SchemaInfo{}, Subject: "t-value", Topic: "t",
+		RuleMode: schemaregistry.Write, Rule: &rule, Index: 0,
+		Rules: []schemaregistry.Rule{rule},
+	}
+	ft, err := cel.NewFieldExecutor().(serde.FieldRuleExecutor).NewTransform(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := transform(ctx, msg.ProtoReflect().Descriptor(), msg, ft)
+	if err != nil {
+		return nil, err
+	}
+	result, ok := out.(*test.ValueTypeContainers)
+	if !ok {
+		t.Fatalf("expected the message back, got %T", out)
+	}
+	return result, nil
+}
+
+func vtAmounts(t *testing.T, m *test.ValueTypeContainers) []string {
+	t.Helper()
+	var out []string
+	for _, a := range m.Amounts {
+		out = append(out, vtDecimal(t, a))
+	}
+	return out
+}
+
+func TestValueTypeRepeatedDecimalTransform(t *testing.T) {
+	out, err := vtRunContainer(t, `decimals.add(decimal(value), decimal("1.00"))`,
+		"TRANSFORM", "AMOUNTS")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := vtAmounts(t, out); len(got) != 2 || got[0] != "211" || got[1] != "322" {
+		t.Errorf("amounts = %v, want [211 322] (2.11, 3.22 at scale 2)", got)
+	}
+}
+
+// The must-pass twin: an identity rule hands back the message it was given, and the per-element
+// path has to accept that as readily as a computed decimal. Without it, "the values changed"
+// could be satisfied by a rebuild that mangles an untouched element.
+func TestValueTypeRepeatedIdentityTransform(t *testing.T) {
+	out, err := vtRunContainer(t, "value", "TRANSFORM", "AMOUNTS")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := vtAmounts(t, out); len(got) != 2 || got[0] != "111" || got[1] != "222" {
+		t.Errorf("amounts = %v, want [111 222] unchanged", got)
+	}
+}
+
+// A scalar *condition* over a repeated field passes even when it is false for every element:
+// the reference collects the per-element verdicts into a list and tests
+// `Boolean.FALSE.equals(list)`, which a list never satisfies. The
+// verdict must also not be written into the list.
+func TestValueTypeRepeatedConditionVerdictIsDiscarded(t *testing.T) {
+	out, err := vtRunContainer(t, `decimals.gt(decimal(value), decimal("100.00"))`,
+		"CONDITION", "AMOUNTS")
+	if err != nil {
+		t.Fatalf("a false condition over a repeated field must not fail: %v", err)
+	}
+	if got := vtAmounts(t, out); len(got) != 2 || got[0] != "111" || got[1] != "222" {
+		t.Errorf("amounts = %v, want [111 222] untouched by a condition", got)
+	}
+}
+
+// A condition over a repeated *scalar* field is the same contract as over a repeated decimal,
+// and it used to differ: the decimal path drops the verdict (transformValueTypeLeafInList) while
+// the scalar path raised on it.
+//
+// Settled from the reference's own source rather than a probe: its protobuf walk maps a repeated
+// field to a new List of the per-element results and then tests `Boolean.FALSE.equals(newValue)`
+// on it, which a List never is - so the verdict is dropped for *every* element type, not just the
+// ones a fixture happens to cover.
+func TestRepeatedScalarConditionVerdictIsDiscarded(t *testing.T) {
+	out, err := vtRunContainer(t, `value == "zzz"`, "CONDITION", "CODES")
+	if err != nil {
+		t.Fatalf("a false condition over a repeated scalar must not raise: %v", err)
+	}
+	if got := out.Codes; len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("codes = %v, want [a b] unchanged", got)
+	}
+}
+
+// The must-pass twin, so the test above cannot be satisfied by a walk that skipped the field.
+func TestRepeatedScalarConditionThatHoldsAlsoPasses(t *testing.T) {
+	out, err := vtRunContainer(t, `value == "a" || value == "b"`, "CONDITION", "CODES")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := out.Codes; len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("codes = %v, want [a b] unchanged", got)
+	}
+}
+
+// The discriminator that keeps the fix from being too broad: dropping the verdict is a property
+// of being *inside a container*, not of being a scalar. A singular field must still raise.
+func TestSingularScalarConditionStillRaises(t *testing.T) {
+	if _, err := vtRunContainer(t, `value == "zzz"`, "CONDITION", "LABEL"); err == nil {
+		t.Error("a false condition on a singular scalar field must raise")
+	}
+}
+
+// And a transform over the same repeated scalar still writes every element - the verdict is what
+// is dropped, not the walk.
+func TestRepeatedScalarTransformWritesEveryElement(t *testing.T) {
+	out, err := vtRunContainer(t, `value + "!"`, "TRANSFORM", "CODES")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := out.Codes; len(got) != 2 || got[0] != "a!" || got[1] != "b!" {
+		t.Errorf("codes = %v, want [a! b!]", got)
+	}
+}
+
+// A tag scopes a rule to its own field, on the container path as much as anywhere else.
+//
+// This is the property the drifted copy of transformValueTypeLeaf broke: its condition branch
+// had no tag check, so a rule tagged CODES was also evaluated against the repeated *decimal*
+// field and failed to compile. Asserted here on the transform path, where the damage would be
+// silent rather than loud - a wrong field quietly rewritten.
+func TestARepeatedFieldTagOnlyReachesItsOwnField(t *testing.T) {
+	out, err := vtRunContainer(t, `value + "!"`, "TRANSFORM", "CODES")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := out.Codes; len(got) != 2 || got[0] != "a!" || got[1] != "b!" {
+		t.Errorf("codes = %v, want [a! b!]", got)
+	}
+	if got := vtAmounts(t, out); len(got) != 2 || got[0] != "111" || got[1] != "222" {
+		t.Errorf("amounts = %v, want [111 222] untouched by a CODES-tagged rule", got)
+	}
+	if out.Label != "hi" {
+		t.Errorf("label = %q, want hi untouched", out.Label)
 	}
 }
