@@ -43,9 +43,8 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 	}
 	switch schema.(type) {
 	case *avro.RefSchema:
-		// As in the validation walk: a reference to a named type has to be unwrapped, or
-		// the inline tags on the record it points at - and so the fields they mark for
-		// encryption - are never seen.
+		// A reference to a named type has to be unwrapped, or the inline tags on the record
+		// it points at - and so the fields they mark for encryption - are never seen.
 		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform)
 	case *avro.UnionSchema:
 		subschema, submsg, err := resolveUnion(resolver, schema, msg)
