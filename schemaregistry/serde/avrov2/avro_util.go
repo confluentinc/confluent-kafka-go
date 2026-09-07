@@ -48,8 +48,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		// encryption - are never seen.
 		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform)
 	case *avro.UnionSchema:
-		val := deref(msg)
-		subschema, submsg, err := resolveUnion(resolver, schema, val)
+		subschema, submsg, err := resolveUnion(resolver, schema, msg)
 		if err != nil {
 			return nil, err
 		}
@@ -304,24 +303,30 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 	union := schema.(*avro.UnionSchema)
 	var names []string
 	var err error
-	if msg.IsValid() && msg.CanInterface() {
-		val := msg.Interface()
-		// Check if the value is a map[string]interface{} with a single entry
-		if m, ok := val.(map[string]interface{}); ok && len(m) == 1 {
+	// Interface layers come off - a value read out of a map arrives boxed - but pointers do
+	// not, because a pointer is part of the type hamba's resolver is asked about below.
+	val := derefInterface(msg)
+	switch {
+	case !val.IsValid() || !val.CanInterface() ||
+		(val.Kind() == reflect.Pointer && val.IsNil()):
+		// An absent value is the null branch. This has to be tested explicitly: a nil pointer
+		// still has a nameable type, so leaving it to the resolver would pick the *value*
+		// branch and encode a zero.
+		names = []string{"null"}
+	default:
+		if m, ok := val.Interface().(map[string]interface{}); ok && len(m) == 1 {
+			// hamba's own shape for a union value: a single entry keyed by branch name.
 			for k, v := range m {
 				names = []string{k}
 				newMsg := reflect.ValueOf(v)
 				msg = &newMsg
 			}
 		} else {
-			typ := reflect2.TypeOf(val)
-			names, err = resolver.Name(typ)
+			names, err = resolveUnionNames(resolver, val)
 			if err != nil {
 				return nil, msg, err
 			}
 		}
-	} else {
-		names = []string{"null"}
 	}
 	for _, name := range names {
 		if idx := strings.Index(name, ":"); idx > 0 {
@@ -334,6 +339,39 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 		}
 	}
 	return nil, nil, fmt.Errorf("avro: unknown union type %s", names[0])
+}
+
+// derefInterface unwraps interface layers only, leaving pointers intact.
+func derefInterface(val *reflect.Value) *reflect.Value {
+	v := *val
+	for v.Kind() == reflect.Interface {
+		v = v.Elem()
+	}
+	return &v
+}
+
+// resolveUnionNames asks hamba to name the value's type, trying it both as held and
+// dereferenced.
+//
+// The resolver's registrations are not consistent about pointers, and neither shape alone
+// works: a nullable decimal is known as *big.Rat and not as big.Rat, while a nullable string is
+// known as string and not as *string. Resolving only the dereferenced form failed a present
+// decimal with "avro: unable to resolve type big.Rat"; only the pointer form fails every
+// nullable primitive instead.
+func resolveUnionNames(resolver *avro.TypeResolver, val *reflect.Value) ([]string, error) {
+	names, err := resolver.Name(reflect2.TypeOf(val.Interface()))
+	if err == nil {
+		return names, nil
+	}
+	if val.Kind() == reflect.Pointer {
+		inner := val.Elem()
+		if inner.IsValid() && inner.CanInterface() {
+			if names, innerErr := resolver.Name(reflect2.TypeOf(inner.Interface())); innerErr == nil {
+				return names, nil
+			}
+		}
+	}
+	return nil, err
 }
 
 // deref unwraps every pointer and interface layer, not just one. A value read out of a

@@ -237,7 +237,7 @@ func TestPassThroughPreservesANullAvroField(t *testing.T) {
 
 func TestGuardedTransformPreservesANullAvroField(t *testing.T) {
 	got, errText := runMsgTransform(t, "mt2",
-		`{"amount": has(message.Amount) ? message.Amount : null, ` +
+		`{"amount": has(message.Amount) ? message.Amount : null, `+
 			`"note": message.Note, "plain": message.Plain}`)
 	if errText != "" {
 		t.Fatalf("guarded transform failed: %s", errText)
@@ -252,9 +252,10 @@ func TestGuardedTransformPreservesANullAvroField(t *testing.T) {
 // The twin: "the null survived" must not be "nothing was written at all". A transform that
 // computes a real value for a nullable field has to set it.
 //
-// It uses the nullable *string*, not the nullable decimal: writing a computed decimal into a
-// ["null", T] union yields a zero in this client, pre-existing and unrelated to the null
-// handling here - it reproduces with avro_result_writer.go unmodified. See the doc's Go notes.
+// It uses the nullable *string*, not the nullable decimal, because it asserts on the
+// deserialized record: hamba cannot decode a ["null", decimal] union into a *big.Rat struct
+// field and yields a zero with no error, independently of any rule. The decimal equivalent is
+// asserted on the wire instead, in cel_nullable_union_test.go.
 func TestTransformCanStillSetTheNullableField(t *testing.T) {
 	got, errText := runMsgTransform(t, "mt3",
 		`{"amount": message.Amount, "note": "written", "plain": message.Plain}`)
