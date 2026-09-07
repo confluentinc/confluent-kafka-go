@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 )
 
 type person struct {
