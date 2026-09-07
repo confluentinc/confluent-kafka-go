@@ -19,6 +19,7 @@ package cel
 import (
 	"cel.dev/cel-go/cel"
 	"cel.dev/cel-go/common/types"
+	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
 	"cel.dev/cel-go/ext"
 	"encoding/json"
@@ -302,8 +303,19 @@ func schemaFieldName(field reflect.StructField) string {
 func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption,
 	fieldName func(reflect.StructField) string) (cel.Program, error) {
 	typ := reflect.TypeOf(msg)
-	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
-		typ = typ.Elem()
+	// Down to the type that actually carries fields, through any container. An inline
+	// *field* rule binds `this` to the field's own value, so a rule on an array of decimals
+	// compiles with this = []*big.Rat: stopping at the slice registered nothing, and
+	// `this[0]` failed with "unsupported conversion to ref.Val: (*big.Rat)". The domain path
+	// was unaffected only because `this` is the whole record there, and registering the
+	// record registers its field types with it.
+	for typ != nil {
+		switch typ.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
+			typ = typ.Elem()
+			continue
+		}
+		break
 	}
 	protoType, ok := msg.(proto.Message)
 	var declType cel.EnvOption
@@ -396,13 +408,54 @@ func nativeMap(mapper traits.Mapper, wantType reflect.Type) (map[string]interfac
 		if types.IsError(value) {
 			return nil, fmt.Errorf("CEL map entry %s failed: %v", name, value.Value())
 		}
-		if native, err := value.ConvertToNative(wantType); err == nil {
-			out[name] = native
-			continue
-		}
-		out[name] = value.Value()
+		out[name] = nativeValue(value, wantType)
 	}
 	return out, nil
+}
+
+// nativeList is nativeMap for a CEL list.
+func nativeList(lister traits.Lister, wantType reflect.Type) ([]interface{}, error) {
+	size, ok := lister.Size().(types.Int)
+	if !ok {
+		return nil, fmt.Errorf("CEL list reports no size")
+	}
+	out := make([]interface{}, 0, int(size))
+	for i := 0; i < int(size); i++ {
+		value := lister.Get(types.Int(i))
+		if types.IsError(value) {
+			return nil, fmt.Errorf("CEL list element %d failed: %v", i, value.Value())
+		}
+		out = append(out, nativeValue(value, wantType))
+	}
+	return out, nil
+}
+
+// nativeValue converts one value out of a container, and when it has no native form of its
+// own it keeps the *structure* rather than the raw cel-go value.
+//
+// This is what a message transform echoing a container field depends on. A protobuf map field
+// passed through arrives here as cel-go's own *pb.Map, and an Avro map or array of decimals as
+// a map or list whose elements have no native form; falling straight back to Value() handed the
+// write-back a type it does not recognise, and it dropped the field **silently** - the identity
+// transform lost amount_map with no error. Recursing gives the write-back the plain Go shapes
+// it is written against, with the per-element fallback still available underneath.
+func nativeValue(value ref.Val, wantType reflect.Type) interface{} {
+	if native, err := value.ConvertToNative(wantType); err == nil {
+		return native
+	}
+	switch container := value.(type) {
+	case traits.Mapper:
+		if m, err := nativeMap(container, wantType); err == nil {
+			return m
+		}
+	case traits.Lister:
+		if l, err := nativeList(container, wantType); err == nil {
+			return l
+		}
+	}
+	// Still meaningful to a write-back that knows the format's own types - an Avro decimal
+	// read off a Go struct reaches the writer as a big.Rat this way.
+	return value.Value()
 }
 
 // Close closes the executor

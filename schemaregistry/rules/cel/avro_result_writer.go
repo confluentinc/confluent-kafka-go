@@ -35,7 +35,7 @@ import (
 //   - the CEL value types have no Avro encoding of their own. A decimal is an *apd.Decimal,
 //     which hamba rejects outright ("avro: *apd.Decimal is unsupported for Avro bytes") - so a
 //     decimal field broke serialization for *any* rule touching it, including an identity one
-//     (finding D1). A variant is a variant.Variant, which hamba has never seen.
+//    . A variant is a variant.Variant, which hamba has never seen.
 //
 // The conversion needs no schema: hamba applies the field's own scale when encoding a
 // *big.Rat, and an Avro variant is just a record of two bytes fields, so emitting the map
