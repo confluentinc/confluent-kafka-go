@@ -127,10 +127,22 @@ func transformFieldValue(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
 		for i := 0; i < list.Len(); i++ {
 			var newValue protoreflect.Value
 			var err error
-			if isMessageKind(fd) && isMessageKind(schemaFd) {
+			switch {
+			case isMessageKind(fd) && isCelLeafMessage(fd.Message()):
+				// A repeated decimal or timestamp is a list of single values, not a list of
+				// records. This case has to precede the descend-into-message one below, which
+				// is where a repeated value type used to go: the walk reached value/scale one
+				// at a time, so the rule's result was never written and the field came back
+				// unchanged with no error. The same #4538 reasoning as the scalar case at
+				// isCelLeafMessage below, which a list never reached.
+				newValue, err = transformValueTypeLeaf(ctx, fd, list.Get(i), fieldTransform,
+					/*dropVerdict=*/ true)
+			case isMessageKind(fd) && isMessageKind(schemaFd):
 				newValue, err = transformMessage(ctx, schemaFd.Message(), list.Get(i), fieldTransform)
-			} else {
-				newValue, err = transformLeaf(ctx, list.Get(i), fieldTransform)
+			default:
+				// An element of a repeated field: evaluated, verdict dropped.
+				newValue, err = transformLeaf(ctx, list.Get(i), fieldTransform,
+					/*dropVerdict=*/ true)
 			}
 			if err != nil {
 				return value, err
@@ -143,11 +155,11 @@ func transformFieldValue(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
 		// into. Without this the walk reached value/scale and seconds/nanos one at a time,
 		// so a rule tagged for the field never fired and the message came back unchanged
 		// with no error. Ported from the JVM client's #4538.
-		return transformValueTypeLeaf(ctx, fd, value, fieldTransform)
+		return transformValueTypeLeaf(ctx, fd, value, fieldTransform, false)
 	case isMessageKind(fd) && isMessageKind(schemaFd):
 		return transformMessage(ctx, schemaFd.Message(), value, fieldTransform)
 	default:
-		return transformLeaf(ctx, value, fieldTransform)
+		return transformLeaf(ctx, value, fieldTransform, false)
 	}
 }
 
@@ -186,8 +198,16 @@ func isCelLeafMessage(desc protoreflect.MessageDescriptor) bool {
 
 // transformValueTypeLeaf hands the whole decimal or timestamp message to the field transform
 // and encodes whatever the rule returns back into it.
+//
+// dropVerdict is set for one element of a repeated field; see transformLeaf.
+//
+// This was two functions, and the copy drifted: it omitted the tag check below, so a condition
+// evaluated against every repeated value-type field regardless of the rule's tags - a rule tagged
+// for a repeated string was handed a Decimal and failed to compile. One function with a flag
+// cannot drift that way.
 func transformValueTypeLeaf(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
-	value protoreflect.Value, fieldTransform serde.FieldTransform) (protoreflect.Value, error) {
+	value protoreflect.Value, fieldTransform serde.FieldTransform,
+	dropVerdict bool) (protoreflect.Value, error) {
 	fieldCtx := ctx.CurrentField()
 	if fieldCtx == nil {
 		return value, nil
@@ -204,8 +224,9 @@ func transformValueTypeLeaf(ctx serde.RuleContext, fd protoreflect.FieldDescript
 	}
 	if ctx.Rule.Kind == "CONDITION" {
 		// A verdict on the value, not a replacement for it, so the value is returned
-		// unchanged - but a false verdict is a violation, exactly as on the scalar path.
-		if newBool, ok := newValue.(bool); ok && !newBool {
+		// unchanged - and a false verdict is a violation, exactly as on the scalar path,
+		// unless this is one element of a container.
+		if newBool, ok := newValue.(bool); ok && !newBool && !dropVerdict {
 			return value, serde.RuleConditionErr{Rule: ctx.Rule}
 		}
 		return value, nil
@@ -311,8 +332,18 @@ func valueTypeError(ctx serde.RuleContext, fd protoreflect.FieldDescriptor,
 
 // transformLeaf hands a scalar value to the field transform, when the rule's tags overlap
 // the field's.
+// transformLeaf hands a scalar to the field transform.
+//
+// dropVerdict is set by the caller walking a repeated field's elements. The reference maps a
+// repeated field to a new list of the per-element results and then tests
+// `Boolean.FALSE.equals(newValue)` on it - which a list never is - so a CEL_FIELD condition does
+// not apply to a container field, whatever its element type. Raising per element instead made a
+// repeated scalar diverge.
+//
+// One parameter rather than a near-copy: the two would have to agree about tag matching and about
+// which results are written back.
 func transformLeaf(ctx serde.RuleContext, value protoreflect.Value,
-	fieldTransform serde.FieldTransform) (protoreflect.Value, error) {
+	fieldTransform serde.FieldTransform, dropVerdict bool) (protoreflect.Value, error) {
 	fieldCtx := ctx.CurrentField()
 	if fieldCtx == nil {
 		return value, nil
@@ -329,7 +360,7 @@ func transformLeaf(ctx serde.RuleContext, value protoreflect.Value,
 		// The result is a verdict on the value, not a replacement for it, so the value is
 		// returned unchanged - and a value of a different type is never written back.
 		newBool, ok := newValue.(bool)
-		if ok && !newBool {
+		if ok && !newBool && !dropVerdict {
 			return value, serde.RuleConditionErr{
 				Rule: ctx.Rule,
 			}

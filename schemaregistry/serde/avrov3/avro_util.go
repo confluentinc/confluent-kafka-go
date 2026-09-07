@@ -76,7 +76,14 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			if err != nil {
 				return nil, err
 			}
-			item.Set(*newVal)
+			// A condition's per-element verdicts are evaluated and then dropped. The
+			// reference collects them into an untyped list, which the field-level check
+			// never reads as `false`, so a CEL_FIELD condition does not apply to a
+			// container field. Writing one back here panics instead: the slice's element
+			// type cannot hold a bool.
+			if ctx.Rule.Kind != "CONDITION" {
+				item.Set(*newVal)
+			}
 		}
 		return msg, nil
 	case *avro.MapSchema:
@@ -93,7 +100,10 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			if err != nil {
 				return nil, err
 			}
-			val.SetMapIndex(k, *newVal)
+			// A verdict is not a replacement for the value: dropped, as on an array.
+			if ctx.Rule.Kind != "CONDITION" {
+				val.SetMapIndex(k, *newVal)
+			}
 		}
 		return msg, nil
 	case *avro.RecordSchema:
