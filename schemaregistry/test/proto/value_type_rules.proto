@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+import "confluent/meta.proto";
+import "confluent/types/decimal.proto";
+import "google/protobuf/timestamp.proto";
+
+// Inline rules on the two value types, at message and field level, so both can be exercised
+// over an UNSET field. Mirrors the reference's own fixture so the clients are compared against
+// the same rules.
+message InlineValueTypes {
+  option (.confluent.message_meta) = {
+    rules: [
+      {name: "msgDec", expr: "decimals.gt(this.amount, decimal('10.00'))"},
+      {name: "msgTs", expr: "this.ts > timestamp('2000-01-01T00:00:00Z')"}
+    ]
+  };
+
+  .confluent.type.Decimal amount = 1 [(.confluent.field_meta) = {
+    rules: [{name: "fldDec", expr: "decimals.gt(this, decimal('10.00'))"}]
+  }];
+  google.protobuf.Timestamp ts = 2 [(.confluent.field_meta) = {
+    rules: [{name: "fldTs", expr: "this > timestamp('2000-01-01T00:00:00Z')"}]
+  }];
+  string label = 3;
+}
+
+// A container message carrying BOTH inline rules and tags, so one fixture serves every way a
+// rule can reach a value type inside a container: inline rules, message-level selection, a
+// tagged CEL_FIELD rule, and a message-level transform.
+message ValueTypeContainers {
+  option (.confluent.message_meta) = {
+    rules: [
+      {name: "msgArr", expr: "decimals.gt(this.amounts[0], decimal('1.00'))"},
+      {name: "msgNested", expr: "decimals.gt(this.nested.inner, decimal('1.00'))"}
+    ]
+  };
+
+  repeated .confluent.type.Decimal amounts = 1 [(.confluent.field_meta) = {
+    tags: ["AMOUNTS"],
+    rules: [{name: "fldArr", expr: "decimals.gt(this[0], decimal('1.00'))"}]
+  }];
+  map<string, .confluent.type.Decimal> amount_map = 2 [(.confluent.field_meta) = {
+    tags: ["AMOUNTMAP"]
+  }];
+  ValueTypeNested nested = 3;
+  // Tagged so a rule can target a singular scalar: a singular condition still raises where a
+  // repeated one does not.
+  string label = 4 [(.confluent.field_meta) = { tags: ["LABEL"] }];
+  // A tagged repeated scalar. The element type decides whether the list branch reaches
+  // transformLeaf or the value-type leaf path.
+  repeated string codes = 5 [(.confluent.field_meta) = { tags: ["CODES"] }];
+}
+
+message ValueTypeNested {
+  .confluent.type.Decimal inner = 1 [(.confluent.field_meta) = {
+    tags: ["INNER"],
+    rules: [{name: "fldInner", expr: "decimals.gt(this, decimal('1.00'))"}]
+  }];
+}
