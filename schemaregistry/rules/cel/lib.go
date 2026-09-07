@@ -22,11 +22,13 @@ import (
 	"net"
 	"net/mail"
 	"net/url"
+	"reflect"
 	"strings"
 
 	"cel.dev/cel-go/cel"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
+	"cel.dev/cel-go/common/types/traits"
 	"cel.dev/cel-go/common/env"
 	"cel.dev/cel-go/common/operators"
 	"cel.dev/cel-go/common/overloads"
@@ -80,13 +82,134 @@ func DefaultEnv() (*cel.Env, error) {
 // every message would fail to adapt with "unknown type".
 type decimalAdapter struct {
 	inner types.Adapter
+	// The same field-name mapping buildProgram gave ext.NativeTypes, so nullAwareObj resolves
+	// a field by the name the *declaration* used - Go names for a domain rule, schema names
+	// for a validation rule.
+	fieldName func(reflect.StructField) string
 }
 
 func (a decimalAdapter) NativeToValue(value any) ref.Val {
+	// An Avro union's null branch reaches CEL as a nil pointer: hamba models a nullable
+	// field as *T, so the struct field exists but holds no value. CEL's representation of
+	// that is null, and binding it as anything else makes `value == null` - the guard the
+	// reference recommends for exactly this case - answer false.
+	//
+	// This has to precede the decimal arm: a nil *big.Rat satisfies it and was read as a
+	// *zero* decimal, so `decimals.gt(message.amount, decimal("10.00"))` came back a quiet
+	// false where the reference raises. Deliberately limited to pointers and interfaces -
+	// a nil map or slice is an *empty* collection, not an absent one, and the reference
+	// binds those as empty rather than null.
+	if isNilPointer(value) {
+		return types.NullValue
+	}
 	if dv, ok := decimalBoundaryValue(value); ok {
 		return dv
 	}
-	return a.inner.NativeToValue(value)
+	inner := a.inner.NativeToValue(value)
+	// A Go struct that cel-go modelled as an object gets the null-aware view. A big.Rat is
+	// caught above, and a time.Time converts to a CEL timestamp, which is not an Indexer -
+	// so the trait check is what keeps this to records rather than every struct.
+	rv := reflect.ValueOf(value)
+	for rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+	if rv.Kind() == reflect.Struct {
+		if _, ok := inner.(traits.Indexer); ok {
+			return nullAwareObj{Val: inner, value: rv, fieldName: a.fieldName, adapter: a}
+		}
+	}
+	return inner
+}
+
+// nullAwareObj presents a Go struct to CEL with its nil pointer fields bound as CEL null.
+//
+// cel-go substitutes a freshly allocated *zero* for a nil pointer field before any adapter is
+// consulted (common/types/native.go, getFieldValue), so a nullable Avro field modelled as `*T`
+// reaches a rule as a pointer to a zero T. `message.amount == null` then answers false while
+// `has(message.amount)` answers false too - the two disagree - and
+// `decimals.gt(message.amount, decimal("10.00"))` compares against zero instead of failing.
+// Routing field selection through here makes an absent value what CEL says it is.
+//
+// Everything but Get is delegated, Type() included: the checker's declarations come from
+// ext.NativeTypes and the runtime type has to be the same one, or comparisons and `type()`
+// disagree with the plan the checker produced.
+type nullAwareObj struct {
+	ref.Val                                    // the wrapped nativeObj: Type, Equal, ConvertTo*
+	value     reflect.Value                    // the struct itself, for field lookup
+	fieldName func(reflect.StructField) string // the same mapping the declaration used
+	adapter   types.Adapter                    // converts a field value, recursively
+}
+
+// Get resolves a field the way the declaration named it, and reports a nil pointer as null.
+func (o nullAwareObj) Get(index ref.Val) ref.Val {
+	name, ok := index.(types.String)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(index)
+	}
+	field, found := o.lookup(string(name))
+	if !found {
+		// Delegate rather than invent an error, so the message stays cel-go's own
+		// ("no such field: x") and unknown-field behaviour is unchanged.
+		return o.delegateGet(index)
+	}
+	if field.Kind() == reflect.Pointer && field.IsNil() {
+		return types.NullValue
+	}
+	if !field.CanInterface() {
+		return o.delegateGet(index)
+	}
+	return o.adapter.NativeToValue(field.Interface())
+}
+
+func (o nullAwareObj) delegateGet(index ref.Val) ref.Val {
+	if idx, ok := o.Val.(traits.Indexer); ok {
+		return idx.Get(index)
+	}
+	return types.MaybeNoSuchOverloadErr(index)
+}
+
+// IsSet has to be declared explicitly. `ref.Val` does not carry it, so embedding does not
+// promote it, and without it this type stops satisfying traits.FieldTester - which would make
+// every `has()` over an Avro record fail.
+func (o nullAwareObj) IsSet(field ref.Val) ref.Val {
+	if ft, ok := o.Val.(traits.FieldTester); ok {
+		return ft.IsSet(field)
+	}
+	return types.MaybeNoSuchOverloadErr(field)
+}
+
+// lookup mirrors cel-go's own field naming: the handler when one was installed, the Go field
+// name otherwise (common/types/native.go, fieldName). It is duplicated rather than reused
+// because cel-go exposes no name-to-field resolution, and it is fed the *same* function object
+// buildProgram passed to ext.NativeTypes so the two cannot drift.
+func (o nullAwareObj) lookup(name string) (reflect.Value, bool) {
+	t := o.value.Type()
+	for i := 0; i < t.NumField(); i++ {
+		sf := t.Field(i)
+		n := sf.Name
+		if o.fieldName != nil {
+			n = o.fieldName(sf)
+		}
+		if n == name {
+			return o.value.Field(i), true
+		}
+	}
+	return reflect.Value{}, false
+}
+
+
+// isNilPointer reports whether value is a nil pointer or nil interface, the two shapes an
+// absent Avro union branch takes in a Go struct.
+func isNilPointer(value any) bool {
+	if value == nil {
+		return true
+	}
+	switch v := reflect.ValueOf(value); v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 type lib struct {
