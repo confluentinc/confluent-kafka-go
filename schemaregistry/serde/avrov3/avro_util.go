@@ -28,7 +28,13 @@ import (
 
 func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value,
 	fieldTransform serde.FieldTransform) (*reflect.Value, error) {
-	if msg == nil || (msg.Kind() == reflect.Pointer && msg.IsNil()) || schema == nil {
+	// Only an absent schema or an absent reflect.Value stops the walk. A **nil pointer** is the
+	// null branch of a ["null", T] union and has to reach the rule: the reference binds it as CEL
+	// null so a rule can guard with `value == null`, and returning early here skipped the rule
+	// entirely - indistinguishable, to the caller, from a rule that ran and passed. resolveUnion
+	// already picks the "null" branch for an invalid value, and the record case below guards the
+	// one shape that has nothing to walk.
+	if msg == nil || schema == nil {
 		return msg, nil
 	}
 	fieldCtx := ctx.CurrentField()
@@ -70,7 +76,14 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			if err != nil {
 				return nil, err
 			}
-			item.Set(*newVal)
+			// A condition's per-element verdicts are evaluated and then dropped. The
+			// reference collects them into an untyped list, which the field-level check
+			// never reads as `false`, so a CEL_FIELD condition does not apply to a
+			// container field. Writing one back here panics instead: the slice's element
+			// type cannot hold a bool.
+			if ctx.Rule.Kind != "CONDITION" {
+				item.Set(*newVal)
+			}
 		}
 		return msg, nil
 	case *avro.MapSchema:
@@ -87,12 +100,19 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			if err != nil {
 				return nil, err
 			}
-			val.SetMapIndex(k, *newVal)
+			// A verdict is not a replacement for the value: dropped, as on an array.
+			if ctx.Rule.Kind != "CONDITION" {
+				val.SetMapIndex(k, *newVal)
+			}
 		}
 		return msg, nil
 	case *avro.RecordSchema:
 		val := deref(msg)
 		recordSchema := schema.(*avro.RecordSchema)
+		if !val.IsValid() {
+			// A null record has no fields to walk - the one place the reference guards a null.
+			return msg, nil
+		}
 		if val.Kind() == reflect.Struct {
 			fieldByNames := fieldByNames(val)
 			for _, avroField := range recordSchema.Fields() {
@@ -127,7 +147,14 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			ruleTags := ctx.Rule.Tags
 			if len(ruleTags) == 0 || !disjoint(ruleTags, fieldCtx.Tags) {
 				val := deref(msg)
-				newVal, err := fieldTransform.Transform(ctx, *fieldCtx, val.Interface())
+				// A null union branch derefs to the zero reflect.Value, and Interface() panics
+				// on that. The rule is meant to see the absence, so hand it an untyped nil -
+				// which the CEL adapter binds as null.
+				var fieldValue interface{}
+				if val.IsValid() && val.CanInterface() {
+					fieldValue = val.Interface()
+				}
+				newVal, err := fieldTransform.Transform(ctx, *fieldCtx, fieldValue)
 				if err != nil {
 					return nil, err
 				}
@@ -169,7 +196,11 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 				Rule: ctx.Rule,
 			}
 		}
-	} else {
+	} else if newVal.IsValid() {
+		// A transform that produced nothing writes nothing. A null union branch derefs to the
+		// zero reflect.Value and comes back as one whenever the walk did not replace it - a
+		// rule whose tags do not match this field, for instance - and reflect.Set panics on a
+		// zero Value rather than erroring.
 		if val.Kind() == reflect.Struct {
 			err = setField(structField, newVal)
 			if err != nil {
