@@ -32,6 +32,7 @@ import (
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
+	"google.golang.org/protobuf/proto"
 )
 
 // decimalTypeName is the cross-language CEL type label for a decimal. Every client
@@ -167,8 +168,43 @@ func asDecimal(v ref.Val) (*apd.Decimal, ref.Val) {
 			return nil, types.NewErr("decimal: %v", err)
 		}
 		return d, nil
+	case proto.Message:
+		// Not every confluent.type.Decimal arrives as the generated type. cel-go materialises
+		// the *default instance* of an UNSET message field as a *dynamicpb.Message, so an
+		// unset decimal field reached here in a shape the case above cannot see and failed
+		// with "expected a decimal, got confluent.type.Decimal" - where the reference reads
+		// the default instance and answers `false`. Matched on the descriptor, so the
+		// generated type and a dynamic one behave alike.
+		if d, ok := decimalFromMessage(x); ok {
+			return d, nil
+		}
 	}
 	return nil, types.NewErr("expected a decimal, got %s", v.Type().TypeName())
+}
+
+// decimalFromMessage reads a confluent.type.Decimal out of any proto.Message carrying that
+// descriptor - the generated type or a dynamicpb one - by field name rather than by Go type.
+// An unset field yields the descriptor's defaults, empty bytes and scale 0, which is the zero
+// decimal the reference compares against.
+func decimalFromMessage(m proto.Message) (*apd.Decimal, bool) {
+	refl := m.ProtoReflect()
+	desc := refl.Descriptor()
+	if string(desc.FullName()) != decimalTypeName {
+		return nil, false
+	}
+	valueFd := desc.Fields().ByName("value")
+	scaleFd := desc.Fields().ByName("scale")
+	if valueFd == nil || scaleFd == nil {
+		return nil, false
+	}
+	d, err := decimalFromProto(&prototypes.Decimal{
+		Value: refl.Get(valueFd).Bytes(),
+		Scale: int32(refl.Get(scaleFd).Int()),
+	})
+	if err != nil {
+		return nil, false
+	}
+	return d, true
 }
 
 // toDecimal is the runtime dispatch backing decimal(dyn). It accepts whatever shape an
@@ -195,6 +231,16 @@ func toDecimal(v ref.Val) ref.Val {
 			return types.NewErr("decimal: %v", err)
 		}
 		return newDecimal(d)
+	case proto.Message:
+		// The same shape asDecimal has to accept: cel-go materialises an UNSET message
+		// field's default instance as a *dynamicpb.Message, so `decimal(message.amount)`
+		// over an unset field would otherwise fail where `decimals.gt(message.amount, ...)`
+		// now succeeds. The two entry points have to agree.
+		if d, ok := decimalFromMessage(x); ok {
+			return newDecimal(d)
+		}
+		return types.NewErr("decimal: cannot convert %s to Decimal",
+			x.ProtoReflect().Descriptor().FullName())
 	case int64:
 		return newDecimal(apd.New(x, 0))
 	case uint64:

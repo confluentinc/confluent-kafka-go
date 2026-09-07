@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
 )
@@ -93,6 +94,14 @@ func avroValue(value interface{}) (interface{}, error) {
 	case time.Time:
 		// hamba encodes the timestamp logical types straight from time.Time.
 		return v, nil
+	case structpb.NullValue:
+		// CEL null. hamba writes an Avro union's null branch from a plain nil; cel-go's own
+		// representation is structpb.NullValue, a protobuf enum, which means nothing to it -
+		// so a rule returning null for a field, or echoing one that was already null, failed
+		// with "avro: unable to resolve type structpb.NullValue". That hit the two forms a
+		// rule author is most likely to write: an identity pass-through over a nullable field,
+		// and the `has(x) ? x : null` guard that is the only way to preserve absence.
+		return nil, nil
 	default:
 		return value, nil
 	}

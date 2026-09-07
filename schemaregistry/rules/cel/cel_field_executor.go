@@ -74,9 +74,9 @@ type FieldExecutorTransform struct {
 
 // Transform transforms the field value using the rule
 func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext, fieldValue interface{}) (interface{}, error) {
-	if fieldValue == nil {
-		return nil, nil
-	}
+	// No null guard here, matching the reference: whether an absent value reaches a rule is each
+	// format's walk to decide, not the executor's. The protobuf walk skips an unset field before
+	// calling this; the Avro walk passes the null branch through so a rule can guard on it.
 	if !fieldCtx.IsPrimitive() {
 		return fieldValue, nil
 	}
