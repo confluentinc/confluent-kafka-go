@@ -584,3 +584,41 @@ func TestStringTimestampPadsFraction(t *testing.T) {
 		}
 	}
 }
+
+// An UNSET confluent.type.Decimal field is bound as its default instance, per the CEL
+// specification and matching the reference - proto3 has no null, and `has()` is the presence
+// test. But cel-go materialises that default instance as a *dynamicpb.Message rather than the
+// generated type, so `asDecimal`'s concrete-type case could not see it and every rule reading
+// an unset decimal field failed with "expected a decimal, got confluent.type.Decimal" instead
+// of comparing against zero. Matching on the descriptor covers both shapes.
+func TestUnsetProtoDecimalFieldReadsAsZero(t *testing.T) {
+	// `a` unset, `b` set to 1.50.
+	msg := &test.NestedDecimals{
+		B: &prototypes.Decimal{Value: []byte{0x00, 0x96}, Scale: 2},
+	}
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		// The cell that failed: a comparison against an unset field is a verdict, not an error.
+		{`decimals.gt(this.a, decimal("10.00"))`, false},
+		{`decimals.lt(this.a, decimal("10.00"))`, true},
+		{`decimals.eq(this.a, decimal("0"))`, true},
+		// Reached without an explicit decimal(...) call, as a set field is.
+		{`decimals.eq(decimal(this.a), decimal("0"))`, true},
+		// proto3 has no null, so `== null` is false and has() is the presence test - both
+		// unchanged by reading the default instance.
+		{`this.a == null`, false},
+		{`has(this.a)`, false},
+		{`has(this.b)`, true},
+		// The must-fail twin: a SET field still compares on its own value, so "everything
+		// reads as zero" would show up here.
+		{`decimals.gt(this.b, decimal("1.00"))`, true},
+		{`decimals.eq(this.b, decimal("0"))`, false},
+	}
+	for _, c := range cases {
+		if got := evalBool(t, c.expr, msg); got != c.expected {
+			t.Errorf("expr %q: expected %v, got %v", c.expr, c.expected, got)
+		}
+	}
+}

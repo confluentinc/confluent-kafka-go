@@ -327,7 +327,8 @@ func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.En
 		return nil, err
 	}
 	// After the type registrations above, so the wrapped adapter is the one that knows them.
-	env, err = env.Extend(cel.CustomTypeAdapter(decimalAdapter{inner: env.CELTypeAdapter()}))
+	env, err = env.Extend(cel.CustomTypeAdapter(
+		decimalAdapter{inner: env.CELTypeAdapter(), fieldName: fieldName}))
 	if err != nil {
 		return nil, err
 	}
