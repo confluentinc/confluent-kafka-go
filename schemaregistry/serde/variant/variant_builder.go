@@ -32,10 +32,10 @@ import (
 // integer becomes the smallest int1/2/4/8 that fits, or a scale-0 decimal when
 // wider than 64 bits. Object key order in the encoded value follows the JSON
 // document order for the metadata dictionary; the object header itself is
-// key-sorted (matching VariantBuilder.cs).
+// key-sorted (matching Builder.cs).
 func ParseJSON(jsonStr string) (Variant, error) {
 	rewritten, nonFinite := rewriteNonFinite(jsonStr)
-	b := &builder{dictionary: map[string]int{}, nonFinite: nonFinite}
+	b := &encoder{dictionary: map[string]int{}, nonFinite: nonFinite}
 	dec := json.NewDecoder(strings.NewReader(rewritten))
 	dec.UseNumber()
 	if err := b.process(dec); err != nil {
@@ -150,7 +150,7 @@ type fieldEntry struct {
 	offset int
 }
 
-type builder struct {
+type encoder struct {
 	value          []byte
 	dictionary     map[string]int
 	dictionaryKeys [][]byte
@@ -160,7 +160,7 @@ type builder struct {
 }
 
 // process reads one JSON value from the decoder and appends its encoding.
-func (b *builder) process(dec *json.Decoder) error {
+func (b *encoder) process(dec *json.Decoder) error {
 	tok, err := dec.Token()
 	if err != nil {
 		return err
@@ -168,7 +168,7 @@ func (b *builder) process(dec *json.Decoder) error {
 	return b.processToken(dec, tok)
 }
 
-func (b *builder) processToken(dec *json.Decoder, tok json.Token) error {
+func (b *encoder) processToken(dec *json.Decoder, tok json.Token) error {
 	switch t := tok.(type) {
 	case json.Delim:
 		switch t {
@@ -201,7 +201,7 @@ func (b *builder) processToken(dec *json.Decoder, tok json.Token) error {
 	}
 }
 
-func (b *builder) processObject(dec *json.Decoder) error {
+func (b *encoder) processObject(dec *json.Decoder) error {
 	start := len(b.value)
 	var fields []fieldEntry
 	for dec.More() {
@@ -227,7 +227,7 @@ func (b *builder) processObject(dec *json.Decoder) error {
 	return nil
 }
 
-func (b *builder) processArray(dec *json.Decoder) error {
+func (b *encoder) processArray(dec *json.Decoder) error {
 	start := len(b.value)
 	var offsets []int
 	for dec.More() {
@@ -244,7 +244,7 @@ func (b *builder) processArray(dec *json.Decoder) error {
 	return nil
 }
 
-func (b *builder) addKey(key string) int {
+func (b *encoder) addKey(key string) int {
 	if existing, ok := b.dictionary[key]; ok {
 		return existing
 	}
@@ -258,57 +258,57 @@ func primitiveHeader(typeCode int) byte {
 	return byte((typeCode << basicTypeBits) | basicPrimitive)
 }
 
-// --- fixed-width scalar appends (used by the exported VariantBuilder) ---
+// --- fixed-width scalar appends (used by the exported Builder) ---
 //
 // These write a specific primitive width (symmetric with the reader's granular
 // getters), unlike appendInt, which auto-selects the smallest int width for
 // ParseJSON. The byte layout is identical to what ParseJSON produces for a value
 // of the same width.
 
-func (b *builder) appendInt8(v int8) {
+func (b *encoder) appendInt8(v int8) {
 	b.value = append(b.value, primitiveHeader(tInt1))
 	appendLongLE(&b.value, int64(v), 1)
 }
 
-func (b *builder) appendInt16(v int16) {
+func (b *encoder) appendInt16(v int16) {
 	b.value = append(b.value, primitiveHeader(tInt2))
 	appendLongLE(&b.value, int64(v), 2)
 }
 
-func (b *builder) appendInt32(v int32) {
+func (b *encoder) appendInt32(v int32) {
 	b.value = append(b.value, primitiveHeader(tInt4))
 	appendLongLE(&b.value, int64(v), 4)
 }
 
-func (b *builder) appendInt64(v int64) {
+func (b *encoder) appendInt64(v int64) {
 	b.value = append(b.value, primitiveHeader(tInt8))
 	appendLongLE(&b.value, v, 8)
 }
 
-func (b *builder) appendFloat(v float32) {
+func (b *encoder) appendFloat(v float32) {
 	b.value = append(b.value, primitiveHeader(tFloat))
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], math.Float32bits(v))
 	b.value = append(b.value, buf[:]...)
 }
 
-func (b *builder) appendBinary(data []byte) {
+func (b *encoder) appendBinary(data []byte) {
 	b.value = append(b.value, primitiveHeader(tBinary))
 	appendUintLE(&b.value, len(data), u32Size)
 	b.value = append(b.value, data...)
 }
 
-func (b *builder) appendUUID(u [16]byte) {
+func (b *encoder) appendUUID(u [16]byte) {
 	b.value = append(b.value, primitiveHeader(tUUID))
 	b.value = append(b.value, u[:]...)
 }
 
-func (b *builder) appendTemporal(code int, width int, v int64) {
+func (b *encoder) appendTemporal(code int, width int, v int64) {
 	b.value = append(b.value, primitiveHeader(code))
 	appendLongLE(&b.value, v, width)
 }
 
-func (b *builder) appendBoolean(v bool) {
+func (b *encoder) appendBoolean(v bool) {
 	if v {
 		b.value = append(b.value, primitiveHeader(tTrue))
 	} else {
@@ -316,11 +316,11 @@ func (b *builder) appendBoolean(v bool) {
 	}
 }
 
-func (b *builder) appendNull() {
+func (b *encoder) appendNull() {
 	b.value = append(b.value, primitiveHeader(tNull))
 }
 
-func (b *builder) appendString(s string) {
+func (b *encoder) appendString(s string) {
 	text := []byte(s)
 	if len(text) > maxShortStrSize {
 		b.value = append(b.value, primitiveHeader(tLongStr))
@@ -334,7 +334,7 @@ func (b *builder) appendString(s string) {
 // appendNumber classifies a raw JSON number token: an integer literal (no '.',
 // 'e', or 'E') becomes the smallest int1/2/4/8 that fits, or a scale-0 decimal
 // when wider than 64 bits; a fractional literal becomes a DOUBLE.
-func (b *builder) appendNumber(s string) error {
+func (b *encoder) appendNumber(s string) error {
 	if !strings.ContainsAny(s, ".eE") {
 		if i, err := strconv.ParseInt(s, 10, 64); err == nil {
 			b.appendInt(i)
@@ -361,7 +361,7 @@ func (b *builder) appendNumber(s string) error {
 	return nil
 }
 
-func (b *builder) appendInt(i int64) {
+func (b *encoder) appendInt(i int64) {
 	switch {
 	case i >= math.MinInt8 && i <= math.MaxInt8:
 		b.value = append(b.value, primitiveHeader(tInt1))
@@ -378,7 +378,7 @@ func (b *builder) appendInt(i int64) {
 	}
 }
 
-func (b *builder) appendDecimal(unscaled *big.Int, scale int) error {
+func (b *encoder) appendDecimal(unscaled *big.Int, scale int) error {
 	// The encoding stores the scale in a single unsigned byte, so a negative scale would
 	// wrap (-1 becomes 255) and change the value on decode.
 	if scale < 0 {
@@ -401,14 +401,14 @@ func (b *builder) appendDecimal(unscaled *big.Int, scale int) error {
 	return nil
 }
 
-func (b *builder) appendDouble(d float64) {
+func (b *encoder) appendDouble(d float64) {
 	b.value = append(b.value, primitiveHeader(tDouble))
 	var buf [8]byte
 	binary.LittleEndian.PutUint64(buf[:], math.Float64bits(d))
 	b.value = append(b.value, buf[:]...)
 }
 
-func (b *builder) finishWritingArray(start int, offsets []int) {
+func (b *encoder) finishWritingArray(start int, offsets []int) {
 	dataSize := len(b.value) - start
 	numOffsets := len(offsets)
 	largeSize := numOffsets > 0xFF
@@ -432,11 +432,11 @@ func (b *builder) finishWritingArray(start int, offsets []int) {
 	b.insertAt(start, header)
 }
 
-func (b *builder) finishWritingObject(start int, fields []fieldEntry) {
+func (b *encoder) finishWritingObject(start int, fields []fieldEntry) {
 	sort.Slice(fields, func(i, j int) bool { return fields[i].key < fields[j].key })
 
 	// Deduplicate keys, keeping the last-written value (last-wins), mirroring the reference
-	// builder. Duplicate keys reach here from a JSON object literal (the streaming decoder
+	// encoder. Duplicate keys reach here from a JSON object literal (the streaming decoder
 	// does not collapse them) or from repeated AppendKey calls.
 	fields = b.dedupObjectFields(start, fields)
 
@@ -480,7 +480,7 @@ func (b *builder) finishWritingObject(start int, fields []fieldEntry) {
 // their offsets are recomputed, and the data region is truncated. `fields` must already be
 // sorted by key. Values are laid out contiguously in insertion order, so a field's value
 // spans from its offset to the next-inserted field's offset.
-func (b *builder) dedupObjectFields(start int, fields []fieldEntry) []fieldEntry {
+func (b *encoder) dedupObjectFields(start int, fields []fieldEntry) []fieldEntry {
 	numFields := len(fields)
 	if numFields <= 1 {
 		return fields
@@ -540,13 +540,13 @@ func (b *builder) dedupObjectFields(start int, fields []fieldEntry) []fieldEntry
 }
 
 // insertAt inserts header bytes into b.value at the given index.
-func (b *builder) insertAt(start int, header []byte) {
+func (b *encoder) insertAt(start int, header []byte) {
 	b.value = append(b.value, make([]byte, len(header))...)
 	copy(b.value[start+len(header):], b.value[start:])
 	copy(b.value[start:], header)
 }
 
-func (b *builder) finish() (value, metadata []byte) {
+func (b *encoder) finish() (value, metadata []byte) {
 	numKeys := len(b.dictionaryKeys)
 	dictStringSize := 0
 	for _, k := range b.dictionaryKeys {
@@ -573,7 +573,7 @@ func (b *builder) finish() (value, metadata []byte) {
 	return b.value, md
 }
 
-// --- low-level builder helpers ---
+// --- low-level encoder helpers ---
 
 func integerSize(v int) int {
 	if v <= 0xFF {
@@ -627,11 +627,11 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// --- public flat streaming VariantBuilder ---
+// --- public flat streaming Builder ---
 
-// VariantBuilder programmatically constructs a Variant using a flat
+// Builder programmatically constructs a Variant using a flat
 // streaming-writer model with an internal nesting stack (the arrow-dotnet
-// VariantValueWriter shape). A single builder emits scalars and opens/closes
+// VariantValueWriter shape). A single encoder emits scalars and opens/closes
 // containers; appends target the current slot (the root, the next array element,
 // or the current object field once its key has been set via AppendKey). Object
 // fields are sorted by key at EndObject (canonical form) and the metadata
@@ -639,10 +639,10 @@ func maxInt(a, b int) int {
 //
 // The output is byte-identical to ParseJSON of the equivalent JSON document.
 //
-// A VariantBuilder is single-use: after Build (or on the first error) it should
+// A Builder is single-use: after Build (or on the first error) it should
 // be discarded. It is not safe for concurrent use.
 //
-//	b := NewVariantBuilder()
+//	b := NewBuilder()
 //	b.StartObject()
 //	b.AppendKey("id"); b.AppendLong(42)
 //	b.AppendKey("tags"); b.StartArray()
@@ -650,8 +650,8 @@ func maxInt(a, b int) int {
 //	b.EndArray()
 //	b.EndObject()
 //	v, err := b.Build()
-type VariantBuilder struct {
-	b           *builder
+type Builder struct {
+	b           *encoder
 	stack       []builderFrame
 	rootWritten bool
 }
@@ -675,19 +675,19 @@ type builderFrame struct {
 	offsets []int
 }
 
-// NewVariantBuilder returns a new, empty VariantBuilder.
-func NewVariantBuilder() *VariantBuilder {
-	return &VariantBuilder{b: &builder{dictionary: map[string]int{}}}
+// NewBuilder returns a new, empty Builder.
+func NewBuilder() *Builder {
+	return &Builder{b: &encoder{dictionary: map[string]int{}}}
 }
 
 // prepareSlot records the current write position in the enclosing container (if
 // any) so the value about to be written is addressable, and enforces the slot
 // rules (a lone root value; a preceding AppendKey inside an object). It must be
 // called immediately before any value bytes are written.
-func (vb *VariantBuilder) prepareSlot() error {
+func (vb *Builder) prepareSlot() error {
 	if len(vb.stack) == 0 {
 		if vb.rootWritten {
-			return fmt.Errorf("variant: builder already has a root value")
+			return fmt.Errorf("variant: encoder already has a root value")
 		}
 		vb.rootWritten = true
 		return nil
@@ -711,7 +711,7 @@ func (vb *VariantBuilder) prepareSlot() error {
 }
 
 // AppendNull appends a null value to the current slot.
-func (vb *VariantBuilder) AppendNull() error {
+func (vb *Builder) AppendNull() error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -720,7 +720,7 @@ func (vb *VariantBuilder) AppendNull() error {
 }
 
 // AppendBoolean appends a boolean value.
-func (vb *VariantBuilder) AppendBoolean(v bool) error {
+func (vb *Builder) AppendBoolean(v bool) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -729,7 +729,7 @@ func (vb *VariantBuilder) AppendBoolean(v bool) error {
 }
 
 // AppendByte appends an INT8 value.
-func (vb *VariantBuilder) AppendByte(v int8) error {
+func (vb *Builder) AppendByte(v int8) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -738,7 +738,7 @@ func (vb *VariantBuilder) AppendByte(v int8) error {
 }
 
 // AppendShort appends an INT16 value.
-func (vb *VariantBuilder) AppendShort(v int16) error {
+func (vb *Builder) AppendShort(v int16) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -747,7 +747,7 @@ func (vb *VariantBuilder) AppendShort(v int16) error {
 }
 
 // AppendInt appends an INT32 value.
-func (vb *VariantBuilder) AppendInt(v int32) error {
+func (vb *Builder) AppendInt(v int32) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -756,7 +756,7 @@ func (vb *VariantBuilder) AppendInt(v int32) error {
 }
 
 // AppendLong appends an INT64 value.
-func (vb *VariantBuilder) AppendLong(v int64) error {
+func (vb *Builder) AppendLong(v int64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -765,7 +765,7 @@ func (vb *VariantBuilder) AppendLong(v int64) error {
 }
 
 // AppendFloat appends a FLOAT (32-bit) value.
-func (vb *VariantBuilder) AppendFloat(v float32) error {
+func (vb *Builder) AppendFloat(v float32) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -774,7 +774,7 @@ func (vb *VariantBuilder) AppendFloat(v float32) error {
 }
 
 // AppendDouble appends a DOUBLE (64-bit) value.
-func (vb *VariantBuilder) AppendDouble(v float64) error {
+func (vb *Builder) AppendDouble(v float64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -785,7 +785,7 @@ func (vb *VariantBuilder) AppendDouble(v float64) error {
 // AppendDecimal appends a decimal value from its unscaled integer (big-endian
 // two's-complement bytes) and scale. The width (Decimal4/8/16) is selected from
 // the digit count and scale, matching ParseJSON.
-func (vb *VariantBuilder) AppendDecimal(unscaledBigEndian []byte, scale int32) error {
+func (vb *Builder) AppendDecimal(unscaledBigEndian []byte, scale int32) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -795,7 +795,7 @@ func (vb *VariantBuilder) AppendDecimal(unscaledBigEndian []byte, scale int32) e
 
 // AppendString appends a string, auto-selecting the short-string (<=63 bytes) or
 // long-string encoding.
-func (vb *VariantBuilder) AppendString(s string) error {
+func (vb *Builder) AppendString(s string) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -804,7 +804,7 @@ func (vb *VariantBuilder) AppendString(s string) error {
 }
 
 // AppendBinary appends a binary (byte-string) value.
-func (vb *VariantBuilder) AppendBinary(data []byte) error {
+func (vb *Builder) AppendBinary(data []byte) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -812,8 +812,8 @@ func (vb *VariantBuilder) AppendBinary(data []byte) error {
 	return nil
 }
 
-// AppendUuid appends a UUID value (16 raw big-endian bytes).
-func (vb *VariantBuilder) AppendUuid(u [16]byte) error {
+// AppendUUID appends a UUID value (16 raw big-endian bytes).
+func (vb *Builder) AppendUUID(u [16]byte) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -822,7 +822,7 @@ func (vb *VariantBuilder) AppendUuid(u [16]byte) error {
 }
 
 // AppendDate appends a DATE value (days since the Unix epoch).
-func (vb *VariantBuilder) AppendDate(daysSinceEpoch int32) error {
+func (vb *Builder) AppendDate(daysSinceEpoch int32) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -831,7 +831,7 @@ func (vb *VariantBuilder) AppendDate(daysSinceEpoch int32) error {
 }
 
 // AppendTime appends a TIME_NTZ value (microseconds since midnight).
-func (vb *VariantBuilder) AppendTime(microsSinceMidnight int64) error {
+func (vb *Builder) AppendTime(microsSinceMidnight int64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -840,7 +840,7 @@ func (vb *VariantBuilder) AppendTime(microsSinceMidnight int64) error {
 }
 
 // AppendTimestampTz appends a TIMESTAMP (with time zone) value in microseconds.
-func (vb *VariantBuilder) AppendTimestampTz(micros int64) error {
+func (vb *Builder) AppendTimestampTz(micros int64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -849,7 +849,7 @@ func (vb *VariantBuilder) AppendTimestampTz(micros int64) error {
 }
 
 // AppendTimestampNtz appends a TIMESTAMP_NTZ value in microseconds.
-func (vb *VariantBuilder) AppendTimestampNtz(micros int64) error {
+func (vb *Builder) AppendTimestampNtz(micros int64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -859,7 +859,7 @@ func (vb *VariantBuilder) AppendTimestampNtz(micros int64) error {
 
 // AppendTimestampNanosTz appends a TIMESTAMP_NANOS (with time zone) value in
 // nanoseconds.
-func (vb *VariantBuilder) AppendTimestampNanosTz(nanos int64) error {
+func (vb *Builder) AppendTimestampNanosTz(nanos int64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -868,7 +868,7 @@ func (vb *VariantBuilder) AppendTimestampNanosTz(nanos int64) error {
 }
 
 // AppendTimestampNanosNtz appends a TIMESTAMP_NANOS_NTZ value in nanoseconds.
-func (vb *VariantBuilder) AppendTimestampNanosNtz(nanos int64) error {
+func (vb *Builder) AppendTimestampNanosNtz(nanos int64) error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -878,7 +878,7 @@ func (vb *VariantBuilder) AppendTimestampNanosNtz(nanos int64) error {
 
 // StartObject opens a new object. Subsequent AppendKey/value pairs populate it
 // until the matching EndObject.
-func (vb *VariantBuilder) StartObject() error {
+func (vb *Builder) StartObject() error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -888,7 +888,7 @@ func (vb *VariantBuilder) StartObject() error {
 
 // AppendKey sets the key for the next appended value. It is valid only directly
 // inside an object and only once per value.
-func (vb *VariantBuilder) AppendKey(key string) error {
+func (vb *Builder) AppendKey(key string) error {
 	if len(vb.stack) == 0 || vb.stack[len(vb.stack)-1].kind != frameObject {
 		return fmt.Errorf("variant: AppendKey called outside an object")
 	}
@@ -903,7 +903,7 @@ func (vb *VariantBuilder) AppendKey(key string) error {
 }
 
 // EndObject closes the current object, sorting its fields by key.
-func (vb *VariantBuilder) EndObject() error {
+func (vb *Builder) EndObject() error {
 	if len(vb.stack) == 0 || vb.stack[len(vb.stack)-1].kind != frameObject {
 		return fmt.Errorf("variant: EndObject called without a matching StartObject")
 	}
@@ -918,7 +918,7 @@ func (vb *VariantBuilder) EndObject() error {
 
 // StartArray opens a new array. Subsequent value appends become its elements
 // until the matching EndArray.
-func (vb *VariantBuilder) StartArray() error {
+func (vb *Builder) StartArray() error {
 	if err := vb.prepareSlot(); err != nil {
 		return err
 	}
@@ -927,7 +927,7 @@ func (vb *VariantBuilder) StartArray() error {
 }
 
 // EndArray closes the current array.
-func (vb *VariantBuilder) EndArray() error {
+func (vb *Builder) EndArray() error {
 	if len(vb.stack) == 0 || vb.stack[len(vb.stack)-1].kind != frameArray {
 		return fmt.Errorf("variant: EndArray called without a matching StartArray")
 	}
@@ -937,9 +937,9 @@ func (vb *VariantBuilder) EndArray() error {
 	return nil
 }
 
-// Build finalizes the builder and returns the constructed Variant. It errors if
+// Build finalizes the encoder and returns the constructed Variant. It errors if
 // a container is still open or no value has been appended.
-func (vb *VariantBuilder) Build() (Variant, error) {
+func (vb *Builder) Build() (Variant, error) {
 	if len(vb.stack) != 0 {
 		return Variant{}, fmt.Errorf("variant: Build called with an open container")
 	}

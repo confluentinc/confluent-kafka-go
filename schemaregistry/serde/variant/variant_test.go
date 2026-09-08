@@ -208,7 +208,7 @@ func TestVariantObjectManyFieldsBinarySearch(t *testing.T) {
 }
 
 func TestVariantDuplicateKeysLastWins(t *testing.T) {
-	// The streaming JSON decoder does not collapse duplicate keys, so the builder must
+	// The streaming JSON decoder does not collapse duplicate keys, so the encoder must
 	// deduplicate them last-wins. The duplicate "a" has a different value size than its first
 	// occurrence, exercising the value-repacking path; "b" and "c" (written before and after
 	// the duplicate) must survive with correct values after compaction.
@@ -236,8 +236,8 @@ func TestVariantDuplicateKeysLastWins(t *testing.T) {
 }
 
 func TestVariantBuilderDuplicateKeysLastWins(t *testing.T) {
-	// The programmatic builder path (repeated AppendKey) must also deduplicate last-wins.
-	vb := NewVariantBuilder()
+	// The programmatic encoder path (repeated AppendKey) must also deduplicate last-wins.
+	vb := NewBuilder()
 	must := func(err error) {
 		if err != nil {
 			t.Fatal(err)
@@ -472,7 +472,7 @@ func TestVariantDecimalOverflowError(t *testing.T) {
 func TestVariantDecimalNegativeScaleError(t *testing.T) {
 	// The encoding stores the scale in one unsigned byte, so a negative scale would wrap
 	// (-1 becomes 255) and decode as a different number.
-	vb := NewVariantBuilder()
+	vb := NewBuilder()
 	if err := vb.AppendDecimal([]byte{100}, -2); err == nil {
 		t.Error("AppendDecimal with a negative scale should error")
 	} else if !strings.Contains(err.Error(), "non-negative") {
@@ -480,7 +480,7 @@ func TestVariantDecimalNegativeScaleError(t *testing.T) {
 	}
 
 	// A positive scale still encodes.
-	vb = NewVariantBuilder()
+	vb = NewBuilder()
 	if err := vb.AppendDecimal([]byte{100}, 2); err != nil {
 		t.Fatalf("AppendDecimal(100, 2): %v", err)
 	}
@@ -565,20 +565,20 @@ func TestVariantFloatAndDoubleExact(t *testing.T) {
 
 func TestVariantUuidGetter(t *testing.T) {
 	v := New(uuidBytes(), emptyMetadata)
-	s, err := v.GetUuid()
+	s, err := v.GetUUID()
 	if err != nil || s != "00112233-4455-6677-8899-aabbccddeeff" {
-		t.Errorf("GetUuid = %q %v", s, err)
+		t.Errorf("GetUUID = %q %v", s, err)
 	}
 }
 
 func TestVariantBuilderNestedMatchesParseJSON(t *testing.T) {
 	// Build a nested document with the flat streaming API. The int widths are
 	// chosen so each value's encoding matches ParseJSON of the equivalent JSON.
-	b := NewVariantBuilder()
+	b := NewBuilder()
 	mustNoErr := func(err error) {
 		t.Helper()
 		if err != nil {
-			t.Fatalf("builder step failed: %v", err)
+			t.Fatalf("encoder step failed: %v", err)
 		}
 	}
 	mustNoErr(b.StartObject())
@@ -604,7 +604,7 @@ func TestVariantBuilderNestedMatchesParseJSON(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	// Key order in the document is chosen so both the builder (append order) and
+	// Key order in the document is chosen so both the encoder (append order) and
 	// ParseJSON (document order) assign the same metadata dictionary IDs.
 	const equivalent = `{"id":10000000000,"count":100000,"tags":["x","y"],"nested":{"flag":true,"pi":3.14}}`
 	parsed := mustParse(t, equivalent)
@@ -621,7 +621,7 @@ func TestVariantBuilderNestedMatchesParseJSON(t *testing.T) {
 }
 
 func TestVariantBuilderRootScalar(t *testing.T) {
-	b := NewVariantBuilder()
+	b := NewBuilder()
 	if err := b.AppendByte(42); err != nil {
 		t.Fatalf("AppendByte: %v", err)
 	}
@@ -640,11 +640,11 @@ func TestVariantBuilderRootScalar(t *testing.T) {
 
 func TestVariantBuilderErrors(t *testing.T) {
 	// AppendKey outside an object.
-	if err := NewVariantBuilder().AppendKey("k"); err == nil {
+	if err := NewBuilder().AppendKey("k"); err == nil {
 		t.Error("AppendKey outside an object should error")
 	}
 	// Value appended to an object without a preceding AppendKey.
-	b := NewVariantBuilder()
+	b := NewBuilder()
 	if err := b.StartObject(); err != nil {
 		t.Fatalf("StartObject: %v", err)
 	}
@@ -652,7 +652,7 @@ func TestVariantBuilderErrors(t *testing.T) {
 		t.Error("value in object without AppendKey should error")
 	}
 	// Build with an open container.
-	b2 := NewVariantBuilder()
+	b2 := NewBuilder()
 	if err := b2.StartArray(); err != nil {
 		t.Fatalf("StartArray: %v", err)
 	}
@@ -660,7 +660,7 @@ func TestVariantBuilderErrors(t *testing.T) {
 		t.Error("Build with an open container should error")
 	}
 	// Build with nothing appended.
-	if _, err := NewVariantBuilder().Build(); err == nil {
+	if _, err := NewBuilder().Build(); err == nil {
 		t.Error("Build with no value should error")
 	}
 }
@@ -687,7 +687,7 @@ func TestLargeDataRegionUses4ByteOffsets(t *testing.T) {
 	const size = 16777216 // 0x1000000, one byte past the 3-byte offset limit
 	big := strings.Repeat("a", size)
 
-	b := NewVariantBuilder()
+	b := NewBuilder()
 	if err := b.StartArray(); err != nil {
 		t.Fatalf("StartArray: %v", err)
 	}
@@ -855,11 +855,11 @@ func TestVariantParseJSONEmptyIsSoftError(t *testing.T) {
 	}
 }
 
-// TestVariantNonFiniteBinaryRoundTrip verifies the builder accepts and stores a
+// TestVariantNonFiniteBinaryRoundTrip verifies the encoder accepts and stores a
 // non-finite double/float (no reject guard on the append path) and that the
 // stored bits survive read-back.
 func TestVariantNonFiniteBinaryRoundTrip(t *testing.T) {
-	b := NewVariantBuilder()
+	b := NewBuilder()
 	if err := b.AppendDouble(math.Inf(1)); err != nil {
 		t.Fatalf("AppendDouble(+Inf): %v", err)
 	}
@@ -875,7 +875,7 @@ func TestVariantNonFiniteBinaryRoundTrip(t *testing.T) {
 		t.Errorf("stored double = %v, want +Inf", d)
 	}
 
-	bf := NewVariantBuilder()
+	bf := NewBuilder()
 	if err := bf.AppendFloat(float32(math.NaN())); err != nil {
 		t.Fatalf("AppendFloat(NaN): %v", err)
 	}
