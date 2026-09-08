@@ -253,7 +253,10 @@ func setMessageValue(out protoreflect.Message, fd protoreflect.FieldDescriptor, 
 		}
 		proto.Merge(out.Interface(), &prototypes.Variant{
 			Metadata: v.MetadataBytes(),
-			Value:    v.ValueBytes(),
+			// Slice from this node's offset, not from 0. Trailing sibling bytes are
+			// kept so the encoding matches the Java reference, which writes
+			// ByteBuffer position..limit.
+			Value: v.StandaloneValueBytes(),
 		})
 		return nil
 	}
