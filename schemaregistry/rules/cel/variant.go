@@ -143,7 +143,7 @@ func variantTypeLabel(t variant.Type) string {
 		return "string"
 	case variant.Binary:
 		return "bytes"
-	case variant.Uuid:
+	case variant.UUID:
 		return "uuid"
 	}
 	return "unknown"
