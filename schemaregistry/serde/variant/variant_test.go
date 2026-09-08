@@ -469,6 +469,30 @@ func TestVariantDecimalOverflowError(t *testing.T) {
 	}
 }
 
+func TestVariantDecimalNegativeScaleError(t *testing.T) {
+	// The encoding stores the scale in one unsigned byte, so a negative scale would wrap
+	// (-1 becomes 255) and decode as a different number.
+	vb := NewVariantBuilder()
+	if err := vb.AppendDecimal([]byte{100}, -2); err == nil {
+		t.Error("AppendDecimal with a negative scale should error")
+	} else if !strings.Contains(err.Error(), "non-negative") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// A positive scale still encodes.
+	vb = NewVariantBuilder()
+	if err := vb.AppendDecimal([]byte{100}, 2); err != nil {
+		t.Fatalf("AppendDecimal(100, 2): %v", err)
+	}
+	v, err := vb.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got, _ := v.ToJSON(); got != "1.00" {
+		t.Errorf("ToJSON = %q, want \"1.00\"", got)
+	}
+}
+
 func floatBytes(f float32) []byte {
 	val := []byte{primitiveHeader(tFloat)}
 	var b [4]byte

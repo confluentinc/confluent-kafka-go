@@ -17,7 +17,6 @@
 package cel
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"reflect"
@@ -81,8 +80,34 @@ func (val variantVal) Equal(other ref.Val) ref.Val {
 	if !ok {
 		return types.False
 	}
-	return types.Bool(bytes.Equal(val.v.StandaloneValueBytes(), o.v.StandaloneValueBytes()) &&
-		bytes.Equal(val.v.MetadataBytes(), o.v.MetadataBytes()))
+	// Identity semantics, matching Java, C#, Python, JavaScript and C++, none of which give
+	// a variant a value-equality operator.
+	//
+	// A variant is a dynamically typed container, so comparing encodings is not value
+	// equality: it reports 12.34 != 12.340 (different scale) and int8(1) != int16(1)
+	// (different width), and can separate identical documents whose metadata dictionaries
+	// differ. Real value equality needs a decode plus a specification for cross-width
+	// integers, decimal scale, int/double comparison and object key order - which == does
+	// not do.
+	//
+	// A variantVal is a value type, so there is no object identity to compare as there is in
+	// Java; the same buffer at the same offset is the equivalent, and it carries the property
+	// that matters - a true is never wrong, while equal values reached separately compare
+	// false. Compare values with variants.as or variants.toJson instead.
+	return types.Bool(sameBytes(val.v.MetadataBytes(), o.v.MetadataBytes()) &&
+		sameBytes(val.v.StandaloneValueBytes(), o.v.StandaloneValueBytes()))
+}
+
+// sameBytes reports whether two slices address the same memory, rather than merely holding
+// equal bytes.
+func sameBytes(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	return &a[0] == &b[0]
 }
 
 func (val variantVal) Type() ref.Type { return variantType }

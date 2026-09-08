@@ -35,7 +35,7 @@ import (
 //   - the CEL value types have no Avro encoding of their own. A decimal is an *apd.Decimal,
 //     which hamba rejects outright ("avro: *apd.Decimal is unsupported for Avro bytes") - so a
 //     decimal field broke serialization for *any* rule touching it, including an identity one
-//    . A variant is a variant.Variant, which hamba has never seen.
+//     . A variant is a variant.Variant, which hamba has never seen.
 //
 // The conversion needs no schema: hamba applies the field's own scale when encoding a
 // *big.Rat, and an Avro variant is just a record of two bytes fields, so emitting the map
@@ -89,7 +89,12 @@ func avroValue(value interface{}) (interface{}, error) {
 		// An Avro variant is a record of two bytes fields; hamba writes it from this map.
 		return map[string]interface{}{
 			"metadata": v.MetadataBytes(),
-			"value":    v.ValueBytes(),
+			// Slice from this node's offset, not from 0: a Variant from
+			// variants.field/path/index is a view, and ValueBytes would write the
+			// entire source variant. Trailing sibling bytes are kept deliberately -
+			// the Java reference emits ByteBuffer position..limit, so this matches
+			// it byte for byte.
+			"value": v.StandaloneValueBytes(),
 		}, nil
 	case time.Time:
 		// hamba encodes the timestamp logical types straight from time.Time.
