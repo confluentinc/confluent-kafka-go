@@ -27,8 +27,10 @@ import (
 // The JSONPath subset used by variants.path(v, path) - a port of the Java/Python VariantPath.
 // Supports $, $.field, $.field.subfield, $[i], $["quoted key"] / $['quoted key'].
 // Resolution failures (missing field, out-of-bounds index, type mismatch) return (nil, nil);
-// malformed paths return an error. Identifier names follow [A-Za-z_][A-Za-z0-9_]*; use the
-// quoted form for other keys. Negative indices are rejected. Quoted-key escapes recognize
+// malformed paths return an error. Identifier names follow [letter_][letter digit _]*, where
+// letter and digit are Unicode-aware (unicode.IsLetter / unicode.IsDigit), so accented and
+// non-Latin names are identifiers too; use the quoted form for other keys. 
+// Negative indices are rejected. Quoted-key escapes recognize
 // only \\ and backslash+quote (option B); any other escape is a parse error.
 
 type variantPathSeg struct {
