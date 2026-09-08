@@ -33,24 +33,8 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	i := (&big.Int{}).Mul(value.Num(), exp)
 	i = i.Div(i, value.Denom())
 
-	var b []byte
-	switch i.Sign() {
-	case 0:
-		b = []byte{0}
-
-	case 1:
-		b = i.Bytes()
-		if b[0]&0x80 > 0 {
-			b = append([]byte{0}, b...)
-		}
-
-	case -1:
-		length := uint(i.BitLen()/8+1) * 8
-		b = i.Add(i, (&big.Int{}).Lsh(one, length)).Bytes()
-	}
-
 	return &types.Decimal{
-		Value:     b,
+		Value:     signedBytes(i),
 		Precision: 0,
 		Scale:     scale,
 	}, nil
@@ -72,4 +56,23 @@ func ratFromBytes(b []byte, scale int) *big.Rat {
 	}
 	denom := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
 	return new(big.Rat).SetFrac(num, denom)
+}
+
+// signedBytes encodes an integer as minimal big-endian two's-complement bytes, which is how
+// confluent.type.Decimal stores an unscaled value.
+func signedBytes(i *big.Int) []byte {
+	switch i.Sign() {
+	case 0:
+		return []byte{0}
+	case 1:
+		b := i.Bytes()
+		if b[0]&0x80 > 0 {
+			// The high bit would read as a sign bit, so pad to keep the value positive.
+			b = append([]byte{0}, b...)
+		}
+		return b
+	default:
+		length := uint(i.BitLen()/8+1) * 8
+		return new(big.Int).Add(i, new(big.Int).Lsh(one, length)).Bytes()
+	}
 }
