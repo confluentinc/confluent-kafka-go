@@ -29,9 +29,9 @@ const variantDoc = `{"name":"alice","age":30,"explicit":null,"nested":{"x":1},"s
 
 // buildVariantMsg builds a standalone Variant with append and returns it in the
 // map[string]interface{} shape (metadata/value byte entries) that variant(this) accepts.
-func buildVariantMsg(t *testing.T, append func(*variant.VariantBuilder) error) map[string]interface{} {
+func buildVariantMsg(t *testing.T, append func(*variant.Builder) error) map[string]interface{} {
 	t.Helper()
-	vb := variant.NewVariantBuilder()
+	vb := variant.NewBuilder()
 	if err := append(vb); err != nil {
 		t.Fatalf("append: %v", err)
 	}
@@ -50,27 +50,27 @@ func buildVariantMsg(t *testing.T, append func(*variant.VariantBuilder) error) m
 func TestVariantAsTimestampNanos(t *testing.T) {
 	cases := []struct {
 		name     string
-		build    func(*variant.VariantBuilder) error
+		build    func(*variant.Builder) error
 		expected string // RFC 3339 literal used as the CEL oracle
 	}{
 		// Positive, sub-microsecond: the trailing 123 ns must survive (old code truncated
 		// to micros and lost it).
 		{"nanos_tz_positive_submicro",
-			func(vb *variant.VariantBuilder) error { return vb.AppendTimestampNanosTz(1_000_000_123) },
+			func(vb *variant.Builder) error { return vb.AppendTimestampNanosTz(1_000_000_123) },
 			"1970-01-01T00:00:01.000000123Z"},
 		// Negative single nanosecond: floor gives 999999999 ns before epoch. Old code did
 		// raw/1000 == 0 (trunc toward zero) and produced the epoch instead.
 		{"nanos_ntz_negative_one",
-			func(vb *variant.VariantBuilder) error { return vb.AppendTimestampNanosNtz(-1) },
+			func(vb *variant.Builder) error { return vb.AppendTimestampNanosNtz(-1) },
 			"1969-12-31T23:59:59.999999999Z"},
 		// Negative, not a whole microsecond: old raw/1000 truncated toward zero (-1) instead
 		// of flooring, and dropped the extra nanosecond.
 		{"nanos_tz_negative_nonwhole_micro",
-			func(vb *variant.VariantBuilder) error { return vb.AppendTimestampNanosTz(-1001) },
+			func(vb *variant.Builder) error { return vb.AppendTimestampNanosTz(-1001) },
 			"1969-12-31T23:59:59.999998999Z"},
 		// Regression: the micros (non-NANOS) path is unchanged.
 		{"micros_tz_regression",
-			func(vb *variant.VariantBuilder) error { return vb.AppendTimestampTz(1_000_000) },
+			func(vb *variant.Builder) error { return vb.AppendTimestampTz(1_000_000) },
 			"1970-01-01T00:00:01Z"},
 	}
 	for _, tc := range cases {
