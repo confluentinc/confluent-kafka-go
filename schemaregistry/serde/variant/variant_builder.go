@@ -379,6 +379,11 @@ func (b *builder) appendInt(i int64) {
 }
 
 func (b *builder) appendDecimal(unscaled *big.Int, scale int) error {
+	// The encoding stores the scale in a single unsigned byte, so a negative scale would
+	// wrap (-1 becomes 255) and change the value on decode.
+	if scale < 0 {
+		return fmt.Errorf("variant: decimal scale must be non-negative, got %d", scale)
+	}
 	digits := len(new(big.Int).Abs(unscaled).String())
 	var code, width int
 	switch {
