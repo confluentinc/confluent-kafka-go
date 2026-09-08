@@ -14,7 +14,7 @@
 
 // Package variant is a self-contained codec for the Spark/Parquet Variant binary
 // format (a metadata key-dictionary plus a self-describing value stream). It is the
-// Go counterpart of the .NET Confluent.SchemaRegistry Variant / VariantBuilder and
+// Go counterpart of the .NET Confluent.SchemaRegistry Variant / Builder and
 // of Java's io.confluent.kafka.schemaregistry.type Variant.
 //
 // This is a leaf package: it imports only the Go standard library (and math/big),
@@ -68,7 +68,7 @@ const (
 	Time
 	TimestampNanosTz
 	TimestampNanosNtz
-	Uuid
+	UUID
 )
 
 // Format constants (see VariantFormat / Variant.cs).
@@ -207,7 +207,7 @@ func (v Variant) variantType() (Type, error) {
 	case tTimestampNanosNz:
 		return TimestampNanosNtz, nil
 	case tUUID:
-		return Uuid, nil
+		return UUID, nil
 	default:
 		return 0, fmt.Errorf("variant: unknown primitive type: %d", typeInfo)
 	}
@@ -410,9 +410,9 @@ func (v Variant) GetBinary() ([]byte, error) {
 	return result, nil
 }
 
-// GetUuid returns the UUID as its canonical big-endian hex string
+// GetUUID returns the UUID as its canonical big-endian hex string
 // (e.g. "00112233-4455-6677-8899-aabbccddeeff").
-func (v Variant) GetUuid() (string, error) {
+func (v Variant) GetUUID() (string, error) {
 	ti, err := v.primitiveInfo()
 	if err != nil {
 		return "", err
@@ -867,8 +867,8 @@ func (v Variant) writeJSON(sb *strings.Builder) error {
 		sb.WriteByte('"')
 		sb.WriteString(base64.StdEncoding.EncodeToString(b))
 		sb.WriteByte('"')
-	case Uuid:
-		s, err := v.GetUuid()
+	case UUID:
+		s, err := v.GetUUID()
 		if err != nil {
 			return err
 		}
