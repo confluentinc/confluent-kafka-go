@@ -63,3 +63,37 @@ func TestDecimalProtoKnownWireForm(t *testing.T) {
 		t.Errorf("expected value=[04 d2] scale=2, got value=% x scale=%d", proto.Value, proto.Scale)
 	}
 }
+
+// TestDecimalToProtoSetsPrecision covers confluent.type.Decimal's precision field, which is the
+// unscaled value's digit count -- what BigDecimal.precision() reports and what the JVM's
+// ProtobufResultWriter writes (m.put("precision", dec.precision())). This writer left it unset,
+// so the same computed decimal serialized differently here than on the JVM, and differently
+// from this client's own protobuf serde path, which has always set it.
+func TestDecimalToProtoSetsPrecision(t *testing.T) {
+	cases := []struct {
+		in        string
+		precision uint32
+		scale     int32
+	}{
+		{"12.34", 4, 2},
+		{"12.3400", 6, 4}, // trailing zeros are digits, so precision is 6 not 4
+		{"1E+3", 1, -3},   // unscaled 1 at a negative scale
+		{"0.00", 1, 2},    // zero has precision 1, as BigDecimal reports it
+		{"100", 3, 0},
+		{"-12.34", 4, 2}, // the sign is not a digit
+	}
+	for _, tc := range cases {
+		d, _, err := apd.NewFromString(tc.in)
+		if err != nil {
+			t.Fatalf("parse %s: %v", tc.in, err)
+		}
+		got, err := decimalToProto(d)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.in, err)
+		}
+		if got.Precision != tc.precision || got.Scale != tc.scale {
+			t.Errorf("decimalToProto(%s) = (precision %d, scale %d), want (%d, %d)",
+				tc.in, got.Precision, got.Scale, tc.precision, tc.scale)
+		}
+	}
+}
