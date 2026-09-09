@@ -18,6 +18,8 @@ package cel
 
 import (
 	"bytes"
+	"math"
+	"math/big"
 	"testing"
 
 	"github.com/cockroachdb/apd/v3"
@@ -94,6 +96,99 @@ func TestDecimalToProtoSetsPrecision(t *testing.T) {
 		if got.Precision != tc.precision || got.Scale != tc.scale {
 			t.Errorf("decimalToProto(%s) = (precision %d, scale %d), want (%d, %d)",
 				tc.in, got.Precision, got.Scale, tc.precision, tc.scale)
+		}
+	}
+}
+
+// TestAvroDecimalEntersCelExactly pins the Avro decode path. An Avro decimal's denominator is
+// always a power of ten, so its value is exactly representable - but decimalFromRat divided
+// through the 38-digit division context, which *changed the field on the way into CEL*, before
+// any arithmetic:
+//
+//	1234567890123456789012345678901234567890/100 -> 12345678901234567890123456789012345679
+//	                                       (exact: 12345678901234567890123456789012345678.9)
+//
+// and padded ordinary values out to 38 significant digits (1234/100 came back as
+// 12.340000000000000000000000000000000000), which is why string() on an Avro decimal did not
+// match the reference's toPlainString. Java reads an Avro decimal straight into
+// BigDecimal(unscaled, scale): exact, and at its own scale.
+func TestAvroDecimalEntersCelExactly(t *testing.T) {
+	cases := []struct {
+		num, den string
+		want     string
+	}{
+		{"1234", "100", "12.34"},
+		// A trailing-zero scale cannot survive big.Rat's reduction (1990/100 is 199/10), which
+		// is the limitation this path already carried - not something the exactness fix
+		// introduces.
+		{"1990", "100", "19.9"},
+		// Denominators that are not powers of ten but still terminate: 2^a * 5^b.
+		{"617", "50", "12.34"},
+		{"1", "8", "0.125"},
+		{"3", "1", "3"},
+		{"1234567890123456789012345678901234567890", "100",
+			"12345678901234567890123456789012345678.9"},
+		{"99999999999999999999999999999999999999999", "1000",
+			"99999999999999999999999999999999999999.999"},
+		// Non-terminating: 1/3 has no finite expansion, so the 38-digit division context is
+		// still the answer there and rounding is unavoidable.
+		{"1", "3", "0.33333333333333333333333333333333333333"},
+		{"-1234", "100", "-12.34"},
+		{"7", "1", "7"},
+		{"0", "100", "0"},
+	}
+	for _, tc := range cases {
+		n, _ := new(big.Int).SetString(tc.num, 10)
+		d, _ := new(big.Int).SetString(tc.den, 10)
+		got, err := decimalFromRat(new(big.Rat).SetFrac(n, d))
+		if err != nil {
+			t.Fatalf("%s/%s: %v", tc.num, tc.den, err)
+		}
+		if s := got.Text('f'); s != tc.want {
+			t.Errorf("decimalFromRat(%s/%s) = %s, want %s", tc.num, tc.den, s, tc.want)
+		}
+	}
+}
+
+// TestDecimalFromBytesScaleAtTheInt32Extremes covers the scales requireIntScale lets through.
+// plainDecimalString materialised every digit of the positional form, so scale
+// math.MinInt32 reached strings.Repeat with a negative count (surfacing as cel-go's
+// "internal error: strings: negative Repeat count") and scale -2147483647 built a 2147483648
+// byte string. Constructing the coefficient and exponent directly leaves the exponent range to
+// apd, which is what the decimals design delegates to it.
+func TestDecimalFromBytesScaleAtTheInt32Extremes(t *testing.T) {
+	// The one scale whose negation does not fit an int32 is refused, by name.
+	if _, err := decimalFromBytesScale([]byte{0x01}, math.MinInt32); err == nil {
+		t.Error("scale math.MinInt32 should be refused, not panic")
+	}
+	// Everything else is cheap to hold: no digits are materialised.
+	for _, scale := range []int32{math.MaxInt32, -2147483647, 1000000, 0, -1000000} {
+		d, err := decimalFromBytesScale([]byte{0x01}, scale)
+		if err != nil {
+			t.Fatalf("scale %d: %v", scale, err)
+		}
+		if d.Exponent != -scale {
+			t.Errorf("scale %d: exponent %d, want %d", scale, d.Exponent, -scale)
+		}
+	}
+	// And ordinary values still round-trip, sign included.
+	for _, tc := range []struct {
+		b     []byte
+		scale int32
+		want  string
+	}{
+		{[]byte{0x04, 0xd2}, 2, "12.34"},
+		{[]byte{0x07, 0xc6}, 2, "19.90"},
+		{[]byte{0x0c}, -2, "1200"},
+		{[]byte{0xfb, 0x2e}, 2, "-12.34"},
+		{[]byte{0x00}, 0, "0"},
+	} {
+		d, err := decimalFromBytesScale(tc.b, tc.scale)
+		if err != nil {
+			t.Fatalf("%x at %d: %v", tc.b, tc.scale, err)
+		}
+		if s := d.Text('f'); s != tc.want {
+			t.Errorf("decimalFromBytesScale(%x, %d) = %s, want %s", tc.b, tc.scale, s, tc.want)
 		}
 	}
 }
