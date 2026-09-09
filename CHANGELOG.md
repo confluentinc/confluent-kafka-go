@@ -3,7 +3,6 @@
 ## v2.15.1 (RC1)
 
 ### Enhancements
-* Pass context when clients make KEK calls to DEK Registry (#1579)
 * Add support for inline validation rules (#1592)
 
 ### Fixes
@@ -12,6 +11,7 @@
   error (e.g. `FENCED_INSTANCE_ID`). The error returned by
   `rd_kafka_consumer_close_queue()` was being discarded, leaving `Close()`
   polling for a close that was never started (#1588, @nolansherman-spoton)
+
 
 confluent-kafka-go is based on librdkafka 2.15.1-RC1, see the
 [librdkafka 2.15.1-RC1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1-RC1)
