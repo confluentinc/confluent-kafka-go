@@ -39,6 +39,7 @@ require (
 	github.com/bufbuild/protocompile v0.8.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/confluentinc/confluent-avro-go/v2 v2.32.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
