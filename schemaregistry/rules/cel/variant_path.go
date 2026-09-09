@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
 )
@@ -29,7 +30,7 @@ import (
 // Resolution failures (missing field, out-of-bounds index, type mismatch) return (nil, nil);
 // malformed paths return an error. Identifier names follow [letter_][letter digit _]*, where
 // letter and digit are Unicode-aware (unicode.IsLetter / unicode.IsDigit), so accented and
-// non-Latin names are identifiers too; use the quoted form for other keys. 
+// non-Latin names are identifiers too; use the quoted form for other keys.
 // Negative indices are rejected. Quoted-key escapes recognize
 // only \\ and backslash+quote (option B); any other escape is a parse error.
 
@@ -78,14 +79,24 @@ func parseVariantPath(path string) ([]variantPathSeg, error) {
 		switch ch {
 		case '.':
 			pos++
-			if pos >= len(path) || !(isIdentStart(rune(path[pos]))) {
+			// Decoded as a rune rather than cast from a byte: `rune(path[pos])` reads one byte,
+			// and a UTF-8 lead byte casts into Latin-1 (0xC3 -> 'Ã'), which IsLetter accepts.
+			// The identifier then ended at the continuation byte, so `$.é` failed with
+			// "unexpected character '©'" - a character not in the input - where every other
+			// client accepts it.
+			r, size := utf8.DecodeRuneInString(path[pos:])
+			if pos >= len(path) || !isIdentStart(r) {
 				return nil, fmt.Errorf(
 					"expected identifier (starting with a letter or '_') after '.' in variant path: %s", path)
 			}
 			start := pos
-			pos++
-			for pos < len(path) && isIdentPart(rune(path[pos])) {
-				pos++
+			pos += size
+			for pos < len(path) {
+				r, size := utf8.DecodeRuneInString(path[pos:])
+				if !isIdentPart(r) {
+					break
+				}
+				pos += size
 			}
 			out = append(out, variantPathSeg{key: path[start:pos]})
 		case '[':
@@ -113,7 +124,10 @@ func parseVariantPath(path string) ([]variantPathSeg, error) {
 			}
 			pos++
 		default:
-			return nil, fmt.Errorf("unexpected character '%c' in variant path: %s", ch, path)
+			// Decoded, so a multi-byte character is reported as itself rather than as the
+			// Latin-1 reading of its first byte.
+			r, _ := utf8.DecodeRuneInString(path[pos:])
+			return nil, fmt.Errorf("unexpected character '%c' in variant path: %s", r, path)
 		}
 	}
 	return out, nil

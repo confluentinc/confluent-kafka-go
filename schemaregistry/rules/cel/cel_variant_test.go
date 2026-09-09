@@ -112,6 +112,38 @@ func TestVariantFunctions(t *testing.T) {
 	}
 }
 
+// TestVariantPathNonASCIIIdentifier covers an unquoted path identifier containing a
+// multi-byte UTF-8 character. The parser used to test `rune(path[pos])` - a single byte -
+// and a UTF-8 lead byte casts into Latin-1 (0xC3 -> 'Ã'), which unicode.IsLetter accepts;
+// the identifier then ended at the continuation byte, so `$.é` failed with
+// "unexpected character '©'", naming a character absent from the input. Java accepts
+// these (it iterates UTF-16 chars, and Character.isLetter('é') is true), as do every
+// other client.
+//
+// The quoted-form case is the control: it always worked, which is what localises a
+// regression to the identifier scanner rather than to the walk.
+func TestVariantPathNonASCIIIdentifier(t *testing.T) {
+	const doc = `{"é":1,"中":2,"éx":4,"plain":3}`
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		{"variants.as(variants.path(variants.parseJson(this), '$.é'), 'int') == 1", true},
+		{"variants.as(variants.path(variants.parseJson(this), '$.中'), 'int') == 2", true},
+		// A multi-byte character followed by ASCII: proves the scanner advances by the
+		// rune's width rather than by one byte.
+		{"variants.as(variants.path(variants.parseJson(this), '$.éx'), 'int') == 4", true},
+		// Control: the quoted form was never affected.
+		{`variants.as(variants.path(variants.parseJson(this), '$["é"]'), 'int') == 1`, true},
+		{"variants.as(variants.path(variants.parseJson(this), '$.plain'), 'int') == 3", true},
+	}
+	for _, tc := range cases {
+		if got := evalBool(t, tc.expr, doc); got != tc.expected {
+			t.Errorf("expr %q = %v, want %v", tc.expr, got, tc.expected)
+		}
+	}
+}
+
 // TestVariantTryParseJsonSoftFailure verifies that empty or whitespace-only input
 // to variants.tryParseJson yields CEL null (a soft failure) rather than crashing
 // or leaking an error.
