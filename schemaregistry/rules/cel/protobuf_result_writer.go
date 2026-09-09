@@ -94,6 +94,24 @@ func asStringMap(result interface{}) (map[string]interface{}, bool) {
 	}
 }
 
+// asMapEntries keeps the keys in their native types, for setMapField to narrow through the
+// field's own key descriptor. asStringMap above stays for the *top-level* result map, whose
+// keys are field names and so really are strings.
+func asMapEntries(result interface{}) (map[interface{}]interface{}, bool) {
+	switch m := result.(type) {
+	case map[interface{}]interface{}:
+		return m, true
+	case map[string]interface{}:
+		out := make(map[interface{}]interface{}, len(m))
+		for k, v := range m {
+			out[k] = v
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
 // isNull covers both shapes a CEL null takes once converted to a native value: an untyped
 // nil, and the structpb.NullValue that cel-go's own conversion produces.
 func isNull(value interface{}) bool {
@@ -160,17 +178,32 @@ func setField(out protoreflect.Message, fd protoreflect.FieldDescriptor, value i
 }
 
 func setMapField(out protoreflect.Message, fd protoreflect.FieldDescriptor, value interface{}) error {
-	entries, ok := asStringMap(value)
+	// A shape mismatch is an error, not a no-op. The message is rebuilt field by field, so
+	// returning nil here left the map *empty* - the rule's data silently discarded. The
+	// reference rejects the same mismatch, because its message-level write-back goes through a
+	// protobuf JSON parse: measured against protobuf-java 4.34.0's JsonFormat,
+	// `{"m": "notamap"}` is "Expect a map object but found: \"notamap\"".
+	entries, ok := asMapEntries(value)
 	if !ok {
-		return nil
+		return fmt.Errorf("cannot write %T to map field %s", value, fd.FullName())
 	}
 	mp := out.Mutable(fd).Map()
+	keyFd := fd.MapKey()
 	valueFd := fd.MapValue()
 	for k, v := range entries {
 		if isNull(v) {
 			continue
 		}
-		key := protoreflect.ValueOfString(k).MapKey()
+		// The key is narrowed through its own descriptor, as every other client in the family
+		// does. Only string keys were handled, and `ValueOfString` was used unconditionally -
+		// so echoing a `map<int32, V>` or `map<bool, V>` through a message-level transform
+		// wrote back an *empty* map, because asStringMap rejected the shape and the function
+		// then reported success. protobuf permits bool and every integral type as a map key.
+		kv, err := scalarValue(keyFd, k)
+		if err != nil {
+			return fmt.Errorf("map field %s: %w", fd.FullName(), err)
+		}
+		key := kv.MapKey()
 		if valueFd.Kind() == protoreflect.MessageKind {
 			m := mp.NewValue().Message()
 			if err := setMessageValue(m, valueFd, v); err != nil {
@@ -222,13 +255,44 @@ func setListField(out protoreflect.Message, fd protoreflect.FieldDescriptor, val
 // in, so that is what comes back out whether the rule computed a new value or merely echoed
 // the field. A variant comes back as the proto message when echoed and as variant.Variant
 // when computed.
+// mergeMessage copies src into out, refusing a type mismatch instead of panicking.
+//
+// Two distinct problems, both of which `proto.Merge` alone gets wrong:
+//
+// A *different message type* used to reach Merge unchecked. Merge panics on a descriptor
+// mismatch, and cel-go's recover turns that into an opaque "internal error" naming neither
+// field nor type - so a rule assigning one message-typed field to another said nothing useful.
+// The JVM reports a named rule error there, and the C++ and Rust clients check the descriptor
+// too.
+//
+// And Merge requires descriptor *identity*, not an equal name: two descriptors for the same
+// message type are not interchangeable. That is reachable here, because the serde parses the
+// schema text at runtime while the values written back (decimalToProto, timestamppb.New, the
+// Variant above) are built from the *generated* descriptors - so a same-named pair from two
+// registries would panic exactly as a mismatched type does. The wire format is the portable
+// bridge between them.
+func mergeMessage(out protoreflect.Message, src proto.Message, fullName string) error {
+	sd := src.ProtoReflect().Descriptor()
+	if string(sd.FullName()) != fullName {
+		return fmt.Errorf("cannot write %s to %s", sd.FullName(), fullName)
+	}
+	if sd == out.Descriptor() {
+		proto.Merge(out.Interface(), src)
+		return nil
+	}
+	b, err := proto.Marshal(src)
+	if err != nil {
+		return fmt.Errorf("cannot write %s to %s: %w", sd.FullName(), fullName, err)
+	}
+	return (proto.UnmarshalOptions{Merge: true}).Unmarshal(b, out.Interface())
+}
+
 func setMessageValue(out protoreflect.Message, fd protoreflect.FieldDescriptor, value interface{}) error {
 	fullName := string(fd.Message().FullName())
 
-	// A message echoed straight through: copy it.
+	// A message echoed straight through: copy it - but only if it is the same message type.
 	if pm, ok := value.(proto.Message); ok {
-		proto.Merge(out.Interface(), pm)
-		return nil
+		return mergeMessage(out, pm, fullName)
 	}
 
 	switch v := value.(type) {
@@ -240,26 +304,23 @@ func setMessageValue(out protoreflect.Message, fd protoreflect.FieldDescriptor, 
 		if err != nil {
 			return err
 		}
-		proto.Merge(out.Interface(), d)
-		return nil
+		return mergeMessage(out, d, fullName)
 	case time.Time:
 		if fullName != timestampTypeName {
 			return fmt.Errorf("cannot write a timestamp to %s", fullName)
 		}
-		proto.Merge(out.Interface(), timestamppb.New(v))
-		return nil
+		return mergeMessage(out, timestamppb.New(v), fullName)
 	case variant.Variant:
 		if fullName != variantTypeName {
 			return fmt.Errorf("cannot write a variant to %s", fullName)
 		}
-		proto.Merge(out.Interface(), &prototypes.Variant{
+		return mergeMessage(out, &prototypes.Variant{
 			Metadata: v.MetadataBytes(),
 			// Slice from this node's offset, not from 0. Trailing sibling bytes are
 			// kept so the encoding matches the Java reference, which writes
 			// ByteBuffer position..limit.
 			Value: v.StandaloneValueBytes(),
-		})
-		return nil
+		}, fullName)
 	}
 
 	// A nested message the rule rebuilt field by field.
