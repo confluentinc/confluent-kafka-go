@@ -256,7 +256,13 @@ func toDecimal(v ref.Val) ref.Val {
 		if math.IsNaN(x) || math.IsInf(x, 0) {
 			return types.NewErr("decimal: cannot convert non-finite double %v to Decimal", x)
 		}
-		// Shortest round-tripping form, matching Java's BigDecimal.valueOf(double).
+		// Shortest round-tripping form, via Go's own formatter. This deliberately does *not*
+		// reproduce BigDecimal.valueOf(double), which routes through Double.toString: that
+		// always writes at least one fractional digit and uses plain notation only for
+		// 1e-3 <= |d| < 1e7, so Java reads 5.0 at scale 1 and 1e7 at scale -6 where 'g' gives
+		// 0 and -7. Byte-identical float/double rendering across the clients was designed,
+		// implemented in all seven and then deliberately backed out on cost, so each client
+		// keeps its native rendering; do not "fix" this toward Java without revisiting that.
 		d, _, err := apd.NewFromString(strconv.FormatFloat(x, 'g', -1, 64))
 		if err != nil {
 			return types.NewErr("decimal: %v", err)
