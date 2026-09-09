@@ -18,6 +18,7 @@ package cel
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
@@ -270,7 +271,19 @@ func setMessageValue(out protoreflect.Message, fd protoreflect.FieldDescriptor, 
 
 // scalarValue narrows a cel-go native value to what the field's kind accepts. cel-go widens
 // every integer to int64 and every float to float64, so a narrower field needs converting
-// back rather than rejecting.
+// back rather than rejecting - but only where the conversion is exact. The JVM's write-back
+// parses the result map with protobuf's own JSON parser, so that parser's rejections are the
+// contract; measured against protobuf-java 4.35.1:
+//
+//	int32 <- 1.9        -> "Not an int32 value: 1.9"     (int64(1.9) silently gave 1)
+//	int32 <- 2147483648 -> "Not an int32 value"          (int32(i) silently wrapped)
+//	int32 <- 2.0        -> 2                             (an exact conversion is fine)
+//	float <- 1.0e40     -> "Out of range float value"    (float32(f) silently gave +Inf)
+//
+// A value of the wrong kind entirely is an error, not a coercion. The JVM stringifies a
+// number into a string field and base64-decodes a string into a bytes field, both artifacts
+// of crossing a JSON transport that this writer does not cross; following them would turn a
+// rule-authoring mistake into silently wrong data.
 func scalarValue(fd protoreflect.FieldDescriptor, value interface{}) (protoreflect.Value, error) {
 	switch fd.Kind() {
 	case protoreflect.BoolKind:
@@ -286,34 +299,38 @@ func scalarValue(fd protoreflect.FieldDescriptor, value interface{}) (protorefle
 		}
 		return protoreflect.ValueOfString(s), nil
 	case protoreflect.BytesKind:
-		switch b := value.(type) {
-		case []byte:
-			return protoreflect.ValueOfBytes(b), nil
-		case string:
-			return protoreflect.ValueOfBytes([]byte(b)), nil
+		// Bytes only. A string was written as its own raw bytes, so a rule returning base64
+		// stored the text "YWI=" rather than the two bytes it encodes.
+		b, ok := value.([]byte)
+		if !ok {
+			return protoreflect.Value{}, fmt.Errorf("expected bytes, got %T", value)
 		}
-		return protoreflect.Value{}, fmt.Errorf("expected bytes, got %T", value)
+		return protoreflect.ValueOfBytes(b), nil
 	case protoreflect.FloatKind:
 		f, err := toFloat(value)
-		return protoreflect.ValueOfFloat32(float32(f)), err
+		if err != nil {
+			return protoreflect.Value{}, err
+		}
+		narrowed, err := narrowToFloat32(f)
+		return protoreflect.ValueOfFloat32(narrowed), err
 	case protoreflect.DoubleKind:
 		f, err := toFloat(value)
 		return protoreflect.ValueOfFloat64(f), err
 	case protoreflect.EnumKind:
-		i, err := toInt(value)
+		i, err := toBoundedInt(value, math.MinInt32, math.MaxInt32)
 		return protoreflect.ValueOfEnum(protoreflect.EnumNumber(i)), err
 	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
-		i, err := toInt(value)
+		i, err := toBoundedInt(value, math.MinInt32, math.MaxInt32)
 		return protoreflect.ValueOfInt32(int32(i)), err
 	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
 		i, err := toInt(value)
 		return protoreflect.ValueOfInt64(i), err
 	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
-		i, err := toInt(value)
-		return protoreflect.ValueOfUint32(uint32(i)), err
+		u, err := toBoundedUint(value, math.MaxUint32)
+		return protoreflect.ValueOfUint32(uint32(u)), err
 	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-		i, err := toInt(value)
-		return protoreflect.ValueOfUint64(uint64(i)), err
+		u, err := toUint(value)
+		return protoreflect.ValueOfUint64(u), err
 	}
 	return protoreflect.Value{}, fmt.Errorf("unsupported field kind %s", fd.Kind())
 }
@@ -327,13 +344,90 @@ func toInt(value interface{}) (int64, error) {
 	case int32:
 		return int64(v), nil
 	case uint64:
+		// A uint64 above math.MaxInt64 has no int64 form, and the conversion would wrap it
+		// to a negative.
+		if v > math.MaxInt64 {
+			return 0, fmt.Errorf("value %d is out of range for a signed field", v)
+		}
 		return int64(v), nil
 	case uint32:
 		return int64(v), nil
 	case float64:
-		return int64(v), nil
+		return floatToInt(v)
 	}
 	return 0, fmt.Errorf("expected an integer, got %T", value)
+}
+
+// toUint is kept separate from toInt because routing an unsigned value through int64 would
+// reject everything above math.MaxInt64 - half the protobuf uint64 domain, which an identity
+// transform has to round-trip.
+func toUint(value interface{}) (uint64, error) {
+	switch v := value.(type) {
+	case uint64:
+		return v, nil
+	case uint32:
+		return uint64(v), nil
+	}
+	i, err := toInt(value)
+	if err != nil {
+		return 0, err
+	}
+	if i < 0 {
+		return 0, fmt.Errorf("value %d is out of range for an unsigned field", i)
+	}
+	return uint64(i), nil
+}
+
+func toBoundedInt(value interface{}, min int64, max int64) (int64, error) {
+	i, err := toInt(value)
+	if err != nil {
+		return 0, err
+	}
+	if i < min || i > max {
+		return 0, fmt.Errorf("value %d is out of range for the field", i)
+	}
+	return i, nil
+}
+
+func toBoundedUint(value interface{}, max uint64) (uint64, error) {
+	u, err := toUint(value)
+	if err != nil {
+		return 0, err
+	}
+	if u > max {
+		return 0, fmt.Errorf("value %d is out of range for the field", u)
+	}
+	return u, nil
+}
+
+// floatToInt is a float as an integer, only when it is exactly integral and inside the int64
+// range. A fractional value is a rule-authoring mistake rather than something to truncate.
+//
+// The upper bound is exclusive of 2^63: float64(math.MaxInt64) rounds *up* to 2^63, so
+// comparing against it would admit 2^63 itself, which the conversion then saturates to
+// math.MaxInt64 - silently changing the value. -float64(math.MinInt64) is exactly 2^63.
+// NaN fails the integral test (NaN != NaN) and an infinity fails the range test.
+func floatToInt(f float64) (int64, error) {
+	truncated := math.Trunc(f)
+	if truncated != f {
+		return 0, fmt.Errorf("cannot write non-integral %v to an integer field", f)
+	}
+	if truncated < math.MinInt64 || truncated >= -float64(math.MinInt64) {
+		return 0, fmt.Errorf("value %v is out of range for an integer field", f)
+	}
+	return int64(truncated), nil
+}
+
+// narrowToFloat32 narrows a float64 the way JsonFormat.parseFloat does: a finite value outside
+// the float range is an error rather than an infinity, with the same 1e-6 slack that method
+// allows. NaN and the infinities pass through - it accepts those explicitly.
+func narrowToFloat32(d float64) (float32, error) {
+	const epsilon = 1e-6
+	limit := float64(math.MaxFloat32) * (1 + epsilon)
+	if !math.IsInf(d, 0) && !math.IsNaN(d) && (d > limit || d < -limit) {
+		return 0, fmt.Errorf("out of range float value: %v", d)
+	}
+	return float32(d), nil
 }
 
 func toFloat(value interface{}) (float64, error) {
@@ -343,6 +437,14 @@ func toFloat(value interface{}) (float64, error) {
 	case float32:
 		return float64(v), nil
 	case int64:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int32:
+		return float64(v), nil
+	case uint64:
+		return float64(v), nil
+	case uint32:
 		return float64(v), nil
 	}
 	return 0, fmt.Errorf("expected a float, got %T", value)

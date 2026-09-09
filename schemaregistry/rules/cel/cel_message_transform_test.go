@@ -27,10 +27,15 @@
 package cel
 
 import (
+	"fmt"
+	"math"
 	"math/big"
+	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	schemaregistry "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
@@ -224,5 +229,76 @@ func TestMessageTransformLeavesConditionsAlone(t *testing.T) {
 	}
 	if b, ok := result.(bool); !ok || !b {
 		t.Errorf("expected true, got %#v", result)
+	}
+}
+
+// Narrowing a cel-go value to a field's kind used to accept wrong-typed and inexact values,
+// silently changing them: int64(1.9) wrote 1, int32(i) wrapped 2147483648 to -2147483648,
+// float32(f) turned 1e40 into +Inf, and a string was written into a bytes field as its own raw
+// text, so a rule returning base64 stored "YWI=" rather than the two bytes it encodes.
+//
+// The contract is protobuf's own JSON parser, which is what the JVM's write-back parses the
+// result map with. Measured against protobuf-java 4.35.1:
+//
+//	int32 <- 1.9        -> REJECT "Not an int32 value: 1.9"
+//	int32 <- 2.0        -> 2
+//	int32 <- 2147483648 -> REJECT "Not an int32 value"
+//	int32 <- true       -> REJECT "Not an int32 value: true"
+//	bool  <- 0          -> REJECT "Invalid bool value: 0"
+//	bytes <- 5          -> REJECT
+//	float <- 1.0e40     -> REJECT "Out of range float value: 1.0e40"
+//	double <- 3         -> 3.0
+func TestMessageTransformScalarNarrowing(t *testing.T) {
+	cases := []struct {
+		label  string
+		msg    proto.Message
+		value  interface{}
+		accept bool
+		want   string
+	}{
+		// Exact conversions, and every numeric kind a rule can compute for a float field.
+		{"int32 <- 2.0", &wrapperspb.Int32Value{}, 2.0, true, "value:2"},
+		{"int32 <- 2", &wrapperspb.Int32Value{}, int64(2), true, "value:2"},
+		{"double <- int64(3)", &wrapperspb.DoubleValue{}, int64(3), true, "value:3"},
+		{"double <- uint64(3)", &wrapperspb.DoubleValue{}, uint64(3), true, "value:3"},
+		{"float <- 3.4028235e38", &wrapperspb.FloatValue{}, 3.4028235e38, true, "value:3.4028235e+38"},
+		{"bytes <- []byte", &wrapperspb.BytesValue{}, []byte("ab"), true, `value:"ab"`},
+		// The whole uint64 domain still round-trips, which is why unsigned narrowing does not
+		// route through int64.
+		{"uint64 <- max", &wrapperspb.UInt64Value{}, uint64(math.MaxUint64), true,
+			"value:18446744073709551615"},
+
+		// Inexact or out of range: silently wrong before, an error now.
+		{"int32 <- 1.9", &wrapperspb.Int32Value{}, 1.9, false, ""},
+		{"int32 <- 2147483648", &wrapperspb.Int32Value{}, int64(2147483648), false, ""},
+		{"int32 <- -2147483649", &wrapperspb.Int32Value{}, int64(-2147483649), false, ""},
+		{"uint32 <- -1", &wrapperspb.UInt32Value{}, int64(-1), false, ""},
+		{"float <- 1.0e40", &wrapperspb.FloatValue{}, 1.0e40, false, ""},
+
+		// The wrong kind entirely. The JVM stringifies a number into a string field and
+		// base64-decodes a string into a bytes field; both are artifacts of crossing a JSON
+		// transport that this writer does not cross, so neither is followed.
+		{"string <- int64(1)", &wrapperspb.StringValue{}, int64(1), false, ""},
+		{"string <- true", &wrapperspb.StringValue{}, true, false, ""},
+		{"bool <- \"false\"", &wrapperspb.BoolValue{}, "false", false, ""},
+		{"bool <- int64(1)", &wrapperspb.BoolValue{}, int64(1), false, ""},
+		{"bytes <- int64(5)", &wrapperspb.BytesValue{}, int64(5), false, ""},
+		{"bytes <- \"YWI=\"", &wrapperspb.BytesValue{}, "YWI=", false, ""},
+		{"int32 <- true", &wrapperspb.Int32Value{}, true, false, ""},
+		{"double <- true", &wrapperspb.DoubleValue{}, true, false, ""},
+	}
+	for _, c := range cases {
+		out, err := writeBackProtobuf(map[string]interface{}{"value": c.value}, c.msg)
+		if c.accept {
+			if err != nil {
+				t.Errorf("%s: unexpected error: %v", c.label, err)
+				continue
+			}
+			if got := strings.TrimSpace(fmt.Sprint(out)); got != c.want {
+				t.Errorf("%s: got %q, want %q", c.label, got, c.want)
+			}
+		} else if err == nil {
+			t.Errorf("%s: expected an error, got %v", c.label, out)
+		}
 	}
 }
