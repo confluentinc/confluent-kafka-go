@@ -72,7 +72,17 @@ func signedBytes(i *big.Int) []byte {
 		}
 		return b
 	default:
-		length := uint(i.BitLen()/8+1) * 8
-		return new(big.Int).Add(i, new(big.Int).Lsh(one, length)).Bytes()
+		// A negative value's magnitude is Not(i) == -i-1, so its bit length is one less at
+		// every exact signed boundary. Sizing from i.BitLen() emitted ff80 for -128 where
+		// BigInteger.toByteArray gives 80. Mirrors signedBytesFromBigInt in rules/cel.
+		bits := new(big.Int).Not(i).BitLen() + 1
+		byteLen := (bits + 7) / 8
+		if byteLen < 1 {
+			byteLen = 1
+		}
+		shifted := new(big.Int).Add(i, new(big.Int).Lsh(one, uint(byteLen)*8))
+		out := make([]byte, byteLen)
+		shifted.FillBytes(out)
+		return out
 	}
 }

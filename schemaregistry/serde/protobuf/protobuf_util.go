@@ -311,12 +311,10 @@ func decimalToProtoParts(d *apd.Decimal) (decimalParts, error) {
 	if d.Negative {
 		unscaled.Neg(unscaled)
 	}
-	if scale < 0 {
-		// A positive exponent (1E+3) has no scale of its own; normalise it into the digits
-		// rather than writing a negative scale.
-		unscaled.Mul(unscaled, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-scale)), nil))
-		scale = 0
-	}
+	// The scale is the negated exponent, negative included: BigDecimal("1E+3") reports
+	// unscaled 1 with scale -3, and the proto field is a signed int32. Normalising a positive
+	// exponent into the digits wrote a different value than the JVM does, and left precision
+	// describing the un-normalised coefficient rather than the value actually stored.
 	return decimalParts{
 		unscaled:  signedBytes(unscaled),
 		precision: uint32(len(d.Coeff.MathBigInt().String())),
