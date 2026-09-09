@@ -33,25 +33,17 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	i := (&big.Int{}).Mul(value.Num(), exp)
 	i = i.Div(i, value.Denom())
 
-	var b []byte
-	switch i.Sign() {
-	case 0:
-		b = []byte{0}
-
-	case 1:
-		b = i.Bytes()
-		if b[0]&0x80 > 0 {
-			b = append([]byte{0}, b...)
-		}
-
-	case -1:
-		length := uint(i.BitLen()/8+1) * 8
-		b = i.Add(i, (&big.Int{}).Lsh(one, length)).Bytes()
-	}
-
 	return &types.Decimal{
-		Value:     b,
-		Precision: 0,
+		Value: signedBytes(i),
+		// The unscaled value's digit count, which is what BigDecimal.precision() reports and
+		// what every other write path in this client family carries. Left at 0, this was one
+		// of three paths whose output a JVM consumer rewrites on its next touch:
+		// precision() is never less than 1 - zero's precision is 1 - so 0 is a value the
+		// reference cannot produce, and its reader normalises it away.
+		//
+		// Taken from `i`, the integer actually being written, so the multiplication above
+		// cannot leave it stale.
+		Precision: uint32(len(new(big.Int).Abs(i).String())),
 		Scale:     scale,
 	}, nil
 }
@@ -72,4 +64,33 @@ func ratFromBytes(b []byte, scale int) *big.Rat {
 	}
 	denom := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
 	return new(big.Rat).SetFrac(num, denom)
+}
+
+// signedBytes encodes an integer as minimal big-endian two's-complement bytes, which is how
+// confluent.type.Decimal stores an unscaled value.
+func signedBytes(i *big.Int) []byte {
+	switch i.Sign() {
+	case 0:
+		return []byte{0}
+	case 1:
+		b := i.Bytes()
+		if b[0]&0x80 > 0 {
+			// The high bit would read as a sign bit, so pad to keep the value positive.
+			b = append([]byte{0}, b...)
+		}
+		return b
+	default:
+		// A negative value's magnitude is Not(i) == -i-1, so its bit length is one less at
+		// every exact signed boundary. Sizing from i.BitLen() emitted ff80 for -128 where
+		// BigInteger.toByteArray gives 80. Mirrors signedBytesFromBigInt in rules/cel.
+		bits := new(big.Int).Not(i).BitLen() + 1
+		byteLen := (bits + 7) / 8
+		if byteLen < 1 {
+			byteLen = 1
+		}
+		shifted := new(big.Int).Add(i, new(big.Int).Lsh(one, uint(byteLen)*8))
+		out := make([]byte, byteLen)
+		shifted.FillBytes(out)
+		return out
+	}
 }
