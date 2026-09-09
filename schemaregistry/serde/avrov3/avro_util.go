@@ -21,8 +21,8 @@ import (
 	"reflect"
 	"strings"
 
-	avro "github.com/confluentinc/confluent-avro-go/v2"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	avro "github.com/confluentinc/confluent-avro-go/v2"
 	"github.com/modern-go/reflect2"
 )
 
@@ -108,11 +108,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			return msg, nil
 		} else if val.Kind() == reflect.Map {
 			for _, avroField := range recordSchema.Fields() {
-				key, ok := serde.MapKeyForName(*val, avroField.Name())
-				if !ok {
-					continue
-				}
-				mapField := val.MapIndex(key)
+				mapField := val.MapIndex(reflect.ValueOf(avroField.Name()))
 				err := transformField(ctx, resolver, recordSchema, avroField, &mapField, val, fieldTransform)
 				if err != nil {
 					return nil, err
@@ -176,9 +172,7 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 				return err
 			}
 		} else {
-			if key, ok := serde.MapKeyForName(*val, avroField.Name()); ok {
-				val.SetMapIndex(key, *newVal)
-			}
+			val.SetMapIndex(reflect.ValueOf(avroField.Name()), *newVal)
 		}
 	}
 	return nil
@@ -300,17 +294,10 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 	return nil, nil, fmt.Errorf("avro: unknown union type %s", names[0])
 }
 
-// deref unwraps every pointer and interface layer, not just one. A value read out of a
-// map[string]interface{} arrives as an interface, so a nested record held as a pointer
-// needs two unwraps to reach the struct; stopping at one leaves a reflect.Pointer, which
-// every caller's Kind check rejects, and the record's fields are never walked.
-//
-// Terminates on nil without a guard: Elem() of a nil pointer or nil interface is the zero
-// Value, whose Kind is Invalid.
 func deref(val *reflect.Value) *reflect.Value {
-	v := *val
-	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
-		v = v.Elem()
+	if val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
+		v := val.Elem()
+		return &v
 	}
-	return &v
+	return val
 }

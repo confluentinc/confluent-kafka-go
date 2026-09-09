@@ -90,31 +90,7 @@ const (
 
 	// MillisInDay represents number of milliseconds in a day
 	MillisInDay = 24 * 60 * 60 * 1000
-
-	contextDelimiter = ":"
-	contextPrefix    = contextDelimiter + "."
 )
-
-// contextFor returns the context parsed from the given qualified subject (of
-// the form ":.context:subject"), or "" if the subject has no context prefix
-// or is explicitly qualified with the default (".") context.
-// Tenant is not handled here as it is a server-side-only concept.
-func contextFor(subject string) string {
-	if strings.HasPrefix(subject, contextPrefix) {
-		var context string
-		rest := subject[len(contextPrefix):]
-		if ix := strings.Index(rest, contextDelimiter); ix >= 0 {
-			context = subject[1 : ix+len(contextPrefix)]
-		} else {
-			context = subject[1:]
-		}
-		if context == "." {
-			return ""
-		}
-		return context
-	}
-	return ""
-}
 
 // Clock is a clock
 type Clock interface {
@@ -333,7 +309,6 @@ func (f *ExecutorTransform) getOrCreateKek(ctx serde.RuleContext) (*deks.Kek, er
 	kekID := deks.KekID{
 		Name:    f.KekName,
 		Deleted: isRead,
-		Context: contextFor(ctx.Subject),
 	}
 	kmsType := ctx.GetParameter(EncryptKmsType)
 	kmsKeyID := ctx.GetParameter(EncryptKmsKeyID)
@@ -376,7 +351,7 @@ func (f *ExecutorTransform) getOrCreateKek(ctx serde.RuleContext) (*deks.Kek, er
 }
 
 func (f *ExecutorTransform) retrieveKekFromRegistry(key deks.KekID) (*deks.Kek, error) {
-	kek, err := f.Executor.Client.GetKek(key.Name, key.Deleted, key.Context)
+	kek, err := f.Executor.Client.GetKek(key.Name, key.Deleted)
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
@@ -390,7 +365,7 @@ func (f *ExecutorTransform) retrieveKekFromRegistry(key deks.KekID) (*deks.Kek, 
 }
 
 func (f *ExecutorTransform) storeKekToRegistry(key deks.KekID, kmsType string, kmsKeyID string, shared bool) (*deks.Kek, error) {
-	kek, err := f.Executor.Client.RegisterKek(key.Name, kmsType, kmsKeyID, nil, "", shared, key.Context)
+	kek, err := f.Executor.Client.RegisterKek(key.Name, kmsType, kmsKeyID, nil, "", shared)
 	if err != nil {
 		var restErr *rest.Error
 		if errors.As(err, &restErr) {
@@ -696,9 +671,8 @@ func (a *AeadWrapper) Encrypt(plaintext, associatedData []byte) ([]byte, error) 
 	var aead tink.AEAD
 	var err error
 	var ciphertext []byte
-	aeadConfig := getAeadConfig(a.Config, a.Kek)
 	for _, kmsKeyID := range a.KmsKeyIds {
-		aead, err = getAead(aeadConfig, a.Kek.KmsType, kmsKeyID)
+		aead, err = getAead(a.Config, a.Kek.KmsType, kmsKeyID)
 		if err != nil {
 			log.Printf("WARN: failed to get AEAD with %s: %v\n", kmsKeyID, err)
 			continue
@@ -717,9 +691,8 @@ func (a *AeadWrapper) Decrypt(ciphertext, associatedData []byte) ([]byte, error)
 	var aead tink.AEAD
 	var err error
 	var plaintext []byte
-	aeadConfig := getAeadConfig(a.Config, a.Kek)
 	for _, kmsKeyID := range a.KmsKeyIds {
-		aead, err = getAead(aeadConfig, a.Kek.KmsType, kmsKeyID)
+		aead, err = getAead(a.Config, a.Kek.KmsType, kmsKeyID)
 		if err != nil {
 			log.Printf("WARN: failed to get AEAD with %s: %v\n", kmsKeyID, err)
 			continue
@@ -731,19 +704,6 @@ func (a *AeadWrapper) Decrypt(ciphertext, associatedData []byte) ([]byte, error)
 		log.Printf("WARN: failed to decrypt with %s: %v\n", kmsKeyID, err)
 	}
 	return nil, err
-}
-
-// getAeadConfig merges the kek's KmsProps (e.g. encrypt.azure.key.version.save) into a copy of
-// the executor-level config, so KMS-specific per-kek settings reach NewKMSClient/GetAEAD.
-func getAeadConfig(config map[string]string, kek deks.Kek) map[string]string {
-	aeadConfig := make(map[string]string, len(config)+len(kek.KmsProps))
-	for k, v := range config {
-		aeadConfig[k] = v
-	}
-	for k, v := range kek.KmsProps {
-		aeadConfig[k] = v
-	}
-	return aeadConfig
 }
 
 func getAead(config map[string]string, kmsType string, kmsKeyID string) (tink.AEAD, error) {

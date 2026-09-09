@@ -1,20 +1,18 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.x.0
-
-### Enhancements
-* Add support for saving Azure key version with DEK (#1577)
-* Pass context when clients make KEK calls to DEK Registry (#1579)
-* Add support for inline validation rules (#1592)
+## v2.15.1 (RC1)
 
 ### Fixes
 * Preserve HTTP status on Schema Registry error responses (#1590)
-
-### Fixes
 * Fix `Consumer.Close()` hanging indefinitely when the consumer has a fatal
   error (e.g. `FENCED_INSTANCE_ID`). The error returned by
   `rd_kafka_consumer_close_queue()` was being discarded, leaving `Close()`
   polling for a close that was never started (#1588, @nolansherman-spoton)
+
+
+confluent-kafka-go is based on librdkafka 2.15.1, see the
+[librdkafka 2.15.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.15.0
