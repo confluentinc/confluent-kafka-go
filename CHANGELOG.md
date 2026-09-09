@@ -10,8 +10,8 @@
   polling for a close that was never started (#1588, @nolansherman-spoton)
 
 
-confluent-kafka-go is based on librdkafka 2.15.1-RC1, see the
-[librdkafka 2.15.1-RC1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1-RC1)
+confluent-kafka-go is based on librdkafka 2.15.1, see the
+[librdkafka 2.15.1 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
