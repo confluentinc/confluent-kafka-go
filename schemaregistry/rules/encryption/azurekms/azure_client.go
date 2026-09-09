@@ -18,8 +18,6 @@ package azurekms
 
 import (
 	"fmt"
-	"log"
-	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -38,11 +36,10 @@ type azureClient struct {
 	keyURI    string
 	creds     azcore.TokenCredential
 	algorithm azkeys.EncryptionAlgorithm
-	config    map[string]string
 }
 
 // NewClient returns a new Azure KMS client
-func NewClient(keyURI string, creds azcore.TokenCredential, algorithm azkeys.EncryptionAlgorithm, config map[string]string) (registry.KMSClient, error) {
+func NewClient(keyURI string, creds azcore.TokenCredential, algorithm azkeys.EncryptionAlgorithm) (registry.KMSClient, error) {
 	if !strings.HasPrefix(strings.ToLower(keyURI), prefix) {
 		return nil, fmt.Errorf("keyURI must start with %s, but got %s", prefix, keyURI)
 	}
@@ -50,7 +47,6 @@ func NewClient(keyURI string, creds azcore.TokenCredential, algorithm azkeys.Enc
 		keyURI:    keyURI,
 		creds:     creds,
 		algorithm: algorithm,
-		config:    config,
 	}, nil
 }
 
@@ -67,14 +63,5 @@ func (c *azureClient) GetAEAD(keyURI string) (tink.AEAD, error) {
 		return nil, fmt.Errorf("keyURI must start with prefix %s, but got %s", c.keyURI, keyURI)
 	}
 	uri := strings.TrimPrefix(keyURI, prefix)
-
-	saveVersion, _ := strconv.ParseBool(c.config[EncryptAzureKeyVersionSave])
-	if !saveVersion {
-		if _, _, keyVersion, err := getKeyInfo(uri); err == nil && keyVersion == "" {
-			log.Printf("WARN: Azure Key Vault key '%s' is versionless and %s is not enabled; "+
-				"DEKs wrapped with it may become undecryptable after the key is rotated.\n",
-				uri, EncryptAzureKeyVersionSave)
-		}
-	}
-	return NewAEAD(uri, c.creds, c.algorithm, saveVersion)
+	return NewAEAD(uri, c.creds, c.algorithm)
 }

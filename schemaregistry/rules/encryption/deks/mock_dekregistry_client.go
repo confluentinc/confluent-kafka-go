@@ -47,11 +47,10 @@ func (c *mockclient) Config() *schemaregistry.Config {
 }
 
 // RegisterKek registers kek
-func (c *mockclient) RegisterKek(name string, kmsType string, kmsKeyID string, kmsProps map[string]string, doc string, shared bool, context string) (kek Kek, err error) {
+func (c *mockclient) RegisterKek(name string, kmsType string, kmsKeyID string, kmsProps map[string]string, doc string, shared bool) (kek Kek, err error) {
 	cacheKey := KekID{
 		Name:    name,
 		Deleted: false,
-		Context: context,
 	}
 	kekCacheLock.RLock()
 	kek, ok := kekCache[cacheKey]
@@ -76,11 +75,10 @@ func (c *mockclient) RegisterKek(name string, kmsType string, kmsKeyID string, k
 
 // GetKek returns the kek identified by name
 // Returns kek object on success
-func (c *mockclient) GetKek(name string, deleted bool, context string) (kek Kek, err error) {
+func (c *mockclient) GetKek(name string, deleted bool) (kek Kek, err error) {
 	cacheKey := KekID{
 		Name:    name,
 		Deleted: false,
-		Context: context,
 	}
 	kekCacheLock.RLock()
 	kek, ok := kekCache[cacheKey]
