@@ -2,9 +2,6 @@
 
 ## v2.15.1 (RC1)
 
-### Enhancements
-* Add support for inline validation rules (#1592)
-
 ### Fixes
 * Preserve HTTP status on Schema Registry error responses (#1590)
 * Fix `Consumer.Close()` hanging indefinitely when the consumer has a fatal

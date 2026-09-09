@@ -45,7 +45,6 @@ func (l lib) CompileOptions() []cel.EnvOption {
 		cel.CrossTypeNumericComparisons(true),
 		cel.EagerlyValidateDeclarations(true),
 		ext.Strings(ext.StringsValidateFormatCalls(true)),
-		ext.Math(),
 		cel.Function("isHostname",
 			cel.MemberOverload(
 				"string_is_hostname_bool",

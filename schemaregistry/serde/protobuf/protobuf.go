@@ -251,21 +251,9 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
-	if s.ValidationEnabled(serde.ValidationRulesBeforeDomainRules) {
-		if err = s.validateInlineRules(info, protoMsg); err != nil {
-			return nil, nil, err
-		}
-	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, protoMsg)
 	if err != nil {
 		return nil, nil, err
-	}
-	if s.ValidationEnabled(serde.ValidationRulesAfterDomainRules) {
-		if validated, ok := msg.(proto.Message); ok {
-			if err = s.validateInlineRules(info, validated); err != nil {
-				return nil, nil, err
-			}
-		}
 	}
 	switch t := msg.(type) {
 	case proto.Message:
@@ -457,29 +445,6 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
-// validateInlineRules evaluates the descriptor's inline validation rules against msg,
-// returning a single error listing every violation found.
-func (s *Serializer) validateInlineRules(info schemaregistry.SchemaInfo, msg proto.Message) error {
-	executor, err := s.ValidationExecutor()
-	if err != nil {
-		return err
-	}
-	// Resolve the schema-side descriptor, which is the one carrying the Meta options.
-	fd, err := s.toFileDesc(s.Client, info)
-	if err != nil {
-		return err
-	}
-	md := fd.FindMessage(string(msg.ProtoReflect().Descriptor().FullName()))
-	if md == nil {
-		return nil
-	}
-	violations, err := validateMessage(executor, md.UnwrapMessage(), msg, s.Conf.ValidationRulesFailFast)
-	if err != nil {
-		return err
-	}
-	return serde.ValidationRulesFailed(violations)
-}
-
 // FieldTransform transforms the field value using the rule
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	fd, err := s.toFileDesc(client, *ctx.Target)
@@ -492,12 +457,8 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
-	// Keyed on the whole schema: parseFileDesc feeds the referenced .proto
-	// files to the parser, so two roots with the same text but different
-	// references do not parse to the same descriptor.
-	cacheKey := serde.SchemaCacheKey(info)
 	s.schemaToDescCacheLock.RLock()
-	value, ok := s.schemaToDescCache.Get(cacheKey)
+	value, ok := s.schemaToDescCache.Get(info.Schema)
 	s.schemaToDescCacheLock.RUnlock()
 	if ok {
 		return value.(*desc.FileDescriptor), nil
@@ -507,7 +468,7 @@ func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.Sch
 		return nil, err
 	}
 	s.schemaToDescCacheLock.Lock()
-	s.schemaToDescCache.Put(cacheKey, fd)
+	s.schemaToDescCache.Put(info.Schema, fd)
 	s.schemaToDescCacheLock.Unlock()
 	return fd, nil
 }
