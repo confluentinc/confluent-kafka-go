@@ -76,17 +76,9 @@ const SchemaType = "PROTOBUF"
 type Serializer struct {
 	serde.BaseSerializer
 	*Serde
-	Conf                         *SerializerConfig
-	descToSchemaCache            cache.Cache
-	descToSchemaCacheLock        sync.RWMutex
-	ReferenceSubjectNameStrategy ReferenceSubjectNameStrategyFunc
-}
-
-// ReferenceSubjectNameStrategyFunc used to map references to subject names
-type ReferenceSubjectNameStrategyFunc func(fileName string, schema schemaregistry.SchemaInfo) (string, error)
-
-func defaultReferenceSubjectNameStrategy(fileName string, schema schemaregistry.SchemaInfo) (string, error) {
-	return fileName, nil
+	Conf                  *SerializerConfig
+	descToSchemaCache     cache.Cache
+	descToSchemaCacheLock sync.RWMutex
 }
 
 // Deserializer represents a Protobuf deserializer
@@ -174,7 +166,6 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		descToSchemaCache: descToSchemaCache,
 	}
 	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
-	s.ReferenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
 	s.Conf = conf
 	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
@@ -315,7 +306,7 @@ func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.Sche
 	}
 	autoRegister := s.Conf.AutoRegisterSchemas
 	normalize := s.Conf.NormalizeSchemas
-	metadata, err := s.resolveDependencies(fileDesc, deps, false, autoRegister, normalize)
+	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
 	if err != nil {
 		return nil, err
 	}
@@ -366,13 +357,13 @@ func (s *Serializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[stri
 	return nil
 }
 
-func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, isReferenceSchema bool, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
+func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
 	refs := make([]schemaregistry.Reference, 0, len(fileDesc.GetDependencies())+len(fileDesc.GetPublicDependencies()))
 	for _, d := range fileDesc.GetDependencies() {
 		if ignoreFile(d.GetName()) {
 			continue
 		}
-		ref, err := s.resolveDependencies(d, deps, true, autoRegister, normalize)
+		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -386,7 +377,7 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if ignoreFile(d.GetName()) {
 			continue
 		}
-		ref, err := s.resolveDependencies(d, deps, true, autoRegister, normalize)
+		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -404,19 +395,7 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 	var id = -1
 	var err error
 	var version = 0
-	var subject = ""
-	if isReferenceSchema {
-		referenceSubjectNameStrategy := s.ReferenceSubjectNameStrategy
-		if referenceSubjectNameStrategy == nil {
-			referenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
-		}
-		subject, err = referenceSubjectNameStrategy(fileDesc.GetName(), info)
-		if err != nil {
-			return schemaregistry.SchemaMetadata{}, err
-		}
-		if strings.TrimSpace(subject) == "" {
-			return schemaregistry.SchemaMetadata{}, fmt.Errorf("reference subject name strategy returned an empty subject for %q", fileDesc.GetName())
-		}
+	if subject != "" {
 		if autoRegister {
 			id, err = s.Client.Register(subject, info, normalize)
 			if err != nil {
