@@ -34,8 +34,16 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	i = i.Div(i, value.Denom())
 
 	return &types.Decimal{
-		Value:     signedBytes(i),
-		Precision: 0,
+		Value: signedBytes(i),
+		// The unscaled value's digit count, which is what BigDecimal.precision() reports and
+		// what every other write path in this client family carries. Left at 0, this was one
+		// of three paths whose output a JVM consumer rewrites on its next touch:
+		// precision() is never less than 1 - zero's precision is 1 - so 0 is a value the
+		// reference cannot produce, and its reader normalises it away.
+		//
+		// Taken from `i`, the integer actually being written, so the multiplication above
+		// cannot leave it stale.
+		Precision: uint32(len(new(big.Int).Abs(i).String())),
 		Scale:     scale,
 	}, nil
 }
