@@ -52,7 +52,11 @@ func decimalToProto(d *apd.Decimal) (*prototypes.Decimal, error) {
 	}
 	return &prototypes.Decimal{
 		Value: signedBytesFromBigInt(unscaled),
-		Scale: -d.Exponent,
+		// Precision is the unscaled value's digit count, as BigDecimal.precision() reports it
+		// and as Java's ProtobufResultWriter sets it. Safe here because this writer does not
+		// rescale, so the coefficient's digits are the digits actually written.
+		Precision: uint32(len(d.Coeff.MathBigInt().String())),
+		Scale:     -d.Exponent,
 	}, nil
 }
 
