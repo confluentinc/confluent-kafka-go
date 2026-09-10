@@ -17,6 +17,7 @@
 package protobuf
 
 import (
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"math/big"
 )
@@ -38,6 +39,9 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	//
 	// It round-tripped inside this client only because ratFromBytes had the mirror-image bug,
 	// so the two cancelled and the wire bytes were wrong for every other reader.
+	if err := checkRatScale(int64(scale)); err != nil {
+		return nil, err
+	}
 	i := new(big.Int).Set(value.Num())
 	den := new(big.Int).Set(value.Denom())
 	if scale >= 0 {
@@ -62,13 +66,47 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	}, nil
 }
 
+// maxRatScale bounds the scale these two helpers will build a power of ten for.
+//
+// A big.Rat carries no exponent - only a numerator and a denominator - so unlike every other
+// decimal representation in this client family it cannot hold `unscaled * 10^-scale` without
+// materialising the power of ten. The reference is O(1) here (`new BigDecimal(unscaled, scale)`
+// just stores the int), and so is this client's own CEL path, which builds an apd.Decimal from
+// coefficient and exponent. This path has nothing to delegate to, so it needs a bound of its
+// own, and 10^7 digits is the one the family already uses for a positional form too wide to
+// build (decimals.md 4b: SANE_WIDTH).
+//
+// Measured: 10^10000000 is 33219281 bits and takes 663ms to build; a scale off the wire is an
+// int32, and 10^2147483648 would be ~890MB and minutes. Scale is producer-controlled, so both
+// exported helpers below check before exponentiating rather than after.
+const maxRatScale = 10000000
+
 // DecimalToBigRat converts a Decimal protobuf message to a big.Rat.
 func DecimalToBigRat(value *types.Decimal) (*big.Rat, error) {
 	if value == nil {
 		return nil, nil
 	}
+	if err := checkRatScale(int64(value.Scale)); err != nil {
+		return nil, err
+	}
 
 	return ratFromBytes(value.Value, int(value.Scale)), nil
+}
+
+// checkRatScale refuses a scale whose power of ten this representation cannot afford to build.
+// The magnitude is what costs, so both signs are bounded: the positive branch below puts
+// 10^scale in the denominator and the negative one multiplies the numerator by 10^-scale.
+func checkRatScale(scale int64) error {
+	magnitude := scale
+	if magnitude < 0 {
+		magnitude = -magnitude
+	}
+	if magnitude > maxRatScale {
+		return fmt.Errorf(
+			"decimal scale %d needs 10^%d, past this client's %d-digit limit for a big.Rat",
+			scale, magnitude, maxRatScale)
+	}
+	return nil
 }
 
 func ratFromBytes(b []byte, scale int) *big.Rat {

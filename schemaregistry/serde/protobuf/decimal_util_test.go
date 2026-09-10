@@ -18,8 +18,10 @@ package protobuf
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cockroachdb/apd/v3"
@@ -236,7 +238,7 @@ func TestNegativeScaleRoundTripsOnTheWire(t *testing.T) {
 		unscaled  int64
 		precision uint32
 	}{
-		{1000, 1, -3, 1, 1},     // the reported case
+		{1000, 1, -3, 1, 1}, // the reported case
 		{1200, 1, -2, 12, 2},
 		{100, 1, -2, 1, 1},
 		{1234, 100, 2, 1234, 4}, // a positive scale is unaffected
@@ -291,4 +293,54 @@ func TestDecimalToBigRatReadsANegativeScale(t *testing.T) {
 				tc.unscaled, tc.scale, got.RatString(), tc.want.RatString())
 		}
 	}
+}
+
+// A wire scale is producer-controlled int32 data, and a big.Rat has no exponent to store it in -
+// the power of ten has to be built. Both signs cost the same, so both are bounded: 10^2147483648
+// is ~890MB, and even the bound itself (10^10000000, 33219281 bits) takes 663ms to build.
+//
+// The reference needs no such check - `new BigDecimal(unscaled, scale)` just stores the int - and
+// neither does this client's CEL path, which builds an apd.Decimal from coefficient and exponent.
+// This is a limitation of the big.Rat representation, not a parity choice.
+func TestBigRatScaleIsBounded(t *testing.T) {
+	for _, scale := range []int32{
+		math.MinInt32, math.MaxInt32, -2000000000, 2000000000,
+		-(maxRatScale + 1), maxRatScale + 1,
+	} {
+		d := &types.Decimal{Value: []byte{0x01}, Scale: scale}
+		if _, err := DecimalToBigRat(d); err == nil {
+			t.Errorf("DecimalToBigRat(scale %d): expected an error, got none", scale)
+		}
+		if _, err := BigRatToDecimal(big.NewRat(1, 1), scale); err == nil {
+			t.Errorf("BigRatToDecimal(scale %d): expected an error, got none", scale)
+		}
+	}
+}
+
+// ...and the ordinary scales still work, so the bound is not simply refusing everything.
+func TestBigRatOrdinaryScalesStillConvert(t *testing.T) {
+	cases := []struct {
+		scale int32
+		want  string
+	}{
+		{2, "1234/100"},  // 12.34
+		{0, "1234/1"},    // 1234
+		{-2, "123400/1"}, // 1234 * 10^2
+	}
+	for _, c := range cases {
+		got, err := DecimalToBigRat(&types.Decimal{Value: []byte{0x04, 0xD2}, Scale: c.scale})
+		if err != nil {
+			t.Fatalf("scale %d: %v", c.scale, err)
+		}
+		if got.RatString() != new(big.Rat).SetFrac(
+			mustBigInt(c.want, 0), mustBigInt(c.want, 1)).RatString() {
+			t.Errorf("scale %d: got %s, want %s", c.scale, got.RatString(), c.want)
+		}
+	}
+}
+
+func mustBigInt(frac string, which int) *big.Int {
+	parts := strings.Split(frac, "/")
+	v, _ := new(big.Int).SetString(parts[which], 10)
+	return v
 }
