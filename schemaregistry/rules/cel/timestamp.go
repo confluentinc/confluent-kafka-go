@@ -34,6 +34,13 @@ const (
 	precisionNanos   = 9
 )
 
+// The CEL timestamp range, 0001-01-01T00:00:00Z..9999-12-31T23:59:59.999999999Z, in epoch
+// seconds. Same bounds as the reference's TimestampUtils.MIN/MAX_EPOCH_SECOND.
+const (
+	minEpochSecond = -62135596800
+	maxEpochSecond = 253402300799
+)
+
 // timestampOptions adds one overload to the *standard* timestamp constructor, rather than a
 // timestamp.of namespace of our own: timestamp(int, int), an epoch value at a decimal
 // precision. cel-go merges the declaration into the stdlib function, so timestamp(string),
@@ -101,19 +108,43 @@ func fromEpochPrecision(v, precision ref.Val) ref.Val {
 	if !ok {
 		return types.NewErr("timestamp: the precision must be an int")
 	}
-	var t time.Time
+	var perSecond int64
 	switch p {
 	case precisionSeconds:
-		t = time.Unix(val, 0)
+		perSecond = 1
 	case precisionMillis:
-		t = time.UnixMilli(val)
+		perSecond = 1_000
 	case precisionMicros:
-		t = time.UnixMicro(val)
+		perSecond = 1_000_000
 	case precisionNanos:
-		t = time.Unix(0, val)
+		perSecond = 1_000_000_000
 	default:
 		return types.NewErr(
 			"timestamp: unknown precision %d; expected 0 (seconds), 3 (millis), 6 (micros) or 9 (nanos)", p)
 	}
-	return types.Timestamp{Time: t.UTC()}
+	// Range-checked before construction, not after, and on the epoch rather than on the
+	// resulting year. Building types.Timestamp directly skips the bound cel-go applies to its
+	// own timestamp() conversions, and time.Unix overflows silently past it: measured,
+	// timestamp(253402300800, 0) rendered as 10000-01-01T00:00:00Z, timestamp(-62135596801, 0)
+	// as year 0, and timestamp(-9223372036854775807, 0) as 292277026596-12-04 - a *positive*
+	// year from a far-past epoch, the sign lost in the wrap. The reference refuses all of them
+	// in TimestampUtils.instantOfEpoch, which is what this mirrors.
+	seconds := floorDiv(val, perSecond)
+	if seconds < minEpochSecond || seconds > maxEpochSecond {
+		return types.NewErr(
+			"timestamp: out of range: %d seconds since the epoch is outside "+
+				"0001-01-01T00:00:00Z..9999-12-31T23:59:59.999999999Z", seconds)
+	}
+	nanos := (val - seconds*perSecond) * (1_000_000_000 / perSecond)
+	return types.Timestamp{Time: time.Unix(seconds, nanos).UTC()}
+}
+
+// floorDiv rounds toward negative infinity, so a pre-epoch value keeps a non-negative
+// sub-second remainder - matching the reference's Math.floorDiv.
+func floorDiv(a, b int64) int64 {
+	q := a / b
+	if a%b != 0 && (a < 0) != (b < 0) {
+		q--
+	}
+	return q
 }
