@@ -4,8 +4,8 @@ package test;
 option go_package="../test";
 
 import "confluent/meta.proto";
-import "confluent/types/decimal.proto";
-import "confluent/types/variant.proto";
+import "confluent/type/decimal.proto";
+import "confluent/type/variant.proto";
 import "google/protobuf/timestamp.proto";
 
 // The three value types protobuf carries as messages, plus a scalar. Tagged so a CEL_FIELD
