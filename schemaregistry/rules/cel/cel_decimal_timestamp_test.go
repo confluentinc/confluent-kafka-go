@@ -622,3 +622,31 @@ func TestUnsetProtoDecimalFieldReadsAsZero(t *testing.T) {
 		}
 	}
 }
+
+// TestModIsExactPastAHundredDigits pins that decimals.mod is exact at any width.
+//
+// The Rust client computed it as trunc(a/b)*b through a division capped at its library's
+// default 100-digit precision, so past 100 digits the integral quotient was approximate and
+// the remainder silently wrong - 1e101 mod 3 came back as 10. apd's Rem is exact, so this
+// client was never affected; pinned so it stays that way, and because the existing coverage
+// stopped at 1E40 (41 digits) and would not have caught it.
+//
+// Measured on the JDK: 10^k mod 3 is 1 for every k, and 10^200 mod 7 is 2 (10^6 = 1 mod 7,
+// and 200 mod 6 = 2).
+func TestModIsExactPastAHundredDigits(t *testing.T) {
+	for _, k := range []string{"99", "100", "101", "200", "10000"} {
+		expr := `string(decimals.mod(decimal("1e` + k + `"), decimal("3"))) == "1"`
+		if !evalBool(t, expr, map[string]interface{}{"x": 1}) {
+			t.Errorf("1e%s mod 3 must be exactly 1", k)
+		}
+	}
+	for _, tc := range []struct{ expr, why string }{
+		{`string(decimals.mod(decimal("1e200"), decimal("7"))) == "2"`, "10^200 mod 7"},
+		{`string(decimals.mod(decimal("-1e101"), decimal("3"))) == "-1"`, "sign follows the dividend"},
+		{`string(decimals.mod(decimal("12.34"), decimal("1.5"))) == "0.34"`, "ordinary case"},
+	} {
+		if !evalBool(t, tc.expr, map[string]interface{}{"x": 1}) {
+			t.Errorf("%s: %s", tc.why, tc.expr)
+		}
+	}
+}
