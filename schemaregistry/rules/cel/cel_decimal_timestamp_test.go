@@ -650,3 +650,48 @@ func TestModIsExactPastAHundredDigits(t *testing.T) {
 		}
 	}
 }
+
+// TestTwoArgTimestampIsRangeChecked pins the CEL timestamp range on the two-argument
+// constructor. It builds types.Timestamp directly, which skips the bound cel-go applies to its
+// own timestamp() conversions, and time.Unix wraps silently past it - measured before the
+// check, timestamp(253402300800, 0) rendered as 10000-01-01T00:00:00Z, timestamp(-62135596801,
+// 0) as year 0, and timestamp(-9223372036854775807, 0) as 292277026596-12-04: a *positive* year
+// from a far-past epoch, the sign lost in the wrap. The reference refuses each of these in
+// TimestampUtils.instantOfEpoch.
+func TestTwoArgTimestampIsRangeChecked(t *testing.T) {
+	// The boundaries themselves are inside the range.
+	for expr, want := range map[string]string{
+		"string(timestamp(0, 0))":            "1970-01-01T00:00:00Z",
+		"string(timestamp(253402300799, 0))": "9999-12-31T23:59:59Z",
+		"string(timestamp(-62135596800, 0))": "0001-01-01T00:00:00Z",
+		// int64 nanoseconds cannot leave the range, so the widest nanos value still answers.
+		"string(timestamp(9223372036854775807, 9))": "2262-04-11T23:47:16.854775807Z",
+		// floorDiv, not truncation: a pre-epoch value keeps a non-negative sub-second part,
+		// matching the reference's Math.floorDiv/floorMod.
+		"string(timestamp(-1500, 3))": "1969-12-31T23:59:58.500Z",
+		"string(timestamp(1500, 3))":  "1970-01-01T00:00:01.500Z",
+	} {
+		if got := evalString(t, expr, "x"); got != want {
+			t.Errorf("%s = %q, want %q", expr, got, want)
+		}
+	}
+
+	// One second past either end, and the int64 extremes that used to wrap.
+	for _, expr := range []string{
+		"string(timestamp(253402300800, 0))",
+		"string(timestamp(-62135596801, 0))",
+		"string(timestamp(9223372036854775807, 0))",
+		"string(timestamp(-9223372036854775807, 0))",
+		"string(timestamp(9223372036854775807, 3))",
+		"string(timestamp(-9223372036854775807, 6))",
+	} {
+		_, err := evalRaw(t, expr, "x")
+		if err == nil {
+			t.Errorf("%s: expected an out-of-range error", expr)
+			continue
+		}
+		if !strings.Contains(err.Error(), "timestamp: out of range") {
+			t.Errorf("%s: error = %v, want it to mention the range", expr, err)
+		}
+	}
+}
