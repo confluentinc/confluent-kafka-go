@@ -833,3 +833,68 @@ func TestAppliedPreferredScaleIsTheScaleNotTheRendering(t *testing.T) {
 		}
 	}
 }
+
+// TestThePreferredScaleCannotExceedTheContextPrecision pins the other half of the preferred
+// scale: it does not override the 38-digit context precision. The reference pads toward the
+// preferred scale only while the result still fits in mc.precision significant digits and
+// stops short otherwise, so the target is
+// min(preferred, minimalScale + (38 - minimalPrecision)), floored at the minimal scale.
+//
+// Before the cap, the Quantize in applyPreferredScale was asked for more digits than the
+// context holds. That is an InvalidOperation, and with Traps unset apd reports it by
+// returning a NaN and **no error** - so `decimals.div(decimal("1."+40 zeros), decimal("1"))`
+// evaluated to the string "NaN". Same silent-NaN shape as apd's Rem in decimals.mod.
+func TestThePreferredScaleCannotExceedTheContextPrecision(t *testing.T) {
+	zeros := func(n int) string { return strings.Repeat("0", n) }
+	cases := []struct{ expr, want string }{
+		// 37 zeros is exactly 38 significant digits: the last reachable preferred scale.
+		{`string(decimals.div(decimal("1.` + zeros(37) + `"), decimal("1")))`, "1." + zeros(37)},
+		// 40 and 100 would need 41 and 101 digits; both stop at 37, and both were "NaN".
+		{`string(decimals.div(decimal("1.` + zeros(40) + `"), decimal("1")))`, "1." + zeros(37)},
+		{`string(decimals.div(decimal("1.` + zeros(100) + `"), decimal("1")))`, "1." + zeros(37)},
+		// The cap is on precision, not on scale: 0.5 spends a digit before the padding starts
+		// and so reaches scale 38, where 1 reaches only 37...
+		{`string(decimals.div(decimal("1.` + zeros(100) + `"), decimal("2")))`, "0.5" + zeros(37)},
+		// ...and 0.125 spends three, reaching 38 from a minimal scale of 3.
+		{`string(decimals.div(decimal("1.` + zeros(100) + `"), decimal("8")))`, "0.125" + zeros(35)},
+		// sqrt: preferred 20 fits, 37 is exactly the ceiling, 50 does not fit.
+		{`string(decimals.sqrt(decimal("1.` + zeros(40) + `")))`, "1." + zeros(20)},
+		{`string(decimals.sqrt(decimal("1.` + zeros(74) + `")))`, "1." + zeros(37)},
+		{`string(decimals.sqrt(decimal("1.` + zeros(100) + `")))`, "1." + zeros(37)},
+	}
+	for _, c := range cases {
+		got := evalString(t, c.expr, 0)
+		if got != c.want {
+			t.Errorf("scale %d: got %d digits after the point, want %d (leading %.8s)",
+				len(c.expr), len(got)-strings.Index(got, ".")-1,
+				len(c.want)-strings.Index(c.want, ".")-1, got)
+		}
+	}
+}
+
+// TestAZeroIsExemptFromThePrecisionCap: a zero is one digit at any scale, so it keeps the full
+// preferred scale. Measured on the reference: 0.<100 zeros> / 1 is scale 100 at precision 1.
+func TestAZeroIsExemptFromThePrecisionCap(t *testing.T) {
+	for _, c := range []struct {
+		literal      string
+		preferredExp int32
+		wantExponent int32
+	}{
+		{"0." + strings.Repeat("0", 100), -100, -100},
+		{"0." + strings.Repeat("0", 100), -99, -99},
+	} {
+		d, _, err := apd.NewFromString(c.literal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res := new(apd.Decimal).Set(d)
+		if err := applyPreferredScale(res, c.preferredExp); err != nil {
+			t.Errorf("applyPreferredScale(zero, %d): %v", c.preferredExp, err)
+			continue
+		}
+		if res.Exponent != c.wantExponent {
+			t.Errorf("applyPreferredScale(zero, %d): exponent %d, want %d",
+				c.preferredExp, res.Exponent, c.wantExponent)
+		}
+	}
+}

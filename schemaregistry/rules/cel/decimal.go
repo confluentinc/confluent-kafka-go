@@ -794,10 +794,29 @@ func applyPreferredScale(res *apd.Decimal, preferredExp int32) error {
 		return nil
 	}
 	res.Reduce(res)
-	if res.Exponent > preferredExp {
+	// The preferred scale does not override the context precision. The reference pads toward
+	// the preferred scale only while the result still fits in mc.precision significant
+	// digits, and stops short otherwise: measured, `1.<40 zeros> / 1` is scale 37 there and
+	// not the preferred 40, and `1.<100 zeros> / 8` is scale 38 because 0.125 already spends
+	// 3 of the 38 on digits that are not padding.
+	//
+	// Without this cap the Quantize below was asked for more digits than the context holds,
+	// which is an InvalidOperation - and with Traps unset apd reports that by returning a
+	// **NaN and no error**. `decimals.div(decimal("1."+40 zeros), decimal("1"))` came back as
+	// the string "NaN". Same silent-NaN shape as apd's Rem in decimals.mod above; the Form
+	// check afterwards is the belt to this braces.
+	headroom := int32(divContext.Precision) - int32(res.NumDigits())
+	target := preferredExp
+	if floor := res.Exponent - headroom; target < floor {
+		target = floor
+	}
+	if target < res.Exponent {
 		ctx := &apd.Context{Precision: divContext.Precision, Rounding: apd.RoundHalfUp, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
-		if _, err := ctx.Quantize(res, res, preferredExp); err != nil {
+		if _, err := ctx.Quantize(res, res, target); err != nil {
 			return err
+		}
+		if res.Form != apd.Finite {
+			return fmt.Errorf("preferred scale %d is not representable", -target)
 		}
 	}
 	return nil
