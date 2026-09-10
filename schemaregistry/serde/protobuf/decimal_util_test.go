@@ -217,3 +217,78 @@ func TestDecimalToBigRatIgnoresPrecision(t *testing.T) {
 		}
 	}
 }
+
+// TestNegativeScaleRoundTripsOnTheWire pins both directions of the negative-scale conversion.
+//
+// `big.Int.Exp(10, negative, nil)` returns **1**, so the sign was silently ignored in both
+// BigRatToDecimal and ratFromBytes - and because the two errors were mirror images, a Go->Go
+// round-trip looked correct while the wire bytes were wrong for every other reader. Measured on
+// the JDK, which is what the wire form has to mean:
+//
+//	new BigDecimal("1000").setScale(-3)              -> unscaled 1, scale -3, precision 1
+//	new BigDecimal(BigInteger.valueOf(1000), -3)     -> 1000000
+//
+// So storing unscaled 1000 at scale -3, as this did, is off by a factor of 1000 on the JVM.
+func TestNegativeScaleRoundTripsOnTheWire(t *testing.T) {
+	cases := []struct {
+		num, den  int64
+		scale     int32
+		unscaled  int64
+		precision uint32
+	}{
+		{1000, 1, -3, 1, 1},     // the reported case
+		{1200, 1, -2, 12, 2},
+		{100, 1, -2, 1, 1},
+		{1234, 100, 2, 1234, 4}, // a positive scale is unaffected
+		{0, 1, -3, 0, 1},
+		{-1000, 1, -3, -1, 1},
+	}
+	for _, tc := range cases {
+		m, err := BigRatToDecimal(big.NewRat(tc.num, tc.den), tc.scale)
+		if err != nil {
+			t.Fatalf("%d/%d at %d: %v", tc.num, tc.den, tc.scale, err)
+		}
+		un := new(big.Int).SetBytes(m.Value)
+		if len(m.Value) > 0 && m.Value[0]&0x80 != 0 {
+			un.Sub(un, new(big.Int).Lsh(big.NewInt(1), uint(8*len(m.Value))))
+		}
+		if un.Int64() != tc.unscaled || m.Scale != tc.scale || m.Precision != tc.precision {
+			t.Errorf("BigRatToDecimal(%d/%d, %d) = (unscaled %d, scale %d, precision %d), want (%d, %d, %d)",
+				tc.num, tc.den, tc.scale, un.Int64(), m.Scale, m.Precision,
+				tc.unscaled, tc.scale, tc.precision)
+		}
+		// And reading it back gives the value we started from, so the two halves agree.
+		back, err := DecimalToBigRat(m)
+		if err != nil {
+			t.Fatalf("DecimalToBigRat: %v", err)
+		}
+		if want := big.NewRat(tc.num, tc.den); back.Cmp(want) != 0 {
+			t.Errorf("round-trip of %d/%d at scale %d = %s, want %s",
+				tc.num, tc.den, tc.scale, back.RatString(), want.RatString())
+		}
+	}
+}
+
+// TestDecimalToBigRatReadsANegativeScale is the reading half on its own, against the byte form
+// the reference writes: unscaled 1 at scale -3 is 1000, not 1.
+func TestDecimalToBigRatReadsANegativeScale(t *testing.T) {
+	for _, tc := range []struct {
+		unscaled []byte
+		scale    int32
+		want     *big.Rat
+	}{
+		{[]byte{0x01}, -3, big.NewRat(1000, 1)},
+		{[]byte{0x0c}, -2, big.NewRat(1200, 1)},
+		{[]byte{0x04, 0xd2}, 2, big.NewRat(1234, 100)},
+		{[]byte{0x01}, 0, big.NewRat(1, 1)},
+	} {
+		got, err := DecimalToBigRat(&types.Decimal{Value: tc.unscaled, Scale: tc.scale})
+		if err != nil {
+			t.Fatalf("%x at %d: %v", tc.unscaled, tc.scale, err)
+		}
+		if got.Cmp(tc.want) != 0 {
+			t.Errorf("DecimalToBigRat(%x, %d) = %s, want %s",
+				tc.unscaled, tc.scale, got.RatString(), tc.want.RatString())
+		}
+	}
+}
