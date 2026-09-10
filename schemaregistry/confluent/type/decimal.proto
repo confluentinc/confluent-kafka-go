@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package confluent.type;
+
+// This file's own path is the canonical confluent/type/... - what the Java client registers and
+// what ProtobufSchema declares - while the generated Go package is confluent/types/, because
+// `type` is a Go keyword. Generated with --go_out=schemaregistry/confluent/type, which resolves
+// the relative path below to schemaregistry/confluent/types.
+option go_package="../types";
+
+message Decimal {
+
+  // The two's-complement representation of the unscaled integer value in big-endian byte order
+  bytes value = 1;
+
+  // The precision (zero indicates unlimited precision)
+  uint32 precision = 2;
+
+  // The scale
+  int32 scale = 3;
+}
