@@ -49,7 +49,18 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	} else {
 		den.Mul(den, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-int64(scale))), nil))
 	}
-	i = i.Div(i, den)
+	// Quo, not Div: big.Int.Div is Euclidean (floors toward negative infinity) while Quo
+	// truncates toward zero, and only the negative branch differed - measured, -1.25 at scale 1
+	// wrote unscaled -13 where +1.25 wrote 12, and -1.21 wrote -13 where truncation gives -12
+	// and HALF_UP also gives -12. Flooring matches neither contract in this family: the
+	// reference's BigInteger.divide truncates toward zero, and so does decimals.trunc's
+	// ROUND_DOWN. Quo makes the negative branch agree with the positive one, which already
+	// truncated, so no non-negative result changes.
+	//
+	// Refusing an inexact rescale - BigDecimal.setScale(int) without a rounding mode throws -
+	// would be the other defensible contract, but it would change the positive path too
+	// (1/3 at scale 2 currently succeeds as 0.33), and this is an exported helper.
+	i = i.Quo(i, den)
 
 	return &types.Decimal{
 		Value: signedBytes(i),
