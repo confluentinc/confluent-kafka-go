@@ -695,3 +695,70 @@ func TestTwoArgTimestampIsRangeChecked(t *testing.T) {
 		}
 	}
 }
+
+// TestQuantizeReportsAnUnrepresentableScale pins two defects that both ended in a silent "NaN".
+// apd signals an out-of-range Quantize by *returning* NaN, with Traps zero, so past its
+// exponent bounds the rule saw the string "NaN" rather than an error - measured,
+// round(1.23, -100001) and both int32 extremes all answered "NaN". Separately, negating
+// math.MinInt32 in int32 wrapped straight back to itself, so that scale asked for the opposite
+// extreme exponent instead of being reported.
+//
+// The reference raises there - setScale(-2147483647) is ArithmeticException: Underflow - and
+// its working range is wider, bounded by int32 rather than by apd's exponent. That width
+// difference is the exponent-range divergence decimals.md §4a delegates to the native library;
+// the silent NaN is not.
+func TestQuantizeReportsAnUnrepresentableScale(t *testing.T) {
+	for _, fn := range []string{"round", "trunc"} {
+		for _, scale := range []int64{math.MinInt32, -2147483647, -100001} {
+			expr := fmt.Sprintf(`string(decimals.%s(decimal("1.23"), %d))`, fn, scale)
+			out, err := evalRaw(t, expr, "x")
+			if err == nil {
+				t.Errorf("%s: expected an error, got %v", expr, out)
+				continue
+			}
+			if !strings.Contains(err.Error(), "cannot be represented") {
+				t.Errorf("%s: error should say the scale cannot be represented, got %v", expr, err)
+			}
+		}
+	}
+
+	// The range apd does support is unchanged - the fix must not narrow it.
+	for expr, want := range map[string]string{
+		`string(decimals.round(decimal("1.23"), 0))`: "1",
+		`string(decimals.round(decimal("1.23"), 2))`: "1.23",
+		`string(decimals.trunc(decimal("1.29"), 1))`: "1.2",
+		// A negative scale is deliberately not asserted here: Go renders a zero at a negative
+		// scale as "00"/"0000" where the reference, Python and JS all give "0". Separate bug,
+		// separate fix - this test is about the unrepresentable-scale error.
+	} {
+		if got := evalString(t, expr, "x"); got != want {
+			t.Errorf("%s = %q, want %q", expr, got, want)
+		}
+	}
+}
+
+// TestPlainTextMatchesToPlainString pins the rendering of a zero at a negative scale. apd's
+// Text('f') pads a zero out to its exponent like any other coefficient, so `string(decimal(
+// "0E+3"))` answered "0000" where the reference, Python and JS all give "0" - measured.
+// BigDecimal.toPlainString special-cases zero in the negative-scale branch and only there, so
+// the neighbouring cases have to keep their zeros: a zero at a *positive* scale stays "0.00",
+// and a non-zero coefficient still pads (123 at scale -1 is "1230"). All four measured on the
+// JVM.
+func TestPlainTextMatchesToPlainString(t *testing.T) {
+	for expr, want := range map[string]string{
+		// The fix: zero at a negative scale.
+		`string(decimal("0E+3"))`:                     "0",
+		`string(decimal("0E+1"))`:                     "0",
+		`string(decimals.round(decimal("1.23"), -3))`: "0",
+		// The neighbours, which must not change.
+		`string(decimal("0.00"))`:                    "0.00",
+		`string(decimal("0"))`:                       "0",
+		`string(decimal("1E+1"))`:                    "10",
+		`string(decimal(b"\x7b", -1))`:               "1230",
+		`string(decimals.round(decimal("1.23"), 2))`: "1.23",
+	} {
+		if got := evalString(t, expr, "x"); got != want {
+			t.Errorf("%s = %q, want %q", expr, got, want)
+		}
+	}
+}

@@ -24,14 +24,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cockroachdb/apd/v3"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"cel.dev/cel-go/cel"
 	"cel.dev/cel-go/common/operators"
 	"cel.dev/cel-go/common/overloads"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
+	"github.com/cockroachdb/apd/v3"
+	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -67,10 +67,28 @@ type decimalVal struct {
 
 func newDecimal(d *apd.Decimal) decimalVal { return decimalVal{d: d} }
 
+// plainText renders a decimal the way BigDecimal.toPlainString does.
+//
+// apd's Text('f') pads a *zero* out to its exponent like any other coefficient, so a zero at a
+// negative scale rendered its trailing zeros: `string(decimal("0E+3"))` was "0000" and
+// `string(decimals.round(decimal("1.23"), -3))` likewise, where the reference, Python and JS all
+// answer "0" - measured. BigDecimal.toPlainString has an explicit zero case in exactly this
+// branch ("if (this.scale < 0) { if (signum() == 0) return "0"; ... }"), and only there: a zero
+// at a *positive* scale keeps its fractional zeros ("0.00" stays "0.00"), and a non-zero
+// coefficient still pads (123 at scale -1 is "1230"). Measured on the JVM, all four cases.
+func plainText(d *apd.Decimal) string {
+	if d.Form == apd.Finite && d.Exponent > 0 && d.Coeff.Sign() == 0 {
+		// A negative scale is a positive apd exponent. Sign is irrelevant: BigDecimal has no
+		// negative zero, and `new BigDecimal(BigInteger.ZERO, -3)` renders "0".
+		return "0"
+	}
+	return d.Text('f')
+}
+
 func (v decimalVal) ConvertToNative(typeDesc reflect.Type) (any, error) {
 	switch typeDesc.Kind() {
 	case reflect.String:
-		return v.d.Text('f'), nil
+		return plainText(v.d), nil
 	case reflect.Interface:
 		return v.d, nil
 	}
@@ -83,7 +101,7 @@ func (v decimalVal) ConvertToNative(typeDesc reflect.Type) (any, error) {
 func (v decimalVal) ConvertToType(typeValue ref.Type) ref.Val {
 	switch typeValue.TypeName() {
 	case "string":
-		return types.String(v.d.Text('f'))
+		return types.String(plainText(v.d))
 	case "double":
 		f, _ := v.d.Float64()
 		return types.Double(f)
@@ -593,7 +611,7 @@ func decimalOptions() []cel.EnvOption {
 					if err != nil {
 						return err
 					}
-					return types.String(d.Text('f'))
+					return types.String(plainText(d))
 				})),
 		),
 		cel.Function("double",
@@ -734,9 +752,28 @@ func quantize(res, d *apd.Decimal, scale int32, rounder apd.Rounder) error {
 	if scale > 0 {
 		prec += int64(scale)
 	}
+	// int64: negating math.MinInt32 in int32 wraps straight back to math.MinInt32, so the
+	// request became the opposite extreme exponent instead of being reported.
+	exp := -int64(scale)
+	if exp < math.MinInt32 || exp > math.MaxInt32 {
+		return fmt.Errorf("scale %d cannot be represented", scale)
+	}
 	ctx := &apd.Context{Precision: uint32(prec) + 2, Rounding: rounder, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
-	_, err := ctx.Quantize(res, d, -scale)
-	return err
+	if _, err := ctx.Quantize(res, d, int32(exp)); err != nil {
+		return err
+	}
+	// apd signals an out-of-range quantize by *returning NaN*, silently, because Traps is
+	// zero - so past its exponent bounds (|scale| > 100000) the rule saw the string "NaN"
+	// rather than an error. Measured: round(1.23, -100001) and both int32 extremes all
+	// answered "NaN". The reference raises there (setScale(-2147483647) is
+	// ArithmeticException: Underflow), and its working range is wider - bounded by int32
+	// rather than by apd's exponent - which is the exponent-range divergence decimals.md
+	// §4a already delegates to the native library. Narrowing that is apd's business; a
+	// silent NaN is not.
+	if res.Form != apd.Finite {
+		return fmt.Errorf("scale %d cannot be represented", scale)
+	}
+	return nil
 }
 
 // applyPreferredScale rewrites an exact div/sqrt result to Java BigDecimal's preferred
