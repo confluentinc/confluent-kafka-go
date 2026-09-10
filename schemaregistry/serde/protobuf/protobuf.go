@@ -155,6 +155,19 @@ func init() {
 		}
 		builtInDeps[key] = writer.String()
 	}
+	// Accept the plural spelling too, for schemas registered before the confluent value types
+	// moved to their canonical confluent/type/... path. The accessor keys by the import string
+	// and the file name it hands the parser comes from that key, so one source text serves both
+	// names - and both carry `package confluent.type`, so either resolves to the same
+	// confluent.type.Decimal. Read-only tolerance: this client now emits the canonical path.
+	for canonical, legacy := range map[string]string{
+		"confluent/type/decimal.proto": "confluent/types/decimal.proto",
+		"confluent/type/variant.proto": "confluent/types/variant.proto",
+	} {
+		if src, ok := builtInDeps[canonical]; ok {
+			builtInDeps[legacy] = src
+		}
+	}
 }
 
 // NewSerializer creates a Protobuf serializer for Protobuf-generated objects
