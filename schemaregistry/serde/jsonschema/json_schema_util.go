@@ -22,6 +22,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
 	"reflect"
+	"strings"
 )
 
 func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, msg *reflect.Value,
@@ -34,17 +35,16 @@ func transform(ctx serde.RuleContext, schema *jsonschema2.Schema, path string, m
 		fieldCtx.Type = getType(schema)
 	}
 	if len(schema.Types) > 1 {
-		originalTypes := schema.Types
-		subschema, err := validateSubtypes(schema, msg)
+		// Narrow to the type the value actually matches, on a shallow copy: the compiled
+		// schema is cached and shared across serializations, so mutating it - even
+		// temporarily - races with concurrent use. Same as the validation walk.
+		subschema, err := matchSubtype(schema, msg)
 		if err != nil {
 			return nil, err
 		}
 		if subschema != nil {
-			result, err := transform(ctx, subschema, path, msg, fieldTransform)
-			schema.Types = originalTypes // restore original types
-			return result, err
+			return transform(ctx, subschema, path, msg, fieldTransform)
 		}
-		schema.Types = originalTypes // restore original types
 	}
 	if len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
 		if len(schema.AllOf) > 0 {
@@ -157,7 +157,12 @@ func fieldByNames(value *reflect.Value) map[string]*reflect.Value {
 		structField := value.Type().Field(i)
 		fieldName := structField.Name
 		if tag, ok := structField.Tag.Lookup("json"); ok {
-			fieldName = tag
+			// A json tag carries options after the name, e.g. `json:"age,omitempty"`, so
+			// index by the encoded name; otherwise schema properties never line up with
+			// the struct fields. Mirrors schemaFieldName on the CEL side.
+			if name := strings.Split(tag, ",")[0]; name != "" && name != "-" {
+				fieldName = name
+			}
 		}
 		fieldByNames[fieldName] = &field
 	}
@@ -181,7 +186,11 @@ func transformProperties(ctx serde.RuleContext, schema *jsonschema2.Schema, path
 		}
 	case reflect.Map:
 		for propName, propSchema := range schema.Properties {
-			mapField := val.MapIndex(reflect.ValueOf(propName))
+			key, ok := serde.MapKeyForName(*val, propName)
+			if !ok {
+				continue
+			}
+			mapField := val.MapIndex(key)
 			if !mapField.IsValid() {
 				continue
 			}
@@ -216,7 +225,9 @@ func transformField(ctx serde.RuleContext, path string, propName string, structF
 				return err
 			}
 		} else if val.Kind() == reflect.Map {
-			val.SetMapIndex(reflect.ValueOf(propName), *newVal)
+			if key, ok := serde.MapKeyForName(*val, propName); ok {
+				val.SetMapIndex(key, *newVal)
+			}
 		}
 	}
 	return nil
@@ -239,21 +250,6 @@ func transformArray(ctx serde.RuleContext, msg *reflect.Value, sch *jsonschema2.
 	return msg, nil
 }
 
-func validateSubtypes(schema *jsonschema2.Schema, msg *reflect.Value) (*jsonschema2.Schema, error) {
-	val := deref(msg)
-	for _, typ := range schema.Types {
-		schema.Types = []string{typ}
-		valid, err := validate(schema, val)
-		if err != nil {
-			return nil, err
-		}
-		if valid {
-			return schema, nil
-		}
-	}
-	return nil, nil
-}
-
 func isModernJSONSchema(draft *jsonschema2.Draft) bool {
 	u := draft.URL()
 	return u == "https://json-schema.org/draft/2020-12/schema" ||
@@ -262,6 +258,14 @@ func isModernJSONSchema(draft *jsonschema2.Draft) bool {
 
 func getType(schema *jsonschema2.Schema) serde.FieldType {
 	types := schema.Types
+	// An enumeration is typed by its values, and JSON Schema does not require it to declare a
+	// type as well - {"enum": ["a", "b"]} is the ordinary form. Checked before the typeless
+	// case so that form is not read as a typeless node: the JVM client answers ENUM for it,
+	// and ENUM is not primitive, so a field rule that would otherwise be charged against it
+	// is skipped there and has to be here too.
+	if len(schema.Constant) > 0 || len(schema.Enum) > 0 {
+		return serde.TypeEnum
+	}
 	if len(types) == 0 {
 		if len(schema.Properties) > 0 {
 			return serde.TypeRecord
@@ -270,9 +274,6 @@ func getType(schema *jsonschema2.Schema) serde.FieldType {
 	}
 	if len(types) > 1 || len(schema.AllOf) > 0 || len(schema.AnyOf) > 0 || len(schema.OneOf) > 0 {
 		return serde.TypeCombined
-	}
-	if len(schema.Constant) > 0 || len(schema.Enum) > 0 {
-		return serde.TypeEnum
 	}
 	typ := types[0]
 	switch typ {
@@ -285,7 +286,10 @@ func getType(schema *jsonschema2.Schema) serde.FieldType {
 		return serde.TypeArray
 	case "string":
 		return serde.TypeString
-	case "int":
+	// The JSON Schema keyword is "integer"; "int" is not a JSON Schema type, and mapping
+	// only that left every integer field typed NULL - which the transform walk skips, so
+	// no rule ever reached an integer field even though the validation walk visits it.
+	case "integer":
 		return serde.TypeInt
 	case "number":
 		return serde.TypeDouble
@@ -358,10 +362,17 @@ func validate(schema *jsonschema2.Schema, msg *reflect.Value) (bool, error) {
 	return true, nil
 }
 
+// deref unwraps every pointer and interface layer, not just one. A value read out of a
+// map[string]interface{} arrives as an interface, so a nested record held as a pointer
+// needs two unwraps to reach the struct; stopping at one leaves a reflect.Pointer, which
+// every caller's Kind check rejects, and the record's fields are never walked.
+//
+// Terminates on nil without a guard: Elem() of a nil pointer or nil interface is the zero
+// Value, whose Kind is Invalid.
 func deref(val *reflect.Value) *reflect.Value {
-	if val.Kind() == reflect.Pointer || val.Kind() == reflect.Interface {
-		v := val.Elem()
-		return &v
+	v := *val
+	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+		v = v.Elem()
 	}
-	return val
+	return &v
 }

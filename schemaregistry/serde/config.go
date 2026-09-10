@@ -34,6 +34,19 @@ type SerializerConfig struct {
 	SubjectNameStrategyType SubjectNameStrategyType
 	// SubjectNameStrategyConfig specifies configuration options for the subject name strategy
 	SubjectNameStrategyConfig map[string]string
+	// ValidationRulesExecution determines when inline validation rules run, relative to
+	// domain rule transformations. Defaults to ValidationRulesDisabled.
+	ValidationRulesExecution ValidationRulesExecution
+	// ValidationRulesFailFast stops validation at the first failed rule and reports only
+	// that violation. When false (the default), every node is visited and all violations
+	// are reported.
+	ValidationRulesFailFast bool
+	// ValidationRuleExecutor is the executor used to evaluate inline validation rules.
+	// When nil, the executor is taken from the global registry, which importing
+	// schemaregistry/rules/cel populates with the CEL-backed one - as with every other
+	// rule executor here, nothing is linked in on your behalf. Setting this field is the
+	// alternative to that import; with neither, enabling validation is an error.
+	ValidationRuleExecutor ValidationRuleExecutor
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
@@ -44,6 +57,7 @@ func NewSerializerConfig() *SerializerConfig {
 	c.UseSchemaID = -1
 	c.UseLatestVersion = false
 	c.NormalizeSchemas = false
+	c.ValidationRulesExecution = ValidationRulesDisabled
 
 	return c
 }

@@ -2367,7 +2367,7 @@ func TestAvroSerdeEncryptionF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false, "")
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "07V2ndh02DA73p+dTybwZFm7DKQSZN1tEwQh+FoX1DZLk4Yj2LLu4omYjp/84tAg3BYlkfGSz+zZacJHIE4="
@@ -2434,7 +2434,7 @@ func TestAvroSerdeEncryptionDeterministicF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false, "")
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "YSx3DTlAHrmpoDChquJMifmPntBzxgRVdMzgYL82rgWBKn7aUSnG+WIu9ozBNS3y2vXd++mBtK07w4/W/G6w0da39X9hfOVZsGnkSvry/QRht84V8yz3dqKxGMOK5A=="
@@ -2501,7 +2501,7 @@ func TestAvroSerdeEncryptionDekRotationF1Preserialized(t *testing.T) {
 	serde.MaybeFail("Deserializer configuration", err)
 	deser.MessageFactory = testMessageFactory
 
-	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false)
+	executor.Executor.Client.RegisterKek("kek1", "local-kms", "mykey", make(map[string]string), "", false, "")
 	serde.MaybeFail("Kek registration", err)
 
 	encryptedDek := "W/v6hOQYq1idVAcs1pPWz9UUONMVZW4IrglTnG88TsWjeCjxmtRQ4VaNe/I5dCfm2zyY9Cu0nqdvqImtUk4="
