@@ -18,6 +18,8 @@ package cel
 
 import (
 	"fmt"
+	"math"
+	"strings"
 	"testing"
 
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
@@ -143,6 +145,47 @@ func TestVariantEqualityIsOverTheEncoding(t *testing.T) {
 	for _, tc := range cases {
 		if got := evalBool(t, tc.expr, variantDoc); got != tc.expected {
 			t.Errorf("expr %q = %v, want %v", tc.expr, got, tc.expected)
+		}
+	}
+}
+
+// TestVariantAsTimestampIsRangeChecked pins the CEL timestamp range on variant extraction.
+// A variant timestamp spans the whole int64 range while a CEL timestamp is 0001-9999, so an
+// out-of-range value is reachable from data; it used to be built anyway, leaving an invalid
+// instant that could not be rendered but could still be compared - `< now` answered a
+// confident false for a value that is not a time. Refused now, and routed through the
+// as/tryAs split so a rule can guard, matching the reference's variantGetTimestamp.
+func TestVariantAsTimestampIsRangeChecked(t *testing.T) {
+	const maxMicros = int64(253402300799)*1_000_000 + 999_999
+	const minMicros = int64(-62135596800) * 1_000_000
+
+	// The boundaries are inside the range, and tryAs answers a timestamp there.
+	for _, micros := range []int64{0, maxMicros, minMicros} {
+		msg := buildVariantMsg(t, func(b *variant.Builder) error {
+			return b.AppendTimestampTz(micros)
+		})
+		expr := `variants.as(this, "timestamp") == variants.as(this, "timestamp")`
+		if got := evalBool(t, expr, msg); !got {
+			t.Errorf("micros %d: %s = false, want true", micros, expr)
+		}
+		if got := evalBool(t, `variants.tryAs(this, "timestamp") == null`, msg); got {
+			t.Errorf("micros %d: tryAs answered null for an in-range value", micros)
+		}
+	}
+
+	// Out of range: as errors and names the range, tryAs answers CEL null.
+	for _, micros := range []int64{math.MaxInt64, math.MinInt64, maxMicros + 1_000_000} {
+		msg := buildVariantMsg(t, func(b *variant.Builder) error {
+			return b.AppendTimestampTz(micros)
+		})
+		_, err := evalRaw(t, `variants.as(this, "timestamp") != null`, msg)
+		if err == nil {
+			t.Errorf("micros %d: variants.as should have failed", micros)
+		} else if !strings.Contains(err.Error(), "is outside 0001-01-01T00:00:00Z") {
+			t.Errorf("micros %d: error should name the range, got %v", micros, err)
+		}
+		if got := evalBool(t, `variants.tryAs(this, "timestamp") == null`, msg); !got {
+			t.Errorf("micros %d: tryAs should answer null", micros)
 		}
 	}
 }

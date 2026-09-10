@@ -272,6 +272,25 @@ func variantAs(a, b ref.Val, nullOnError bool) ref.Val {
 			// pre-epoch instants. Go's time.Time holds nanoseconds, so parity is exact.
 			// time.Unix / time.UnixMicro normalize a negative fractional part by
 			// borrowing a whole second, exactly as floorDiv/floorMod do.
+			perSecond := int64(1_000_000)
+			if vt == variant.TimestampNanosTz || vt == variant.TimestampNanosNtz {
+				perSecond = 1_000_000_000
+			}
+			// A variant timestamp spans the whole int64 range while a CEL timestamp is
+			// 0001-9999, so an out-of-range value is reachable from data. Refused rather
+			// than built, and routed through nullOnError like a type mismatch: variants.as
+			// errors and names the range, variants.tryAs answers CEL null so a rule can
+			// guard. Building it left an invalid instant in the type system - unrenderable,
+			// so only comparisons could consume it, which is where a wrong answer hides.
+			// Mirrors the reference's variantGetTimestamp.
+			seconds := floorDiv(raw, perSecond)
+			if seconds < minEpochSecond || seconds > maxEpochSecond {
+				if nullOnError {
+					return types.NullValue
+				}
+				return types.NewErr("variants.as: timestamp %d is outside "+
+					"0001-01-01T00:00:00Z..9999-12-31T23:59:59.999999999Z", raw)
+			}
 			var t time.Time
 			if vt == variant.TimestampNanosTz || vt == variant.TimestampNanosNtz {
 				t = time.Unix(0, raw)
