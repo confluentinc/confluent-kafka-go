@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cockroachdb/apd/v3"
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -113,6 +114,19 @@ func TestDecimalStringForms(t *testing.T) {
 		{`string(decimals.sqrt(decimal("4.00")))`, "2.0"},
 		{`string(decimals.sqrt(decimal("100.0000")))`, "10.00"},
 		{`string(decimals.sqrt(decimal("144")))`, "12"},
+		// The preferred scale is targeted, never undercut: 10/4 is 2.5 at a preferred 0.
+		{`string(decimals.div(decimal("10"), decimal("4")))`, "2.5"},
+		{`string(decimals.div(decimal("1.000"), decimal("0.1")))`, "10.00"},
+		{`string(decimals.div(decimal("100.0"), decimal("0.5")))`, "200"},
+		// A matched pair of scales is the one case that cannot distinguish a preferred scale
+		// from no normalization at all, because 1-1 is 0. Pinned so it stays honest evidence.
+		{`string(decimals.div(decimal("10.0"), decimal("2.0")))`, "5"},
+		{`string(decimals.div(decimal("10.0"), decimal("2")))`, "5.0"},
+		// sqrt at an odd scale: scale/2 truncates toward zero, so 1 halves to 0 and 3 to 1.
+		{`string(decimals.sqrt(decimal("9.0")))`, "3"},
+		{`string(decimals.sqrt(decimal("400.0")))`, "20"},
+		{`string(decimals.sqrt(decimal("16.000")))`, "4.0"},
+		{`string(decimals.sqrt(decimal("0.0001")))`, "0.01"},
 		// Rounding family (Flink-aligned).
 		{`string(decimals.round(decimal("2.567"), 2))`, "2.57"},
 		{`string(decimals.trunc(decimal("2.567"), 2))`, "2.56"},
@@ -759,6 +773,63 @@ func TestPlainTextMatchesToPlainString(t *testing.T) {
 	} {
 		if got := evalString(t, expr, "x"); got != want {
 			t.Errorf("%s = %q, want %q", expr, got, want)
+		}
+	}
+}
+
+// TestAppliedPreferredScaleIsTheScaleNotTheRendering covers what the string cases above
+// cannot see. Text('f') writes a zero as "0" at every non-positive scale, and 500 as "500"
+// whether its scale is -2 or 0, so a wrong scale on those is invisible there - and the scale
+// is a field of the confluent.type.Decimal encoding, not a rendering detail.
+//
+// Asserted against applyPreferredScale directly rather than through a rule: this client's
+// validator accepts only a bool or string result, so a decimal-valued expression cannot be
+// evaluated end to end from a test the way it can in the C++ and JS clients (where the result
+// is a message and a rule can select `.scale` off it).
+//
+// preferredExp is the negated scale, and is what the two call sites compute:
+// `a.Exponent - b.Exponent` for div and `-((-a.Exponent) / 2)` for sqrt.
+func TestAppliedPreferredScaleIsTheScaleNotTheRendering(t *testing.T) {
+	cases := []struct {
+		literal      string
+		preferredExp int32
+		wantExponent int32
+	}{
+		// A zero takes the preferred scale outright, in both directions - the reference
+		// returns zeroValueOf(preferredScale). Reduce leaves a zero at exponent 0 and the
+		// quantize only lowers the exponent, so the negative-scale direction used to be
+		// unreachable and a zero came back at scale 0. `0 / 3.00` is the reachable case.
+		{"0", 2, 2},
+		{"0.00", 2, 2},
+		{"0", -2, -2},
+		{"0.00", -2, -2},
+		{"0", 0, 0},
+		// Non-zero: strip down to the preferred scale...
+		{"500", 1, 1},
+		{"200", 0, 0},
+		// ...but never below the value's own minimal scale. 2.5 cannot reach exponent 0.
+		{"2.5", 0, -1},
+		// ...and pad back up when the natural scale is smaller.
+		{"5", -2, -2},
+	}
+	for _, c := range cases {
+		d, _, err := apd.NewFromString(c.literal)
+		if err != nil {
+			t.Fatalf("%s: %v", c.literal, err)
+		}
+		res := new(apd.Decimal).Set(d)
+		if err := applyPreferredScale(res, c.preferredExp); err != nil {
+			t.Errorf("applyPreferredScale(%s, %d): %v", c.literal, c.preferredExp, err)
+			continue
+		}
+		if res.Exponent != c.wantExponent {
+			t.Errorf("applyPreferredScale(%s, %d): exponent %d, want %d",
+				c.literal, c.preferredExp, res.Exponent, c.wantExponent)
+		}
+		// The value itself is untouched - only its representation.
+		if res.Cmp(d) != 0 {
+			t.Errorf("applyPreferredScale(%s, %d) changed the value to %s",
+				c.literal, c.preferredExp, res.Text('f'))
 		}
 	}
 }

@@ -783,6 +783,16 @@ func quantize(res, d *apd.Decimal, scale int32, rounder apd.Rounder) error {
 // "2" instead of Java's "2.0"). The preferred exponent is dividend.exp - divisor.exp for
 // division and -(this.scale/2) for square root, mirroring BigDecimal.
 func applyPreferredScale(res *apd.Decimal, preferredExp int32) error {
+	if res.Sign() == 0 {
+		// A zero takes the preferred scale outright, in *both* directions, because the
+		// reference returns zeroValueOf(preferredScale) for it. Reduce leaves a zero at
+		// exponent 0 and the quantize below only ever lowers the exponent, so a negative
+		// preferred scale was unreachable: `0 / 3.00` is scale -2 in the reference and was
+		// scale 0 here. Text('f') writes every one of them as "0", so only the scale field
+		// on the wire differs - which is why this needs asserting on the scale directly.
+		res.SetFinite(0, preferredExp)
+		return nil
+	}
 	res.Reduce(res)
 	if res.Exponent > preferredExp {
 		ctx := &apd.Context{Precision: divContext.Precision, Rounding: apd.RoundHalfUp, MaxExponent: apd.MaxExponent, MinExponent: apd.MinExponent}
