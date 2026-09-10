@@ -112,6 +112,41 @@ func TestVariantFunctions(t *testing.T) {
 	}
 }
 
+// TestVariantEqualityIsOverTheEncoding pins variant `==` as equality of the encoding. It used
+// to be buffer identity - sameBytes compared &a[0], not the contents - so two separately built
+// variants over the same document came back unequal. Sound but incomplete: equal bytes mean
+// equal values, but one value has many encodings.
+func TestVariantEqualityIsOverTheEncoding(t *testing.T) {
+	cases := []struct {
+		expr     string
+		expected bool
+	}{
+		{`variants.parseJson("1") == variants.parseJson("1")`, true},
+		{`variants.parseJson("1") != variants.parseJson("1")`, false},
+		{`variants.parseJson("{}") == variants.parseJson("{}")`, true},
+		{`variants.parseJson('{"a":1}') == variants.parseJson('{"a":1}')`, true},
+		{`variants.parseJson("1") == variants.parseJson("2")`, false},
+		// Incomplete, as documented: an int and a double are two encodings.
+		{`variants.parseJson("1") == variants.parseJson("1.0")`, false},
+		// Containers recurse with the same equality.
+		{`[variants.parseJson("1")] == [variants.parseJson("1")]`, true},
+		{`[variants.parseJson("1")] == [variants.parseJson("2")]`, false},
+		// Navigation: the same position in an identical parent.
+		{`variants.field(variants.parseJson('{"a":1}'), "a") == ` +
+			`variants.field(variants.parseJson('{"a":1}'), "a")`, true},
+		// A field holding 1 is not the standalone variant 1: it carries its parent's
+		// metadata dictionary, which is part of the comparison.
+		{`variants.field(variants.parseJson('{"a":1}'), "a") == variants.parseJson("1")`, false},
+		// And the receiver of the whole document, reached two ways, is the same variant.
+		{`variants.parseJson(this) == variants.parseJson(this)`, true},
+	}
+	for _, tc := range cases {
+		if got := evalBool(t, tc.expr, variantDoc); got != tc.expected {
+			t.Errorf("expr %q = %v, want %v", tc.expr, got, tc.expected)
+		}
+	}
+}
+
 // TestVariantPathNonASCIIIdentifier covers an unquoted path identifier containing a
 // multi-byte UTF-8 character. The parser used to test `rune(path[pos])` - a single byte -
 // and a UTF-8 lead byte casts into Latin-1 (0xC3 -> 'Ã'), which unicode.IsLetter accepts;
