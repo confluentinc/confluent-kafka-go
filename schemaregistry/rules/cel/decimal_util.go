@@ -36,8 +36,13 @@ import (
 // decimalFromProto converts a confluent.type.Decimal message (unscaled big-endian two's
 // complement bytes + scale) to an apd.Decimal, preserving the message's scale exactly.
 func decimalFromProto(d *prototypes.Decimal) (*apd.Decimal, error) {
-	res, _, err := apd.NewFromString(plainDecimalString(bigIntFromSignedBytes(d.Value), d.Scale))
-	return res, err
+	// Built from the coefficient and exponent, not from plainDecimalString, for the reason
+	// decimalFromBytesScale below records: that rendering materialises every digit of the
+	// positional form, and the scale here arrives off the wire. Measured on this very path -
+	// Scale math.MinInt32 panicked with "strings: negative Repeat count", and -2147483647 was
+	// still allocating after 300s. decimalFromBytesScale was moved off it and this was left
+	// behind, which is the more exposed of the two: this one reads producer-controlled input.
+	return decimalFromCoefficient(bigIntFromSignedBytes(d.Value), d.Scale)
 }
 
 // decimalToProto converts an apd.Decimal to a confluent.type.Decimal message, mirroring
