@@ -20,9 +20,12 @@ import (
 	"bytes"
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/cockroachdb/apd/v3"
+
+	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 )
 
 func mustDecimal(t *testing.T, s string) *apd.Decimal {
@@ -189,6 +192,35 @@ func TestDecimalFromBytesScaleAtTheInt32Extremes(t *testing.T) {
 		}
 		if s := d.Text('f'); s != tc.want {
 			t.Errorf("decimalFromBytesScale(%x, %d) = %s, want %s", tc.b, tc.scale, s, tc.want)
+		}
+	}
+}
+
+// TestDecimalFromProtoBoundsTheWireScale pins the scale a *producer* controls. decimalFromProto
+// used to render the positional form via plainDecimalString, which materialises every digit:
+// measured, Scale math.MinInt32 panicked with "strings: negative Repeat count" (surfacing
+// through cel-go as an internal error, not a rule error) and Scale -2147483647 was still
+// allocating after 300s, since it asks for a 2147483648-byte string.
+//
+// decimalFromBytesScale was moved off that rendering for exactly this reason; this path was
+// left behind, and it is the more exposed of the two because its input comes off the wire.
+func TestDecimalFromProtoBoundsTheWireScale(t *testing.T) {
+	// Refused, not panicked: apd cannot represent an exponent of +2147483648.
+	if _, err := decimalFromProto(&prototypes.Decimal{
+		Value: []byte{0x01}, Scale: math.MinInt32,
+	}); err == nil {
+		t.Error("scale math.MinInt32 should be refused")
+	} else if !strings.Contains(err.Error(), "cannot be represented") {
+		t.Errorf("error should say the scale cannot be represented, got %v", err)
+	}
+
+	// And the extremes that *are* representable answer immediately rather than allocating a
+	// multi-gigabyte string.
+	for _, scale := range []int32{-2147483647, 2147483647, 2, 0} {
+		if _, err := decimalFromProto(&prototypes.Decimal{
+			Value: []byte{0x01}, Scale: scale,
+		}); err != nil {
+			t.Errorf("scale %d: unexpected error %v", scale, err)
 		}
 	}
 }
