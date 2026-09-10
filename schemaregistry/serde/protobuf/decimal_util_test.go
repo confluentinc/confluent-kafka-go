@@ -344,3 +344,47 @@ func mustBigInt(frac string, which int) *big.Int {
 	v, _ := new(big.Int).SetString(parts[which], 10)
 	return v
 }
+
+// An inexact rescale truncates toward zero, symmetrically. big.Int.Div is Euclidean and floors
+// toward negative infinity, so only the negative branch was off: -1.25 at scale 1 wrote unscaled
+// -13 where +1.25 wrote 12. Flooring matches neither contract in this family - the reference's
+// BigInteger.divide truncates toward zero, as does decimals.trunc's ROUND_DOWN - and -1.21 shows
+// it is not HALF_UP either, which would also give -12.
+//
+// The pairs are the point: a sign-symmetric contract cannot be asserted from one side.
+func TestBigRatToDecimalTruncatesTowardZero(t *testing.T) {
+	cases := []struct {
+		rat      string
+		scale    int32
+		unscaled int64
+	}{
+		{"5/4", 1, 12},   // 1.25 -> 1.2
+		{"-5/4", 1, -12}, // -1.25 -> -1.2, not -1.3
+		{"121/100", 1, 12},
+		{"-121/100", 1, -12}, // HALF_UP would also be -12; floor gave -13
+		{"1/3", 2, 33},
+		{"-1/3", 2, -33},
+		{"2/3", 2, 66},
+		{"-2/3", 2, -66},
+		// Exact values are unaffected by the rounding direction at all.
+		{"617/50", 2, 1234}, // 12.34
+		{"-617/50", 2, -1234},
+	}
+	for _, c := range cases {
+		r, ok := new(big.Rat).SetString(c.rat)
+		if !ok {
+			t.Fatalf("bad rational %q", c.rat)
+		}
+		d, err := BigRatToDecimal(r, c.scale)
+		if err != nil {
+			t.Fatalf("%s: %v", c.rat, err)
+		}
+		got := new(big.Int).SetBytes(d.Value)
+		if len(d.Value) > 0 && d.Value[0]&0x80 != 0 {
+			got.Sub(got, new(big.Int).Lsh(big.NewInt(1), uint(len(d.Value))*8))
+		}
+		if got.Int64() != c.unscaled {
+			t.Errorf("%s at scale %d: unscaled %s, want %d", c.rat, c.scale, got, c.unscaled)
+		}
+	}
+}
