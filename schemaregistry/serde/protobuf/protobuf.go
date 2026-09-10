@@ -110,7 +110,8 @@ var builtInDeps = make(map[string]string)
 func init() {
 	builtins := map[string]protoreflect.FileDescriptor{
 		"confluent/meta.proto":                 confluent.File_confluent_meta_proto,
-		"confluent/type/decimal.proto":         types.File_confluent_types_decimal_proto,
+		"confluent/type/decimal.proto":         types.File_confluent_type_decimal_proto,
+		"confluent/type/variant.proto":         types.File_confluent_type_variant_proto,
 		"google/type/calendar_period.proto":    calendarperiod.File_google_type_calendar_period_proto,
 		"google/type/color.proto":              color.File_google_type_color_proto,
 		"google/type/date.proto":               date.File_google_type_date_proto,
@@ -153,6 +154,19 @@ func init() {
 			log.Fatalf("Could not print %s", key)
 		}
 		builtInDeps[key] = writer.String()
+	}
+	// Accept the plural spelling too, for schemas registered before the confluent value types
+	// moved to their canonical confluent/type/... path. The accessor keys by the import string
+	// and the file name it hands the parser comes from that key, so one source text serves both
+	// names - and both carry `package confluent.type`, so either resolves to the same
+	// confluent.type.Decimal. Read-only tolerance: this client now emits the canonical path.
+	for canonical, legacy := range map[string]string{
+		"confluent/type/decimal.proto": "confluent/types/decimal.proto",
+		"confluent/type/variant.proto": "confluent/types/variant.proto",
+	} {
+		if src, ok := builtInDeps[canonical]; ok {
+			builtInDeps[legacy] = src
+		}
 	}
 }
 
@@ -549,6 +563,12 @@ func parseFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo)
 			}
 			if schema == "" {
 				schema = builtInDeps[filename]
+			}
+			if schema == "" {
+				// Returning an empty file here instead reports the failure against whatever
+				// referred to the missing import - "unknown type confluent.type.Decimal",
+				// naming the field - which hides the one fact that identifies the problem.
+				return nil, fmt.Errorf("dependency %s not found", filename)
 			}
 			return io.NopCloser(strings.NewReader(schema)), nil
 		},
