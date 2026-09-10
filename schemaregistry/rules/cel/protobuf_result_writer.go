@@ -222,9 +222,14 @@ func setMapField(out protoreflect.Message, fd protoreflect.FieldDescriptor, valu
 }
 
 func setListField(out protoreflect.Message, fd protoreflect.FieldDescriptor, value interface{}) error {
+	// The same reasoning as setMapField, which was fixed first and left this one behind: the
+	// message is rebuilt field by field, so returning nil left the list *empty* and silently
+	// discarded the rule's data. protobuf-java's JsonFormat rejects the same mismatch on the
+	// reference's write-back path - measured, `{"r": "notalist"}` is "Expected an array for r
+	// but found \"notalist\"".
 	items, ok := value.([]interface{})
 	if !ok {
-		return nil
+		return fmt.Errorf("cannot write %T to repeated field %s", value, fd.FullName())
 	}
 	list := out.Mutable(fd).List()
 	for _, item := range items {
@@ -309,6 +314,13 @@ func setMessageValue(out protoreflect.Message, fd protoreflect.FieldDescriptor, 
 		if fullName != timestampTypeName {
 			return fmt.Errorf("cannot write a timestamp to %s", fullName)
 		}
+		// Not range-checked here on purpose. google.protobuf.Timestamp is defined for
+		// 0001-9999 and timestamppb.New does not validate, but cel-go is the gate: both
+		// `timestamp(...)` and timestamp arithmetic refuse to leave the range ("timestamp
+		// overflow"), so no rule can hand this an out-of-range time.Time. Measured, and the
+		// same holds for cel-cpp and cel-rust; the reference gets there differently, its
+		// write-back going through a protobuf JSON printer that rejects an invalid Timestamp.
+		// A check here would be untestable through any rule.
 		return mergeMessage(out, timestamppb.New(v), fullName)
 	case variant.Variant:
 		if fullName != variantTypeName {

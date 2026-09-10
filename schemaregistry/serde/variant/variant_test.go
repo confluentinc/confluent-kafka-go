@@ -922,3 +922,48 @@ func TestVariantFloatToJSONShortest(t *testing.T) {
 		}
 	}
 }
+
+// TestNonFiniteBarewordChecksBothBoundaries pins the leading boundary as well as the trailing
+// one. The scanner retries at every byte, so with only the trailing check `1NaN` matched `NaN`
+// at offset 1 and the rewrite made malformed input parse as a *value* - measured,
+// ParseJSON("1NaN") was accepted and came back as NaN. Jackson refuses these, so a bareword may
+// only begin where a JSON value may begin. The C++ client carries the same check.
+func TestNonFiniteBarewordChecksBothBoundaries(t *testing.T) {
+	for _, bad := range []string{"1NaN", "1Infinity", "1-Infinity", "NaN1", "NaNny", "trueNaN"} {
+		if _, err := ParseJSON(bad); err == nil {
+			t.Errorf("ParseJSON(%q) should be refused, not rewritten", bad)
+		}
+	}
+	// Every position a JSON value may start still parses.
+	for _, good := range []struct{ in, want string }{
+		{"NaN", "NaN"},
+		{"-Infinity", "-Infinity"},
+		{"Infinity", "Infinity"},
+		{"[NaN]", "[NaN]"},
+		{"[ NaN ]", "[NaN]"},
+		{"[1,NaN]", "[1,NaN]"},
+		{`{"a":NaN}`, `{"a":NaN}`},
+		{`{"a": NaN}`, `{"a":NaN}`},
+		{"[NaN,Infinity,-Infinity]", "[NaN,Infinity,-Infinity]"},
+	} {
+		v, err := ParseJSON(good.in)
+		if err != nil {
+			t.Fatalf("ParseJSON(%q): %v", good.in, err)
+		}
+		j, err := v.ToJSON()
+		if err != nil {
+			t.Fatalf("ToJSON for %q: %v", good.in, err)
+		}
+		if j != good.want {
+			t.Errorf("ParseJSON(%q).ToJSON() = %s, want %s", good.in, j, good.want)
+		}
+	}
+	// A bareword inside a string is untouched, which the leading check must not break.
+	v, err := ParseJSON(`{"a":"1NaN"}`)
+	if err != nil {
+		t.Fatalf("string containing a bareword: %v", err)
+	}
+	if j, _ := v.ToJSON(); j != `{"a":"1NaN"}` {
+		t.Errorf("string content changed: %s", j)
+	}
+}
