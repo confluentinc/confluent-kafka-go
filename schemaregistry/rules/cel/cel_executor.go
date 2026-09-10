@@ -386,7 +386,7 @@ func evalProgram(expr string, program cel.Program, args map[string]interface{}) 
 	// an identity one. Such values are still meaningful to the format's write-back, which
 	// knows how to encode them, so convert entry by entry and pass the rest through.
 	if mapper, ok := out.(traits.Mapper); ok {
-		if converted, mapErr := nativeMap(mapper, wantType); mapErr == nil {
+		if converted, mapErr := nativeStringMap(mapper, wantType); mapErr == nil {
 			return converted, nil
 		}
 	}
@@ -395,20 +395,42 @@ func evalProgram(expr string, program cel.Program, args map[string]interface{}) 
 
 // nativeMap converts a CEL map one entry at a time, keeping any value that has no native
 // form as the Go value cel-go is holding rather than failing the whole conversion.
-func nativeMap(mapper traits.Mapper, wantType reflect.Type) (map[string]interface{}, error) {
+//
+// The top-level result map is keyed by *field name*, so its keys really are strings and
+// nativeStringMap requires them. A nested map is a protobuf `map<K, V>` field, and protobuf
+// permits bool and every integral type as a key - so this keeps the keys as they are and lets
+// the write-back narrow each one through the field's own key descriptor. Requiring strings
+// here meant a `map<int32, Decimal>` (whose *values* also have no native form, so the whole-map
+// conversion fails and this path is the only one left) came back as the raw cel-go map, which
+// the writer cannot consume.
+func nativeMap(mapper traits.Mapper, wantType reflect.Type) (map[interface{}]interface{}, error) {
 	it := mapper.Iterator()
-	out := map[string]interface{}{}
+	out := map[interface{}]interface{}{}
 	for it.HasNext() == types.True {
 		key := it.Next()
-		name, ok := key.Value().(string)
-		if !ok {
-			return nil, fmt.Errorf("CEL map key %v is not a string", key.Value())
-		}
+		k := key.Value()
 		value := mapper.Get(key)
 		if types.IsError(value) {
-			return nil, fmt.Errorf("CEL map entry %s failed: %v", name, value.Value())
+			return nil, fmt.Errorf("CEL map entry %v failed: %v", k, value.Value())
 		}
-		out[name] = nativeValue(value, wantType)
+		out[k] = nativeValue(value, wantType)
+	}
+	return out, nil
+}
+
+// nativeStringMap is nativeMap for the top-level result map, whose keys are field names.
+func nativeStringMap(mapper traits.Mapper, wantType reflect.Type) (map[string]interface{}, error) {
+	entries, err := nativeMap(mapper, wantType)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]interface{}, len(entries))
+	for k, v := range entries {
+		name, ok := k.(string)
+		if !ok {
+			return nil, fmt.Errorf("CEL map key %v is not a string", k)
+		}
+		out[name] = v
 	}
 	return out, nil
 }
