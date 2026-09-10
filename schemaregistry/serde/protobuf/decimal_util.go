@@ -29,9 +29,23 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 		return nil, nil
 	}
 
-	exp := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
-	i := (&big.Int{}).Mul(value.Num(), exp)
-	i = i.Div(i, value.Denom())
+	// A negative scale means the value is `unscaled * 10^-scale`, so the unscaled integer is
+	// num/(den * 10^-scale) - not num * 10^scale. `big.Int.Exp` returns **1** for a negative
+	// exponent, so the sign was silently ignored: `BigRatToDecimal(1000, -3)` stored unscaled
+	// 1000 at scale -3, which the reference reads as 1000 * 10^3 = 1000000. Measured on the
+	// JDK: `new BigDecimal("1000").setScale(-3)` is unscaled 1, precision 1, and
+	// `new BigDecimal(BigInteger.valueOf(1000), -3)` is 1000000.
+	//
+	// It round-tripped inside this client only because ratFromBytes had the mirror-image bug,
+	// so the two cancelled and the wire bytes were wrong for every other reader.
+	i := new(big.Int).Set(value.Num())
+	den := new(big.Int).Set(value.Denom())
+	if scale >= 0 {
+		i.Mul(i, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil))
+	} else {
+		den.Mul(den, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-int64(scale))), nil))
+	}
+	i = i.Div(i, den)
 
 	return &types.Decimal{
 		Value: signedBytes(i),
@@ -62,8 +76,22 @@ func ratFromBytes(b []byte, scale int) *big.Rat {
 	if len(b) > 0 && b[0]&0x80 > 0 {
 		num.Sub(num, new(big.Int).Lsh(one, uint(len(b))*8))
 	}
-	denom := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
-	return new(big.Rat).SetFrac(num, denom)
+	// The reading half of the same asymmetry: at a negative scale the value is
+	// `unscaled * 10^-scale`, so the power of ten multiplies the numerator rather than the
+	// denominator. `big.Int.Exp` returning 1 for a negative exponent made this treat scale -3
+	// as scale 0.
+	pow := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(abs64(int64(scale)))), nil)
+	if scale < 0 {
+		return new(big.Rat).SetFrac(new(big.Int).Mul(num, pow), big.NewInt(1))
+	}
+	return new(big.Rat).SetFrac(num, pow)
+}
+
+func abs64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // signedBytes encodes an integer as minimal big-endian two's-complement bytes, which is how

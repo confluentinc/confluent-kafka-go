@@ -105,7 +105,13 @@ func rewriteNonFinite(s string) (string, map[int64]float64) {
 		case c == '"':
 			inString = true
 		default:
-			if lit, value, ok := matchNonFinite(s[i:]); ok {
+			// The *leading* boundary matters as much as the trailing one, because the scanner
+			// retries at every byte: with only the trailing check, `1NaN` matched `NaN` at
+			// offset 1 and the rewrite made malformed input parse as a value - measured,
+			// ParseJSON("1NaN") was accepted and came back as NaN. Jackson refuses these, so a
+			// bareword may only begin where a JSON value may begin. The C++ client carries the
+			// same check for the same reason.
+			if lit, value, ok := matchNonFinite(s[i:]); ok && (i == 0 || isValueStart(s[i-1])) {
 				sb.WriteString(nonFinitePlaceholder)
 				if subs == nil {
 					subs = make(map[int64]float64)
@@ -122,6 +128,15 @@ func rewriteNonFinite(s string) (string, map[int64]float64) {
 		return s, nil
 	}
 	return sb.String(), subs
+}
+
+// isValueStart reports whether a JSON value may begin immediately after c.
+func isValueStart(c byte) bool {
+	switch c {
+	case ' ', '\t', '\n', '\r', '[', '{', ':', ',':
+		return true
+	}
+	return false
 }
 
 // matchNonFinite reports whether s begins with one of the non-finite barewords as a whole token.

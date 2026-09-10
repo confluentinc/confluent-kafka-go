@@ -1,10 +1,12 @@
 package cel
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"cel.dev/cel-go/common/types"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -202,3 +204,100 @@ func decimalHolderDesc(t *testing.T) protoreflect.MessageDescriptor {
 }
 
 func timeNow() time.Time { return time.Unix(1700000000, 0).UTC() }
+
+// A wrong shape for a repeated field is a rule error, not an empty list. setMapField was fixed
+// first and left this one behind: the message is rebuilt field by field, so returning nil
+// silently discarded the rule's data. protobuf-java's JsonFormat rejects the same mismatch on
+// the reference's write-back path - measured, `{"r": "notalist"}` is "Expected an array for r
+// but found \"notalist\"".
+func TestAWrongShapeForARepeatedFieldIsReported(t *testing.T) {
+	desc := repeatedStringDesc(t)
+	fd := desc.Fields().ByName("r")
+	for _, v := range []interface{}{
+		"notalist",
+		int64(7),
+		map[interface{}]interface{}{"a": "b"},
+	} {
+		out := dynamicpb.NewMessage(desc)
+		if err := setListField(out, fd, v); err == nil {
+			t.Errorf("expected an error for %T on a repeated field", v)
+		}
+	}
+	// The must-fail twin: a list still writes, and an empty one is a valid shape rather than a
+	// mismatch - clearing a repeated field is a legitimate result.
+	out := dynamicpb.NewMessage(desc)
+	if err := setListField(out, fd, []interface{}{"a", "b"}); err != nil {
+		t.Fatalf("a list should write: %v", err)
+	}
+	if got := out.Get(fd).List().Len(); got != 2 {
+		t.Errorf("wrote %d elements, want 2", got)
+	}
+	empty := dynamicpb.NewMessage(desc)
+	if err := setListField(empty, fd, []interface{}{}); err != nil {
+		t.Fatalf("an empty list should write: %v", err)
+	}
+}
+
+// repeatedStringDesc builds `message R { repeated string r = 1; }` at runtime.
+func repeatedStringDesc(t *testing.T) protoreflect.MessageDescriptor {
+	t.Helper()
+	str := descriptorpb.FieldDescriptorProto_TYPE_STRING
+	rep := descriptorpb.FieldDescriptorProto_LABEL_REPEATED
+	fdp := &descriptorpb.FileDescriptorProto{
+		Name:    proto.String("rep.proto"),
+		Package: proto.String("rp"),
+		Syntax:  proto.String("proto3"),
+		MessageType: []*descriptorpb.DescriptorProto{{
+			Name: proto.String("R"),
+			Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: proto.String("r"), Number: proto.Int32(1), Type: &str, Label: &rep},
+			},
+		}},
+	}
+	fd, err := protodesc.NewFile(fdp, nil)
+	if err != nil {
+		t.Fatalf("build descriptor: %v", err)
+	}
+	return fd.Messages().Get(0)
+}
+
+// A nested CEL map keeps its native key types on the way out of cel-go, so the write-back can
+// narrow each through the field's own key descriptor. nativeMap required *strings* and errored
+// otherwise, which mattered only for a map whose values also have no native form - a
+// `map<int32, Decimal>` - because that is when whole-map conversion fails and the entry-by-entry
+// path is the only one left. The map then arrived as the raw cel-go value, which the writer
+// cannot consume.
+//
+// Asserted through nativeValue rather than a full transform, because the shape it produces is
+// exactly the contract setMapField is written against.
+func TestNestedMapKeepsNativeKeyTypes(t *testing.T) {
+	reg, err := types.NewRegistry()
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	inner := types.NewDynamicMap(reg, map[int64]string{7: "x", 9: "y"})
+	got := nativeValue(inner, reflect.TypeOf(map[string]interface{}{}))
+
+	entries, ok := got.(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("nativeValue gave %T, want map[interface{}]interface{}", got)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2: %v", len(entries), entries)
+	}
+	for k := range entries {
+		if _, isString := k.(string); isString {
+			t.Errorf("key %v was stringified; the descriptor has to narrow it", k)
+		}
+	}
+
+	// And the top-level result map still requires field-name strings, which is what
+	// nativeStringMap is for.
+	top := types.NewStringInterfaceMap(reg, map[string]interface{}{"a": int64(1)})
+	if _, err := nativeStringMap(top, reflect.TypeOf(map[string]interface{}{})); err != nil {
+		t.Errorf("a string-keyed top-level map should convert: %v", err)
+	}
+	if _, err := nativeStringMap(inner, reflect.TypeOf(map[string]interface{}{})); err == nil {
+		t.Error("a non-string key at the top level should still be refused")
+	}
+}
