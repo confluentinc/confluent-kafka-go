@@ -84,7 +84,10 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			// never reads as `false`, so a CEL_FIELD condition does not apply to a
 			// container field. Writing one back here panics instead: the slice's element
 			// type cannot hold a bool.
-			if ctx.Rule.Kind != "CONDITION" {
+			// ...and an invalid result now means only that: nothing to write. Without the
+			// check reflect.Set panics on it, which a null element whose tags do not match
+			// the rule reaches without any rule result being involved at all.
+			if ctx.Rule.Kind != "CONDITION" && newVal.IsValid() {
 				item.Set(*newVal)
 			}
 		}
@@ -104,7 +107,10 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 				return nil, err
 			}
 			// A verdict is not a replacement for the value: dropped, as on an array.
-			if ctx.Rule.Kind != "CONDITION" {
+			// The IsValid check matters more here than on an array: SetMapIndex with an
+			// invalid Value *deletes the key*, so an untouched null value silently dropped
+			// its entry instead of panicking.
+			if ctx.Rule.Kind != "CONDITION" && newVal.IsValid() {
 				val.SetMapIndex(k, *newVal)
 			}
 		}
@@ -162,10 +168,40 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 					return nil, err
 				}
 				result := reflect.ValueOf(newVal)
+				if !result.IsValid() {
+					// The rule returned CEL null. reflect.ValueOf(nil) is the *invalid*
+					// Value, which is also what an untouched branch hands back, and the
+					// write-back sites cannot tell the two apart: an invalid Value panics
+					// reflect.Set, and SetMapIndex silently deletes the key. Resolve it
+					// here, at the only place a rule result is produced, so those sites
+					// keep meaning "the walk did not touch this".
+					//
+					// The reference states the contract in CelFieldExecutor: normalize CEL
+					// null "so a nullable target sees null and a non-nullable target
+					// surfaces the contract violation directly". A typed nil is this
+					// client's null; a target that cannot hold one gets the violation.
+					if !canBeNil(msg.Type()) {
+						return nil, fmt.Errorf(
+							"rule %s returned null for %s, which is not nullable",
+							ctx.Rule.Name, fieldCtx.FullName)
+					}
+					result = reflect.Zero(msg.Type())
+				}
 				return &result, nil
 			}
 		}
 		return msg, nil
+	}
+}
+
+// canBeNil reports whether a typed nil is representable in t, which is what this client uses
+// for a null field value.
+func canBeNil(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return true
+	default:
+		return false
 	}
 }
 
