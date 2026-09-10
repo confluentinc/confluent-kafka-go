@@ -1,6 +1,6 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.15.1 (RC1)
+## v2.15.1
 
 ### Fixes
 * Preserve HTTP status on Schema Registry error responses (#1590)
