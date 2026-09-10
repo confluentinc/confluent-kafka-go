@@ -24,13 +24,13 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
 
-// TestBuiltinConfluentTypeImports covers the two confluent value types as built-in imports.
-// The canonical path is confluent/type/... - what the Java client registers and what
-// ProtobufSchema declares - and the generated descriptors used to be named confluent/types/...
-// after the directory this client needs because `type` is a Go keyword, so only the plural
-// spelling resolved and a Java-registered schema failed. It failed as "unknown type
-// confluent.type.Decimal" too, naming the field rather than the missing import, because the
-// parser accessor answered an unknown file with an empty one.
+// TestBuiltinConfluentTypeImports covers the two confluent value types as built-in imports,
+// in both spellings. The canonical path is confluent/type/... - what the Java client registers
+// and what ProtobufSchema declares - and the generated descriptors used to be named
+// confluent/types/... after the directory this client needs because `type` is a Go keyword, so
+// only the plural spelling resolved and a Java-registered schema failed. The descriptors are
+// canonical now and the plural name is kept as a read alias, so schemas registered either way
+// keep loading.
 func TestBuiltinConfluentTypeImports(t *testing.T) {
 	tmpl := `syntax = "proto3";
 package test;
@@ -40,6 +40,10 @@ message M { confluent.type.%s f = 1; }
 	cases := []struct{ path, message, want string }{
 		{"confluent/type/decimal.proto", "Decimal", "confluent.type.Decimal"},
 		{"confluent/type/variant.proto", "Variant", "confluent.type.Variant"},
+		// The plural spelling stays readable for schemas registered before the rename. Both
+		// files declare `package confluent.type`, so either resolves to the same message.
+		{"confluent/types/decimal.proto", "Decimal", "confluent.type.Decimal"},
+		{"confluent/types/variant.proto", "Variant", "confluent.type.Variant"},
 	}
 	for _, tc := range cases {
 		info := schemaregistry.SchemaInfo{Schema: fmt.Sprintf(tmpl, tc.path, tc.message)}
@@ -56,8 +60,9 @@ message M { confluent.type.%s f = 1; }
 }
 
 // TestUnknownDependencyNamesItself pins the accessor change: an import nothing provides has to
-// report itself. The plural spellings stand in for a stale producer, and are the reason this is
-// worth a test - they resolved before the descriptors were renamed.
+// report itself. Before this, the accessor answered an unknown file with an empty one and the
+// failure landed on whatever referred to it - "unknown type confluent.type.Nope", naming the
+// field rather than the import that was missing.
 func TestUnknownDependencyNamesItself(t *testing.T) {
 	tmpl := `syntax = "proto3";
 package test;
@@ -65,9 +70,8 @@ import "%s";
 message M { confluent.type.%s f = 1; }
 `
 	for _, tc := range []struct{ path, message string }{
-		{"confluent/types/decimal.proto", "Decimal"},
-		{"confluent/types/variant.proto", "Variant"},
 		{"confluent/type/nope.proto", "Nope"},
+		{"confluent/types/nope.proto", "Nope"},
 	} {
 		info := schemaregistry.SchemaInfo{Schema: fmt.Sprintf(tmpl, tc.path, tc.message)}
 		_, err := parseFileDesc(nil, info)
