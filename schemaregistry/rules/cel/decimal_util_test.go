@@ -224,3 +224,52 @@ func TestDecimalFromProtoBoundsTheWireScale(t *testing.T) {
 		}
 	}
 }
+
+// The Avro write-back converts a decimal through its plain text form, because hamba encodes a
+// decimal logical type from a *big.Rat and a big.Rat has no exponent. That makes the exponent a
+// width: `decimal(b"\x01", 2147483647)` is built from a coefficient and an exponent at no cost,
+// and only turning it back into Avro expands it - measured, ~2.1e9 characters, then a
+// 10^2147483647 denominator on top.
+//
+// The reference never renders: it hands its BigDecimal to Avro's own DecimalConversion, which
+// writes unscaledValue() plus the schema's scale. Python, JavaScript, C#, C++ and Rust all do
+// the same. Go is the only client whose Avro decimal boundary is a big.Rat, which is why it is
+// the only one that needs a width bound here - the same 10^7 the protobuf serde's big.Rat
+// conversion uses.
+func TestAvroDecimalWidthIsBounded(t *testing.T) {
+	for _, exp := range []int32{
+		math.MinInt32, math.MaxInt32,
+		-(maxAvroDecimalWidth + 1), maxAvroDecimalWidth + 1,
+	} {
+		d := apd.New(1, exp)
+		if _, err := ratFromDecimal(d); err == nil {
+			t.Errorf("exponent %d: expected an error, got none", exp)
+		}
+	}
+}
+
+// ...and the ordinary decimals still convert, so the bound is not refusing everything.
+func TestAvroDecimalOrdinaryValuesStillConvert(t *testing.T) {
+	cases := []struct {
+		text string
+		want string
+	}{
+		{"12.34", "617/50"},
+		{"0", "0"},
+		{"-1.5", "-3/2"},
+		{"1E+3", "1000"}, // a positive exponent, which widens the other way
+	}
+	for _, c := range cases {
+		d, _, err := apd.NewFromString(c.text)
+		if err != nil {
+			t.Fatalf("%s: %v", c.text, err)
+		}
+		rat, err := ratFromDecimal(d)
+		if err != nil {
+			t.Fatalf("%s: %v", c.text, err)
+		}
+		if rat.RatString() != c.want {
+			t.Errorf("%s: got %s, want %s", c.text, rat.RatString(), c.want)
+		}
+	}
+}

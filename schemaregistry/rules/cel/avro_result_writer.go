@@ -17,6 +17,7 @@
 package cel
 
 import (
+	"fmt"
 	"math/big"
 	"time"
 
@@ -112,14 +113,57 @@ func avroValue(value interface{}) (interface{}, error) {
 	}
 }
 
+// maxAvroDecimalWidth bounds the positional form this writer will build, the same 10^7 digits
+// the family uses for a plain form too wide to materialise (decimals.md 4b) and the same bound
+// as the protobuf serde's big.Rat conversion.
+//
+// It is needed for the same reason: hamba encodes a decimal logical type from a *big.Rat, which
+// has no exponent, so the value has to be rendered digit by digit to get there. The reference
+// hands its BigDecimal to Avro's own DecimalConversion, which writes unscaledValue() plus the
+// schema's scale and never materialises anything - and so do the Python, JavaScript, C#, C++
+// and Rust clients. Go is the only one whose Avro decimal boundary is a big.Rat.
+//
+// The scale reaching here is producer- or rule-controlled: `decimal(b"\x01", 2147483647)` is
+// built from a coefficient and an exponent at no cost, and only turning it back into Avro
+// expands it. Measured: 10^7 renders 10MB, so an int32 scale is ~2.1e9 characters, and
+// big.Rat.SetString then builds a 10^2147483647 denominator on top of that.
+const maxAvroDecimalWidth = 10000000
+
 // ratFromDecimal converts through the decimal's own text form, which is exact for any finite
 // decimal: the unscaled digits over the power of ten its exponent names.
 func ratFromDecimal(d *apd.Decimal) (*big.Rat, error) {
-	rat, ok := new(big.Rat).SetString(d.Text('f'))
+	if err := checkAvroDecimalWidth(d); err != nil {
+		return nil, err
+	}
+	text := d.Text('f')
+	rat, ok := new(big.Rat).SetString(text)
 	if !ok {
-		return nil, &decimalConversionError{text: d.Text('f')}
+		// Reusing the rendered text rather than rendering a second time, which doubled the
+		// allocation on the one path that had already produced a large one.
+		return nil, &decimalConversionError{text: text}
 	}
 	return rat, nil
+}
+
+// checkAvroDecimalWidth refuses a decimal whose positional form is too wide to build. The
+// exponent dominates it: a negative exponent puts that many digits after the point and a
+// positive one that many zeros before it.
+func checkAvroDecimalWidth(d *apd.Decimal) error {
+	exp := int64(d.Exponent)
+	width := d.NumDigits()
+	if exp < 0 {
+		if -exp > width {
+			width = -exp
+		}
+	} else {
+		width += exp
+	}
+	if width > maxAvroDecimalWidth {
+		return fmt.Errorf(
+			"cannot encode a decimal of exponent %d for Avro: its plain form needs %d digits, past this client's %d-digit limit",
+			d.Exponent, width, maxAvroDecimalWidth)
+	}
+	return nil
 }
 
 type decimalConversionError struct {
