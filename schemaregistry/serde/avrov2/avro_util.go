@@ -28,7 +28,13 @@ import (
 
 func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value,
 	fieldTransform serde.FieldTransform) (*reflect.Value, error) {
-	if msg == nil || (msg.Kind() == reflect.Pointer && msg.IsNil()) || schema == nil {
+	// Only an absent schema or an absent reflect.Value stops the walk. A **nil pointer** is the
+	// null branch of a ["null", T] union and has to reach the rule: the reference binds it as CEL
+	// null so a rule can guard with `value == null`, and returning early here skipped the rule
+	// entirely - indistinguishable, to the caller, from a rule that ran and passed. resolveUnion
+	// already picks the "null" branch for an invalid value, and the record case below guards the
+	// one shape that has nothing to walk.
+	if msg == nil || schema == nil {
 		return msg, nil
 	}
 	fieldCtx := ctx.CurrentField()
@@ -37,13 +43,11 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 	}
 	switch schema.(type) {
 	case *avro.RefSchema:
-		// As in the validation walk: a reference to a named type has to be unwrapped, or
-		// the inline tags on the record it points at - and so the fields they mark for
-		// encryption - are never seen.
+		// A reference to a named type has to be unwrapped, or the inline tags on the record
+		// it points at - and so the fields they mark for encryption - are never seen.
 		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform)
 	case *avro.UnionSchema:
-		val := deref(msg)
-		subschema, submsg, err := resolveUnion(resolver, schema, val)
+		subschema, submsg, err := resolveUnion(resolver, schema, msg)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +79,14 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			if err != nil {
 				return nil, err
 			}
-			item.Set(*newVal)
+			// A condition's per-element verdicts are evaluated and then dropped. The
+			// reference collects them into an untyped list, which the field-level check
+			// never reads as `false`, so a CEL_FIELD condition does not apply to a
+			// container field. Writing one back here panics instead: the slice's element
+			// type cannot hold a bool.
+			if ctx.Rule.Kind != "CONDITION" {
+				item.Set(*newVal)
+			}
 		}
 		return msg, nil
 	case *avro.MapSchema:
@@ -92,12 +103,19 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			if err != nil {
 				return nil, err
 			}
-			val.SetMapIndex(k, *newVal)
+			// A verdict is not a replacement for the value: dropped, as on an array.
+			if ctx.Rule.Kind != "CONDITION" {
+				val.SetMapIndex(k, *newVal)
+			}
 		}
 		return msg, nil
 	case *avro.RecordSchema:
 		val := deref(msg)
 		recordSchema := schema.(*avro.RecordSchema)
+		if !val.IsValid() {
+			// A null record has no fields to walk - the one place the reference guards a null.
+			return msg, nil
+		}
 		if val.Kind() == reflect.Struct {
 			fieldByNames := fieldByNames(val)
 			for _, avroField := range recordSchema.Fields() {
@@ -132,7 +150,14 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			ruleTags := ctx.Rule.Tags
 			if len(ruleTags) == 0 || !disjoint(ruleTags, fieldCtx.Tags) {
 				val := deref(msg)
-				newVal, err := fieldTransform.Transform(ctx, *fieldCtx, val.Interface())
+				// A null union branch derefs to the zero reflect.Value, and Interface() panics
+				// on that. The rule is meant to see the absence, so hand it an untyped nil -
+				// which the CEL adapter binds as null.
+				var fieldValue interface{}
+				if val.IsValid() && val.CanInterface() {
+					fieldValue = val.Interface()
+				}
+				newVal, err := fieldTransform.Transform(ctx, *fieldCtx, fieldValue)
 				if err != nil {
 					return nil, err
 				}
@@ -174,7 +199,11 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 				Rule: ctx.Rule,
 			}
 		}
-	} else {
+	} else if newVal.IsValid() {
+		// A transform that produced nothing writes nothing. A null union branch derefs to the
+		// zero reflect.Value and comes back as one whenever the walk did not replace it - a
+		// rule whose tags do not match this field, for instance - and reflect.Set panics on a
+		// zero Value rather than erroring.
 		if val.Kind() == reflect.Struct {
 			err = setField(structField, newVal)
 			if err != nil {
@@ -273,24 +302,30 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 	union := schema.(*avro.UnionSchema)
 	var names []string
 	var err error
-	if msg.IsValid() && msg.CanInterface() {
-		val := msg.Interface()
-		// Check if the value is a map[string]interface{} with a single entry
-		if m, ok := val.(map[string]interface{}); ok && len(m) == 1 {
+	// Interface layers come off - a value read out of a map arrives boxed - but pointers do
+	// not, because a pointer is part of the type hamba's resolver is asked about below.
+	val := derefInterface(msg)
+	switch {
+	case !val.IsValid() || !val.CanInterface() ||
+		(val.Kind() == reflect.Pointer && val.IsNil()):
+		// An absent value is the null branch. This has to be tested explicitly: a nil pointer
+		// still has a nameable type, so leaving it to the resolver would pick the *value*
+		// branch and encode a zero.
+		names = []string{"null"}
+	default:
+		if m, ok := val.Interface().(map[string]interface{}); ok && len(m) == 1 {
+			// hamba's own shape for a union value: a single entry keyed by branch name.
 			for k, v := range m {
 				names = []string{k}
 				newMsg := reflect.ValueOf(v)
 				msg = &newMsg
 			}
 		} else {
-			typ := reflect2.TypeOf(val)
-			names, err = resolver.Name(typ)
+			names, err = resolveUnionNames(resolver, val)
 			if err != nil {
 				return nil, msg, err
 			}
 		}
-	} else {
-		names = []string{"null"}
 	}
 	for _, name := range names {
 		if idx := strings.Index(name, ":"); idx > 0 {
@@ -303,6 +338,39 @@ func resolveUnion(resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.
 		}
 	}
 	return nil, nil, fmt.Errorf("avro: unknown union type %s", names[0])
+}
+
+// derefInterface unwraps interface layers only, leaving pointers intact.
+func derefInterface(val *reflect.Value) *reflect.Value {
+	v := *val
+	for v.Kind() == reflect.Interface {
+		v = v.Elem()
+	}
+	return &v
+}
+
+// resolveUnionNames asks hamba to name the value's type, trying it both as held and
+// dereferenced.
+//
+// The resolver's registrations are not consistent about pointers, and neither shape alone
+// works: a nullable decimal is known as *big.Rat and not as big.Rat, while a nullable string is
+// known as string and not as *string. Resolving only the dereferenced form failed a present
+// decimal with "avro: unable to resolve type big.Rat"; only the pointer form fails every
+// nullable primitive instead.
+func resolveUnionNames(resolver *avro.TypeResolver, val *reflect.Value) ([]string, error) {
+	names, err := resolver.Name(reflect2.TypeOf(val.Interface()))
+	if err == nil {
+		return names, nil
+	}
+	if val.Kind() == reflect.Pointer {
+		inner := val.Elem()
+		if inner.IsValid() && inner.CanInterface() {
+			if names, innerErr := resolver.Name(reflect2.TypeOf(inner.Interface())); innerErr == nil {
+				return names, nil
+			}
+		}
+	}
+	return nil, err
 }
 
 // deref unwraps every pointer and interface layer, not just one. A value read out of a
