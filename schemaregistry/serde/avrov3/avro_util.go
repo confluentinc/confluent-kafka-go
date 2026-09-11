@@ -27,7 +27,7 @@ import (
 )
 
 func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value,
-	fieldTransform serde.FieldTransform) (*reflect.Value, error) {
+	fieldTransform serde.FieldTransform, nullable bool) (*reflect.Value, error) {
 	// Only an absent schema or an absent reflect.Value stops the walk. A **nil pointer** is the
 	// null branch of a ["null", T] union and has to reach the rule: the reference binds it as CEL
 	// null so a rule can guard with `value == null`, and returning early here skipped the rule
@@ -45,13 +45,19 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 	case *avro.RefSchema:
 		// A reference to a named type has to be unwrapped, or the inline tags on the record
 		// it points at - and so the fields they mark for encryption - are never seen.
-		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform)
+		// The same position, so the enclosing union's nullability carries through.
+		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform, nullable)
 	case *avro.UnionSchema:
+		// Whether null is legal here is a property of the *schema*, and only this case can see
+		// it: the branch below is handed a concrete schema, so a nullability test down there
+		// has nothing to read it from.
+		nullBranch, _ := schema.(*avro.UnionSchema).Types().Get("null")
+		hasNull := nullBranch != nil
 		subschema, submsg, err := resolveUnion(resolver, schema, msg)
 		if err != nil {
 			return nil, err
 		}
-		submsg, err = transform(ctx, resolver, subschema, submsg, fieldTransform)
+		submsg, err = transform(ctx, resolver, subschema, submsg, fieldTransform, hasNull)
 		if err != nil {
 			return nil, err
 		}
@@ -59,6 +65,19 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			val := msg.Interface()
 			// Check if the value is a map[string]interface{} with a single entry
 			if m, ok := val.(map[string]interface{}); ok && len(m) == 1 {
+				if !submsg.IsValid() {
+					// The null branch, untouched: resolveUnion handed the branch value down
+					// as the invalid Value and the walk gave it back. Interface() panics on
+					// that, so there is nothing to rewrap - the value is already what it was.
+					return msg, nil
+				}
+				if submsg.Kind() == reflect.Interface && submsg.IsNil() {
+					// A rule nulled the value, so the union moves to its null branch. In
+					// hamba's generic shape that is a plain nil, not {"<branch>": nil} -
+					// rewrapping under the value branch's key would claim that branch holds
+					// a nil, which no branch does.
+					return submsg, nil
+				}
 				for k := range m {
 					newMap := map[string]interface{}{k: submsg.Interface()}
 					newVal := reflect.ValueOf(newMap)
@@ -75,7 +94,9 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		subschema := schema.(*avro.ArraySchema).Items()
 		for i := 0; i < val.Len(); i++ {
 			item := val.Index(i)
-			newVal, err := transform(ctx, resolver, subschema, &item, fieldTransform)
+			// An element's own schema decides its nullability, so start from false and let a
+			// union element's own case settle it.
+			newVal, err := transform(ctx, resolver, subschema, &item, fieldTransform, false)
 			if err != nil {
 				return nil, err
 			}
@@ -102,7 +123,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		for iter.Next() {
 			k := iter.Key()
 			v := iter.Value()
-			newVal, err := transform(ctx, resolver, subschema, &v, fieldTransform)
+			newVal, err := transform(ctx, resolver, subschema, &v, fieldTransform, false)
 			if err != nil {
 				return nil, err
 			}
@@ -180,12 +201,27 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 					// null "so a nullable target sees null and a non-nullable target
 					// surfaces the contract violation directly". A typed nil is this
 					// client's null; a target that cannot hold one gets the violation.
-					if !canBeNil(msg.Type()) {
+					// Driven by the schema, not by the branch value's Go type. hamba
+					// represents a generic union as a single-entry map keyed by branch
+					// name, so resolveUnion hands this case a bare `string` for
+					// ["null","string"] - whose type cannot hold nil even though the field
+					// plainly can. Deriving it from that type rejected a legal transform,
+					// and on the null branch the value is the zero reflect.Value, where
+					// Type() panics outright.
+					if !nullable {
 						return nil, fmt.Errorf(
 							"rule %s returned null for %s, which is not nullable",
 							ctx.Rule.Name, fieldCtx.FullName)
 					}
-					result = reflect.Zero(msg.Type())
+					if msg.IsValid() && canBeNil(msg.Type()) {
+						// A slot that holds a typed nil keeps its type, so the write-back
+						// assigns cleanly: a *string field takes (*string)(nil).
+						result = reflect.Zero(msg.Type())
+					} else {
+						// Otherwise the slot is generic (interface{}), which is the only
+						// other place a union value lives, and an untyped nil is its null.
+						result = reflect.Zero(anyType)
+					}
 				}
 				return &result, nil
 			}
@@ -193,6 +229,9 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		return msg, nil
 	}
 }
+
+// anyType is interface{}, the element type of a generically decoded Avro value.
+var anyType = reflect.TypeOf((*interface{})(nil)).Elem()
 
 // canBeNil reports whether a typed nil is representable in t, which is what this client uses
 // for a null field value.
@@ -224,7 +263,7 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 	fullName := recordSchema.FullName() + "." + avroField.Name()
 	defer ctx.LeaveField()
 	ctx.EnterField(val.Interface(), fullName, avroField.Name(), getType(avroField.Type()), getInlineTags(avroField))
-	newVal, err := transform(ctx, resolver, avroField.Type(), structField, fieldTransform)
+	newVal, err := transform(ctx, resolver, avroField.Type(), structField, fieldTransform, false)
 	if err != nil {
 		return err
 	}
