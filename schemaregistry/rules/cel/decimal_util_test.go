@@ -273,3 +273,27 @@ func TestAvroDecimalOrdinaryValuesStillConvert(t *testing.T) {
 		}
 	}
 }
+
+// An interface holding a nil pointer is not nil, and both decimal converters read through the
+// pointer. lib.go's adapter maps a nil pointer to CEL null before it gets here, but boundaryArgs
+// and the validator call this directly, so it has to answer for itself rather than panic.
+func TestDecimalBoundaryValueRefusesATypedNil(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		val  interface{}
+	}{
+		{"*typepb.Decimal", (*typepb.Decimal)(nil)},
+		{"*big.Rat", (*big.Rat)(nil)},
+	} {
+		if v, ok := decimalBoundaryValue(c.val); ok {
+			t.Errorf("%s(nil) was accepted as a decimal: %v", c.name, v)
+		}
+	}
+	// The must-fail twin: real values of both shapes still convert.
+	if _, ok := decimalBoundaryValue(&typepb.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2}); !ok {
+		t.Error("a real *typepb.Decimal should convert")
+	}
+	if _, ok := decimalBoundaryValue(big.NewRat(1234, 100)); !ok {
+		t.Error("a real *big.Rat should convert")
+	}
+}
