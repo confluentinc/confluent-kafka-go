@@ -172,6 +172,16 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
+func (p *Producer) getClusterID(timeout int) (string, error) {
+	cClusterID := C.rd_kafka_clusterid(p.handle.rk, C.int(timeout))
+	if cClusterID == nil {
+		return "", fmt.Errorf("Failed to retrieve cluster ID")
+	}
+	clusterID := C.GoString(cClusterID)
+	C.rd_kafka_mem_free(p.handle.rk, unsafe.Pointer(cClusterID))
+	return clusterID, nil
+}
+
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")
@@ -293,6 +303,10 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	}
 
 	return nil
+}
+
+func (p *Producer) setSendMessageToChannelFunction(f sendMessageToChannelFunc) {
+	p.handle.sendMessageToChannel = f
 }
 
 // Produce single message.
