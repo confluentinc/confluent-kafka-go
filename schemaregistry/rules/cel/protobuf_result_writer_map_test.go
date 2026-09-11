@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
@@ -299,5 +300,53 @@ func TestNestedMapKeepsNativeKeyTypes(t *testing.T) {
 	}
 	if _, err := nativeStringMap(inner, reflect.TypeOf(map[string]interface{}{})); err == nil {
 		t.Error("a non-string key at the top level should still be refused")
+	}
+}
+
+// A null inside a container is a rule error, not an element to skip. Skipping changed the
+// list's length (or dropped a map entry) and still reported success. protobuf has no null to
+// store, and the reference's write-back parse refuses the document - measured against
+// protobuf-java's JsonFormat, `{"amounts": [null]}` is "Repeated field elements cannot be null
+// in field: ..." and `{"amount_map": {"a": null}}` is "Map value cannot be null."
+func TestANullInsideAContainerIsReported(t *testing.T) {
+	repDesc := repeatedStringDesc(t)
+	repFd := repDesc.Fields().ByName("r")
+	for _, items := range [][]interface{}{
+		{nil},
+		{"a", nil},
+		{"a", structpb.NullValue(0)},
+	} {
+		out := dynamicpb.NewMessage(repDesc)
+		err := setListField(out, repFd, items)
+		if err == nil {
+			t.Errorf("expected an error for a null element in %v", items)
+			continue
+		}
+		if !strings.Contains(err.Error(), "repeated field") {
+			t.Errorf("error should name the field, got %v", err)
+		}
+	}
+
+	mapDesc := mapKeyDesc(t, descriptorpb.FieldDescriptorProto_TYPE_STRING)
+	mapFd := mapDesc.Fields().ByName("m")
+	for _, entries := range []map[interface{}]interface{}{
+		{"a": nil},
+		{"a": structpb.NullValue(0)},
+	} {
+		out := dynamicpb.NewMessage(mapDesc)
+		err := setMapField(out, mapFd, entries)
+		if err == nil {
+			t.Errorf("expected an error for a null value in %v", entries)
+			continue
+		}
+		if !strings.Contains(err.Error(), "map field") {
+			t.Errorf("error should name the field, got %v", err)
+		}
+	}
+
+	// The must-fail twin: a non-null element still writes, so the guard is about null alone.
+	out := dynamicpb.NewMessage(repDesc)
+	if err := setListField(out, repFd, []interface{}{"a", "b"}); err != nil {
+		t.Fatalf("a list of non-null elements should write: %v", err)
 	}
 }

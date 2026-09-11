@@ -192,7 +192,10 @@ func setMapField(out protoreflect.Message, fd protoreflect.FieldDescriptor, valu
 	valueFd := fd.MapValue()
 	for k, v := range entries {
 		if isNull(v) {
-			continue
+			// Dropping the entry reported success while deleting it. A protobuf map value
+			// cannot be null, and the reference's write-back parse says exactly that -
+			// measured, `{"amount_map": {"a": null}}` is "Map value cannot be null."
+			return fmt.Errorf("cannot write a null value to map field %s", fd.FullName())
 		}
 		// The key is narrowed through its own descriptor, as every other client in the family
 		// does. Only string keys were handled, and `ValueOfString` was used unconditionally -
@@ -232,9 +235,13 @@ func setListField(out protoreflect.Message, fd protoreflect.FieldDescriptor, val
 		return fmt.Errorf("cannot write %T to repeated field %s", value, fd.FullName())
 	}
 	list := out.Mutable(fd).List()
-	for _, item := range items {
+	for i, item := range items {
 		if isNull(item) {
-			continue
+			// Skipping changed the list's length and still reported success, so `[1, null, 2]`
+			// came back with two elements. protobuf has no null to store, and the reference
+			// says "Repeated field elements cannot be null in field: X".
+			return fmt.Errorf("cannot write null to element %d of repeated field %s",
+				i, fd.FullName())
 		}
 		if fd.Kind() == protoreflect.MessageKind {
 			m := list.NewElement().Message()
