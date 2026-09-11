@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
 )
 
@@ -275,7 +275,7 @@ func TestProtoConfluentTypeVariantIntoCel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseJSON: %v", err)
 	}
-	msg := &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
+	msg := &typepb.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
 	if !evalBool(t, "variants.as(variants.field(variant(this), 'age'), 'int') == 30", msg) {
 		t.Errorf("proto confluent.type.Variant did not marshal into CEL correctly")
 	}
@@ -294,7 +294,7 @@ func TestVariantIsNullCoercesBareReceiver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseJSON(%s): %v", tc.json, err)
 		}
-		msg := &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
+		msg := &typepb.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
 		for _, expr := range []string{
 			"variants.isNull(this)",
 			// The wrapped form has always worked and must keep working.
@@ -322,7 +322,7 @@ func TestVariantNeedsNoConstructor(t *testing.T) {
 	}
 	subjects := map[string]interface{}{
 		// Protobuf: a confluent.type.Variant message bound as `this`.
-		"proto": &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()},
+		"proto": &typepb.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()},
 		// Avro: a variant record, which decodes generically to a metadata/value map.
 		"avro": holder{Data: map[string]interface{}{
 			"metadata": pv.MetadataBytes(),
@@ -394,7 +394,7 @@ func TestAbsentVariantReadsAsNull(t *testing.T) {
 	}
 	// Both decode shapes: the Protobuf message, and the map an Avro variant record yields.
 	subjects := map[string]interface{}{
-		"proto": &prototypes.Variant{Metadata: []byte{}, Value: []byte{}},
+		"proto": &typepb.Variant{Metadata: []byte{}, Value: []byte{}},
 		"avro":  map[string]interface{}{"metadata": []byte{}, "value": []byte{}},
 	}
 	for name, subject := range subjects {
@@ -413,7 +413,7 @@ func TestExplicitNullVariantIsNotAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseJSON: %v", err)
 	}
-	msg := &prototypes.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
+	msg := &typepb.Variant{Metadata: pv.MetadataBytes(), Value: pv.ValueBytes()}
 	if !evalBool(t, "variants.isNull(this)", msg) {
 		t.Errorf("an explicit JSON null must report isNull")
 	}

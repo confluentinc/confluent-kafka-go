@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 )
 
 // mapKeyDesc builds `message M { map<K,string> m = 1; }` at runtime, so a non-string map key
@@ -136,15 +136,15 @@ func TestAWrongShapeForAMapFieldIsReported(t *testing.T) {
 // clients.
 func TestAMessageOfTheWrongTypeIsReported(t *testing.T) {
 	// The field is a confluent.type.Decimal; hand it a google.protobuf.Timestamp.
-	msg := (&prototypes.Decimal{}).ProtoReflect()
+	msg := (&typepb.Decimal{}).ProtoReflect()
 	descMsg := msg.Descriptor()
 	_ = descMsg
-	valueTypes := (&prototypes.Decimal{}).ProtoReflect().Descriptor()
+	valueTypes := (&typepb.Decimal{}).ProtoReflect().Descriptor()
 	_ = valueTypes
 
 	// Build `message Holder { .confluent.type.Decimal amount = 1; }` via the generated
 	// descriptor's own file, so fd.Message() really is confluent.type.Decimal.
-	out := dynamicpb.NewMessage((&prototypes.Decimal{}).ProtoReflect().Descriptor())
+	out := dynamicpb.NewMessage((&typepb.Decimal{}).ProtoReflect().Descriptor())
 	_ = out
 
 	// setMessageValue takes the destination message and the field descriptor; use the Decimal
@@ -166,7 +166,7 @@ func TestAMessageOfTheWrongTypeIsReported(t *testing.T) {
 	// The must-fail twin: the right message type still copies.
 	fresh := dynamicpb.NewMessage(holderDesc)
 	target := fresh.Mutable(fd).Message()
-	if err := setMessageValue(target, fd, &prototypes.Decimal{Scale: 2, Precision: 4}); err != nil {
+	if err := setMessageValue(target, fd, &typepb.Decimal{Scale: 2, Precision: 4}); err != nil {
 		t.Fatalf("echoing a Decimal should work: %v", err)
 	}
 }
@@ -176,7 +176,7 @@ func TestAMessageOfTheWrongTypeIsReported(t *testing.T) {
 func decimalHolderDesc(t *testing.T) protoreflect.MessageDescriptor {
 	t.Helper()
 	decFile := protodesc.ToFileDescriptorProto(
-		(&prototypes.Decimal{}).ProtoReflect().Descriptor().ParentFile())
+		(&typepb.Decimal{}).ProtoReflect().Descriptor().ParentFile())
 	msgType := descriptorpb.FieldDescriptorProto_TYPE_MESSAGE
 	opt := descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
 	holder := &descriptorpb.FileDescriptorProto{

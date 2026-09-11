@@ -38,7 +38,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	schemaregistry "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
@@ -54,9 +54,9 @@ func valueTypesMsg(t *testing.T) *test.ValueTypes {
 		t.Fatal(err)
 	}
 	return &test.ValueTypes{
-		Amount: &prototypes.Decimal{Value: unscaled1234, Precision: 8, Scale: 2},
+		Amount: &typepb.Decimal{Value: unscaled1234, Precision: 8, Scale: 2},
 		Ts:     &timestamppb.Timestamp{Seconds: 1700000000, Nanos: 123000000},
-		Data:   &prototypes.Variant{Metadata: v.MetadataBytes(), Value: v.ValueBytes()},
+		Data:   &typepb.Variant{Metadata: v.MetadataBytes(), Value: v.ValueBytes()},
 		Label:  "hi",
 		Count:  7,
 	}
@@ -82,7 +82,7 @@ func transformMsg(t *testing.T, expr string, msg interface{}) *test.ValueTypes {
 	return out
 }
 
-func unscaledOf(t *testing.T, d *prototypes.Decimal) string {
+func unscaledOf(t *testing.T, d *typepb.Decimal) string {
 	t.Helper()
 	if d == nil {
 		return "<nil>"
@@ -90,7 +90,7 @@ func unscaledOf(t *testing.T, d *prototypes.Decimal) string {
 	return new(big.Int).SetBytes(d.Value).String()
 }
 
-func variantJSON(t *testing.T, v *prototypes.Variant) string {
+func variantJSON(t *testing.T, v *typepb.Variant) string {
 	t.Helper()
 	j, err := variant.New(v.Value, v.Metadata).ToJSON()
 	if err != nil {

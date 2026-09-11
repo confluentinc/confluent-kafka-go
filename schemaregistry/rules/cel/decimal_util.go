@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/cockroachdb/apd/v3"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 )
 
 // Conversions between the CEL decimal backing type (apd.Decimal) and the shapes decoders
@@ -35,7 +35,7 @@ import (
 
 // decimalFromProto converts a confluent.type.Decimal message (unscaled big-endian two's
 // complement bytes + scale) to an apd.Decimal, preserving the message's scale exactly.
-func decimalFromProto(d *prototypes.Decimal) (*apd.Decimal, error) {
+func decimalFromProto(d *typepb.Decimal) (*apd.Decimal, error) {
 	// Built from the coefficient and exponent, not from plainDecimalString, for the reason
 	// decimalFromBytesScale below records: that rendering materialises every digit of the
 	// positional form, and the scale here arrives off the wire. Measured on this very path -
@@ -48,7 +48,7 @@ func decimalFromProto(d *prototypes.Decimal) (*apd.Decimal, error) {
 // decimalToProto converts an apd.Decimal to a confluent.type.Decimal message, mirroring
 // Java's BigDecimal.unscaledValue()/scale(): the scale is the number of fractional digits
 // and the value is the unscaled integer as big-endian two's-complement bytes.
-func decimalToProto(d *apd.Decimal) (*prototypes.Decimal, error) {
+func decimalToProto(d *apd.Decimal) (*typepb.Decimal, error) {
 	if d.Form != apd.Finite {
 		return nil, fmt.Errorf("cannot convert non-finite decimal %q to confluent.type.Decimal", d.Text('f'))
 	}
@@ -56,7 +56,7 @@ func decimalToProto(d *apd.Decimal) (*prototypes.Decimal, error) {
 	if d.Negative {
 		unscaled.Neg(unscaled)
 	}
-	return &prototypes.Decimal{
+	return &typepb.Decimal{
 		Value: signedBytesFromBigInt(unscaled),
 		// Precision is the unscaled value's digit count, as BigDecimal.precision() reports it
 		// and as Java's ProtobufResultWriter sets it. Safe here because this writer does not

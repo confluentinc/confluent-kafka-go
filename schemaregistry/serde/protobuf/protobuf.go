@@ -32,6 +32,8 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
+	// Aliased because google/protobuf/type.proto below generates a package named `typepb` too.
+	cflttype "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	protoV1 "github.com/golang/protobuf/proto"
@@ -109,9 +111,15 @@ var builtInDeps = make(map[string]string)
 
 func init() {
 	builtins := map[string]protoreflect.FileDescriptor{
-		"confluent/meta.proto":                 confluent.File_confluent_meta_proto,
-		"confluent/type/decimal.proto":         types.File_confluent_type_decimal_proto,
-		"confluent/type/variant.proto":         types.File_confluent_type_variant_proto,
+		"confluent/meta.proto":         confluent.File_confluent_meta_proto,
+		"confluent/type/decimal.proto": cflttype.File_confluent_type_decimal_proto,
+		"confluent/type/variant.proto": cflttype.File_confluent_type_variant_proto,
+		// The path confluent.type.Decimal used to occupy. A schema importing it is never sent
+		// with a reference - ignoreFile matches the whole confluent/ prefix - so this table is
+		// the only place a reader can resolve it from. The stub declares nothing and publicly
+		// imports the canonical file, so it re-exports confluent.type.Decimal without a second
+		// declaration of the symbol. Read-only: this client emits the canonical path.
+		"confluent/types/decimal.proto":        types.File_confluent_types_decimal_proto,
 		"google/type/calendar_period.proto":    calendarperiod.File_google_type_calendar_period_proto,
 		"google/type/color.proto":              color.File_google_type_color_proto,
 		"google/type/date.proto":               date.File_google_type_date_proto,
@@ -154,19 +162,6 @@ func init() {
 			log.Fatalf("Could not print %s", key)
 		}
 		builtInDeps[key] = writer.String()
-	}
-	// Accept the plural spelling too, for schemas registered before the confluent value types
-	// moved to their canonical confluent/type/... path. The accessor keys by the import string
-	// and the file name it hands the parser comes from that key, so one source text serves both
-	// names - and both carry `package confluent.type`, so either resolves to the same
-	// confluent.type.Decimal. Read-only tolerance: this client now emits the canonical path.
-	for canonical, legacy := range map[string]string{
-		"confluent/type/decimal.proto": "confluent/types/decimal.proto",
-		"confluent/type/variant.proto": "confluent/types/variant.proto",
-	} {
-		if src, ok := builtInDeps[canonical]; ok {
-			builtInDeps[legacy] = src
-		}
 	}
 }
 

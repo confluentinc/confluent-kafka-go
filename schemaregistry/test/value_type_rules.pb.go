@@ -8,7 +8,7 @@ package test
 
 import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
-	types "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	_type "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -29,7 +29,7 @@ const (
 // the same rules.
 type InlineValueTypes struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Amount        *types.Decimal         `protobuf:"bytes,1,opt,name=amount,proto3" json:"amount,omitempty"`
+	Amount        *_type.Decimal         `protobuf:"bytes,1,opt,name=amount,proto3" json:"amount,omitempty"`
 	Ts            *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ts,proto3" json:"ts,omitempty"`
 	Label         string                 `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -66,7 +66,7 @@ func (*InlineValueTypes) Descriptor() ([]byte, []int) {
 	return file_value_type_rules_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *InlineValueTypes) GetAmount() *types.Decimal {
+func (x *InlineValueTypes) GetAmount() *_type.Decimal {
 	if x != nil {
 		return x.Amount
 	}
@@ -92,8 +92,8 @@ func (x *InlineValueTypes) GetLabel() string {
 // tagged CEL_FIELD rule, and a message-level transform.
 type ValueTypeContainers struct {
 	state     protoimpl.MessageState    `protogen:"open.v1"`
-	Amounts   []*types.Decimal          `protobuf:"bytes,1,rep,name=amounts,proto3" json:"amounts,omitempty"`
-	AmountMap map[string]*types.Decimal `protobuf:"bytes,2,rep,name=amount_map,json=amountMap,proto3" json:"amount_map,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Amounts   []*_type.Decimal          `protobuf:"bytes,1,rep,name=amounts,proto3" json:"amounts,omitempty"`
+	AmountMap map[string]*_type.Decimal `protobuf:"bytes,2,rep,name=amount_map,json=amountMap,proto3" json:"amount_map,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Nested    *ValueTypeNested          `protobuf:"bytes,3,opt,name=nested,proto3" json:"nested,omitempty"`
 	// Tagged so a rule can target a singular scalar: a singular condition still raises where a
 	// repeated one does not.
@@ -135,14 +135,14 @@ func (*ValueTypeContainers) Descriptor() ([]byte, []int) {
 	return file_value_type_rules_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ValueTypeContainers) GetAmounts() []*types.Decimal {
+func (x *ValueTypeContainers) GetAmounts() []*_type.Decimal {
 	if x != nil {
 		return x.Amounts
 	}
 	return nil
 }
 
-func (x *ValueTypeContainers) GetAmountMap() map[string]*types.Decimal {
+func (x *ValueTypeContainers) GetAmountMap() map[string]*_type.Decimal {
 	if x != nil {
 		return x.AmountMap
 	}
@@ -172,7 +172,7 @@ func (x *ValueTypeContainers) GetCodes() []string {
 
 type ValueTypeNested struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Inner         *types.Decimal         `protobuf:"bytes,1,opt,name=inner,proto3" json:"inner,omitempty"`
+	Inner         *_type.Decimal         `protobuf:"bytes,1,opt,name=inner,proto3" json:"inner,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -207,7 +207,7 @@ func (*ValueTypeNested) Descriptor() ([]byte, []int) {
 	return file_value_type_rules_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ValueTypeNested) GetInner() *types.Decimal {
+func (x *ValueTypeNested) GetInner() *_type.Decimal {
 	if x != nil {
 		return x.Inner
 	}
@@ -311,7 +311,7 @@ var file_value_type_rules_proto_goTypes = []any{
 	(*ValueTypeContainers)(nil),   // 1: test.ValueTypeContainers
 	(*ValueTypeNested)(nil),       // 2: test.ValueTypeNested
 	nil,                           // 3: test.ValueTypeContainers.AmountMapEntry
-	(*types.Decimal)(nil),         // 4: confluent.type.Decimal
+	(*_type.Decimal)(nil),         // 4: confluent.type.Decimal
 	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
 }
 var file_value_type_rules_proto_depIdxs = []int32{
