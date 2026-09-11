@@ -17,6 +17,8 @@
 package kafka
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -43,4 +45,18 @@ func TestEventAPIs(t *testing.T) {
 
 	oauthBearerTokenRefresh := OAuthBearerTokenRefresh{"some=config"}
 	t.Logf("%s\n", oauthBearerTokenRefresh.String())
+}
+
+// TestApplicationErrors tests ApplicationRebalanceError wrapping.
+func TestApplicationErrors(t *testing.T) {
+	inner1 := errors.New("some application-level error")
+	inner2 := errors.New("some other application-level error")
+	err := NewApplicationRebalanceError(inner1)
+	wrapped := fmt.Errorf("wrapped rebalancing ApplicationError %w", err)
+	if !errors.Is(wrapped, inner1) {
+		t.Fail()
+	}
+	if errors.Is(wrapped, inner2) {
+		t.Fail()
+	}
 }
