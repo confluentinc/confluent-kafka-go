@@ -275,3 +275,38 @@ func TestGenericNullBranchSurvivesANonMatchingRule(t *testing.T) {
 		t.Errorf("nullable = %#v, want nil", out["nullable"])
 	}
 }
+
+// A ["null", T] element is held as *T and the leaf hands back a bare T, which the array and map
+// write-backs assigned straight into the slot: "value of type string is not assignable to type
+// *string". The null case passed because a typed nil is already a pointer, and the scalar case
+// because setField re-wraps for a struct field - so only containers, and only a non-null result.
+func TestCelFieldTransformOnNullableContainerElements(t *testing.T) {
+	got, err := celNullRun(t, "celunionitems", "ITEMS", `true ; value + "!"`)
+	if err != nil {
+		t.Fatalf("array of [null, string]: %v", err)
+	}
+	if len(got.NullableItems) != 2 || got.NullableItems[0] == nil ||
+		*got.NullableItems[0] != "orig!" || *got.NullableItems[1] != "other!" {
+		t.Errorf("items = %v", derefAll(got.NullableItems))
+	}
+
+	got, err = celNullRun(t, "celunionvalues", "VALUES", `true ; value + "!"`)
+	if err != nil {
+		t.Fatalf("map of [null, string]: %v", err)
+	}
+	if v, ok := got.NullableValues["a"]; !ok || v == nil || *v != "orig!" {
+		t.Errorf("values[a] = %v", v)
+	}
+}
+
+func derefAll(ps []*string) []string {
+	out := make([]string, 0, len(ps))
+	for _, p := range ps {
+		if p == nil {
+			out = append(out, "<nil>")
+			continue
+		}
+		out = append(out, *p)
+	}
+	return out
+}

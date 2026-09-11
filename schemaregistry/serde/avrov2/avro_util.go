@@ -85,6 +85,16 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 				}
 			}
 		}
+		// A ["null", T] branch is held as *T, and the leaf hands back a bare T. setField
+		// re-wraps for a struct field, but the array and map write-backs assign straight into
+		// the slot, so returning the bare value panicked ("value of type string is not
+		// assignable to type *string").
+		if msg.Kind() == reflect.Pointer && submsg.IsValid() &&
+			submsg.Kind() != reflect.Pointer && submsg.Type().AssignableTo(msg.Type().Elem()) {
+			p := reflect.New(msg.Type().Elem())
+			p.Elem().Set(*submsg)
+			return &p, nil
+		}
 		return submsg, nil
 	case *avro.ArraySchema:
 		val := deref(msg)
