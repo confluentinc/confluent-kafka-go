@@ -76,9 +76,17 @@ const SchemaType = "PROTOBUF"
 type Serializer struct {
 	serde.BaseSerializer
 	*Serde
-	Conf                  *SerializerConfig
-	descToSchemaCache     cache.Cache
-	descToSchemaCacheLock sync.RWMutex
+	Conf                         *SerializerConfig
+	descToSchemaCache            cache.Cache
+	descToSchemaCacheLock        sync.RWMutex
+	ReferenceSubjectNameStrategy ReferenceSubjectNameStrategyFunc
+}
+
+// ReferenceSubjectNameStrategyFunc used to map references to subject names
+type ReferenceSubjectNameStrategyFunc func(fileName string, schema schemaregistry.SchemaInfo) (string, error)
+
+func defaultReferenceSubjectNameStrategy(fileName string, schema schemaregistry.SchemaInfo) (string, error) {
+	return fileName, nil
 }
 
 // Deserializer represents a Protobuf deserializer
@@ -166,6 +174,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		descToSchemaCache: descToSchemaCache,
 	}
 	err = s.ConfigureSerializer(client, serdeType, &conf.SerializerConfig)
+	s.ReferenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
 	s.Conf = conf
 	fieldTransformer := func(ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
@@ -251,9 +260,21 @@ func (s *Serializer) SerializeWithHeaders(topic string, msg interface{}) ([]kafk
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.ValidationEnabled(serde.ValidationRulesBeforeDomainRules) {
+		if err = s.validateInlineRules(info, protoMsg); err != nil {
+			return nil, nil, err
+		}
+	}
 	msg, err = s.ExecuteRules(subject, topic, schemaregistry.Write, nil, &info, protoMsg)
 	if err != nil {
 		return nil, nil, err
+	}
+	if s.ValidationEnabled(serde.ValidationRulesAfterDomainRules) {
+		if validated, ok := msg.(proto.Message); ok {
+			if err = s.validateInlineRules(info, validated); err != nil {
+				return nil, nil, err
+			}
+		}
 	}
 	switch t := msg.(type) {
 	case proto.Message:
@@ -294,7 +315,7 @@ func (s *Serializer) getSchemaInfo(protoMsg proto.Message) (*schemaregistry.Sche
 	}
 	autoRegister := s.Conf.AutoRegisterSchemas
 	normalize := s.Conf.NormalizeSchemas
-	metadata, err := s.resolveDependencies(fileDesc, deps, "", autoRegister, normalize)
+	metadata, err := s.resolveDependencies(fileDesc, deps, false, autoRegister, normalize)
 	if err != nil {
 		return nil, err
 	}
@@ -345,13 +366,13 @@ func (s *Serializer) toDependencies(fileDesc *desc.FileDescriptor, deps map[stri
 	return nil
 }
 
-func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, subject string, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
+func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map[string]string, isReferenceSchema bool, autoRegister bool, normalize bool) (schemaregistry.SchemaMetadata, error) {
 	refs := make([]schemaregistry.Reference, 0, len(fileDesc.GetDependencies())+len(fileDesc.GetPublicDependencies()))
 	for _, d := range fileDesc.GetDependencies() {
 		if ignoreFile(d.GetName()) {
 			continue
 		}
-		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
+		ref, err := s.resolveDependencies(d, deps, true, autoRegister, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -365,7 +386,7 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 		if ignoreFile(d.GetName()) {
 			continue
 		}
-		ref, err := s.resolveDependencies(d, deps, d.GetName(), autoRegister, normalize)
+		ref, err := s.resolveDependencies(d, deps, true, autoRegister, normalize)
 		if err != nil {
 			return schemaregistry.SchemaMetadata{}, err
 		}
@@ -383,7 +404,19 @@ func (s *Serializer) resolveDependencies(fileDesc *desc.FileDescriptor, deps map
 	var id = -1
 	var err error
 	var version = 0
-	if subject != "" {
+	var subject = ""
+	if isReferenceSchema {
+		referenceSubjectNameStrategy := s.ReferenceSubjectNameStrategy
+		if referenceSubjectNameStrategy == nil {
+			referenceSubjectNameStrategy = defaultReferenceSubjectNameStrategy
+		}
+		subject, err = referenceSubjectNameStrategy(fileDesc.GetName(), info)
+		if err != nil {
+			return schemaregistry.SchemaMetadata{}, err
+		}
+		if strings.TrimSpace(subject) == "" {
+			return schemaregistry.SchemaMetadata{}, fmt.Errorf("reference subject name strategy returned an empty subject for %q", fileDesc.GetName())
+		}
 		if autoRegister {
 			id, err = s.Client.Register(subject, info, normalize)
 			if err != nil {
@@ -445,6 +478,29 @@ func ignoreFile(name string) bool {
 		strings.HasPrefix(name, "google/type/")
 }
 
+// validateInlineRules evaluates the descriptor's inline validation rules against msg,
+// returning a single error listing every violation found.
+func (s *Serializer) validateInlineRules(info schemaregistry.SchemaInfo, msg proto.Message) error {
+	executor, err := s.ValidationExecutor()
+	if err != nil {
+		return err
+	}
+	// Resolve the schema-side descriptor, which is the one carrying the Meta options.
+	fd, err := s.toFileDesc(s.Client, info)
+	if err != nil {
+		return err
+	}
+	md := fd.FindMessage(string(msg.ProtoReflect().Descriptor().FullName()))
+	if md == nil {
+		return nil
+	}
+	violations, err := validateMessage(executor, md.UnwrapMessage(), msg, s.Conf.ValidationRulesFailFast)
+	if err != nil {
+		return err
+	}
+	return serde.ValidationRulesFailed(violations)
+}
+
 // FieldTransform transforms the field value using the rule
 func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleContext, fieldTransform serde.FieldTransform, msg interface{}) (interface{}, error) {
 	fd, err := s.toFileDesc(client, *ctx.Target)
@@ -457,8 +513,12 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 }
 
 func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo) (*desc.FileDescriptor, error) {
+	// Keyed on the whole schema: parseFileDesc feeds the referenced .proto
+	// files to the parser, so two roots with the same text but different
+	// references do not parse to the same descriptor.
+	cacheKey := serde.SchemaCacheKey(info)
 	s.schemaToDescCacheLock.RLock()
-	value, ok := s.schemaToDescCache.Get(info.Schema)
+	value, ok := s.schemaToDescCache.Get(cacheKey)
 	s.schemaToDescCacheLock.RUnlock()
 	if ok {
 		return value.(*desc.FileDescriptor), nil
@@ -468,7 +528,7 @@ func (s *Serde) toFileDesc(client schemaregistry.Client, info schemaregistry.Sch
 		return nil, err
 	}
 	s.schemaToDescCacheLock.Lock()
-	s.schemaToDescCache.Put(info.Schema, fd)
+	s.schemaToDescCache.Put(cacheKey, fd)
 	s.schemaToDescCacheLock.Unlock()
 	return fd, nil
 }
