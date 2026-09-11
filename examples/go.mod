@@ -8,7 +8,7 @@ require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
 	github.com/confluentinc/confluent-kafka-go/v2 v2.15.1
 	github.com/gdamore/tcell v1.4.0
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
@@ -39,6 +39,7 @@ require (
 	github.com/bufbuild/protocompile v0.8.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/confluentinc/confluent-avro-go/v2 v2.32.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
@@ -101,6 +102,6 @@ require (
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/api v0.169.0 // indirect
 	google.golang.org/genproto v0.0.0-20240325203815-454cdb8f5daa // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
-	google.golang.org/grpc v1.64.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240826202546-f6391c0de4c7 // indirect
+	google.golang.org/grpc v1.65.0 // indirect
 )
