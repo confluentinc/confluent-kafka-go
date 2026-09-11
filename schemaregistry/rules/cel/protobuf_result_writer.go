@@ -122,8 +122,32 @@ func isNull(value interface{}) bool {
 	return ok
 }
 
+// fillMessage applies a result map to out, one entry per declared field.
+//
+// Two entries can name the same slot, and applying both leaves the outcome to the order they
+// are visited in - which for a Go map is not even stable between runs. JsonFormat refuses both
+// shapes, and the two have *opposite* null handling, which is the part worth stating:
+//
+//   - The same field twice. findField accepts a field's declared name and its JSON name, so
+//     `amount_map` and `amountMap` are one field. mergeField tests builder.hasField before its
+//     null early-return, so a null after a value is refused ("Field p.M.total_amount has
+//     already been set.") while a null after a null is not.
+//   - Two members of one oneof. Setting a member clears its siblings, so applying both kept
+//     whichever came last. mergeOneofField refuses this ("Cannot set field p.M.b because
+//     another field p.M.a belonging to the same oneof has already been set"), but only after
+//     returning early for a null, so a null does *not* count - which agrees with this writer's
+//     own rule that a null clears rather than sets.
+//
+// Measured against protobuf-java. A proto3 optional field sits in a synthetic oneof of exactly
+// one member, which ContainingOneof reports as synthetic and is skipped, so it can never
+// collide with a sibling. The names in each message are sorted because ranging over a map
+// visits them in an arbitrary order, and a diagnostic that varies run to run is worse than
+// useless.
 func fillMessage(out protoreflect.Message, values map[string]interface{}) error {
 	desc := out.Descriptor()
+	// field number -> the result key that set it; oneof -> the member that filled it.
+	setBy := make(map[protoreflect.FieldNumber]string, len(values))
+	oneofBy := make(map[protoreflect.FullName]string)
 	for key, value := range values {
 		fd := findField(desc, key)
 		if fd == nil {
@@ -131,17 +155,40 @@ func fillMessage(out protoreflect.Message, values map[string]interface{}) error 
 			// JVM client, whose JSON parse ignores unknown fields.
 			continue
 		}
+		// Before the null branch, because that is where the JVM's hasField test sits.
+		if first, ok := setBy[fd.Number()]; ok {
+			a, b := sortedPair(first, key)
+			return fmt.Errorf("result names field %s twice, as %s and %s", fd.FullName(), a, b)
+		}
 		if isNull(value) {
 			// An explicit null clears the field, which is how a rule preserves an absent
 			// value across a transform that echoes it.
 			out.Clear(fd)
 			continue
 		}
+		setBy[fd.Number()] = key
+		if oneof := fd.ContainingOneof(); oneof != nil && !oneof.IsSynthetic() {
+			if sibling, ok := oneofBy[oneof.FullName()]; ok && sibling != string(fd.Name()) {
+				a, b := sortedPair(sibling, string(fd.Name()))
+				return fmt.Errorf("result sets more than one member of oneof %s: %s and %s",
+					oneof.FullName(), a, b)
+			}
+			oneofBy[oneof.FullName()] = string(fd.Name())
+		}
 		if err := setField(out, fd, value); err != nil {
 			return fmt.Errorf("field %s: %w", fd.Name(), err)
 		}
 	}
 	return nil
+}
+
+// sortedPair returns two names in a stable order, so an error does not vary with the map
+// iteration order that produced it.
+func sortedPair(x, y string) (string, string) {
+	if x <= y {
+		return x, y
+	}
+	return y, x
 }
 
 // findField resolves a result key by declared name, then by JSON name: a rule may

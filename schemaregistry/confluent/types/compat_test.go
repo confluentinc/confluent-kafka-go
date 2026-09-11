@@ -55,6 +55,38 @@ func TestLegacyDescriptorVarRegistersTheOldPath(t *testing.T) {
 	}
 }
 
+// Every method and field the shipped package exported, touched so the alias cannot silently
+// lose part of the surface. Extracted from v2.15.0's generated decimal.pb.go: fields
+// Value/Precision/Scale, methods Reset/String/ProtoReflect/Descriptor/GetValue/GetPrecision/
+// GetScale, and ProtoMessage.
+func TestTheShippedDecimalSurfaceStillCompiles(t *testing.T) {
+	d := &Decimal{Value: []byte{0x04, 0xd2}, Precision: 4, Scale: 2}
+
+	if got := d.GetValue(); len(got) != 2 {
+		t.Errorf("GetValue() = %v", got)
+	}
+	if got := d.GetPrecision(); got != 4 {
+		t.Errorf("GetPrecision() = %d, want 4", got)
+	}
+	if got := d.GetScale(); got != 2 {
+		t.Errorf("GetScale() = %d, want 2", got)
+	}
+	if d.String() == "" {
+		t.Error("String() is empty")
+	}
+	if d.ProtoReflect() == nil {
+		t.Error("ProtoReflect() is nil")
+	}
+	if _, idx := d.Descriptor(); len(idx) == 0 {
+		t.Error("Descriptor() returned no index path")
+	}
+	d.ProtoMessage()
+	d.Reset()
+	if d.GetScale() != 0 {
+		t.Error("Reset() did not clear the value")
+	}
+}
+
 // Variant deliberately has no stub here: it had not shipped under this path, so nothing can be
 // importing it. Pinned so removing the guard in codegen.sh is a deliberate act.
 func TestVariantIsNotReExportedHere(t *testing.T) {
