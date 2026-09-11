@@ -37,7 +37,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	schemaregistry "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
@@ -54,9 +54,9 @@ func vtMessage(t *testing.T) *test.ValueTypes {
 		t.Fatal(err)
 	}
 	return &test.ValueTypes{
-		Amount: &prototypes.Decimal{Value: vtUnscaled1234, Precision: 8, Scale: 2},
+		Amount: &typepb.Decimal{Value: vtUnscaled1234, Precision: 8, Scale: 2},
 		Ts:     &timestamppb.Timestamp{Seconds: 1700000000, Nanos: 123000000},
-		Data:   &prototypes.Variant{Metadata: v.MetadataBytes(), Value: v.ValueBytes()},
+		Data:   &typepb.Variant{Metadata: v.MetadataBytes(), Value: v.ValueBytes()},
 		Label:  "hi",
 	}
 }
@@ -87,7 +87,7 @@ func vtRun(t *testing.T, expr string, kind string, tag string,
 	return result, nil
 }
 
-func vtDecimal(t *testing.T, d *prototypes.Decimal) string {
+func vtDecimal(t *testing.T, d *typepb.Decimal) string {
 	t.Helper()
 	if d == nil {
 		return "<nil>"
@@ -222,7 +222,7 @@ func TestValueTypeWrongResultTypeIsReported(t *testing.T) {
 // c9Containers: amounts = [1.11, 2.22], nested.inner = 4.44, one map entry a = 3.33.
 func vtContainerMessage(t *testing.T) *test.ValueTypeContainers {
 	t.Helper()
-	d := func(unscaled int64) *prototypes.Decimal {
+	d := func(unscaled int64) *typepb.Decimal {
 		// Two's-complement, not magnitude: big.Int.Bytes() drops the sign, so 222 (0xDE)
 		// would be read back as -34 and every arithmetic assertion below would be measuring
 		// the wrong input. `decimals.add(-0.34, 1.00)` is 0.66, which looks indistinguishable
@@ -231,11 +231,11 @@ func vtContainerMessage(t *testing.T) *test.ValueTypeContainers {
 		if len(raw) > 0 && raw[0]&0x80 != 0 {
 			raw = append([]byte{0}, raw...)
 		}
-		return &prototypes.Decimal{Value: raw, Precision: 8, Scale: 2}
+		return &typepb.Decimal{Value: raw, Precision: 8, Scale: 2}
 	}
 	return &test.ValueTypeContainers{
-		Amounts:   []*prototypes.Decimal{d(111), d(222)},
-		AmountMap: map[string]*prototypes.Decimal{"a": d(333)},
+		Amounts:   []*typepb.Decimal{d(111), d(222)},
+		AmountMap: map[string]*typepb.Decimal{"a": d(333)},
 		Nested:    &test.ValueTypeNested{Inner: d(444)},
 		Label:     "hi",
 		// A repeated *scalar*, tagged CODES: the element type decides which arm of the list

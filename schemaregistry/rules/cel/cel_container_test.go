@@ -40,12 +40,12 @@ import (
 	"testing"
 
 	schemaregistry "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
 )
 
-func containerDecimal(t *testing.T, text string) *prototypes.Decimal {
+func containerDecimal(t *testing.T, text string) *typepb.Decimal {
 	t.Helper()
 	r, ok := new(big.Rat).SetString(text)
 	if !ok {
@@ -57,14 +57,14 @@ func containerDecimal(t *testing.T, text string) *prototypes.Decimal {
 	if len(raw) > 0 && raw[0]&0x80 != 0 {
 		raw = append([]byte{0}, raw...)
 	}
-	return &prototypes.Decimal{Value: raw, Precision: 8, Scale: 2}
+	return &typepb.Decimal{Value: raw, Precision: 8, Scale: 2}
 }
 
 func containerMsg(t *testing.T) *test.ValueTypeContainers {
 	t.Helper()
 	return &test.ValueTypeContainers{
-		Amounts:   []*prototypes.Decimal{containerDecimal(t, "1.11"), containerDecimal(t, "2.22")},
-		AmountMap: map[string]*prototypes.Decimal{"a": containerDecimal(t, "3.33")},
+		Amounts:   []*typepb.Decimal{containerDecimal(t, "1.11"), containerDecimal(t, "2.22")},
+		AmountMap: map[string]*typepb.Decimal{"a": containerDecimal(t, "3.33")},
 		Nested:    &test.ValueTypeNested{Inner: containerDecimal(t, "4.44")},
 		Label:     "hi",
 	}
