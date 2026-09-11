@@ -154,6 +154,24 @@ func terminatingScale(den *big.Int) (int32, bool) {
 
 // decimalFromCoefficient builds an apd.Decimal from an unscaled integer and a scale, with no
 // intermediate text. apd stores a magnitude plus a sign, and an int32 exponent.
+// decimalFromRatAtScale is decimalFromRat with the field's declared scale supplied rather than
+// derived from the value. big.Rat normalises, so 12.3400 at scale 4 arrives as 617/50 and only
+// the schema still knows the trailing zeros the reference renders.
+//
+// Falls back to the derived scale when the declared one cannot hold the value exactly, or is
+// wide enough to be a denial of service on its own - the same bound the write side uses.
+func decimalFromRatAtScale(r *big.Rat, scale int) (*apd.Decimal, error) {
+	if scale < 0 || scale > maxAvroDecimalWidth {
+		return decimalFromRat(r)
+	}
+	coeff := new(big.Int).Mul(r.Num(), new(big.Int).Exp(big.NewInt(10),
+		big.NewInt(int64(scale)), nil))
+	if new(big.Int).Rem(coeff, r.Denom()).Sign() != 0 {
+		return decimalFromRat(r)
+	}
+	return decimalFromCoefficient(coeff.Quo(coeff, r.Denom()), int32(scale))
+}
+
 func decimalFromCoefficient(unscaled *big.Int, scale int32) (*apd.Decimal, error) {
 	// exponent = -scale, computed in int64 because -math.MinInt32 does not fit an int32: it
 	// wrapped back to math.MinInt32 and reached strings.Repeat with a negative count.
