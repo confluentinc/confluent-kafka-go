@@ -123,6 +123,35 @@ func TestConfigMapAPIs(t *testing.T) {
 		t.Errorf("Expected nil for dummy value, got %v\n", v)
 	}
 
+	config2 := &ConfigMap{
+		"default.topic.config": "dummy",
+	}
+	_, err = config2.Get("{topic}.produce.offset.report", false)
+	if err == nil {
+		t.Errorf("Expected Get({topic}.produce.offset.report) to fail\n")
+	}
+	err = config2.SetKey("{topic}.produce.offset.report", true)
+	if err == nil {
+		t.Errorf("Expected SetKey({topic}.produce.offset.report) to fail\n")
+	}
+
+	config3 := &ConfigMap{
+		"default.topic.config": ConfigMap{},
+	}
+	err = config3.SetKey("{topic}.produce.offset.report", true)
+	if err != nil {
+		t.Errorf("Expected SetKey({topic}.produce.offset.report) to succeed: %s\n", err)
+	}
+	v, err = config3.Get("{topic}.produce.offset.report", false)
+	if err != nil {
+		t.Errorf("Expected Get({topic}.produce.offset.report) to succeed: %s\n", err)
+	}
+	if v == nil {
+		t.Errorf("Expected Get({topic}.produce.offset.report) to return non-nil value\n")
+	}
+	if v.(bool) != true {
+		t.Errorf("produce.offset.report mismatch: %v\n", v.(bool))
+	}
 }
 
 // Test that plugins will always be configured before their config options
