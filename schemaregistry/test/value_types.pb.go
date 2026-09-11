@@ -8,7 +8,7 @@ package test
 
 import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
-	types "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	_type "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -29,9 +29,9 @@ const (
 // and by the CEL_FIELD value-type tests.
 type ValueTypes struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Amount        *types.Decimal         `protobuf:"bytes,1,opt,name=amount,proto3" json:"amount,omitempty"`
+	Amount        *_type.Decimal         `protobuf:"bytes,1,opt,name=amount,proto3" json:"amount,omitempty"`
 	Ts            *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ts,proto3" json:"ts,omitempty"`
-	Data          *types.Variant         `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	Data          *_type.Variant         `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	Label         string                 `protobuf:"bytes,4,opt,name=label,proto3" json:"label,omitempty"`
 	Count         int32                  `protobuf:"varint,5,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -68,7 +68,7 @@ func (*ValueTypes) Descriptor() ([]byte, []int) {
 	return file_value_types_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ValueTypes) GetAmount() *types.Decimal {
+func (x *ValueTypes) GetAmount() *_type.Decimal {
 	if x != nil {
 		return x.Amount
 	}
@@ -82,7 +82,7 @@ func (x *ValueTypes) GetTs() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ValueTypes) GetData() *types.Variant {
+func (x *ValueTypes) GetData() *_type.Variant {
 	if x != nil {
 		return x.Data
 	}
@@ -149,9 +149,9 @@ func file_value_types_proto_rawDescGZIP() []byte {
 var file_value_types_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_value_types_proto_goTypes = []any{
 	(*ValueTypes)(nil),            // 0: test.ValueTypes
-	(*types.Decimal)(nil),         // 1: confluent.type.Decimal
+	(*_type.Decimal)(nil),         // 1: confluent.type.Decimal
 	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
-	(*types.Variant)(nil),         // 3: confluent.type.Variant
+	(*_type.Variant)(nil),         // 3: confluent.type.Variant
 }
 var file_value_types_proto_depIdxs = []int32{
 	1, // 0: test.ValueTypes.amount:type_name -> confluent.type.Decimal

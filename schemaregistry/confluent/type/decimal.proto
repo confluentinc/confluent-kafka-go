@@ -3,10 +3,10 @@ syntax = "proto3";
 package confluent.type;
 
 // This file's own path is the canonical confluent/type/... - what the Java client registers and
-// what ProtobufSchema declares - while the generated Go package is confluent/types/, because
-// `type` is a Go keyword. Generated with --go_out=schemaregistry/confluent/type, which resolves
-// the relative path below to schemaregistry/confluent/types.
-option go_package="../types";
+// what ProtobufSchema declares. The generated Go package is `typepb`, not `type`, because `type`
+// is a Go keyword; both the import path and that package name come from --go_opt=M rather than a
+// go_package option, because a relative go_package makes protoc refuse the output path
+// ("Output file names must never have a relative path"). See codegen.sh for the invocation.
 
 message Decimal {
 

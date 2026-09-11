@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/test"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -259,7 +259,7 @@ func TestDecimalFromBytesAndScale(t *testing.T) {
 
 func TestProtoConfluentTypeDecimalIntoCel(t *testing.T) {
 	// A confluent.type.Decimal message: 12.34 = unscaled 1234 (0x04D2) at scale 2.
-	dec := &prototypes.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2}
+	dec := &typepb.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2}
 	if !evalBool(t, `decimals.gt(decimal(this), decimal("10.00"))`, dec) {
 		t.Errorf("proto confluent.type.Decimal did not marshal into CEL correctly")
 	}
@@ -273,7 +273,7 @@ func TestProtoConfluentTypeDecimalIntoCel(t *testing.T) {
 // two different encodings.
 func TestProtoDecimalNeedsNoConstructor(t *testing.T) {
 	// 12.34 = unscaled 1234 (0x04D2) at scale 2.
-	dec := &prototypes.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2}
+	dec := &typepb.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2}
 	cases := []struct {
 		expr     string
 		expected bool
@@ -308,8 +308,8 @@ func TestProtoDecimalNeedsNoConstructor(t *testing.T) {
 func TestNestedProtoDecimalEquality(t *testing.T) {
 	// 1.50 (unscaled 150, scale 2) and 1.5 (unscaled 15, scale 1) - one number, two encodings.
 	msg := &test.NestedDecimals{
-		A: &prototypes.Decimal{Value: []byte{0x00, 0x96}, Scale: 2},
-		B: &prototypes.Decimal{Value: []byte{0x00, 0x0f}, Scale: 1},
+		A: &typepb.Decimal{Value: []byte{0x00, 0x96}, Scale: 2},
+		B: &typepb.Decimal{Value: []byte{0x00, 0x0f}, Scale: 1},
 	}
 	cases := []struct {
 		expr     string
@@ -608,7 +608,7 @@ func TestStringTimestampPadsFraction(t *testing.T) {
 func TestUnsetProtoDecimalFieldReadsAsZero(t *testing.T) {
 	// `a` unset, `b` set to 1.50.
 	msg := &test.NestedDecimals{
-		B: &prototypes.Decimal{Value: []byte{0x00, 0x96}, Scale: 2},
+		B: &typepb.Decimal{Value: []byte{0x00, 0x96}, Scale: 2},
 	}
 	cases := []struct {
 		expr     string

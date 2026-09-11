@@ -27,7 +27,7 @@ import (
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
 )
 
@@ -138,7 +138,7 @@ func asVariantFromValue(v ref.Val) (variant.Variant, bool) {
 	switch x := v.Value().(type) {
 	case variant.Variant:
 		return x, true
-	case *prototypes.Variant:
+	case *typepb.Variant:
 		return variant.New(x.Value, x.Metadata), true
 	case map[string]interface{}:
 		md, mok := x["metadata"].([]byte)

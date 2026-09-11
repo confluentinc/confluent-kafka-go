@@ -7,7 +7,7 @@
 package test
 
 import (
-	types "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	_type "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -27,8 +27,8 @@ const (
 // TestNestedProtoDecimalEquality.
 type NestedDecimals struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	A             *types.Decimal         `protobuf:"bytes,1,opt,name=a,proto3" json:"a,omitempty"`
-	B             *types.Decimal         `protobuf:"bytes,2,opt,name=b,proto3" json:"b,omitempty"`
+	A             *_type.Decimal         `protobuf:"bytes,1,opt,name=a,proto3" json:"a,omitempty"`
+	B             *_type.Decimal         `protobuf:"bytes,2,opt,name=b,proto3" json:"b,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -63,14 +63,14 @@ func (*NestedDecimals) Descriptor() ([]byte, []int) {
 	return file_nested_decimal_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *NestedDecimals) GetA() *types.Decimal {
+func (x *NestedDecimals) GetA() *_type.Decimal {
 	if x != nil {
 		return x.A
 	}
 	return nil
 }
 
-func (x *NestedDecimals) GetB() *types.Decimal {
+func (x *NestedDecimals) GetB() *_type.Decimal {
 	if x != nil {
 		return x.B
 	}
@@ -108,7 +108,7 @@ func file_nested_decimal_proto_rawDescGZIP() []byte {
 var file_nested_decimal_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_nested_decimal_proto_goTypes = []any{
 	(*NestedDecimals)(nil), // 0: test.NestedDecimals
-	(*types.Decimal)(nil),  // 1: confluent.type.Decimal
+	(*_type.Decimal)(nil),  // 1: confluent.type.Decimal
 }
 var file_nested_decimal_proto_depIdxs = []int32{
 	1, // 0: test.NestedDecimals.a:type_name -> confluent.type.Decimal

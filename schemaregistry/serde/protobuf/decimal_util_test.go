@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/apd/v3"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 )
 
 func TestDecimalConversion(t *testing.T) {
@@ -208,7 +208,7 @@ func TestBigRatToDecimalWritesThePrecision(t *testing.T) {
 // producer sent exactly.
 func TestDecimalToBigRatIgnoresPrecision(t *testing.T) {
 	for _, precision := range []uint32{0, 1, 2, 4, 38} {
-		d := &types.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2, Precision: precision} // 12.34
+		d := &typepb.Decimal{Value: []byte{0x04, 0xd2}, Scale: 2, Precision: precision} // 12.34
 		got, err := DecimalToBigRat(d)
 		if err != nil {
 			t.Fatalf("precision %d: %v", precision, err)
@@ -284,7 +284,7 @@ func TestDecimalToBigRatReadsANegativeScale(t *testing.T) {
 		{[]byte{0x04, 0xd2}, 2, big.NewRat(1234, 100)},
 		{[]byte{0x01}, 0, big.NewRat(1, 1)},
 	} {
-		got, err := DecimalToBigRat(&types.Decimal{Value: tc.unscaled, Scale: tc.scale})
+		got, err := DecimalToBigRat(&typepb.Decimal{Value: tc.unscaled, Scale: tc.scale})
 		if err != nil {
 			t.Fatalf("%x at %d: %v", tc.unscaled, tc.scale, err)
 		}
@@ -307,7 +307,7 @@ func TestBigRatScaleIsBounded(t *testing.T) {
 		math.MinInt32, math.MaxInt32, -2000000000, 2000000000,
 		-(maxRatScale + 1), maxRatScale + 1,
 	} {
-		d := &types.Decimal{Value: []byte{0x01}, Scale: scale}
+		d := &typepb.Decimal{Value: []byte{0x01}, Scale: scale}
 		if _, err := DecimalToBigRat(d); err == nil {
 			t.Errorf("DecimalToBigRat(scale %d): expected an error, got none", scale)
 		}
@@ -328,7 +328,7 @@ func TestBigRatOrdinaryScalesStillConvert(t *testing.T) {
 		{-2, "123400/1"}, // 1234 * 10^2
 	}
 	for _, c := range cases {
-		got, err := DecimalToBigRat(&types.Decimal{Value: []byte{0x04, 0xD2}, Scale: c.scale})
+		got, err := DecimalToBigRat(&typepb.Decimal{Value: []byte{0x04, 0xD2}, Scale: c.scale})
 		if err != nil {
 			t.Fatalf("scale %d: %v", c.scale, err)
 		}

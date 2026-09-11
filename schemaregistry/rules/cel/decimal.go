@@ -31,7 +31,7 @@ import (
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
 	"github.com/cockroachdb/apd/v3"
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -141,7 +141,7 @@ func decimalBoundaryValue(v interface{}) (ref.Val, bool) {
 	switch x := v.(type) {
 	case decimalVal:
 		return x, true
-	case *prototypes.Decimal:
+	case *typepb.Decimal:
 		if d, err := decimalFromProto(x); err == nil {
 			return newDecimal(d), true
 		}
@@ -180,7 +180,7 @@ func asDecimal(v ref.Val) (*apd.Decimal, ref.Val) {
 			return nil, types.NewErr("decimal: %v", err)
 		}
 		return d, nil
-	case *prototypes.Decimal:
+	case *typepb.Decimal:
 		d, err := decimalFromProto(x)
 		if err != nil {
 			return nil, types.NewErr("decimal: %v", err)
@@ -215,7 +215,7 @@ func decimalFromMessage(m proto.Message) (*apd.Decimal, bool) {
 	if valueFd == nil || scaleFd == nil {
 		return nil, false
 	}
-	d, err := decimalFromProto(&prototypes.Decimal{
+	d, err := decimalFromProto(&typepb.Decimal{
 		Value: refl.Get(valueFd).Bytes(),
 		Scale: int32(refl.Get(scaleFd).Int()),
 	})
@@ -243,7 +243,7 @@ func toDecimal(v ref.Val) ref.Val {
 			return types.NewErr("decimal: %v", err)
 		}
 		return newDecimal(d)
-	case *prototypes.Decimal:
+	case *typepb.Decimal:
 		d, err := decimalFromProto(x)
 		if err != nil {
 			return types.NewErr("decimal: %v", err)

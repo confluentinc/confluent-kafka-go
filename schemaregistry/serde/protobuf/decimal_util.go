@@ -18,14 +18,14 @@ package protobuf
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"math/big"
 )
 
 var one = big.NewInt(1)
 
 // BigRatToDecimal converts a big.Rat to a Decimal protobuf message.
-func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
+func BigRatToDecimal(value *big.Rat, scale int32) (*typepb.Decimal, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -62,7 +62,7 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 	// (1/3 at scale 2 currently succeeds as 0.33), and this is an exported helper.
 	i = i.Quo(i, den)
 
-	return &types.Decimal{
+	return &typepb.Decimal{
 		Value: signedBytes(i),
 		// The unscaled value's digit count, which is what BigDecimal.precision() reports and
 		// what every other write path in this client family carries. Left at 0, this was one
@@ -93,7 +93,7 @@ func BigRatToDecimal(value *big.Rat, scale int32) (*types.Decimal, error) {
 const maxRatScale = 10000000
 
 // DecimalToBigRat converts a Decimal protobuf message to a big.Rat.
-func DecimalToBigRat(value *types.Decimal) (*big.Rat, error) {
+func DecimalToBigRat(value *typepb.Decimal) (*big.Rat, error) {
 	if value == nil {
 		return nil, nil
 	}

@@ -24,13 +24,14 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
 
-// TestBuiltinConfluentTypeImports covers the two confluent value types as built-in imports,
-// in both spellings. The canonical path is confluent/type/... - what the Java client registers
-// and what ProtobufSchema declares - and the generated descriptors used to be named
-// confluent/types/... after the directory this client needs because `type` is a Go keyword, so
-// only the plural spelling resolved and a Java-registered schema failed. The descriptors are
-// canonical now and the plural name is kept as a read alias, so schemas registered either way
-// keep loading.
+// TestBuiltinConfluentTypeImports covers the confluent value types as built-in imports. The
+// canonical path is confluent/type/... - what the Java client registers and what ProtobufSchema
+// declares - and the generated descriptors used to be named confluent/types/... after the
+// directory this client needs because `type` is a Go keyword, so only the plural spelling
+// resolved and a Java-registered schema failed. The descriptors are canonical now, and
+// decimal's old path is served by a public-import stub so schemas registered either way keep
+// loading. Variant has no such stub: it had not shipped under the old path, so nothing can be
+// importing it - see TestUnknownDependencyNamesItself.
 func TestBuiltinConfluentTypeImports(t *testing.T) {
 	tmpl := `syntax = "proto3";
 package test;
@@ -40,10 +41,9 @@ message M { confluent.type.%s f = 1; }
 	cases := []struct{ path, message, want string }{
 		{"confluent/type/decimal.proto", "Decimal", "confluent.type.Decimal"},
 		{"confluent/type/variant.proto", "Variant", "confluent.type.Variant"},
-		// The plural spelling stays readable for schemas registered before the rename. Both
-		// files declare `package confluent.type`, so either resolves to the same message.
+		// Decimal's old path, served by the stub. It declares nothing and publicly imports the
+		// canonical file, so the symbol resolves through it to the same confluent.type.Decimal.
 		{"confluent/types/decimal.proto", "Decimal", "confluent.type.Decimal"},
-		{"confluent/types/variant.proto", "Variant", "confluent.type.Variant"},
 	}
 	for _, tc := range cases {
 		info := schemaregistry.SchemaInfo{Schema: fmt.Sprintf(tmpl, tc.path, tc.message)}
@@ -72,6 +72,9 @@ message M { confluent.type.%s f = 1; }
 	for _, tc := range []struct{ path, message string }{
 		{"confluent/type/nope.proto", "Nope"},
 		{"confluent/types/nope.proto", "Nope"},
+		// Variant never shipped under the old path, so it deliberately has no stub. Pinned
+		// here so adding one is a deliberate act rather than a copy of decimal's row.
+		{"confluent/types/variant.proto", "Variant"},
 	} {
 		info := schemaregistry.SchemaInfo{Schema: fmt.Sprintf(tmpl, tc.path, tc.message)}
 		_, err := parseFileDesc(nil, info)

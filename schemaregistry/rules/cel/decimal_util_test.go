@@ -25,7 +25,7 @@ import (
 
 	"github.com/cockroachdb/apd/v3"
 
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 )
 
 func mustDecimal(t *testing.T, s string) *apd.Decimal {
@@ -206,7 +206,7 @@ func TestDecimalFromBytesScaleAtTheInt32Extremes(t *testing.T) {
 // left behind, and it is the more exposed of the two because its input comes off the wire.
 func TestDecimalFromProtoBoundsTheWireScale(t *testing.T) {
 	// Refused, not panicked: apd cannot represent an exponent of +2147483648.
-	if _, err := decimalFromProto(&prototypes.Decimal{
+	if _, err := decimalFromProto(&typepb.Decimal{
 		Value: []byte{0x01}, Scale: math.MinInt32,
 	}); err == nil {
 		t.Error("scale math.MinInt32 should be refused")
@@ -217,7 +217,7 @@ func TestDecimalFromProtoBoundsTheWireScale(t *testing.T) {
 	// And the extremes that *are* representable answer immediately rather than allocating a
 	// multi-gigabyte string.
 	for _, scale := range []int32{-2147483647, 2147483647, 2, 0} {
-		if _, err := decimalFromProto(&prototypes.Decimal{
+		if _, err := decimalFromProto(&typepb.Decimal{
 			Value: []byte{0x01}, Scale: scale,
 		}); err != nil {
 			t.Errorf("scale %d: unexpected error %v", scale, err)

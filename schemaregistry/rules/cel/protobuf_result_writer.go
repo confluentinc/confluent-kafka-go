@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	prototypes "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
+	typepb "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
 )
 
@@ -333,7 +333,7 @@ func setMessageValue(out protoreflect.Message, fd protoreflect.FieldDescriptor, 
 		if fullName != variantTypeName {
 			return fmt.Errorf("cannot write a variant to %s", fullName)
 		}
-		return mergeMessage(out, &prototypes.Variant{
+		return mergeMessage(out, &typepb.Variant{
 			Metadata: v.MetadataBytes(),
 			// Slice from this node's offset, not from 0. Trailing sibling bytes are
 			// kept so the encoding matches the Java reference, which writes
