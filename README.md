@@ -86,13 +86,27 @@ func main() {
 
 Producer
 
+Production applications should serialize with Schema Registry. Producing raw bytes
+leads to data-quality issues, broken consumers, and ungovernable data.
+
 ```golang
 import (
 	"fmt"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/jsonschema"
 )
 
+type User struct {
+	Name           string `json:"name"`
+	FavoriteNumber int    `json:"favorite_number"`
+}
+
 func main() {
+
+	topic := "myTopic"
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost"})
 	if err != nil {
@@ -100,6 +114,17 @@ func main() {
 	}
 
 	defer p.Close()
+
+	// Schema Registry serializer: registers and validates the schema on produce.
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfig("http://localhost:8081"))
+	if err != nil {
+		panic(err)
+	}
+
+	ser, err := jsonschema.NewSerializer(client, serde.ValueSerde, jsonschema.NewSerializerConfig())
+	if err != nil {
+		panic(err)
+	}
 
 	// Delivery report handler for produced messages
 	go func() {
@@ -115,19 +140,27 @@ func main() {
 		}
 	}()
 
-	// Produce messages to topic (asynchronously)
-	topic := "myTopic"
-	for _, word := range []string{"Welcome", "to", "the", "Confluent", "Kafka", "Golang", "client"} {
-		p.Produce(&kafka.Message{
-			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-			Value:          []byte(word),
-		}, nil)
+	// Produce a message to the topic (asynchronously)
+	value := User{Name: "Confluent", FavoriteNumber: 42}
+	payload, err := ser.Serialize(topic, &value)
+	if err != nil {
+		panic(err)
 	}
+
+	p.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          payload,
+	}, nil)
 
 	// Wait for message deliveries before shutting down
 	p.Flush(15 * 1000)
 }
 ```
+
+Avro and Protocol Buffers serializers are also available; see
+[json_producer_example](examples/json_producer_example),
+[avro_generic_producer_example](examples/avro_generic_producer_example), and
+[protobuf_producer_example](examples/protobuf_producer_example).
 
 More elaborate examples are available in the [examples](examples) directory,
 including [how to configure](examples/confluent_cloud_example) the Go client
