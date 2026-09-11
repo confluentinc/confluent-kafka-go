@@ -155,10 +155,20 @@ func decimalBoundaryValue(v interface{}) (ref.Val, bool) {
 	case decimalVal:
 		return x, true
 	case *typepb.Decimal:
+		// A typed nil is not nil as an interface, and both converters read through the
+		// pointer. The adapter in lib.go maps a nil pointer to CEL null before reaching
+		// here, but boundaryArgs and the validator do not, so answer "not a decimal" and
+		// leave the null policy to the caller - which is what the bool already promises.
+		if x == nil {
+			return nil, false
+		}
 		if d, err := decimalFromProto(x); err == nil {
 			return newDecimal(d), true
 		}
 	case *big.Rat:
+		if x == nil {
+			return nil, false
+		}
 		if d, err := decimalFromRat(x); err == nil {
 			return newDecimal(d), true
 		}
