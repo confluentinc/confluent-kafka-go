@@ -76,19 +76,28 @@ func newDecimal(d *apd.Decimal) decimalVal { return decimalVal{d: d} }
 // branch ("if (this.scale < 0) { if (signum() == 0) return "0"; ... }"), and only there: a zero
 // at a *positive* scale keeps its fractional zeros ("0.00" stays "0.00"), and a non-zero
 // coefficient still pads (123 at scale -1 is "1230"). Measured on the JVM, all four cases.
-func plainText(d *apd.Decimal) string {
+// The width bound is the same 10^7 digits the rest of the family applies to a plain form
+// (decimals.md 4b): Text('f') materialises every digit, so a producer-controlled scale of
+// -2147483647 is cheap to decode and then asks for ~2 GiB. Python, JS, C++ and Rust all guard
+// string() this way; Go only guarded its Avro and big.Rat conversions.
+func plainText(d *apd.Decimal) (string, error) {
+	if width := plainFormWidth(d); width > maxAvroDecimalWidth {
+		return "", fmt.Errorf(
+			"string: the plain form needs %d digits, past this client's %d-digit limit",
+			width, maxAvroDecimalWidth)
+	}
 	if d.Form == apd.Finite && d.Exponent > 0 && d.Coeff.Sign() == 0 {
 		// A negative scale is a positive apd exponent. Sign is irrelevant: BigDecimal has no
 		// negative zero, and `new BigDecimal(BigInteger.ZERO, -3)` renders "0".
-		return "0"
+		return "0", nil
 	}
-	return d.Text('f')
+	return d.Text('f'), nil
 }
 
 func (v decimalVal) ConvertToNative(typeDesc reflect.Type) (any, error) {
 	switch typeDesc.Kind() {
 	case reflect.String:
-		return plainText(v.d), nil
+		return plainText(v.d)
 	case reflect.Interface:
 		return v.d, nil
 	}
@@ -101,7 +110,11 @@ func (v decimalVal) ConvertToNative(typeDesc reflect.Type) (any, error) {
 func (v decimalVal) ConvertToType(typeValue ref.Type) ref.Val {
 	switch typeValue.TypeName() {
 	case "string":
-		return types.String(plainText(v.d))
+		text, err := plainText(v.d)
+		if err != nil {
+			return types.NewErr("%v", err)
+		}
+		return types.String(text)
 	case "double":
 		f, _ := v.d.Float64()
 		return types.Double(f)
@@ -611,7 +624,11 @@ func decimalOptions() []cel.EnvOption {
 					if err != nil {
 						return err
 					}
-					return types.String(plainText(d))
+					text, werr := plainText(d)
+					if werr != nil {
+						return types.NewErr("%v", werr)
+					}
+					return types.String(text)
 				})),
 		),
 		cel.Function("double",

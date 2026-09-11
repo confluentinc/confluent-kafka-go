@@ -148,16 +148,22 @@ func ratFromDecimal(d *apd.Decimal) (*big.Rat, error) {
 // checkAvroDecimalWidth refuses a decimal whose positional form is too wide to build. The
 // exponent dominates it: a negative exponent puts that many digits after the point and a
 // positive one that many zeros before it.
-func checkAvroDecimalWidth(d *apd.Decimal) error {
+// plainFormWidth is the digit count d's positional form would need, which is what bounds
+// anything that has to materialise it.
+func plainFormWidth(d *apd.Decimal) int64 {
 	exp := int64(d.Exponent)
 	width := d.NumDigits()
 	if exp < 0 {
 		if -exp > width {
-			width = -exp
+			return -exp
 		}
-	} else {
-		width += exp
+		return width
 	}
+	return width + exp
+}
+
+func checkAvroDecimalWidth(d *apd.Decimal) error {
+	width := plainFormWidth(d)
 	if width > maxAvroDecimalWidth {
 		return fmt.Errorf(
 			"cannot encode a decimal of exponent %d for Avro: its plain form needs %d digits, past this client's %d-digit limit",
