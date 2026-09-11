@@ -69,7 +69,7 @@ func transformField(ctx serde.RuleContext, fd protoreflect.FieldDescriptor, desc
 	// The names come from the registered schema alongside the tags: rules and metadata
 	// tags are written against it. The value is still read through the runtime field.
 	ctx.EnterField(msg, string(schemaFd.FullName()), string(schemaFd.Name()), getType(fd),
-		getInlineTags(schemaFd))
+		getInlineTags(schemaFd), nil)
 	// Skip-on-null, as in the validation walk: a field with explicit presence that is
 	// unset has no value to transform, and writing one back would materialize it - turning
 	// an absent message or unset optional scalar into a present one carrying a transformed
