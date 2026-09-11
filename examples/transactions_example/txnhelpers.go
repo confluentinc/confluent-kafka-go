@@ -26,110 +26,89 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-// createTransactionalProducer creates a transactional producer for the given
-// input partition.
-func createTransactionalProducer(toppar kafka.TopicPartition) error {
+// createTransactionalProducer creates a single transactional producer.
+func createTransactionalProducer() (*kafka.Producer, error) {
 	producerConfig := &kafka.ConfigMap{
-		"client.id":              fmt.Sprintf("txn-p%d", toppar.Partition),
+		"client.id":              "txn-producer",
 		"bootstrap.servers":      bootstrapServers,
-		"transactional.id":       fmt.Sprintf("go-transactions-example-p%d", int(toppar.Partition)),
+		"transactional.id":       "go-transactions-example",
 		"go.logs.channel.enable": true,
 		"go.logs.channel":        logsChan,
 	}
 
-	producer, err := kafka.NewProducer(producerConfig)
+	p, err := kafka.NewProducer(producerConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	maxDuration, err := time.ParseDuration("10s")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
 	defer cancel()
 
-	err = producer.InitTransactions(ctx)
+	err = p.InitTransactions(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = producer.BeginTransaction()
+	err = p.BeginTransaction()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	producers[toppar.Partition] = producer
-	addLog(fmt.Sprintf("Processor: created producer %s for partition %v",
-		producers[toppar.Partition], toppar.Partition))
-	return nil
-}
-
-// destroyTransactionalProducer aborts the current transaction and destroys the producer.
-func destroyTransactionalProducer(producer *kafka.Producer) error {
-	maxDuration, err := time.ParseDuration("10s")
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
-
-	err = producer.AbortTransaction(ctx)
-	if err != nil {
-		if err.(kafka.Error).Code() == kafka.ErrState {
-			// No transaction in progress, ignore the error.
-			err = nil
-		} else {
-			addLog(fmt.Sprintf("Failed to abort transaction for %s: %s",
-				producer, err))
-		}
-	}
-
-	producer.Close()
-
-	return err
+	addLog(fmt.Sprintf("Processor: created transactional producer %s", p))
+	return p, nil
 }
 
 // groupRebalance is triggered on consumer rebalance.
-//
-// For each assigned partition a transactional producer is created, this is
-// required to guarantee per-partition offset commit state prior to
-// KIP-447 being supported.
 func groupRebalance(consumer *kafka.Consumer, event kafka.Event) error {
 	addLog(fmt.Sprintf("Processor: rebalance event %v", event))
 
 	switch e := event.(type) {
 	case kafka.AssignedPartitions:
-		// Create a producer per input partition.
-		for _, tp := range e.Partitions {
-			err := createTransactionalProducer(tp)
-			if err != nil {
-				fatal(err)
-			}
-		}
-
 		err := consumer.Assign(e.Partitions)
 		if err != nil {
 			fatal(err)
 		}
 
 	case kafka.RevokedPartitions:
-		// Abort any current transactions and close the
-		// per-partition producers.
-		for _, producer := range producers {
-			err := destroyTransactionalProducer(producer)
+		// Abort the current transaction since the partition assignment
+		// is changing. Offsets for the revoked partitions will not be
+		// committed.
+		if producer != nil {
+			maxDuration, err := time.ParseDuration("10s")
 			if err != nil {
 				fatal(err)
 			}
+			ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
+			defer cancel()
+
+			err = producer.AbortTransaction(ctx)
+			if err != nil {
+				if err.(kafka.Error).Code() == kafka.ErrState {
+					// No transaction in progress, ignore.
+					err = nil
+				} else {
+					addLog(fmt.Sprintf("Failed to abort transaction: %s", err))
+				}
+			}
 		}
 
-		// Clear producer and intersection states
-		producers = make(map[int32]*kafka.Producer)
 		intersectionStates = make(map[string]*intersectionState)
 
 		err := consumer.Unassign()
 		if err != nil {
 			fatal(err)
+		}
+
+		// Begin a new transaction for future messages.
+		if producer != nil {
+			err = producer.BeginTransaction()
+			if err != nil {
+				fatal(err)
+			}
 		}
 	}
 
@@ -139,15 +118,19 @@ func groupRebalance(consumer *kafka.Consumer, event kafka.Event) error {
 // rewindConsumerPosition rewinds the consumer to the last committed offset or
 // the beginning of the partition if there is no committed offset.
 // This is to be used when the current transaction is aborted.
-func rewindConsumerPosition(partition int32) {
-	committed, err := processorConsumer.Committed([]kafka.TopicPartition{{Topic: &inputTopic, Partition: partition}}, 10*1000 /* 10s */)
+func rewindConsumerPosition() {
+	assignment, err := processorConsumer.Assignment()
+	if err != nil {
+		fatal(err)
+	}
+
+	committed, err := processorConsumer.Committed(assignment, 10*1000 /* 10s */)
 	if err != nil {
 		fatal(err)
 	}
 
 	for _, tp := range committed {
 		if tp.Offset < 0 {
-			// No committed offset, reset to earliest
 			tp.Offset = kafka.OffsetBeginning
 			tp.LeaderEpoch = nil
 		}
@@ -162,58 +145,58 @@ func rewindConsumerPosition(partition int32) {
 	}
 }
 
-// getConsumerPosition gets the current position (next offset) for a given input partition.
-func getConsumerPosition(partition int32) []kafka.TopicPartition {
-	position, err := processorConsumer.Position([]kafka.TopicPartition{{Topic: &inputTopic, Partition: partition}})
+// commitTransaction sends the consumer offsets for all assigned partitions
+// and commits the current transaction. A new transaction will be started
+// when done.
+func commitTransaction() {
+	if producer == nil {
+		return
+	}
+
+	assignment, err := processorConsumer.Assignment()
 	if err != nil {
 		fatal(err)
 	}
 
-	return position
-}
-
-// commitTransactionForInputPartition sends the consumer offsets for
-// the given input partition and commits the current transaction.
-// A new transaction will be started when done.
-func commitTransactionForInputPartition(partition int32) {
-	producer, found := producers[partition]
-	if !found || producer == nil {
-		fatal(fmt.Sprintf("BUG: No producer for input partition %v", partition))
+	if len(assignment) == 0 {
+		return
 	}
 
-	position := getConsumerPosition(partition)
+	positions, err := processorConsumer.Position(assignment)
+	if err != nil {
+		fatal(err)
+	}
+
 	consumerMetadata, err := processorConsumer.GetConsumerGroupMetadata()
 	if err != nil {
 		fatal(fmt.Sprintf("Failed to get consumer group metadata: %v", err))
 	}
 
-	err = producer.SendOffsetsToTransaction(nil, position, consumerMetadata)
+	err = producer.SendOffsetsToTransaction(nil, positions, consumerMetadata)
 	if err != nil {
 		addLog(fmt.Sprintf(
-			"Processor: Failed to send offsets to transaction for input partition %v: %s: aborting transaction",
-			partition, err))
+			"Processor: Failed to send offsets to transaction: %s: aborting transaction",
+			err))
 
 		err = producer.AbortTransaction(nil)
 		if err != nil {
 			fatal(err)
 		}
 
-		// Rewind this input partition to the last committed offset.
-		rewindConsumerPosition(partition)
+		rewindConsumerPosition()
 	} else {
 		err = producer.CommitTransaction(nil)
 		if err != nil {
 			addLog(fmt.Sprintf(
-				"Processor: Failed to commit transaction for input partition %v: %s",
-				partition, err))
+				"Processor: Failed to commit transaction: %s",
+				err))
 
 			err = producer.AbortTransaction(nil)
 			if err != nil {
 				fatal(err)
 			}
 
-			// Rewind this input partition to the last committed offset.
-			rewindConsumerPosition(partition)
+			rewindConsumerPosition()
 		}
 	}
 
