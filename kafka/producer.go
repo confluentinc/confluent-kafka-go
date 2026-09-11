@@ -177,6 +177,11 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 		return newErrorFromString(ErrInvalidArg, "")
 	}
 
+	if err := p.handle.rlock(); err != nil {
+		return err
+	}
+	defer p.handle.runlock()
+
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
 
 	// Three problems:
@@ -319,6 +324,11 @@ func (p *Producer) Produce(msg *Message, deliveryChan chan Event) error {
 // WARNING: This is an experimental API.
 // NOTE: timestamps and headers are not supported with this API.
 func (p *Producer) produceBatch(topic string, msgs []*Message, msgFlags int) error {
+	if err := p.handle.rlock(); err != nil {
+		return err
+	}
+	defer p.handle.runlock()
+
 	crkt := p.handle.getRkt(topic)
 
 	cmsgs := make([]C.rd_kafka_message_t, len(msgs))
@@ -357,7 +367,12 @@ func (p *Producer) ProduceChannel() chan *Message {
 // as well as delivery reports queued for the application.
 // BUG: Tries to include messages on ProduceChannel, but it's not guaranteed to be reliable.
 func (p *Producer) Len() int {
-	return len(p.produceChannel) + len(p.events) + int(C.rd_kafka_outq_len(p.handle.rk))
+	n := len(p.produceChannel) + len(p.events)
+	if err := p.handle.rlock(); err != nil {
+		return n
+	}
+	defer p.handle.runlock()
+	return n + int(C.rd_kafka_outq_len(p.handle.rk))
 }
 
 // Flush and wait for outstanding messages and requests to complete delivery.
@@ -374,7 +389,11 @@ func (p *Producer) Flush(timeoutMs int) int {
 	// might do in case it is flushing.
 	go func() {
 		for flushInterval := range flushIntervalChan {
+			if err := p.handle.rlock(); err != nil {
+				continue
+			}
 			C.rd_kafka_flush(p.handle.rk, C.int(flushInterval))
+			p.handle.runlock()
 		}
 	}()
 
@@ -383,6 +402,14 @@ func (p *Producer) Flush(timeoutMs int) int {
 	timeoutDuration := time.Duration(timeoutMs) * time.Millisecond
 	tEnd := time.Now().Add(timeoutDuration)
 	for p.Len() > 0 {
+		// Stop spinning once the producer is closed: on a closed handle the
+		// underlying flush/poll become instant no-ops while Len() may still
+		// report buffered channel entries, which would otherwise busy-loop
+		// until the timeout elapses.
+		if p.IsClosed() {
+			return p.Len()
+		}
+
 		remain := time.Until(tEnd).Milliseconds()
 		if remain <= 0 {
 			return p.Len()
@@ -415,11 +442,26 @@ func (p *Producer) Close() {
 	close(p.produceChannel)
 	p.handle.waitGroup.Wait()
 
+	// Prevent any in-flight C call on another goroutine from racing with the
+	// handle destruction, and block new ones. This must be held before
+	// closing p.events, otherwise a concurrent eventPoll (e.g. from Flush)
+	// sending to p.events could panic with "send on closed channel".
+	//
+	// Yield the queue first so any in-flight blocking poll releases the read
+	// lock promptly and this Close() stays bounded.
+	if p.handle.rkq != nil {
+		C.rd_kafka_queue_yield(p.handle.rkq)
+	}
+	p.handle.pollLock.Lock()
+	defer p.handle.pollLock.Unlock()
+
 	close(p.events)
 
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
+	// Signal to any waiting rlock() callers that the handle is gone.
+	p.handle.rk = nil
 }
 
 const (
@@ -461,10 +503,11 @@ const (
 //
 // Returns nil on success, ErrInvalidArg if the purge flags are invalid or unknown.
 func (p *Producer) Purge(flags int) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	cErr := C.rd_kafka_purge(p.handle.rk, C.int(flags))
 	if cErr != C.RD_KAFKA_RESP_ERR_NO_ERROR {
 		return newError(cErr)
@@ -700,20 +743,22 @@ func poller(p *Producer, termChan chan bool) {
 // else information about all topics is returned.
 // GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (p *Producer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer p.handle.runlock()
 	return getMetadata(p, topic, allTopics, timeoutMs)
 }
 
 // QueryWatermarkOffsets returns the broker's low and high offsets for the given topic
 // and partition.
 func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
-	err = p.verifyClient()
+	err = p.handle.rlock()
 	if err != nil {
 		return -1, -1, err
 	}
+	defer p.handle.runlock()
 	return queryWatermarkOffsets(p, topic, partition, timeoutMs)
 }
 
@@ -733,19 +778,21 @@ func (p *Producer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 // Duplicate Topic+Partitions are not supported.
 // Per-partition errors may be returned in the `.Error` field.
 func (p *Producer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
-	err = p.verifyClient()
+	err = p.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer p.handle.runlock()
 	return offsetsForTimes(p, times, timeoutMs)
 }
 
 // GetFatalError returns an Error object if the client instance has raised a fatal error, else nil.
 func (p *Producer) GetFatalError() error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	return getFatalError(p)
 }
 
@@ -766,10 +813,11 @@ func (p *Producer) TestFatalError(code ErrorCode, str string) ErrorCode {
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (p *Producer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	return p.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
@@ -781,10 +829,11 @@ func (p *Producer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 // 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	return p.handle.setOAuthBearerTokenFailure(errstr)
 }
 
@@ -820,10 +869,11 @@ func (p *Producer) SetOAuthBearerTokenFailure(errstr string) error {
 // by calling `err.(kafka.Error).IsRetriable()`, or whether a fatal
 // error has been raised by calling `err.(kafka.Error).IsFatal()`.
 func (p *Producer) InitTransactions(ctx context.Context) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	cError := C.rd_kafka_init_transactions(p.handle.rk,
 		cTimeoutFromContext(ctx))
 	if cError != nil {
@@ -862,10 +912,11 @@ func (p *Producer) InitTransactions(ctx context.Context) error {
 // Any produce call outside an on-going transaction, or for a failed
 // transaction, will fail.
 func (p *Producer) BeginTransaction() error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	cError := C.rd_kafka_begin_transaction(p.handle.rk)
 	if cError != nil {
 		return newErrorFromCErrorDestroy(cError)
@@ -911,10 +962,11 @@ func (p *Producer) BeginTransaction() error {
 // `err.(kafka.Error).TxnRequiresAbort()` or `err.(kafka.Error).IsFatal()`
 // respectively.
 func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []TopicPartition, consumerMetadata *ConsumerGroupMetadata) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	var cOffsets *C.rd_kafka_topic_partition_list_t
 	if offsets != nil {
 		cOffsets = newCPartsFromTopicPartitions(offsets)
@@ -971,10 +1023,11 @@ func (p *Producer) SendOffsetsToTransaction(ctx context.Context, offsets []Topic
 // `err.(kafka.Error).TxnRequiresAbort()` or `err.(kafka.Error).IsFatal()`
 // respectively.
 func (p *Producer) CommitTransaction(ctx context.Context) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	cError := C.rd_kafka_commit_transaction(p.handle.rk,
 		cTimeoutFromContext(ctx))
 	if cError != nil {
@@ -1011,10 +1064,11 @@ func (p *Producer) CommitTransaction(ctx context.Context) error {
 // by calling `err.(kafka.Error).IsRetriable()`, or whether a fatal error
 // has been raised by calling `err.(kafka.Error).IsFatal()`.
 func (p *Producer) AbortTransaction(ctx context.Context) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	cError := C.rd_kafka_abort_transaction(p.handle.rk,
 		cTimeoutFromContext(ctx))
 	if cError != nil {
@@ -1031,9 +1085,10 @@ func (p *Producer) AbortTransaction(ctx context.Context) error {
 // existing broker connections that were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (p *Producer) SetSaslCredentials(username, password string) error {
-	err := p.verifyClient()
+	err := p.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer p.handle.runlock()
 	return setSaslCredentials(p.handle.rk, username, password)
 }
