@@ -243,7 +243,7 @@ func TestAvroInlineTagsFollowNamedReferences(t *testing.T) {
 		Rule:    &rule,
 		Rules:   []schemaregistry.Rule{rule},
 	}
-	_, err = transform(ctx, avro.NewTypeResolver(), schema, &value, recorder, false)
+	_, err = transform(ctx, avro.NewTypeResolver(), schema, &value, recorder)
 	serde.MaybeFail("transform", err)
 
 	if len(recorder.visited) != 2 {

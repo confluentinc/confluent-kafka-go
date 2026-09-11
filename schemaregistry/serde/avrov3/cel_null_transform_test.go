@@ -262,6 +262,33 @@ func TestCelFieldNullOnAGenericNonNullableFieldIsAnError(t *testing.T) {
 	}
 }
 
+// The mirror of the tests above: a rule that *fills* a null branch. Both nullable shapes have
+// to end up on the value branch. Rewrapping under the wrapper's own key produced
+// {"null": "recovered"}, which hamba encodes as null with no error - the value was lost.
+func TestCelFieldValueOnANullBranchSwitchesBranch(t *testing.T) {
+	for name, nullable := range map[string]interface{}{
+		"null branch": map[string]interface{}{"null": nil},
+		"bare nil":    nil,
+	} {
+		out, err := celNullRunGeneric(t, "celnullgenfill"+strings.ReplaceAll(name, " ", ""),
+			"NULLABLE", `true ; "recovered"`, nullable)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		// hamba reads a generic union back wrapped; unwrapping only the "string" key is
+		// also the assertion that the branch switched.
+		got := out["nullable"]
+		if m, ok := got.(map[string]interface{}); ok {
+			got = m["string"]
+		}
+		if got != "recovered" {
+			t.Errorf("%s: nullable = %#v, want \"recovered\" on the string branch",
+				name, out["nullable"])
+		}
+	}
+}
+
 // A null branch the rule does not touch. resolveUnion hands the branch value down as the
 // invalid reflect.Value and the walk gives it back unchanged; rewrapping it called
 // Interface() on that, which panics.

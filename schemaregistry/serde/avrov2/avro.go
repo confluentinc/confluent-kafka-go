@@ -435,7 +435,7 @@ func (s *Serde) FieldTransform(client schemaregistry.Client, ctx serde.RuleConte
 		return nil, err
 	}
 	val := reflect.ValueOf(msg)
-	newVal, err := transform(ctx, s.resolver, schema, &val, fieldTransform, false)
+	newVal, err := transform(ctx, s.resolver, schema, &val, fieldTransform)
 	if err != nil {
 		return nil, err
 	}

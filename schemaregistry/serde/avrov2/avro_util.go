@@ -27,7 +27,7 @@ import (
 )
 
 func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.Schema, msg *reflect.Value,
-	fieldTransform serde.FieldTransform, nullable bool) (*reflect.Value, error) {
+	fieldTransform serde.FieldTransform) (*reflect.Value, error) {
 	// Only an absent schema or an absent reflect.Value stops the walk. A **nil pointer** is the
 	// null branch of a ["null", T] union and has to reach the rule: the reference binds it as CEL
 	// null so a rule can guard with `value == null`, and returning early here skipped the rule
@@ -46,18 +46,15 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		// A reference to a named type has to be unwrapped, or the inline tags on the record
 		// it points at - and so the fields they mark for encryption - are never seen.
 		// The same position, so the enclosing union's nullability carries through.
-		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform, nullable)
+		return transform(ctx, resolver, schema.(*avro.RefSchema).Schema(), msg, fieldTransform)
 	case *avro.UnionSchema:
-		// Whether null is legal here is a property of the *schema*, and only this case can see
-		// it: the branch below is handed a concrete schema, so a nullability test down there
-		// has nothing to read it from.
-		nullBranch, _ := schema.(*avro.UnionSchema).Types().Get("null")
-		hasNull := nullBranch != nil
 		subschema, submsg, err := resolveUnion(resolver, schema, msg)
 		if err != nil {
 			return nil, err
 		}
-		submsg, err = transform(ctx, resolver, subschema, submsg, fieldTransform, hasNull)
+		// The union stays the slot: the branch below is a concrete schema, and whether null
+		// is legal here is a property of the union.
+		submsg, err = transform(ctx, resolver, subschema, submsg, fieldTransform)
 		if err != nil {
 			return nil, err
 		}
@@ -76,6 +73,13 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 					// hamba's generic shape that is a plain nil, not {"<branch>": nil} -
 					// rewrapping under the value branch's key would claim that branch holds
 					// a nil, which no branch does.
+					return submsg, nil
+				}
+				if subschema.Type() == avro.Null {
+					// The mirror image: a rule filled the null branch. No value can live
+					// under the null key - hamba encodes {"null": x} as null and drops x -
+					// so hand it back bare and let the branch be resolved from the value,
+					// which is what the reference does and what a plain nil already gets.
 					return submsg, nil
 				}
 				for k := range m {
@@ -102,11 +106,11 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			return msg, nil
 		}
 		subschema := schema.(*avro.ArraySchema).Items()
+		// An element's slot is its own schema, not the array's.
+		setSlotSchema(ctx, subschema)
 		for i := 0; i < val.Len(); i++ {
 			item := val.Index(i)
-			// An element's own schema decides its nullability, so start from false and let a
-			// union element's own case settle it.
-			newVal, err := transform(ctx, resolver, subschema, &item, fieldTransform, false)
+			newVal, err := transform(ctx, resolver, subschema, &item, fieldTransform)
 			if err != nil {
 				return nil, err
 			}
@@ -129,11 +133,13 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 			return msg, nil
 		}
 		subschema := schema.(*avro.MapSchema).Values()
+		// A value's slot is its own schema, not the map's.
+		setSlotSchema(ctx, subschema)
 		iter := val.MapRange()
 		for iter.Next() {
 			k := iter.Key()
 			v := iter.Value()
-			newVal, err := transform(ctx, resolver, subschema, &v, fieldTransform, false)
+			newVal, err := transform(ctx, resolver, subschema, &v, fieldTransform)
 			if err != nil {
 				return nil, err
 			}
@@ -218,7 +224,7 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 					// plainly can. Deriving it from that type rejected a legal transform,
 					// and on the null branch the value is the zero reflect.Value, where
 					// Type() panics outright.
-					if !nullable {
+					if !isNullableSlot(fieldCtx.FieldDescriptor) {
 						return nil, fmt.Errorf(
 							"rule %s returned null for %s, which is not nullable",
 							ctx.Rule.Name, fieldCtx.FullName)
@@ -238,6 +244,25 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 		}
 		return msg, nil
 	}
+}
+
+// setSlotSchema narrows the field context's descriptor to the slot being walked, so a leaf
+// inside a container sees its own schema rather than the container's.
+func setSlotSchema(ctx serde.RuleContext, schema avro.Schema) {
+	if fieldCtx := ctx.CurrentField(); fieldCtx != nil {
+		fieldCtx.FieldDescriptor = schema
+	}
+}
+
+// isNullableSlot reports whether the slot is a union carrying a null branch, which is what the
+// reference's "nullable target" means for Avro.
+func isNullableSlot(descriptor interface{}) bool {
+	union, ok := descriptor.(*avro.UnionSchema)
+	if !ok {
+		return false
+	}
+	nullBranch, _ := union.Types().Get("null")
+	return nullBranch != nil
 }
 
 // anyType is interface{}, the element type of a generically decoded Avro value.
@@ -272,8 +297,11 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 	structField *reflect.Value, val *reflect.Value, fieldTransform serde.FieldTransform) error {
 	fullName := recordSchema.FullName() + "." + avroField.Name()
 	defer ctx.LeaveField()
-	ctx.EnterField(val.Interface(), fullName, avroField.Name(), getType(avroField.Type()), getInlineTags(avroField))
-	newVal, err := transform(ctx, resolver, avroField.Type(), structField, fieldTransform, false)
+	// The field's declared schema, which the leaf reads a nullable union and a decimal's
+	// declared scale off - neither of which survives into the value hamba hands back.
+	ctx.EnterField(val.Interface(), fullName, avroField.Name(), getType(avroField.Type()),
+		getInlineTags(avroField), avroField.Type())
+	newVal, err := transform(ctx, resolver, avroField.Type(), structField, fieldTransform)
 	if err != nil {
 		return err
 	}

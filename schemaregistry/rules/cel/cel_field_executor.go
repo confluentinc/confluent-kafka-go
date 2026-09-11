@@ -17,9 +17,12 @@
 package cel
 
 import (
+	"math/big"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"cel.dev/cel-go/cel"
+	"github.com/hamba/avro/v2"
 )
 
 // NewFieldExecutor creates a new CEL field rule executor
@@ -85,7 +88,7 @@ func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde
 		tags = append(tags, tag)
 	}
 	args := map[string]interface{}{
-		"value":    fieldValue,
+		"value":    celFieldValue(fieldCtx, fieldValue),
 		"fullName": fieldCtx.FullName,
 		"name":     fieldCtx.Name,
 		"typeName": fieldCtx.TypeName(),
@@ -93,4 +96,57 @@ func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde
 		"message":  fieldCtx.ContainingMessage,
 	}
 	return f.executor.execute(ctx, fieldValue, args)
+}
+
+// celFieldValue presents the value the way the field's declared type implies, which is what the
+// reference does through the same field descriptor. hamba decodes an Avro decimal into a
+// *big.Rat, which normalises away the declared scale, so only the schema still knows it.
+func celFieldValue(fieldCtx serde.FieldContext, fieldValue interface{}) interface{} {
+	// The walk dereferences a non-proto pointer before binding, so a nullable decimal arrives
+	// by value and a plain one as the *big.Rat hamba produced.
+	var rat *big.Rat
+	switch x := fieldValue.(type) {
+	case *big.Rat:
+		rat = x
+	case big.Rat:
+		rat = &x
+	}
+	if rat == nil {
+		return fieldValue
+	}
+	scale, ok := avroDecimalScale(fieldCtx.FieldDescriptor)
+	if !ok {
+		return fieldValue
+	}
+	d, err := decimalFromRatAtScale(rat, scale)
+	if err != nil {
+		return fieldValue
+	}
+	return newDecimal(d)
+}
+
+// avroDecimalScale reads the declared scale off a decimal slot, looking through a nullable
+// union to the branch that holds the value.
+func avroDecimalScale(descriptor interface{}) (int, bool) {
+	schema, ok := descriptor.(avro.Schema)
+	if !ok {
+		return 0, false
+	}
+	if union, ok := schema.(*avro.UnionSchema); ok {
+		for _, branch := range union.Types() {
+			if branch.Type() != avro.Null {
+				schema = branch
+				break
+			}
+		}
+	}
+	logical, ok := schema.(avro.LogicalTypeSchema)
+	if !ok {
+		return 0, false
+	}
+	dec, ok := logical.Logical().(*avro.DecimalLogicalSchema)
+	if !ok {
+		return 0, false
+	}
+	return dec.Scale(), true
 }

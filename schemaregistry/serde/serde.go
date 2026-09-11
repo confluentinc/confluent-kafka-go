@@ -311,7 +311,8 @@ func (r *RuleContext) CurrentField() *FieldContext {
 
 // EnterField enters a field context
 func (r *RuleContext) EnterField(containingMessage interface{}, fullName string,
-	name string, fieldType FieldType, tags []string) (FieldContext, bool) {
+	name string, fieldType FieldType, tags []string,
+	fieldDescriptor interface{}) (FieldContext, bool) {
 	allTags := make(map[string]bool)
 	for _, v := range tags {
 		allTags[v] = true
@@ -325,6 +326,7 @@ func (r *RuleContext) EnterField(containingMessage interface{}, fullName string,
 		Name:              name,
 		Type:              fieldType,
 		Tags:              allTags,
+		FieldDescriptor:   fieldDescriptor,
 	}
 	r.fieldContexts = append(r.fieldContexts, fieldContext)
 	return fieldContext, true
@@ -426,6 +428,11 @@ type FieldContext struct {
 	Name              string
 	Type              FieldType
 	Tags              map[string]bool
+	// FieldDescriptor is the schema of the slot the value is written back into, for formats
+	// that carry detail the value does not: an avro.Schema. Narrowed as the walk descends
+	// into an array or a map, but a union stays a union - the union is the slot. Nil for
+	// protobuf and JSON Schema, whose walks read nothing off it.
+	FieldDescriptor interface{}
 }
 
 // FieldType represents the field type
