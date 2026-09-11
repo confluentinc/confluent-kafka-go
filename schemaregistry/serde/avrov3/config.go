@@ -23,6 +23,19 @@ import (
 // SerializerConfig is used to pass multiple configuration options to the serializers.
 type SerializerConfig struct {
 	serde.SerializerConfig
+
+	// UnionResolutionError, if true, causes encoding to return an error when
+	// a union type cannot be resolved. Forwarded to the underlying
+	// confluent-avro-go Config of the same name.
+	UnionResolutionError bool
+
+	// PartialUnionTypeResolution, if true, lets union type resolution succeed
+	// when only some of the union's variants have been registered: registered
+	// variants use their typed Go struct, unregistered variants fall back to
+	// map[string]any. Without this, a single unregistered variant in a union
+	// downgrades every variant to map[string]any. Forwarded to the underlying
+	// confluent-avro-go Config of the same name.
+	PartialUnionTypeResolution bool
 }
 
 // NewSerializerConfig returns a new configuration instance with sane defaults.
@@ -37,6 +50,19 @@ func NewSerializerConfig() *SerializerConfig {
 // DeserializerConfig is used to pass multiple configuration options to the deserializers.
 type DeserializerConfig struct {
 	serde.DeserializerConfig
+
+	// UnionResolutionError, if true, causes decoding to return an error when
+	// a union type cannot be resolved. Forwarded to the underlying
+	// confluent-avro-go Config of the same name.
+	UnionResolutionError bool
+
+	// PartialUnionTypeResolution, if true, lets union type resolution succeed
+	// when only some of the union's variants have been registered: registered
+	// variants decode into their typed Go struct, unregistered variants fall
+	// back to map[string]any. Without this, a single unregistered variant in a
+	// union downgrades every variant to map[string]any. Forwarded to the
+	// underlying confluent-avro-go Config of the same name.
+	PartialUnionTypeResolution bool
 }
 
 // NewDeserializerConfig returns a new configuration instance with sane defaults.

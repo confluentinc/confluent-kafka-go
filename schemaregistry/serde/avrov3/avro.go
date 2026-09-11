@@ -66,7 +66,10 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 		return nil, err
 	}
 	ps := &Serde{
-		api:               avro.Config{}.Freeze(),
+		api: avro.Config{
+			UnionResolutionError:       conf.UnionResolutionError,
+			PartialUnionTypeResolution: conf.PartialUnionTypeResolution,
+		}.Freeze(),
 		resolver:          avro.NewTypeResolver(),
 		schemaToTypeCache: schemaToTypeCache,
 	}
@@ -199,7 +202,10 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 		return nil, err
 	}
 	ps := &Serde{
-		api:               avro.Config{}.Freeze(),
+		api: avro.Config{
+			UnionResolutionError:       conf.UnionResolutionError,
+			PartialUnionTypeResolution: conf.PartialUnionTypeResolution,
+		}.Freeze(),
 		resolver:          avro.NewTypeResolver(),
 		schemaToTypeCache: schemaToTypeCache,
 	}
