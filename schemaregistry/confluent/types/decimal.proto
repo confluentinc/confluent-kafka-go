@@ -1,17 +1,7 @@
 syntax = "proto3";
 
-package confluent.type;
-
-option go_package="../types";
-
-message Decimal {
-
-  // The two's-complement representation of the unscaled integer value in big-endian byte order
-  bytes value = 1;
-
-  // The precision (zero indicates unlimited precision)
-  uint32 precision = 2;
-
-  // The scale
-  int32 scale = 3;
-}
+// The path this file used to occupy, kept so a descriptor generated against the old import path
+// still resolves. It declares nothing and re-exports the canonical file, so confluent.type.Decimal
+// is visible through it without a second declaration of the symbol - which a descriptor pool
+// refuses ("duplicate symbol"). Read-only compatibility: the clients emit the canonical path.
+import public "confluent/type/decimal.proto";
