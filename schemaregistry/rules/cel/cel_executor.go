@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
+	"github.com/hamba/avro/v2"
 	"google.golang.org/protobuf/proto"
 	"reflect"
 	"strings"
@@ -59,6 +60,25 @@ type Executor struct {
 	env       *cel.Env
 	cache     map[string]cel.Program
 	cacheLock sync.RWMutex
+	// A sync.Map, not a map plus a lock like cache above: a FieldExecutor builds its Executor
+	// field by field, so anything needing construction here would be nil on that path.
+	avroSchemas sync.Map
+}
+
+// avroSchema is the parsed target schema the Avro write-back narrows numeric results against,
+// or nil if it cannot be parsed - the serializer parsed the same text to get here, so a failure
+// means only that the narrowing is skipped rather than that the rule fails.
+func (c *Executor) avroSchema(text string) avro.Schema {
+	if cached, ok := c.avroSchemas.Load(text); ok {
+		schema, _ := cached.(avro.Schema)
+		return schema
+	}
+	parsed, err := avro.Parse(text)
+	if err != nil {
+		parsed = nil
+	}
+	c.avroSchemas.Store(text, parsed)
+	return parsed
 }
 
 // Configure configures the executor
@@ -129,7 +149,7 @@ func (c *Executor) writeBack(ctx serde.RuleContext, msg interface{}, result inte
 		return writeBackProtobuf(result, msg)
 	}
 	if ctx.Target != nil && ctx.Target.SchemaType == "AVRO" {
-		return writeBackAvro(result)
+		return writeBackAvro(c.avroSchema(ctx.Target.Schema), result)
 	}
 	return result, nil
 }
