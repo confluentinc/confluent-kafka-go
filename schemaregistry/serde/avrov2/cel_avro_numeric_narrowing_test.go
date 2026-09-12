@@ -34,6 +34,28 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 )
 
+const celNestedSchema = `{
+  "type": "record",
+  "name": "Nested",
+  "fields": [
+    {"name": "inner", "type": {"type":"record","name":"Inner","fields":[{"name":"count","type":"int"}]}},
+    {"name": "nullableInner", "type": ["null", "Inner"], "default": null},
+    {"name": "nullableMap", "type": ["null", {"type":"map","values":"int"}], "default": null},
+    {"name": "label", "type": "string"}
+  ]
+}`
+
+type celNestedInner struct {
+	Count int32 `avro:"count"`
+}
+
+type celNested struct {
+	Inner         celNestedInner    `avro:"inner"`
+	NullableInner *celNestedInner   `avro:"nullableInner"`
+	NullableMap   *map[string]int32 `avro:"nullableMap"`
+	Label         string            `avro:"label"`
+}
+
 const celNumericSchema = `{
   "type": "record",
   "name": "Numeric",
@@ -140,5 +162,56 @@ func TestCelAvroOutOfRangeIntIsRefused(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "out of range for an Avro int field") {
 		t.Errorf("refused for the wrong reason: %v", err)
+	}
+}
+
+// A record or map computed *under a union* is written to the branch the schema names.
+//
+// hamba resolves a union from the Go type, and a map is ambiguous there - a record branch and a
+// map branch have the same shape - so it refused a computed nested record in a `["null", T]`
+// field with "unknown union type count", naming the record's first field. Schema propagation
+// also stopped at the union, leaving the int inside unnarrowed. One resolution fixes both.
+func TestCelAvroComputedRecordUnderAUnionIsWritten(t *testing.T) {
+	cel.Register()
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfig("mock://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expr := `{"nullableInner": {"count": message.Inner.Count + 1}, ` +
+		`"nullableMap": {"a": message.Inner.Count + 2}, ` +
+		`"inner": message.Inner, "label": message.Label}`
+	rule := schemaregistry.Rule{Name: "r", Kind: "TRANSFORM", Mode: "WRITE", Type: "CEL", Expr: expr}
+	info := schemaregistry.SchemaInfo{Schema: celNestedSchema, SchemaType: "AVRO",
+		RuleSet: &schemaregistry.RuleSet{DomainRules: []schemaregistry.Rule{rule}}}
+	if _, err := client.Register("celnested-value", info, false); err != nil {
+		t.Fatal(err)
+	}
+	obj := celNested{Inner: celNestedInner{Count: 7}, Label: "hi"}
+	bytes, err := ser.Serialize("celnested", &obj)
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	deser.Client = client
+	var out celNested
+	if err := deser.DeserializeInto("celnested", bytes, &out); err != nil {
+		t.Fatalf("deserialize: %v", err)
+	}
+
+	if out.NullableInner == nil || out.NullableInner.Count != 8 {
+		t.Errorf("nullableInner = %v, want count 8", out.NullableInner)
+	}
+	if out.NullableMap == nil || (*out.NullableMap)["a"] != 9 {
+		t.Errorf("nullableMap = %v, want a=9", out.NullableMap)
 	}
 }

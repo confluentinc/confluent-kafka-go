@@ -53,6 +53,7 @@ func writeBackAvro(schema avro.Schema, result interface{}) (interface{}, error) 
 func avroValue(schema avro.Schema, value interface{}) (interface{}, error) {
 	switch v := value.(type) {
 	case map[interface{}]interface{}:
+		target, branch := mapUnionBranch(schema)
 		out := make(map[string]interface{}, len(v))
 		for k, item := range v {
 			key, ok := k.(string)
@@ -61,27 +62,29 @@ func avroValue(schema avro.Schema, value interface{}) (interface{}, error) {
 				// the value untouched is safer than guessing at a conversion.
 				return value, nil
 			}
-			converted, err := avroValue(childSchema(schema, key), item)
+			converted, err := avroValue(childSchema(target, key), item)
 			if err != nil {
 				return nil, err
 			}
 			out[key] = converted
 		}
-		return out, nil
+		return nameUnionBranch(out, branch), nil
 	case map[string]interface{}:
+		target, branch := mapUnionBranch(schema)
 		out := make(map[string]interface{}, len(v))
 		for k, item := range v {
-			converted, err := avroValue(childSchema(schema, k), item)
+			converted, err := avroValue(childSchema(target, k), item)
 			if err != nil {
 				return nil, err
 			}
 			out[k] = converted
 		}
-		return out, nil
+		return nameUnionBranch(out, branch), nil
 	case []interface{}:
+		items := itemSchema(listUnionBranch(schema))
 		out := make([]interface{}, 0, len(v))
 		for _, item := range v {
-			converted, err := avroValue(itemSchema(schema), item)
+			converted, err := avroValue(items, item)
 			if err != nil {
 				return nil, err
 			}
@@ -128,6 +131,53 @@ func avroValue(schema avro.Schema, value interface{}) (interface{}, error) {
 	default:
 		return value, nil
 	}
+}
+
+// mapUnionBranch resolves a union to the branch a CEL record or map result belongs on, and the
+// key hamba wants that branch named by.
+//
+// A Go map is ambiguous under a union - a record branch and a map branch have the same shape -
+// so hamba refuses a bare one ("unknown union type count", naming the record's first *field*).
+// A computed nested record in a `["null", T]` field could not be written at all. The reference
+// resolves by value in declaration order, where branchAccepts takes a Map at the first RECORD or
+// MAP branch; hamba then wants the chosen branch named, by full name for a record and "map" for
+// a map. Returns the schema unchanged, and no key, when it is not a union.
+func mapUnionBranch(schema avro.Schema) (avro.Schema, string) {
+	union, ok := resolveAvroSchema(schema).(*avro.UnionSchema)
+	if !ok {
+		return schema, ""
+	}
+	for _, branch := range union.Types() {
+		switch b := resolveAvroSchema(branch).(type) {
+		case *avro.RecordSchema:
+			return b, b.FullName()
+		case *avro.MapSchema:
+			return b, "map"
+		}
+	}
+	return nil, ""
+}
+
+// listUnionBranch is the same for an array result, which hamba does resolve from the Go slice
+// type, so only the element schema is needed and no key.
+func listUnionBranch(schema avro.Schema) avro.Schema {
+	union, ok := resolveAvroSchema(schema).(*avro.UnionSchema)
+	if !ok {
+		return schema
+	}
+	for _, branch := range union.Types() {
+		if b, ok := resolveAvroSchema(branch).(*avro.ArraySchema); ok {
+			return b
+		}
+	}
+	return nil
+}
+
+func nameUnionBranch(value map[string]interface{}, branch string) interface{} {
+	if branch == "" {
+		return value
+	}
+	return map[string]interface{}{branch: value}
 }
 
 // childSchema is the schema of a record field or map value named key, or nil when the schema
