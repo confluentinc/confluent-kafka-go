@@ -311,7 +311,8 @@ func (r *RuleContext) CurrentField() *FieldContext {
 
 // EnterField enters a field context
 func (r *RuleContext) EnterField(containingMessage interface{}, fullName string,
-	name string, fieldType FieldType, tags []string) (FieldContext, bool) {
+	name string, fieldType FieldType, tags []string,
+	fieldDescriptor interface{}) (FieldContext, bool) {
 	allTags := make(map[string]bool)
 	for _, v := range tags {
 		allTags[v] = true
@@ -325,6 +326,7 @@ func (r *RuleContext) EnterField(containingMessage interface{}, fullName string,
 		Name:              name,
 		Type:              fieldType,
 		Tags:              allTags,
+		FieldDescriptor:   fieldDescriptor,
 	}
 	r.fieldContexts = append(r.fieldContexts, fieldContext)
 	return fieldContext, true
@@ -426,6 +428,23 @@ type FieldContext struct {
 	Name              string
 	Type              FieldType
 	Tags              map[string]bool
+	// FieldDescriptor describes the slot the value is written back into, for formats that
+	// carry detail the value does not. Narrowed as the walk descends into an array or a map,
+	// but a union stays a union - the union is the slot. Nil for protobuf and JSON Schema,
+	// whose walks read nothing off it. The Avro walks put an AvroFieldSlot here.
+	FieldDescriptor interface{}
+}
+
+// AvroFieldSlot is what an Avro walk puts in FieldContext.FieldDescriptor.
+//
+// It is an interface rather than the schema itself because the two Avro serdes are built on
+// *different* Avro libraries, so a rule executor cannot name either one's schema type - asserting
+// one silently took the fallback for the other. Anything an executor needs off an Avro field's
+// declared schema is answered here instead.
+type AvroFieldSlot interface {
+	// AvroDecimalScale reports the slot's declared decimal scale, looking through a nullable
+	// union, and false when the slot does not declare a decimal logical type.
+	AvroDecimalScale() (int, bool)
 }
 
 // FieldType represents the field type
