@@ -302,6 +302,8 @@ func schemaFieldName(field reflect.StructField) string {
 // names are used when it is nil.
 func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption,
 	fieldName func(reflect.StructField) string) (cel.Program, error) {
+	// nil for a nil message, which a walker may enter a field with. Nothing is registered
+	// then and `message` binds as CEL null, so `message == null` still compiles.
 	typ := reflect.TypeOf(msg)
 	// Down to the type that actually carries fields, through any container. An inline
 	// *field* rule binds `this` to the field's own value, so a rule on an array of decimals
@@ -321,7 +323,7 @@ func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.En
 	var declType cel.EnvOption
 	if ok {
 		declType = cel.Types(protoType)
-	} else if typ.Kind() == reflect.Struct {
+	} else if typ != nil && typ.Kind() == reflect.Struct {
 		if fieldName != nil {
 			declType = ext.NativeTypes(typ, ext.ParseStructField(fieldName))
 		} else {
