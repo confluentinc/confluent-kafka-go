@@ -22,7 +22,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"cel.dev/cel-go/cel"
-	"github.com/hamba/avro/v2"
 )
 
 // NewFieldExecutor creates a new CEL field rule executor
@@ -125,28 +124,13 @@ func celFieldValue(fieldCtx serde.FieldContext, fieldValue interface{}) interfac
 	return newDecimal(d)
 }
 
-// avroDecimalScale reads the declared scale off a decimal slot, looking through a nullable
-// union to the branch that holds the value.
+// avroDecimalScale asks the slot for its declared scale. Deliberately an interface rather than
+// an Avro schema type: avrov2 and avrov3 are built on different Avro libraries, so asserting
+// either one here silently took the value-derived fallback for the other.
 func avroDecimalScale(descriptor interface{}) (int, bool) {
-	schema, ok := descriptor.(avro.Schema)
+	slot, ok := descriptor.(serde.AvroFieldSlot)
 	if !ok {
 		return 0, false
 	}
-	if union, ok := schema.(*avro.UnionSchema); ok {
-		for _, branch := range union.Types() {
-			if branch.Type() != avro.Null {
-				schema = branch
-				break
-			}
-		}
-	}
-	logical, ok := schema.(avro.LogicalTypeSchema)
-	if !ok {
-		return 0, false
-	}
-	dec, ok := logical.Logical().(*avro.DecimalLogicalSchema)
-	if !ok {
-		return 0, false
-	}
-	return dec.Scale(), true
+	return slot.AvroDecimalScale()
 }

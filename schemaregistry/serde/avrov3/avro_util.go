@@ -246,18 +246,58 @@ func transform(ctx serde.RuleContext, resolver *avro.TypeResolver, schema avro.S
 	}
 }
 
+// avroSlot is this package's serde.AvroFieldSlot: the declared schema of the slot being walked,
+// behind an interface a rule executor can use without naming an Avro library. avrov2 and avrov3
+// are built on different ones.
+type avroSlot struct {
+	schema avro.Schema
+}
+
+// AvroDecimalScale reads the declared scale off a decimal slot, looking through a nullable union
+// to the branch that holds the value.
+func (s avroSlot) AvroDecimalScale() (int, bool) {
+	schema := branchSchema(s.schema)
+	logical, ok := schema.(avro.LogicalTypeSchema)
+	if !ok {
+		return 0, false
+	}
+	dec, ok := logical.Logical().(*avro.DecimalLogicalSchema)
+	if !ok {
+		return 0, false
+	}
+	return dec.Scale(), true
+}
+
+// branchSchema looks through a nullable union to the branch that holds a value.
+func branchSchema(schema avro.Schema) avro.Schema {
+	union, ok := schema.(*avro.UnionSchema)
+	if !ok {
+		return schema
+	}
+	for _, branch := range union.Types() {
+		if branch.Type() != avro.Null {
+			return branch
+		}
+	}
+	return schema
+}
+
 // setSlotSchema narrows the field context's descriptor to the slot being walked, so a leaf
 // inside a container sees its own schema rather than the container's.
 func setSlotSchema(ctx serde.RuleContext, schema avro.Schema) {
 	if fieldCtx := ctx.CurrentField(); fieldCtx != nil {
-		fieldCtx.FieldDescriptor = schema
+		fieldCtx.FieldDescriptor = avroSlot{schema: schema}
 	}
 }
 
 // isNullableSlot reports whether the slot is a union carrying a null branch, which is what the
 // reference's "nullable target" means for Avro.
 func isNullableSlot(descriptor interface{}) bool {
-	union, ok := descriptor.(*avro.UnionSchema)
+	slot, ok := descriptor.(avroSlot)
+	if !ok {
+		return false
+	}
+	union, ok := slot.schema.(*avro.UnionSchema)
 	if !ok {
 		return false
 	}
@@ -300,7 +340,7 @@ func transformField(ctx serde.RuleContext, resolver *avro.TypeResolver, recordSc
 	// The field's declared schema, which the leaf reads a nullable union and a decimal's
 	// declared scale off - neither of which survives into the value hamba hands back.
 	ctx.EnterField(val.Interface(), fullName, avroField.Name(), getType(avroField.Type()),
-		getInlineTags(avroField), avroField.Type())
+		getInlineTags(avroField), avroSlot{schema: avroField.Type()})
 	newVal, err := transform(ctx, resolver, avroField.Type(), structField, fieldTransform)
 	if err != nil {
 		return err
