@@ -143,6 +143,10 @@ func isNull(value interface{}) bool {
 // collide with a sibling. The names in each message are sorted because ranging over a map
 // visits them in an arbitrary order, and a diagnostic that varies run to run is worse than
 // useless.
+//
+// One deliberate strengthening, as in C++ and Rust. The JVM's hasField test makes a null count
+// only when it follows a value, an order a randomised Go map cannot reproduce - measured, one
+// pair was refused 264 times in 2000 runs. So a duplicate is refused whichever entry is null.
 func fillMessage(out protoreflect.Message, values map[string]interface{}) error {
 	desc := out.Descriptor()
 	// field number -> the result key that set it; oneof -> the member that filled it.
@@ -155,18 +159,19 @@ func fillMessage(out protoreflect.Message, values map[string]interface{}) error 
 			// JVM client, whose JSON parse ignores unknown fields.
 			continue
 		}
-		// Before the null branch, because that is where the JVM's hasField test sits.
 		if first, ok := setBy[fd.Number()]; ok {
 			a, b := sortedPair(first, key)
 			return fmt.Errorf("result names field %s twice, as %s and %s", fd.FullName(), a, b)
 		}
+		// Before the null branch, so the verdict does not depend on iteration order.
+		setBy[fd.Number()] = key
 		if isNull(value) {
 			// An explicit null clears the field, which is how a rule preserves an absent
-			// value across a transform that echoes it.
+			// value across a transform that echoes it. It sets nothing, so it does not count
+			// towards a oneof collision.
 			out.Clear(fd)
 			continue
 		}
-		setBy[fd.Number()] = key
 		if oneof := fd.ContainingOneof(); oneof != nil && !oneof.IsSynthetic() {
 			if sibling, ok := oneofBy[oneof.FullName()]; ok && sibling != string(fd.Name()) {
 				a, b := sortedPair(sibling, string(fd.Name()))
