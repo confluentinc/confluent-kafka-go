@@ -86,17 +86,38 @@ func TestResultNamingOneFieldUnderBothSpellingsIsReported(t *testing.T) {
 	}
 }
 
-// The reference's OK case for the same pair: a null first sets nothing, so the value applies.
-// Note this pair is order-dependent on the JVM (hasField is tested before the null
-// early-return) and a Go map has no order, so a value-then-null result may be refused or not
-// depending on the iteration - both being outcomes the reference produces for some ordering of
-// the same document. Only the two unambiguous ends are asserted.
-func TestANullThenAValueForOneFieldIsAccepted(t *testing.T) {
+// A field named once, with a null, clears it - the ordinary way a rule preserves an absent
+// value across a transform that echoes it.
+func TestALoneNullClearsTheField(t *testing.T) {
 	out := (&test.ComplexType{}).ProtoReflect().New()
 	if err := fillMessage(out, map[string]interface{}{"is_active": nil}); err != nil {
 		t.Fatalf("a lone null should clear rather than fail: %v", err)
 	}
 	if out.Interface().(*test.ComplexType).GetIsActive() {
 		t.Error("is_active should have been cleared")
+	}
+}
+
+// A field named twice is refused whichever entry carries the null, and refused *every* time.
+// Before the fix this pair was accepted ~87% of the time, so the repetition is the assertion:
+// a single run proves nothing about an order-dependent verdict.
+func TestAFieldNamedTwiceIsRefusedWhicheverEntryIsNull(t *testing.T) {
+	for name, values := range map[string]map[string]interface{}{
+		"null and value": {"is_active": nil, "isActive": true},
+		"value and null": {"is_active": true, "isActive": nil},
+		"two values":     {"is_active": true, "isActive": true},
+	} {
+		for i := 0; i < 1000; i++ {
+			out := (&test.ComplexType{}).ProtoReflect().New()
+			err := fillMessage(out, values)
+			if err == nil {
+				t.Fatalf("%s: accepted on run %d; the verdict must not vary", name, i)
+			}
+			if !strings.Contains(err.Error(), "twice") ||
+				!strings.Contains(err.Error(), "isActive and is_active") {
+				t.Fatalf("%s: error should name both spellings in a stable order, got %v",
+					name, err)
+			}
+		}
 	}
 }
