@@ -18,10 +18,12 @@ package cel
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
+	"github.com/hamba/avro/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"
@@ -38,14 +40,17 @@ import (
 //     decimal field broke serialization for *any* rule touching it, including an identity one
 //     . A variant is a variant.Variant, which hamba has never seen.
 //
-// The conversion needs no schema: hamba applies the field's own scale when encoding a
-// *big.Rat, and an Avro variant is just a record of two bytes fields, so emitting the map
-// shape is enough. That is why this is not the schema-driven writer the protobuf side needs.
-func writeBackAvro(result interface{}) (interface{}, error) {
-	return avroValue(result)
+// hamba applies the field's own scale when encoding a *big.Rat, and an Avro variant is just a
+// record of two bytes fields, so the decimal and variant shapes need no schema. The numeric
+// widths do: CEL has one integer type and one floating one, so an int or float field receives
+// an int64 or a float64 and hamba refuses both ("int64 is unsupported for Avro int"). The
+// reference narrows against the schema in narrowToInt and narrowToFloat, so schema is threaded
+// through here for the same purpose. A nil schema simply skips the narrowing.
+func writeBackAvro(schema avro.Schema, result interface{}) (interface{}, error) {
+	return avroValue(schema, result)
 }
 
-func avroValue(value interface{}) (interface{}, error) {
+func avroValue(schema avro.Schema, value interface{}) (interface{}, error) {
 	switch v := value.(type) {
 	case map[interface{}]interface{}:
 		out := make(map[string]interface{}, len(v))
@@ -56,7 +61,7 @@ func avroValue(value interface{}) (interface{}, error) {
 				// the value untouched is safer than guessing at a conversion.
 				return value, nil
 			}
-			converted, err := avroValue(item)
+			converted, err := avroValue(childSchema(schema, key), item)
 			if err != nil {
 				return nil, err
 			}
@@ -66,7 +71,7 @@ func avroValue(value interface{}) (interface{}, error) {
 	case map[string]interface{}:
 		out := make(map[string]interface{}, len(v))
 		for k, item := range v {
-			converted, err := avroValue(item)
+			converted, err := avroValue(childSchema(schema, k), item)
 			if err != nil {
 				return nil, err
 			}
@@ -76,7 +81,7 @@ func avroValue(value interface{}) (interface{}, error) {
 	case []interface{}:
 		out := make([]interface{}, 0, len(v))
 		for _, item := range v {
-			converted, err := avroValue(item)
+			converted, err := avroValue(itemSchema(schema), item)
 			if err != nil {
 				return nil, err
 			}
@@ -108,8 +113,98 @@ func avroValue(value interface{}) (interface{}, error) {
 		// rule author is most likely to write: an identity pass-through over a nullable field,
 		// and the `has(x) ? x : null` guard that is the only way to preserve absence.
 		return nil, nil
+	case int64:
+		return narrowAvroInt(schema, v)
+	case uint64:
+		if v > math.MaxInt64 {
+			return nil, fmt.Errorf("value %d is out of range for an Avro long field", v)
+		}
+		return narrowAvroInt(schema, int64(v))
+	case float64:
+		if numericBranch(schema) == avro.Float {
+			return float32(v), nil
+		}
+		return v, nil
 	default:
 		return value, nil
+	}
+}
+
+// childSchema is the schema of a record field or map value named key, or nil when the schema
+// does not describe one.
+func childSchema(schema avro.Schema, key string) avro.Schema {
+	switch s := resolveAvroSchema(schema).(type) {
+	case *avro.RecordSchema:
+		for _, field := range s.Fields() {
+			if field.Name() == key {
+				return field.Type()
+			}
+		}
+	case *avro.MapSchema:
+		return s.Values()
+	}
+	return nil
+}
+
+// itemSchema is the schema of an array element, or nil when the schema does not describe one.
+func itemSchema(schema avro.Schema) avro.Schema {
+	if s, ok := resolveAvroSchema(schema).(*avro.ArraySchema); ok {
+		return s.Items()
+	}
+	return nil
+}
+
+func resolveAvroSchema(schema avro.Schema) avro.Schema {
+	if ref, ok := schema.(*avro.RefSchema); ok {
+		return ref.Schema()
+	}
+	return schema
+}
+
+// numericBranch is the Avro numeric type an integer or floating result will be written as, or
+// Null when the schema names none. A union is resolved by value the way the reference's
+// branchAccepts does, since a union is transparent in CEL and hamba picks the branch from the
+// Go type it is handed.
+func numericBranch(schema avro.Schema, value ...int64) avro.Type {
+	resolved := resolveAvroSchema(schema)
+	if resolved == nil {
+		return avro.Null
+	}
+	if union, ok := resolved.(*avro.UnionSchema); ok {
+		for _, branch := range union.Types() {
+			switch t := numericBranch(branch, value...); t {
+			case avro.Int:
+				if len(value) == 0 || (value[0] >= math.MinInt32 && value[0] <= math.MaxInt32) {
+					return t
+				}
+			case avro.Long, avro.Float, avro.Double:
+				return t
+			}
+		}
+		return avro.Null
+	}
+	switch resolved.Type() {
+	case avro.Int, avro.Long, avro.Float, avro.Double:
+		return resolved.Type()
+	}
+	return avro.Null
+}
+
+// narrowAvroInt is the reference's narrowToInt: an int field takes an integer that fits in one
+// and refuses anything else, rather than truncating it into the slot.
+func narrowAvroInt(schema avro.Schema, v int64) (interface{}, error) {
+	switch numericBranch(schema, v) {
+	case avro.Int:
+		if v < math.MinInt32 || v > math.MaxInt32 {
+			return nil, fmt.Errorf("value %d is out of range for an Avro int field", v)
+		}
+		return int32(v), nil
+	case avro.Float:
+		return float32(v), nil
+	case avro.Double:
+		return float64(v), nil
+	default:
+		return v, nil
 	}
 }
 
