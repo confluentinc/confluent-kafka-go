@@ -32,6 +32,8 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent"
+	// Aliased because google/protobuf/type.proto below generates a package named `typepb` too.
+	cflttype "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/type"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/confluent/types"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	protoV1 "github.com/golang/protobuf/proto"
@@ -109,8 +111,15 @@ var builtInDeps = make(map[string]string)
 
 func init() {
 	builtins := map[string]protoreflect.FileDescriptor{
-		"confluent/meta.proto":                 confluent.File_confluent_meta_proto,
-		"confluent/type/decimal.proto":         types.File_confluent_types_decimal_proto,
+		"confluent/meta.proto":         confluent.File_confluent_meta_proto,
+		"confluent/type/decimal.proto": cflttype.File_confluent_type_decimal_proto,
+		"confluent/type/variant.proto": cflttype.File_confluent_type_variant_proto,
+		// The path confluent.type.Decimal used to occupy. A schema importing it is never sent
+		// with a reference - ignoreFile matches the whole confluent/ prefix - so this table is
+		// the only place a reader can resolve it from. The stub declares nothing and publicly
+		// imports the canonical file, so it re-exports confluent.type.Decimal without a second
+		// declaration of the symbol. Read-only: this client emits the canonical path.
+		"confluent/types/decimal.proto":        types.File_confluent_types_decimal_proto,
 		"google/type/calendar_period.proto":    calendarperiod.File_google_type_calendar_period_proto,
 		"google/type/color.proto":              color.File_google_type_color_proto,
 		"google/type/date.proto":               date.File_google_type_date_proto,
@@ -549,6 +558,12 @@ func parseFileDesc(client schemaregistry.Client, info schemaregistry.SchemaInfo)
 			}
 			if schema == "" {
 				schema = builtInDeps[filename]
+			}
+			if schema == "" {
+				// Returning an empty file here instead reports the failure against whatever
+				// referred to the missing import - "unknown type confluent.type.Decimal",
+				// naming the field - which hides the one fact that identifies the problem.
+				return nil, fmt.Errorf("dependency %s not found", filename)
 			}
 			return io.NopCloser(strings.NewReader(schema)), nil
 		},
