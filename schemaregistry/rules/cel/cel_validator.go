@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -78,7 +78,14 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 		}
 	}
 
-	thisType := findType(celMsg)
+	// A decimal-shaped value is presented as this package's CEL decimal so that a bare decimal
+	// field carries the same type, and the same numeric equality, as decimal(...) produces.
+	// celMsg itself stays as it is: buildProgram registers types from it below.
+	thisValue := celMsg
+	if dv, ok := decimalBoundaryValue(celMsg); ok {
+		thisValue = dv
+	}
+	thisType := findType(thisValue)
 	// A protobuf message reached through a list or a map arrives as an ordinary Go value,
 	// so the type it belongs to has to be declared for its fields to resolve. The schema
 	// hint names the declaring file, and every type that file can reach is registered.
@@ -118,7 +125,7 @@ func (v *Validator) Execute(rule serde.ValidationRule, schema interface{}, msg i
 	}
 
 	args := map[string]interface{}{
-		"this": celMsg,
+		"this": thisValue,
 		"now":  time.Now().UTC(),
 	}
 	result, err := evalProgram(rule.Expr, program, args)
