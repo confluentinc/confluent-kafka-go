@@ -95,11 +95,20 @@ func NewSchemaID(schemaType string, id int, guid string) (*SchemaID, error) {
 // FromBytes converts the bytes to the SchemaID
 func (s *SchemaID) FromBytes(payload []byte) (int, error) {
 	var totalBytesRead int
+	if len(payload) < 1 {
+		return 0, fmt.Errorf("wire format payload is empty")
+	}
 	magicByte := payload[0]
 	if magicByte == MagicByteV0 {
+		if len(payload) < 5 {
+			return 0, fmt.Errorf("wire format payload too short: need 5 bytes for schema id, got %d", len(payload))
+		}
 		s.ID = int(binary.BigEndian.Uint32(payload[1:5]))
 		totalBytesRead = 5
 	} else if magicByte == MagicByteV1 {
+		if len(payload) < 17 {
+			return 0, fmt.Errorf("wire format payload too short: need 17 bytes for schema guid, got %d", len(payload))
+		}
 		guid, err := uuid.FromBytes(payload[1:17])
 		if err != nil {
 			return 0, err
@@ -1310,6 +1319,9 @@ func (s *BaseSerializer) WriteBytes(id int, msgBytes []byte) ([]byte, error) {
 // Deprecated: Use GetWriterSchema instead
 func (s *BaseDeserializer) GetSchema(topic string, payload []byte) (schemaregistry.SchemaInfo, error) {
 	info := schemaregistry.SchemaInfo{}
+	if len(payload) < 5 {
+		return info, fmt.Errorf("wire format payload too short: need 5 bytes, got %d", len(payload))
+	}
 	if payload[0] != MagicByteV0 {
 		return info, fmt.Errorf("unknown magic byte")
 	}
