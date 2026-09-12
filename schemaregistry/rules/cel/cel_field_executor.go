@@ -17,9 +17,11 @@
 package cel
 
 import (
+	"math/big"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 )
 
 // NewFieldExecutor creates a new CEL field rule executor
@@ -74,9 +76,9 @@ type FieldExecutorTransform struct {
 
 // Transform transforms the field value using the rule
 func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde.FieldContext, fieldValue interface{}) (interface{}, error) {
-	if fieldValue == nil {
-		return nil, nil
-	}
+	// No null guard here, matching the reference: whether an absent value reaches a rule is each
+	// format's walk to decide, not the executor's. The protobuf walk skips an unset field before
+	// calling this; the Avro walk passes the null branch through so a rule can guard on it.
 	if !fieldCtx.IsPrimitive() {
 		return fieldValue, nil
 	}
@@ -85,7 +87,7 @@ func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde
 		tags = append(tags, tag)
 	}
 	args := map[string]interface{}{
-		"value":    fieldValue,
+		"value":    celFieldValue(fieldCtx, fieldValue),
 		"fullName": fieldCtx.FullName,
 		"name":     fieldCtx.Name,
 		"typeName": fieldCtx.TypeName(),
@@ -93,4 +95,42 @@ func (f *FieldExecutorTransform) Transform(ctx serde.RuleContext, fieldCtx serde
 		"message":  fieldCtx.ContainingMessage,
 	}
 	return f.executor.execute(ctx, fieldValue, args)
+}
+
+// celFieldValue presents the value the way the field's declared type implies, which is what the
+// reference does through the same field descriptor. hamba decodes an Avro decimal into a
+// *big.Rat, which normalises away the declared scale, so only the schema still knows it.
+func celFieldValue(fieldCtx serde.FieldContext, fieldValue interface{}) interface{} {
+	// The walk dereferences a non-proto pointer before binding, so a nullable decimal arrives
+	// by value and a plain one as the *big.Rat hamba produced.
+	var rat *big.Rat
+	switch x := fieldValue.(type) {
+	case *big.Rat:
+		rat = x
+	case big.Rat:
+		rat = &x
+	}
+	if rat == nil {
+		return fieldValue
+	}
+	scale, ok := avroDecimalScale(fieldCtx.FieldDescriptor)
+	if !ok {
+		return fieldValue
+	}
+	d, err := decimalFromRatAtScale(rat, scale)
+	if err != nil {
+		return fieldValue
+	}
+	return newDecimal(d)
+}
+
+// avroDecimalScale asks the slot for its declared scale. Deliberately an interface rather than
+// an Avro schema type: avrov2 and avrov3 are built on different Avro libraries, so asserting
+// either one here silently took the value-derived fallback for the other.
+func avroDecimalScale(descriptor interface{}) (int, bool) {
+	slot, ok := descriptor.(serde.AvroFieldSlot)
+	if !ok {
+		return 0, false
+	}
+	return slot.AvroDecimalScale()
 }
