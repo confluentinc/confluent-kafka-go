@@ -594,8 +594,11 @@ func (v Variant) GetFieldByKey(key string) *Variant {
 	return nil
 }
 
-// GetFieldAtIndex returns the (key, value) of the field at idx (key-sorted). On
-// error it returns ("", a zero Variant).
+// GetFieldAtIndex returns the (key, value) of the field at idx (key-sorted). idx must be in
+// [0, number of fields): the reference does not bound it either, and just past the end the read
+// lands in the offset table and yields a real dictionary key for a field that is not there.
+// GetElementAtIndex does bound its index, in this client and in the reference both.
+// A read that falls outside the buffer returns ("", a zero Variant).
 func (v Variant) GetFieldAtIndex(idx int) (string, Variant) {
 	k, sub, err := v.fieldAtIndex(idx)
 	if err != nil {

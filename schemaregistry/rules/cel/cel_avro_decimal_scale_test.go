@@ -32,6 +32,7 @@ import (
 	schemaregistry "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov3"
 )
 
 const decimalScaleSchema = `{
@@ -50,7 +51,45 @@ type decimalScaleRec struct {
 	Plain  string   `avro:"plain"`
 }
 
-func runDecimalScale(t *testing.T, subject, expr string) string {
+// serializeFn is one serde's Serialize, so each case runs against both. avrov2 and avrov3 are
+// built on *different* Avro libraries, and the slot the scale is read from is one of that
+// library's types - so a check that names one silently passes for the other.
+type serializeFn func(t *testing.T, client schemaregistry.Client, subject string,
+	amount *big.Rat) error
+
+func serializeV2(t *testing.T, client schemaregistry.Client, subject string,
+	amount *big.Rat) error {
+	t.Helper()
+	sc := avrov2.NewSerializerConfig()
+	sc.AutoRegisterSchemas = false
+	sc.UseLatestVersion = true
+	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ser.Serialize(subject, &decimalScaleRec{Amount: amount, Plain: "hi"})
+	return err
+}
+
+func serializeV3(t *testing.T, client schemaregistry.Client, subject string,
+	amount *big.Rat) error {
+	t.Helper()
+	sc := avrov3.NewSerializerConfig()
+	sc.AutoRegisterSchemas = false
+	sc.UseLatestVersion = true
+	ser, err := avrov3.NewSerializer(client, serde.ValueSerde, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ser.Serialize(subject, &decimalScaleRec{Amount: amount, Plain: "hi"})
+	return err
+}
+
+func bothSerdes() map[string]serializeFn {
+	return map[string]serializeFn{"avrov2": serializeV2, "avrov3": serializeV3}
+}
+
+func runDecimalScale(t *testing.T, subject, expr string, serialize serializeFn) string {
 	t.Helper()
 	Register()
 	client, err := schemaregistry.NewClient(schemaregistry.NewConfig("mock://"))
@@ -68,39 +107,37 @@ func runDecimalScale(t *testing.T, subject, expr string) string {
 	if _, err := client.Register(subject+"-value", info, false); err != nil {
 		t.Fatal(err)
 	}
-	sc := avrov2.NewSerializerConfig()
-	sc.AutoRegisterSchemas = false
-	sc.UseLatestVersion = true
-	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, sc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	obj := decimalScaleRec{Amount: new(big.Rat).SetFrac64(123400, 10000), Plain: "hi"}
-	if _, err := ser.Serialize(subject, &obj); err != nil {
+	if err := serialize(t, client, subject, new(big.Rat).SetFrac64(123400, 10000)); err != nil {
 		return err.Error()
 	}
 	return ""
 }
 
 func TestAvroDecimalReachesARuleAtItsDeclaredScale(t *testing.T) {
-	if got := runDecimalScale(t, "ds1", `string(value) == "12.3400"`); got != "" {
-		t.Fatalf("expected the declared scale of 4, got %q", got)
-	}
-	// The discriminator: the scale derived from the reduced big.Rat, which is what this used
-	// to render.
-	got := runDecimalScale(t, "ds2", `string(value) == "12.34"`)
-	if !strings.Contains(got, "Expr failed") {
-		t.Fatalf("expected the value-derived scale to be gone, got %q", got)
+	for name, serialize := range bothSerdes() {
+		if got := runDecimalScale(t, "ds1"+name,
+			`string(value) == "12.3400"`, serialize); got != "" {
+			t.Errorf("%s: expected the declared scale of 4, got %q", name, got)
+		}
+		// The discriminator: the scale derived from the reduced big.Rat, which is what this
+		// used to render.
+		got := runDecimalScale(t, "ds2"+name, `string(value) == "12.34"`, serialize)
+		if !strings.Contains(got, "Expr failed") {
+			t.Errorf("%s: expected the value-derived scale to be gone, got %q", name, got)
+		}
 	}
 }
 
 // The must-pass twin: comparisons are numeric, so the added scale must not disturb them.
 func TestDeclaredScaleLeavesComparisonsAlone(t *testing.T) {
-	if got := runDecimalScale(t, "ds3",
-		`decimals.gt(decimal(value), decimal("10.00"))`); got != "" {
-		t.Fatalf("expected 12.3400 > 10.00 to pass, got %q", got)
-	}
-	if got := runDecimalScale(t, "ds4", `value == decimal("12.34")`); got != "" {
-		t.Fatalf("expected 12.3400 == 12.34 numerically, got %q", got)
+	for name, serialize := range bothSerdes() {
+		if got := runDecimalScale(t, "ds3"+name,
+			`decimals.gt(decimal(value), decimal("10.00"))`, serialize); got != "" {
+			t.Errorf("%s: expected 12.3400 > 10.00 to pass, got %q", name, got)
+		}
+		if got := runDecimalScale(t, "ds4"+name,
+			`value == decimal("12.34")`, serialize); got != "" {
+			t.Errorf("%s: expected 12.3400 == 12.34 numerically, got %q", name, got)
+		}
 	}
 }
