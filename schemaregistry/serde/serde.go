@@ -702,10 +702,17 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 	return nil
 }
 
+// NeedsClusterID reports whether the configured subject name strategy still
+// needs the Kafka cluster ID. Only the associated name strategy does, and only
+// while no cluster ID has been configured through KafkaClusterIDConfig or set
+// through SetClusterID.
 func (s *Serde) NeedsClusterID() bool {
 	return s.subjectNameStrategyInterface != nil && s.subjectNameStrategyInterface.needsClusterID()
 }
 
+// SetClusterID gives the subject name strategy the Kafka cluster ID to use as
+// the resource namespace when it looks up associations. It is a no-op once a
+// cluster ID is known, so an explicitly configured one always wins.
 func (s *Serde) SetClusterID(clusterID string) {
 	if s.subjectNameStrategyInterface != nil && s.subjectNameStrategyInterface.needsClusterID() {
 		s.subjectNameStrategyInterface.setClusterID(clusterID)
