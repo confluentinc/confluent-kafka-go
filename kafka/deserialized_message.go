@@ -47,6 +47,8 @@ func (m *DeserializedMessage[K, V]) String() string {
 	return fmt.Sprintf("%s[%d]@%s", topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 }
 
+// SerializedKeySize returns the size in bytes of the key as it was consumed from
+// Kafka, or -1 when the message has no key.
 func (m *DeserializedMessage[K, V]) SerializedKeySize() int {
 	if m.keyBytes == nil {
 		return -1
@@ -54,6 +56,8 @@ func (m *DeserializedMessage[K, V]) SerializedKeySize() int {
 	return len(m.keyBytes)
 }
 
+// SerializedValueSize returns the size in bytes of the value as it was consumed from
+// Kafka, or -1 when the message has no value.
 func (m *DeserializedMessage[K, V]) SerializedValueSize() int {
 	if m.valueBytes == nil {
 		return -1

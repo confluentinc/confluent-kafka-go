@@ -21,12 +21,21 @@ import (
 	"fmt"
 )
 
+// DeserializingConsumer wraps a [Consumer] and exposes all of its public
+// methods. See [Consumer] for detailed documentation of the underlying
+// behavior.
 type DeserializingConsumer[K, V any] struct {
 	consumer          *Consumer
 	keyDeserializer   Deserializer
 	valueDeserializer Deserializer
 }
 
+// Deserializer turns the bytes consumed from Kafka into a typed key or value.
+//
+// A Deserializer that resolves part of its configuration from the Kafka cluster
+// ID reports that by returning true from NeedsClusterID; the cluster ID is then
+// fetched once while the [DeserializingConsumer] is built and handed over
+// through SetClusterID before the first message is deserialized.
 type Deserializer interface {
 	DeserializeWithHeaders(topic string, headers []Header, payload []byte) (interface{}, error)
 	NeedsClusterID() bool
@@ -34,34 +43,50 @@ type Deserializer interface {
 	Close() error
 }
 
+// KeyDeserializationError is the [Event] returned by
+// [DeserializingConsumer.Poll] when the key of a message could not be
+// deserialized. It carries the partition and offset of that message, so that
+// consumption can be resumed past it.
 type KeyDeserializationError struct {
 	TopicPartition TopicPartition
 	err            error
 }
 
+// ValueDeserializationError is the [Event] returned by
+// [DeserializingConsumer.Poll] when the value of a message could not be
+// deserialized. It carries the partition and offset of that message, so that
+// consumption can be resumed past it.
 type ValueDeserializationError struct {
 	TopicPartition TopicPartition
 	err            error
 }
 
+// Error implements the error interface, reporting the partition and offset of
+// the message whose key could not be deserialized.
 func (e KeyDeserializationError) Error() string {
 	return fmt.Sprintf("Error deserializing key for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
 		*e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
 }
 
+// Error implements the error interface, reporting the partition and offset of
+// the message whose value could not be deserialized.
 func (e ValueDeserializationError) Error() string {
 	return fmt.Sprintf("Error deserializing value for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
 		*e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
 }
 
+// String returns the same text as Error.
 func (e KeyDeserializationError) String() string {
 	return e.Error()
 }
 
+// String returns the same text as Error.
 func (e ValueDeserializationError) String() string {
 	return e.Error()
 }
 
+// NewKeyDeserializationError creates a [KeyDeserializationError] for the
+// message at topicPartition, wrapping the error the key deserializer returned.
 func NewKeyDeserializationError(topicPartition TopicPartition, err error) KeyDeserializationError {
 	return KeyDeserializationError{
 		TopicPartition: topicPartition,
@@ -69,6 +94,9 @@ func NewKeyDeserializationError(topicPartition TopicPartition, err error) KeyDes
 	}
 }
 
+// NewValueDeserializationError creates a [ValueDeserializationError] for the
+// message at topicPartition, wrapping the error the value deserializer
+// returned.
 func NewValueDeserializationError(topicPartition TopicPartition, err error) ValueDeserializationError {
 	return ValueDeserializationError{
 		TopicPartition: topicPartition,
@@ -76,10 +104,19 @@ func NewValueDeserializationError(topicPartition TopicPartition, err error) Valu
 	}
 }
 
+// DeserializerBuilder creates the [Deserializer] a [DeserializingConsumer] uses
+// for its keys or its values.
+//
+// Build is given the consumer's [ConfigMap] and whether it is building the key
+// deserializer, and returns the deserializer together with the ConfigMap to
+// carry on with: any property the deserializer consumed itself is filtered out,
+// so that what reaches [NewConsumer] holds Kafka properties only.
 type DeserializerBuilder interface {
 	Build(conf *ConfigMap, isKey bool) (Deserializer, *ConfigMap, error)
 }
 
+// NewDeserializingConsumer is the same as [NewConsumer], returning a
+// [DeserializingConsumer] wrapping the created [Consumer].
 func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	keyDeserializerBuilder DeserializerBuilder,
 	valueDeserializerBuilder DeserializerBuilder) (*DeserializingConsumer[K, V], error) {

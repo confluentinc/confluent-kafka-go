@@ -30,6 +30,12 @@ type SerializingProducer[K, V any] struct {
 	valueSerializer Serializer
 }
 
+// Serializer turns a typed key or value into the bytes produced to Kafka.
+//
+// A Serializer that resolves part of its configuration from the Kafka cluster
+// ID reports that by returning true from NeedsClusterID; the cluster ID is then
+// fetched once while the [SerializingProducer] is built and handed over through
+// SetClusterID before the first message is serialized.
 type Serializer interface {
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	SerializeWithHeaders(topic string, msg interface{}) ([]Header, []byte, error)
@@ -38,6 +44,13 @@ type Serializer interface {
 	Close() error
 }
 
+// SerializerBuilder creates the [Serializer] a [SerializingProducer] uses for
+// its keys or its values.
+//
+// Build is given the producer's [ConfigMap] and whether it is building the key
+// serializer, and returns the serializer together with the ConfigMap to carry
+// on with: any property the serializer consumed itself is filtered out, so that
+// what reaches [NewProducer] holds Kafka properties only.
 type SerializerBuilder interface {
 	Build(conf *ConfigMap, isKey bool) (Serializer, *ConfigMap, error)
 }
