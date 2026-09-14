@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
 
@@ -126,6 +127,19 @@ func NewConfigWithUAMIAuthentication(url, endpointURL, endpointQuery, resource, 
 	c.BearerAuthIdentityPoolID = identityPoolID
 
 	return c
+}
+
+func NewConfigFromKafkaConfigMap(srConf *Config, conf *kafka.ConfigMap) (*Config, *kafka.ConfigMap, error) {
+	if srConf == nil {
+		srConf = &Config{}
+	}
+
+	// Filter out SR properties from the Kafka ConfigMap, none for the moment.
+	filteredConfigMap := make(kafka.ConfigMap)
+	for k, v := range *conf {
+		filteredConfigMap.SetKey(k, v)
+	}
+	return srConf, &filteredConfigMap, nil
 }
 
 // ConfigsEqual compares two configurations for approximate equality
