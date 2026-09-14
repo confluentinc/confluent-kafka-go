@@ -92,6 +92,14 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	return s, nil
 }
 
+// KafkaSerializerBuilder builds the Avro [Serializer] that a
+// [kafka.SerializingProducer] uses for its keys or its values. Its setters
+// return the builder, so they can be chained, and the zero value is ready to
+// use: without any of them Build creates the Schema Registry client from the
+// producer's [kafka.ConfigMap] and the serializer with its default
+// configuration.
+//
+// It implements [kafka.SerializerBuilder].
 type KafkaSerializerBuilder struct {
 	schemaRegistryConf   *schemaregistry.Config
 	schemaRegistryClient schemaregistry.Client
@@ -99,26 +107,46 @@ type KafkaSerializerBuilder struct {
 	serializerInit       func(*Serializer)
 }
 
+// SetSerializerInit sets a function called with the [Serializer] once it has
+// been created, to apply whatever cannot be expressed through
+// [SerializerConfig], such as registering rule executors.
 func (b *KafkaSerializerBuilder) SetSerializerInit(serializerInit func(*Serializer)) *KafkaSerializerBuilder {
 	b.serializerInit = serializerInit
 	return b
 }
 
+// SetSerializerConfig sets the configuration of the [Serializer]. When it is
+// not set, [NewSerializerConfig] provides the defaults.
 func (b *KafkaSerializerBuilder) SetSerializerConfig(serializerConf *SerializerConfig) *KafkaSerializerBuilder {
 	b.serializerConf = serializerConf
 	return b
 }
 
+// SetSchemaRegistryConfig sets the configuration used to create the Schema
+// Registry client. It is completed with the Schema Registry properties found in
+// the producer's [kafka.ConfigMap], which take no precedence over it. It is
+// ignored when a client is supplied through SetSchemaRegistryClient.
 func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaSerializerBuilder {
 	b.schemaRegistryConf = schemaRegistryConf
 	return b
 }
 
+// SetSchemaRegistryClient supplies an already created Schema Registry client,
+// so that it can be shared between serdes instead of each one creating its own.
+// The client is used as-is: the Schema Registry configuration and the
+// properties of the producer's [kafka.ConfigMap] are left alone.
 func (b *KafkaSerializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaSerializerBuilder {
 	b.schemaRegistryClient = client
 	return b
 }
 
+// Build creates the Avro serializer for the key or the value of a
+// [kafka.SerializingProducer], as isKey selects.
+//
+// It returns the serializer and the [kafka.ConfigMap] the producer is to be
+// created with: the Schema Registry properties are filtered out of conf, unless
+// a client was supplied through SetSchemaRegistryClient, in which case conf is
+// passed through unchanged.
 func (b *KafkaSerializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Serializer, *kafka.ConfigMap, error) {
 	var serdeType serde.Type
 	var serializerConf *SerializerConfig = b.serializerConf
@@ -295,6 +323,14 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	return s, nil
 }
 
+// KafkaDeserializerBuilder builds the Avro [Deserializer] that a
+// [kafka.DeserializingConsumer] uses for its keys or its values. Its setters
+// return the builder, so they can be chained, and the zero value is ready to
+// use: without any of them Build creates the Schema Registry client from the
+// consumer's [kafka.ConfigMap] and the deserializer with its default
+// configuration.
+//
+// It implements [kafka.DeserializerBuilder].
 type KafkaDeserializerBuilder struct {
 	schemaRegistryConf   *schemaregistry.Config
 	schemaRegistryClient schemaregistry.Client
@@ -302,26 +338,46 @@ type KafkaDeserializerBuilder struct {
 	deserializerInit     func(*Deserializer)
 }
 
+// SetDeserializerInit sets a function called with the [Deserializer] once it
+// has been created, to apply whatever cannot be expressed through
+// [DeserializerConfig], such as registering rule executors.
 func (b *KafkaDeserializerBuilder) SetDeserializerInit(deserializerInit func(*Deserializer)) *KafkaDeserializerBuilder {
 	b.deserializerInit = deserializerInit
 	return b
 }
 
+// SetDeserializerConfig sets the configuration of the [Deserializer]. When it
+// is not set, [NewDeserializerConfig] provides the defaults.
 func (b *KafkaDeserializerBuilder) SetDeserializerConfig(deserializerConf *DeserializerConfig) *KafkaDeserializerBuilder {
 	b.deserializerConf = deserializerConf
 	return b
 }
 
+// SetSchemaRegistryConfig sets the configuration used to create the Schema
+// Registry client. It is completed with the Schema Registry properties found in
+// the consumer's [kafka.ConfigMap], which take no precedence over it. It is
+// ignored when a client is supplied through SetSchemaRegistryClient.
 func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaDeserializerBuilder {
 	b.schemaRegistryConf = schemaRegistryConf
 	return b
 }
 
+// SetSchemaRegistryClient supplies an already created Schema Registry client,
+// so that it can be shared between serdes instead of each one creating its own.
+// The client is used as-is: the Schema Registry configuration and the
+// properties of the consumer's [kafka.ConfigMap] are left alone.
 func (b *KafkaDeserializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaDeserializerBuilder {
 	b.schemaRegistryClient = client
 	return b
 }
 
+// Build creates the Avro deserializer for the key or the value of a
+// [kafka.DeserializingConsumer], as isKey selects.
+//
+// It returns the deserializer and the [kafka.ConfigMap] the consumer is to be
+// created with: the Schema Registry properties are filtered out of conf, unless
+// a client was supplied through SetSchemaRegistryClient, in which case conf is
+// passed through unchanged.
 func (b *KafkaDeserializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Deserializer, *kafka.ConfigMap, error) {
 	var serdeType serde.Type
 	var deserializerConf *DeserializerConfig = b.deserializerConf
