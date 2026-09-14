@@ -59,6 +59,8 @@ func (m *SerializableMessage[K, V]) toMessage() *Message {
 }
 
 
+// SerializedKeySize returns the size in bytes of the key as it was produced to
+// Kafka, or -1 when the message has no key.
 func (m *SerializableMessage[K, V]) SerializedKeySize() int {
 	if m.keyBytes == nil {
 		return -1
@@ -66,6 +68,8 @@ func (m *SerializableMessage[K, V]) SerializedKeySize() int {
 	return len(m.keyBytes)
 }
 
+// SerializedValueSize returns the size in bytes of the value as it was produced to
+// Kafka, or -1 when the message has no value.
 func (m *SerializableMessage[K, V]) SerializedValueSize() int {
 	if m.valueBytes == nil {
 		return -1
