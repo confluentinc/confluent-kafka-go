@@ -20,11 +20,10 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 )
 
 // consumerPerfTest measures the consumer performance using a pre-primed (produced to) topic
-func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool, consumeFunc func(c *Consumer, rd *ratedisp, expCnt int), rebalanceCb func(c *Consumer, event Event) error) {
+func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool, consumeFunc func(c *Consumer, rd *ratedisp, expCnt int), rebalanceCb func(c *Consumer, event Event) error, extraConfig ConfigMap) {
 
 	r := testconsumerInit(b)
 	if r == -1 {
@@ -35,18 +34,30 @@ func consumerPerfTest(b *testing.B, testname string, msgcnt int, useChannel bool
 		msgcnt = r
 	}
 
-	rand.Seed(int64(time.Now().Unix()))
-
 	conf := ConfigMap{"bootstrap.servers": testconf.Brokers,
 		"go.events.channel.enable": useChannel,
 		"group.id":                 fmt.Sprintf("go_cperf_%d", rand.Intn(1000000)),
 		"session.timeout.ms":       6000,
-		"api.version.request":      "true",
 		"enable.auto.commit":       false,
 		"debug":                    ",",
-		"auto.offset.reset":        "earliest"}
+		"auto.offset.reset":        "earliest",
+
+		// For benchmarks we want to avoid long fetch stalls when go can't keep
+		// up with librdkafka filling the fetch queue and then backing off by
+		// the default one second. When it's possible to consume all 2M messages
+		// within a second, losing the race with librdkafka and backing off for
+		// a whole second really slows us down and skews the overall timings,
+		// with consecutive runs varying by a whole second due to one
+		// additional backoff. So go lower than the default, but not too low so
+		// we avoid spinning.
+		"fetch.queue.backoff.ms": 10,
+	}
 
 	conf.updateFromTestconf()
+
+	for k, v := range extraConfig {
+		conf[k] = v
+	}
 
 	c, err := NewConsumer(&conf)
 
@@ -159,12 +170,12 @@ func testconsumerInit(b *testing.B) int {
 
 func BenchmarkConsumerChannelPerformance(b *testing.B) {
 	consumerPerfTest(b, "Channel Consumer",
-		0, true, eventChannelConsumer, nil)
+		0, true, eventChannelConsumer, nil, nil)
 }
 
 func BenchmarkConsumerPollPerformance(b *testing.B) {
 	consumerPerfTest(b, "Poll Consumer",
-		0, false, eventPollConsumer, nil)
+		0, false, eventPollConsumer, nil, nil)
 }
 
 func BenchmarkConsumerPollRebalancePerformance(b *testing.B) {
@@ -173,5 +184,14 @@ func BenchmarkConsumerPollRebalancePerformance(b *testing.B) {
 		func(c *Consumer, event Event) error {
 			b.Logf("Rebalanced: %s", event)
 			return nil
+		}, nil)
+}
+
+func BenchmarkConsumerMessageFieldsConfig(b *testing.B) {
+	for _, variant := range []string{"all", "key", "value", "headers", "none"} {
+		b.Run(fmt.Sprintf("variant=%s", variant), func(b *testing.B) {
+			consumerPerfTest(b, "Poll Consumer", 0, false, eventPollConsumer,
+				nil, ConfigMap{"go.consumer.message.fields": variant})
 		})
+	}
 }
