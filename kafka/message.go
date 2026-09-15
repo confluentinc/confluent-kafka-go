@@ -148,7 +148,7 @@ func (h *handle) setupMessageFromC(msg *Message, cmsg *C.rd_kafka_message_t) {
 	if cmsg.key != nil && h.msgFields.Key {
 		msg.Key = C.GoBytes(unsafe.Pointer(cmsg.key), C.int(cmsg.key_len))
 	}
-	if h.msgFields.Headers {
+	if h.msgFields.Headers && msg.Headers == nil {
 		var gMsg C.glue_msg_t
 		gMsg.msg = cmsg
 		gMsg.want_hdrs = C.int8_t(1)
