@@ -6,6 +6,7 @@
 * Add support for saving Azure key version with DEK (#1577)
 * Pass context when clients make KEK calls to DEK Registry (#1579)
 * Add support for inline validation rules (#1592)
+* Add Variant, Decimal, and Timestamp CEL functions (#1595)
 
 
 ## v2.15.1
