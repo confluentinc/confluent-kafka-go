@@ -6,6 +6,7 @@
 * Add support for saving Azure key version with DEK (#1577)
 * Pass context when clients make KEK calls to DEK Registry (#1579)
 * Add support for inline validation rules (#1592)
+* Add Variant, Decimal, and Timestamp CEL functions (#1595)
 * Bump golang.org/x/crypto to v0.56.0 to fix: GO-2026-6303, GO-2026-6354,
   GO-2026-6355 in x/crypto/ssh (#1599).
 * Note: the golang.org/x/crypto bump pulls in that module's own `go 1.26.0`
