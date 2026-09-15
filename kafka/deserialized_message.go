@@ -1,5 +1,3 @@
-package kafka
-
 /**
  * Copyright 2026 Confluent Inc.
  *
@@ -15,6 +13,8 @@ package kafka
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package kafka
 
 import (
 	"fmt"
@@ -32,7 +32,7 @@ type DeserializedMessage[K any, V any] struct {
 	TimestampType  TimestampType
 	Opaque         interface{}
 	Headers        []Header
-	message		   *Message
+	message        *Message
 }
 
 // String returns a human readable representation of a DeserializedMessage.
@@ -71,11 +71,11 @@ func newDeserializedMessage[K, V any](msg *Message, key K, value V) *Deserialize
 		Key:            key,
 		Value:          value,
 		keyBytes:       msg.Key,
-		valueBytes:		msg.Value,
+		valueBytes:     msg.Value,
 		Timestamp:      msg.Timestamp,
 		TimestampType:  msg.TimestampType,
 		Opaque:         msg.Opaque,
 		Headers:        msg.Headers,
-		message:		msg,
+		message:        msg,
 	}
 }
