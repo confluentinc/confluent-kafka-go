@@ -3,6 +3,12 @@
 ## v2.16.0 (unreleased)
 
 ### Enhancements
+* Add `ShareConsumer`, a Go binding for librdkafka's share-consumer (Kafka
+  Queues / KIP-932) API. Share groups give point-to-point queue semantics:
+  per-message acknowledgement (Accept/Release/Reject), implicit or explicit
+  acknowledgement modes, and consumer scaling independent of partition count.
+  See `examples/share_consumer_example`. Requires a broker with share groups
+  enabled (Apache Kafka 4.2.0+); the feature is in Preview.
 * Add support for saving Azure key version with DEK (#1577)
 * Pass context when clients make KEK calls to DEK Registry (#1579)
 * Add support for inline validation rules (#1592)

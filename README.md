@@ -296,6 +296,20 @@ It has direct mapping to underlying librdkafka functionality.
 
 See [examples/consumer_example](examples/consumer_example)
 
+Share Consumer (Kafka Queues / KIP-932)
+---------------------------------------
+
+`ShareConsumer` is a member of a share group, which gives point-to-point queue
+semantics on top of a topic: records are distributed across the group's members
+and acknowledged per message (Accept/Release/Reject), so consumers scale
+independently of the partition count. Poll returns a batch (`ShareMessageSet`);
+acknowledgement is implicit (auto-accept on the next poll) or explicit.
+
+This is a Preview feature and requires a broker with share groups enabled
+(Apache Kafka 4.2.0+).
+
+See [examples/share_consumer_example](examples/share_consumer_example)
+
 Function-Based Producer
 -----------------------
 
