@@ -1,5 +1,3 @@
-package kafka
-
 /**
  * Copyright 2026 Confluent Inc.
  *
@@ -15,6 +13,8 @@ package kafka
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package kafka
 
 import (
 	"fmt"
@@ -57,7 +57,6 @@ func (m *SerializableMessage[K, V]) toMessage() *Message {
 		Headers:        m.Headers,
 	}
 }
-
 
 // SerializedKeySize returns the size in bytes of the key as it was produced to
 // Kafka, or -1 when the message has no key.
