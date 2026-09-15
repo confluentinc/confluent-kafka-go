@@ -33,10 +33,11 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"runtime/debug" // Add Teuton
 	"strings"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	// "github.com/confluentinc/confluent-kafka-go/v2/kafka" // remove Teuton
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -84,15 +85,62 @@ const (
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
+
+	modulePath = "github.com/confluentinc/confluent-kafka-go/v2"  // Add Teuton
+	unknownVersion = "devel" // Add Teuton
 )
 
 // getClientVersionHeaderValue returns the client version header value
 // in the format "go/{version}"
 // Note: currently the client version is tied to the librdkafka version
+/*
 func getClientVersionHeaderValue() string {
 	_, version := kafka.LibraryVersion()
 	return "go/" + version
 }
+*/
+
+
+/*
+getClientVersionHeaderValue returns the client version header value in the format "go/{version}".
+
+Historically this used kafka.LibraryVersion(), but that pulled the CGo-based
+kafka package into the schemaregistry client, forcing CGO_ENABLED=1 on all
+consumers and bloating binaries with librdkafka. We now resolve the version 
+from the build info instead, so schemaregistry stays pure Go.
+*/
+
+func getClientVersionHeaderValue() string {
+	return "go/" + clientVersion()
+}
+
+func clientVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return unknownVersion
+	}
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath {
+			return normalizeVersion(dep.Version)
+		}
+	}
+	if info.Main.Path == modulePath {
+		return normalizeVersion(info.Main.Version)
+	}
+	return unknownVersion
+}
+
+func normalizeVersion(version string) string {
+	switch version {
+	case "", "(devel)":
+		return unknownVersion
+	default:
+		return strings.TrimPrefix(version, "v")
+	}
+}
+
+
+
 
 // API represents a REST API request
 type API struct {
