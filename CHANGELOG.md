@@ -6,6 +6,13 @@
 * Add support for saving Azure key version with DEK (#1577)
 * Pass context when clients make KEK calls to DEK Registry (#1579)
 * Add support for inline validation rules (#1592)
+* Bump golang.org/x/crypto to v0.56.0 to fix: GO-2026-6303, GO-2026-6354,
+  GO-2026-6355 in x/crypto/ssh (#1599).
+* Note: the golang.org/x/crypto bump pulls in that module's own `go 1.26.0`
+  directive, raising this module's `go` directive from 1.25.0 to 1.26.0.
+  Users on Go 1.25.x with `GOTOOLCHAIN=auto` (the default since Go 1.21)
+  will fetch a 1.26 toolchain transparently; users with `GOTOOLCHAIN=local`
+  must upgrade to Go 1.26.0 or later.
 
 
 ## v2.15.1
