@@ -90,8 +90,7 @@ const (
 )
 
 // getClientVersionHeaderValue returns the client version header value
-// in the format "go/{version}", read from build info instead of
-// kafka.LibraryVersion() so this package doesn't need CGo (see #1529).
+// in the format "go/{version}"
 func getClientVersionHeaderValue() string {
 	return "go/" + clientVersion()
 }
@@ -101,6 +100,10 @@ func clientVersion() string {
 	if !ok {
 		return fallbackClientVersion
 	}
+	return resolveClientVersion(info)
+}
+
+func resolveClientVersion(info *debug.BuildInfo) string {
 	for _, dep := range info.Deps {
 		if dep.Path == srModulePath && dep.Version != "" {
 			return normalizeVersion(dep.Version)
