@@ -34,6 +34,42 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 )
 
+func TestGetClientVersionHeaderValue(t *testing.T) {
+	got := getClientVersionHeaderValue()
+	if !strings.HasPrefix(got, "go/") {
+		t.Fatalf("expected header value to start with %q, got %q", "go/", got)
+	}
+	if strings.TrimPrefix(got, "go/") == "" {
+		t.Fatalf("expected a non-empty version suffix, got %q", got)
+	}
+}
+
+// In this repo's own test binary, confluent-kafka-go is the main module
+// rather than a dependency, so clientVersion should hit the fallback.
+func TestClientVersionFallback(t *testing.T) {
+	got := clientVersion()
+	if got == "" || got == "(devel)" {
+		t.Fatalf("expected a normalized fallback version, got raw value %q", got)
+	}
+}
+
+func TestNormalizeVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", fallbackClientVersion},
+		{"(devel)", fallbackClientVersion},
+		{"v2.15.1", "2.15.1"},
+		{"2.15.1", "2.15.1"},
+	}
+	for _, tt := range tests {
+		if got := normalizeVersion(tt.input); got != tt.want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 // networkErrorTransport is an http.RoundTripper that returns a network-level
 // error (as if the request failed before a response was received) for the
 // first failCalls invocations, then returns a 200 response. It records the
