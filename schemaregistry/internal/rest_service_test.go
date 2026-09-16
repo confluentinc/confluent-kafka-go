@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,92 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 )
+
+func TestGetClientVersionHeaderValue(t *testing.T) {
+	got := getClientVersionHeaderValue()
+	if !strings.HasPrefix(got, "go/") {
+		t.Fatalf("expected header value to start with %q, got %q", "go/", got)
+	}
+	if strings.TrimPrefix(got, "go/") == "" {
+		t.Fatalf("expected a non-empty version suffix, got %q", got)
+	}
+}
+
+func TestClientVersionFallback(t *testing.T) {
+	got := clientVersion()
+	if got == "" || got == "(devel)" {
+		t.Fatalf("expected a normalized fallback version, got raw value %q", got)
+	}
+}
+
+func TestResolveClientVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		info *debug.BuildInfo
+		want string
+	}{
+		{
+			name: "resolves from dependency",
+			info: &debug.BuildInfo{
+				Deps: []*debug.Module{{Path: srModulePath, Version: "v2.15.1"}},
+			},
+			want: "2.15.1",
+		},
+		{
+			name: "resolves from main module",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Path: srModulePath, Version: "v2.15.1"},
+			},
+			want: "2.15.1",
+		},
+		{
+			name: "dependency takes priority over main module",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Path: srModulePath, Version: "(devel)"},
+				Deps: []*debug.Module{{Path: srModulePath, Version: "v2.15.1"}},
+			},
+			want: "2.15.1",
+		},
+		{
+			name: "main module devel falls back",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Path: srModulePath, Version: "(devel)"},
+			},
+			want: fallbackClientVersion,
+		},
+		{
+			name: "module not present falls back",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Path: "some/other/module", Version: "v1.0.0"},
+			},
+			want: fallbackClientVersion,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveClientVersion(tt.info); got != tt.want {
+				t.Errorf("resolveClientVersion() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", fallbackClientVersion},
+		{"(devel)", fallbackClientVersion},
+		{"v2.15.1", "2.15.1"},
+		{"2.15.1", "2.15.1"},
+	}
+	for _, tt := range tests {
+		if got := normalizeVersion(tt.input); got != tt.want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
 
 // networkErrorTransport is an http.RoundTripper that returns a network-level
 // error (as if the request failed before a response was received) for the
