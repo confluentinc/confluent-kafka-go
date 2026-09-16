@@ -58,9 +58,9 @@ func validate(executor serde.ValidationRuleExecutor, resolver *avro.TypeResolver
 	}
 	switch schema.(type) {
 	case *avro.RefSchema:
-		// hamba parses every reference to a named type - whether it names a record from
-		// another subject or one already defined in this schema - into a RefSchema. Its
-		// rules live on the definition it points at, so unwrap it or they are skipped.
+		// Every reference to a named type parses into a RefSchema, whether it names a record
+		// from another subject or one already defined in this schema. Its rules live on the
+		// definition it points at, so unwrap it or they are skipped.
 		return validate(executor, resolver, schema.(*avro.RefSchema).Schema(), path, msg,
 			failFast, out)
 	case *avro.UnionSchema:

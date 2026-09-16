@@ -17,13 +17,16 @@
 package cel
 
 import (
+	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/common/types"
+	"cel.dev/cel-go/common/types/ref"
+	"cel.dev/cel-go/common/types/traits"
+	"cel.dev/cel-go/ext"
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/ext"
+	"github.com/hamba/avro/v2"
 	"google.golang.org/protobuf/proto"
 	"reflect"
 	"strings"
@@ -57,6 +60,25 @@ type Executor struct {
 	env       *cel.Env
 	cache     map[string]cel.Program
 	cacheLock sync.RWMutex
+	// A sync.Map, not a map plus a lock like cache above: a FieldExecutor builds its Executor
+	// field by field, so anything needing construction here would be nil on that path.
+	avroSchemas sync.Map
+}
+
+// avroSchema is the parsed target schema the Avro write-back narrows numeric results against,
+// or nil if it cannot be parsed - the serializer parsed the same text to get here, so a failure
+// means only that the narrowing is skipped rather than that the rule fails.
+func (c *Executor) avroSchema(text string) avro.Schema {
+	if cached, ok := c.avroSchemas.Load(text); ok {
+		schema, _ := cached.(avro.Schema)
+		return schema
+	}
+	parsed, err := avro.Parse(text)
+	if err != nil {
+		parsed = nil
+	}
+	c.avroSchemas.Store(text, parsed)
+	return parsed
 }
 
 // Configure configures the executor
@@ -109,10 +131,31 @@ func (c *Executor) execute(ctx serde.RuleContext, msg interface{}, args map[stri
 		}
 		expr = expr[index+1:]
 	}
-	return c.executeRule(ctx, expr, msg, args)
+	result, err := c.executeRule(ctx, expr, msg, args)
+	if err != nil {
+		return nil, err
+	}
+	return c.writeBack(ctx, msg, result)
+}
+
+// writeBack shapes a rule result into the form this format's serializer expects. A CONDITION
+// answers with a bool and is left alone; a protobuf TRANSFORM returning a map is returning a
+// whole new message and has to be rebuilt into one.
+func (c *Executor) writeBack(ctx serde.RuleContext, msg interface{}, result interface{}) (interface{}, error) {
+	if ctx.Rule.Kind == "CONDITION" {
+		return result, nil
+	}
+	if _, ok := msg.(proto.Message); ok {
+		return writeBackProtobuf(result, msg)
+	}
+	if ctx.Target != nil && ctx.Target.SchemaType == "AVRO" {
+		return writeBackAvro(c.avroSchema(ctx.Target.Schema), result)
+	}
+	return result, nil
 }
 
 func (c *Executor) executeRule(ctx serde.RuleContext, expr string, obj interface{}, args map[string]interface{}) (interface{}, error) {
+	args = boundaryArgs(args)
 	msg, ok := args["message"]
 	if !ok {
 		msg = obj
@@ -167,11 +210,42 @@ func findType(arg interface{}) *cel.Type {
 	if arg == nil {
 		return cel.NullType
 	}
+	// Before the proto.Message branch: a confluent.type.Decimal message would otherwise be
+	// declared as an object type, which is a different CEL type from the opaque decimalType
+	// that decimal(...) returns even though both carry the same name. See
+	// decimalBoundaryValue.
+	if _, ok := decimalBoundaryValue(arg); ok {
+		return decimalType
+	}
 	msg, ok := arg.(proto.Message)
 	if ok {
 		return cel.ObjectType(string(msg.ProtoReflect().Descriptor().FullName()))
 	}
 	return typeToCELType(arg)
+}
+
+// boundaryArgs presents each bound value the way this client's CEL surface expects. Only
+// decimal-shaped leaf values are rewritten; a record or map passes through untouched, so this is
+// a no-op for every binding other than a decimal field's value.
+func boundaryArgs(args map[string]interface{}) map[string]interface{} {
+	var out map[string]interface{}
+	for name, v := range args {
+		dv, ok := decimalBoundaryValue(v)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]interface{}, len(args))
+			for n, val := range args {
+				out[n] = val
+			}
+		}
+		out[name] = dv
+	}
+	if out == nil {
+		return args
+	}
+	return out
 }
 
 func typeToCELType(arg interface{}) *cel.Type {
@@ -248,15 +322,28 @@ func schemaFieldName(field reflect.StructField) string {
 // names are used when it is nil.
 func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.EnvOption,
 	fieldName func(reflect.StructField) string) (cel.Program, error) {
+	// nil for a nil message, which a walker may enter a field with. Nothing is registered
+	// then and `message` binds as CEL null, so `message == null` still compiles.
 	typ := reflect.TypeOf(msg)
-	if typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Interface {
-		typ = typ.Elem()
+	// Down to the type that actually carries fields, through any container. An inline
+	// *field* rule binds `this` to the field's own value, so a rule on an array of decimals
+	// compiles with this = []*big.Rat: stopping at the slice registered nothing, and
+	// `this[0]` failed with "unsupported conversion to ref.Val: (*big.Rat)". The domain path
+	// was unaffected only because `this` is the whole record there, and registering the
+	// record registers its field types with it.
+	for typ != nil {
+		switch typ.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
+			typ = typ.Elem()
+			continue
+		}
+		break
 	}
 	protoType, ok := msg.(proto.Message)
 	var declType cel.EnvOption
 	if ok {
 		declType = cel.Types(protoType)
-	} else if typ.Kind() == reflect.Struct {
+	} else if typ != nil && typ.Kind() == reflect.Struct {
 		if fieldName != nil {
 			declType = ext.NativeTypes(typ, ext.ParseStructField(fieldName))
 		} else {
@@ -270,6 +357,12 @@ func buildProgram(baseEnv *cel.Env, expr string, msg interface{}, decls []cel.En
 		envOptions = append(envOptions, declType)
 	}
 	env, err := baseEnv.Extend(envOptions...)
+	if err != nil {
+		return nil, err
+	}
+	// After the type registrations above, so the wrapped adapter is the one that knows them.
+	env, err = env.Extend(cel.CustomTypeAdapter(
+		decimalAdapter{inner: env.CELTypeAdapter(), fieldName: fieldName}))
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +397,109 @@ func evalProgram(expr string, program cel.Program, args map[string]interface{}) 
 	// Want type of type.Interface
 	// See https://stackoverflow.com/questions/18306151/in-go-which-value-s-kind-is-reflect-interface
 	wantType := reflect.ValueOf(&want).Type().Elem()
-	return out.ConvertToNative(wantType)
+	native, err := out.ConvertToNative(wantType)
+	if err == nil {
+		return native, nil
+	}
+	// A map can hold a value cel-go has no native form for. An Avro decimal read off a Go
+	// struct is one: ext.NativeTypes exposes it as an opaque big.Rat, and converting the
+	// whole map fails with "type conversion error from 'big.Rat' to 'interface {}'" - which
+	// took down every message-level transform over a record with a decimal field, including
+	// an identity one. Such values are still meaningful to the format's write-back, which
+	// knows how to encode them, so convert entry by entry and pass the rest through.
+	if mapper, ok := out.(traits.Mapper); ok {
+		if converted, mapErr := nativeStringMap(mapper, wantType); mapErr == nil {
+			return converted, nil
+		}
+	}
+	return nil, err
+}
+
+// nativeMap converts a CEL map one entry at a time, keeping any value that has no native
+// form as the Go value cel-go is holding rather than failing the whole conversion.
+//
+// The top-level result map is keyed by *field name*, so its keys really are strings and
+// nativeStringMap requires them. A nested map is a protobuf `map<K, V>` field, and protobuf
+// permits bool and every integral type as a key - so this keeps the keys as they are and lets
+// the write-back narrow each one through the field's own key descriptor. Requiring strings
+// here meant a `map<int32, Decimal>` (whose *values* also have no native form, so the whole-map
+// conversion fails and this path is the only one left) came back as the raw cel-go map, which
+// the writer cannot consume.
+func nativeMap(mapper traits.Mapper, wantType reflect.Type) (map[interface{}]interface{}, error) {
+	it := mapper.Iterator()
+	out := map[interface{}]interface{}{}
+	for it.HasNext() == types.True {
+		key := it.Next()
+		k := key.Value()
+		value := mapper.Get(key)
+		if types.IsError(value) {
+			return nil, fmt.Errorf("CEL map entry %v failed: %v", k, value.Value())
+		}
+		out[k] = nativeValue(value, wantType)
+	}
+	return out, nil
+}
+
+// nativeStringMap is nativeMap for the top-level result map, whose keys are field names.
+func nativeStringMap(mapper traits.Mapper, wantType reflect.Type) (map[string]interface{}, error) {
+	entries, err := nativeMap(mapper, wantType)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]interface{}, len(entries))
+	for k, v := range entries {
+		name, ok := k.(string)
+		if !ok {
+			return nil, fmt.Errorf("CEL map key %v is not a string", k)
+		}
+		out[name] = v
+	}
+	return out, nil
+}
+
+// nativeList is nativeMap for a CEL list.
+func nativeList(lister traits.Lister, wantType reflect.Type) ([]interface{}, error) {
+	size, ok := lister.Size().(types.Int)
+	if !ok {
+		return nil, fmt.Errorf("CEL list reports no size")
+	}
+	out := make([]interface{}, 0, int(size))
+	for i := 0; i < int(size); i++ {
+		value := lister.Get(types.Int(i))
+		if types.IsError(value) {
+			return nil, fmt.Errorf("CEL list element %d failed: %v", i, value.Value())
+		}
+		out = append(out, nativeValue(value, wantType))
+	}
+	return out, nil
+}
+
+// nativeValue converts one value out of a container, and when it has no native form of its
+// own it keeps the *structure* rather than the raw cel-go value.
+//
+// This is what a message transform echoing a container field depends on. A protobuf map field
+// passed through arrives here as cel-go's own *pb.Map, and an Avro map or array of decimals as
+// a map or list whose elements have no native form; falling straight back to Value() handed the
+// write-back a type it does not recognise, and it dropped the field **silently** - the identity
+// transform lost amount_map with no error. Recursing gives the write-back the plain Go shapes
+// it is written against, with the per-element fallback still available underneath.
+func nativeValue(value ref.Val, wantType reflect.Type) interface{} {
+	if native, err := value.ConvertToNative(wantType); err == nil {
+		return native
+	}
+	switch container := value.(type) {
+	case traits.Mapper:
+		if m, err := nativeMap(container, wantType); err == nil {
+			return m
+		}
+	case traits.Lister:
+		if l, err := nativeList(container, wantType); err == nil {
+			return l
+		}
+	}
+	// Still meaningful to a write-back that knows the format's own types - an Avro decimal
+	// read off a Go struct reaches the writer as a big.Rat this way.
+	return value.Value()
 }
 
 // Close closes the executor

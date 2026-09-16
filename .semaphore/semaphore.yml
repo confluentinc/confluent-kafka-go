@@ -28,7 +28,11 @@ blocks:
           - rm -rf tmp-build
           - brew install pkg-config
           - go install golang.org/x/lint/golint@latest && touch .do_lint
-          - go install github.com/wadey/gocovmerge@latest
+          # Non-fatal: gocovmerge has a bare go.mod (no go directive, no requires), so
+          # `@latest` resolves golang.org/x/tools to its newest version, which now needs
+          # a newer toolchain than this job pins. Coverage merging is already best-effort
+          # further down, so a missing tool must not fail the build.
+          - go install github.com/wadey/gocovmerge@latest || true
       jobs:
         - name: "Static Build"
           env_vars:
@@ -60,7 +64,11 @@ blocks:
           - sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install -v golang.org/x/lint/golint@latest && touch .do_lint
-          - go install github.com/wadey/gocovmerge@latest
+          # Non-fatal: gocovmerge has a bare go.mod (no go directive, no requires), so
+          # `@latest` resolves golang.org/x/tools to its newest version, which now needs
+          # a newer toolchain than this job pins. Coverage merging is already best-effort
+          # further down, so a missing tool must not fail the build.
+          - go install github.com/wadey/gocovmerge@latest || true
       jobs:
         - name: "Static Build + Integration tests (CGRP classic)"
           env_vars:
@@ -106,7 +114,11 @@ blocks:
           #- sudo apt-get install confluent-librdkafka-plugins -y
           - rm -rf tmp-build
           - go install golang.org/x/lint/golint@latest && touch .do_lint
-          - go install github.com/wadey/gocovmerge@latest
+          # Non-fatal: gocovmerge has a bare go.mod (no go directive, no requires), so
+          # `@latest` resolves golang.org/x/tools to its newest version, which now needs
+          # a newer toolchain than this job pins. Coverage merging is already best-effort
+          # further down, so a missing tool must not fail the build.
+          - go install github.com/wadey/gocovmerge@latest || true
       jobs:
         - name: "Static Build"
           env_vars:
