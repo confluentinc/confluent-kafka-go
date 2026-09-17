@@ -52,6 +52,16 @@ func TestClientVersionFallback(t *testing.T) {
 	}
 }
 
+func TestClientVersionNoBuildInfo(t *testing.T) {
+	orig := readBuildInfo
+	readBuildInfo = func() (*debug.BuildInfo, bool) { return nil, false }
+	defer func() { readBuildInfo = orig }()
+
+	if got := clientVersion(); got != fallbackClientVersion {
+		t.Errorf("clientVersion() = %q, want %q", got, fallbackClientVersion)
+	}
+}
+
 func TestResolveClientVersion(t *testing.T) {
 	tests := []struct {
 		name string
@@ -91,6 +101,28 @@ func TestResolveClientVersion(t *testing.T) {
 			name: "module not present falls back",
 			info: &debug.BuildInfo{
 				Main: debug.Module{Path: "some/other/module", Version: "v1.0.0"},
+			},
+			want: fallbackClientVersion,
+		},
+		{
+			name: "resolves from replaced dependency",
+			info: &debug.BuildInfo{
+				Deps: []*debug.Module{{
+					Path:    srModulePath,
+					Version: "v2.10.0",
+					Replace: &debug.Module{Path: "github.com/someone/fork", Version: "v2.15.1"},
+				}},
+			},
+			want: "2.15.1",
+		},
+		{
+			name: "replaced dependency without version falls back",
+			info: &debug.BuildInfo{
+				Deps: []*debug.Module{{
+					Path:    srModulePath,
+					Version: "v2.10.0",
+					Replace: &debug.Module{Path: "../local"},
+				}},
 			},
 			want: fallbackClientVersion,
 		},

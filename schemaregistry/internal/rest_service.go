@@ -95,8 +95,11 @@ func getClientVersionHeaderValue() string {
 	return "go/" + clientVersion()
 }
 
+// readBuildInfo is a var so tests can override it to exercise the ok=false case.
+var readBuildInfo = debug.ReadBuildInfo
+
 func clientVersion() string {
-	info, ok := debug.ReadBuildInfo()
+	info, ok := readBuildInfo()
 	if !ok {
 		return fallbackClientVersion
 	}
@@ -105,8 +108,15 @@ func clientVersion() string {
 
 func resolveClientVersion(info *debug.BuildInfo) string {
 	for _, dep := range info.Deps {
-		if dep.Path == srModulePath && dep.Version != "" {
-			return normalizeVersion(dep.Version)
+		if dep.Path != srModulePath {
+			continue
+		}
+		version := dep.Version
+		if dep.Replace != nil {
+			version = dep.Replace.Version
+		}
+		if version != "" {
+			return normalizeVersion(version)
 		}
 	}
 	if info.Main.Path == srModulePath && info.Main.Version != "" {
