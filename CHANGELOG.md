@@ -7,6 +7,13 @@
 * Pass context when clients make KEK calls to DEK Registry (#1579)
 * Add support for inline validation rules (#1592)
 
+### Fixes
+* Remove the Schema Registry client's dependency on the CGo-based `kafka`
+  package, which broke `CGO_ENABLED=0` builds and pulled in librdkafka just
+  to read a version string. The `Confluent-Client-Version` header now
+  reports the confluent-kafka-go module version, resolved from build info
+  (#1529, #1607)
+
 
 ## v2.15.1
 
