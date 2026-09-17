@@ -33,10 +33,10 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"runtime/debug"
 	"strings"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -84,14 +84,54 @@ const (
 
 	TargetSRClusterKey      = "Target-Sr-Cluster"
 	TargetIdentityPoolIDKey = "Confluent-Identity-Pool-Id"
+
+	srModulePath          = "github.com/confluentinc/confluent-kafka-go/v2"
+	fallbackClientVersion = "devel"
 )
 
 // getClientVersionHeaderValue returns the client version header value
 // in the format "go/{version}"
-// Note: currently the client version is tied to the librdkafka version
 func getClientVersionHeaderValue() string {
-	_, version := kafka.LibraryVersion()
-	return "go/" + version
+	return "go/" + clientVersion()
+}
+
+// readBuildInfo is a var so tests can override it to exercise the ok=false case.
+var readBuildInfo = debug.ReadBuildInfo
+
+func clientVersion() string {
+	info, ok := readBuildInfo()
+	if !ok {
+		return fallbackClientVersion
+	}
+	return resolveClientVersion(info)
+}
+
+func resolveClientVersion(info *debug.BuildInfo) string {
+	for _, dep := range info.Deps {
+		if dep.Path != srModulePath {
+			continue
+		}
+		version := dep.Version
+		if dep.Replace != nil {
+			version = dep.Replace.Version
+		}
+		if version != "" {
+			return normalizeVersion(version)
+		}
+	}
+	if info.Main.Path == srModulePath && info.Main.Version != "" {
+		return normalizeVersion(info.Main.Version)
+	}
+	return fallbackClientVersion
+}
+
+func normalizeVersion(version string) string {
+	switch version {
+	case "", "(devel)":
+		return fallbackClientVersion
+	default:
+		return strings.TrimPrefix(version, "v")
+	}
 }
 
 // API represents a REST API request
