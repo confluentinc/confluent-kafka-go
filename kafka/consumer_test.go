@@ -146,6 +146,27 @@ func testConsumerAPIs(t *testing.T, c *Consumer, errCheck error) {
 		t.Errorf("Resume() should have thrown err : %s, but got %s", errCheck, err)
 	}
 
+	// Pause & Resume - errors
+	tps := []TopicPartition{{Topic: &topic, Partition: 2}, {Topic: &topic2, Partition: 1}}
+	err = c.Pause(tps)
+	if err == nil || !strings.HasPrefix(err.Error(), "1 error(s)") {
+		t.Errorf("Expected an error in Pause given unsubscribed topic, got %s", err)
+
+		if tps[0].Error == nil || tps[1].Error != nil {
+			t.Errorf("Errors not set correctly for Pause, %v", tps)
+		}
+	}
+
+	tps = []TopicPartition{{Topic: &topic, Partition: 2}, {Topic: &topic, Partition: 1}}
+	err = c.Resume(tps)
+	if err == nil || !strings.HasPrefix(err.Error(), "2 error(s)") {
+		t.Errorf("Expected an error in Resume given unsubscribed topic, got %s", err)
+
+		if tps[0].Error == nil || tps[1].Error == nil {
+			t.Errorf("Errors not set correctly for Resume, %v", tps)
+		}
+	}
+
 	err = c.Unassign()
 	if err != errCheck {
 		t.Errorf("Unassign() should have thrown err : %s, but got %s", errCheck, err)
