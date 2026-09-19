@@ -962,8 +962,13 @@ func (s *BaseSerializer) GetSchemaID(schemaType string, topic string, msg interf
 	return *schemaID, nil
 }
 
-// SetRuleRegistry sets the rule registry
+// SetRuleRegistry sets the rule registry. A nil registry selects the global one, so
+// callers threading through an optional per-serializer registry can pass it straight
+// through without a nil check.
 func (s *Serde) SetRuleRegistry(registry *RuleRegistry, ruleConfig map[string]string) error {
+	if registry == nil {
+		registry = GlobalRuleRegistry()
+	}
 	s.RuleRegistry = registry
 	for _, rule := range registry.GetExecutors() {
 		err := rule.Configure(s.Client.Config(), ruleConfig)

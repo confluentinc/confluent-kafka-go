@@ -30,6 +30,15 @@ type SerializerConfig struct {
 	NormalizeSchemas bool
 	// RuleConfig specifies configuration options to the rules
 	RuleConfig map[string]string
+	// RuleRegistry supplies an alternative registry of rule executors, actions, and
+	// overrides for this serializer to use instead of the global one. When nil (the
+	// default), the global registry is used - the same one the rules packages' Register
+	// functions populate. Provide a dedicated *RuleRegistry (see NewRuleRegistry) to
+	// isolate this serializer's rule executors from the process-wide global state, so
+	// that concurrently-constructed serializers do not share and reconfigure the same
+	// executor instances. Populate it via RegisterExecutor/RegisterAction; nothing is
+	// linked in on your behalf, exactly as with the global registry.
+	RuleRegistry *RuleRegistry
 	// SubjectNameStrategyType specifies the subject name strategy type
 	SubjectNameStrategyType SubjectNameStrategyType
 	// SubjectNameStrategyConfig specifies configuration options for the subject name strategy
@@ -70,6 +79,15 @@ type DeserializerConfig struct {
 	UseLatestWithMetadata map[string]string
 	// RuleConfig specifies configuration options to the rules
 	RuleConfig map[string]string
+	// RuleRegistry supplies an alternative registry of rule executors, actions, and
+	// overrides for this deserializer to use instead of the global one. When nil (the
+	// default), the global registry is used - the same one the rules packages' Register
+	// functions populate. Provide a dedicated *RuleRegistry (see NewRuleRegistry) to
+	// isolate this deserializer's rule executors from the process-wide global state, so
+	// that concurrently-constructed deserializers do not share and reconfigure the same
+	// executor instances. Populate it via RegisterExecutor/RegisterAction; nothing is
+	// linked in on your behalf, exactly as with the global registry.
+	RuleRegistry *RuleRegistry
 	// SubjectNameStrategyType specifies the subject name strategy type
 	SubjectNameStrategyType SubjectNameStrategyType
 	// SubjectNameStrategyConfig specifies configuration options for the subject name strategy
