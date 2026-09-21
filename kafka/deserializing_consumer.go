@@ -31,15 +31,30 @@ type DeserializingConsumer[K, V any] struct {
 }
 
 // Deserializer turns the bytes consumed from Kafka into a typed key or value.
-//
-// A Deserializer that resolves part of its configuration from the Kafka cluster
-// ID reports that by returning true from NeedsClusterID; the cluster ID is then
-// fetched once while the [DeserializingConsumer] is built and handed over
-// through SetClusterID before the first message is deserialized.
 type Deserializer interface {
 	DeserializeWithHeaders(topic string, headers []Header, payload []byte) (interface{}, error)
-	NeedsClusterID() bool
-	SetClusterID(clusterID string)
+
+	// SetClusterIDResolver hands the deserializer a resolver for the ID of the
+	// Kafka cluster the [DeserializingConsumer] is connected to, for the part
+	// of its configuration that depends on it.
+	//
+	// The resolver is invoked whenever the deserializer actually needs the ID,
+	// never while the consumer is being built, so construction never waits on
+	// a broker - which it could not reach anyway when, for instance, the
+	// OAUTHBEARER token refresh callback is only served from Poll. By the time
+	// a message has been fetched the metadata is already cached, so the
+	// resolver returns at once. It may block for up to a minute while the
+	// consumer reaches a broker, and reports an error if it cannot.
+	//
+	// The resolver is bound to the consumer that supplied it and fails once
+	// that consumer is closed, so a deserializer must not outlive the consumer
+	// it was given to, unless the cluster ID it needs was configured
+	// explicitly. Implementations that do not use the cluster ID, or that had
+	// one configured explicitly, ignore the resolver.
+	SetClusterIDResolver(resolve func() (string, error))
+
+	// Close releases the resources the deserializer created itself. Resources
+	// the application supplied are left alone.
 	Close() error
 }
 
@@ -117,13 +132,39 @@ type DeserializerBuilder interface {
 
 // NewDeserializingConsumer is the same as [NewConsumer], returning a
 // [DeserializingConsumer] wrapping the created [Consumer].
+//
+// A deserializer a builder created is owned by the returned consumer and
+// closed along with it. Should construction fail at any point, whatever was
+// built up to then - the deserializers, and the [Consumer] itself - is
+// released before the error is returned, since the caller has no handle to
+// close.
 func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	keyDeserializerBuilder DeserializerBuilder,
 	valueDeserializerBuilder DeserializerBuilder) (*DeserializingConsumer[K, V], error) {
 
 	var keyDeserializer, valueDeserializer Deserializer
+	var c *Consumer
 	var filteredConf *ConfigMap = conf
 	var err error
+
+	succeeded := false
+	defer func() {
+		if succeeded {
+			return
+		}
+		if keyDeserializer != nil {
+			_ = keyDeserializer.Close()
+		}
+		if valueDeserializer != nil {
+			_ = valueDeserializer.Close()
+		}
+		if c != nil {
+			_ = c.Close()
+		}
+	}()
+
+	// The deserializers are built before the consumer, so that a builder that
+	// fails leaves no Kafka client behind.
 	if keyDeserializerBuilder != nil {
 		keyDeserializer, filteredConf, err = keyDeserializerBuilder.Build(conf, true)
 		if err != nil {
@@ -138,28 +179,34 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 		}
 	}
 
-	c, err := NewConsumer(filteredConf)
+	c, err = NewConsumer(filteredConf)
 	if err != nil {
 		return nil, err
 	}
 
-	keyNeedsClusterID := keyDeserializer != nil && keyDeserializer.NeedsClusterID()
-	valueNeedsClusterID := valueDeserializer != nil && valueDeserializer.NeedsClusterID()
-	if keyNeedsClusterID || valueNeedsClusterID {
-		// Timeout of 60 seconds corresponds to the default max.block.ms in Java for metadata retrieval.
-		clusterID, err := c.getClusterID(60000)
-		if err != nil {
-			return nil, err
-		}
-		if keyNeedsClusterID {
-			keyDeserializer.SetClusterID(clusterID)
-		}
-		if valueNeedsClusterID {
-			valueDeserializer.SetClusterID(clusterID)
+	propagateClusterIDResolverToDeserializers(c, keyDeserializer, valueDeserializer)
+
+	dc := &DeserializingConsumer[K, V]{consumer: c, keyDeserializer: keyDeserializer, valueDeserializer: valueDeserializer}
+	succeeded = true
+	return dc, nil
+}
+
+// propagateClusterIDResolverToDeserializers hands each deserializer a resolver
+// for the ID of the Kafka cluster the consumer is connected to.
+//
+// The ID is resolved lazily, when a deserializer needs it, rather than here:
+// by then a message has been fetched, so the metadata is already cached and
+// the resolver returns at once, whereas resolving during construction would
+// wait on a broker that an OAUTHBEARER consumer, whose token refresh callback
+// is only served from Poll, cannot yet reach.
+func propagateClusterIDResolverToDeserializers(c *Consumer, deserializers ...Deserializer) {
+	resolve := func() (string, error) { return c.getClusterID(clusterIDTimeoutMs) }
+
+	for _, deserializer := range deserializers {
+		if deserializer != nil {
+			deserializer.SetClusterIDResolver(resolve)
 		}
 	}
-	dc := &DeserializingConsumer[K, V]{consumer: c, keyDeserializer: keyDeserializer, valueDeserializer: valueDeserializer}
-	return dc, nil
 }
 
 // IsClosed is the same as [Consumer.IsClosed].

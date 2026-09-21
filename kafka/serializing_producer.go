@@ -21,6 +21,11 @@ import (
 	"fmt"
 )
 
+// clusterIDTimeoutMs is the maximum period of time a serde's cluster ID
+// resolver waits for the Kafka cluster ID, each time it resolves it. It
+// matches the default max.block.ms used in Java for metadata retrieval.
+const clusterIDTimeoutMs = 60000
+
 // SerializingProducer wraps a [Producer] and exposes all of its public
 // methods. See [Producer] for detailed documentation of the underlying
 // behavior.
@@ -31,16 +36,30 @@ type SerializingProducer[K, V any] struct {
 }
 
 // Serializer turns a typed key or value into the bytes produced to Kafka.
-//
-// A Serializer that resolves part of its configuration from the Kafka cluster
-// ID reports that by returning true from NeedsClusterID; the cluster ID is then
-// fetched once while the [SerializingProducer] is built and handed over through
-// SetClusterID before the first message is serialized.
 type Serializer interface {
 	Serialize(topic string, msg interface{}) ([]byte, error)
 	SerializeWithHeaders(topic string, msg interface{}) ([]Header, []byte, error)
-	NeedsClusterID() bool
-	SetClusterID(clusterID string)
+
+	// SetClusterIDResolver hands the serializer a resolver for the ID of the
+	// Kafka cluster the [SerializingProducer] is connected to, for the part of
+	// its configuration that depends on it.
+	//
+	// The resolver is invoked whenever the serializer actually needs the ID,
+	// never while the producer is being built, so construction never waits on
+	// a broker - which it could not reach anyway when, for instance, the
+	// OAUTHBEARER token refresh callback is only served once the producer is
+	// polling. It may block for up to a minute while the producer reaches a
+	// broker, and reports an error if it cannot.
+	//
+	// The resolver is bound to the producer that supplied it and fails once
+	// that producer is closed, so a serializer must not outlive the producer
+	// it was given to, unless the cluster ID it needs was configured
+	// explicitly. Implementations that do not use the cluster ID, or that had
+	// one configured explicitly, ignore the resolver.
+	SetClusterIDResolver(resolve func() (string, error))
+
+	// Close releases the resources the serializer created itself. Resources
+	// the application supplied are left alone.
 	Close() error
 }
 
@@ -57,13 +76,38 @@ type SerializerBuilder interface {
 
 // NewSerializingProducer is the same as [NewProducer], returning a
 // [SerializingProducer] wrapping the created [Producer].
+//
+// A serializer a builder created is owned by the returned producer and closed
+// along with it. Should construction fail at any point, whatever was built up
+// to then - the serializers, and the [Producer] itself - is released before
+// the error is returned, since the caller has no handle to close.
 func NewSerializingProducer[K, V any](conf *ConfigMap,
 	keySerializerBuilder SerializerBuilder,
 	valueSerializerBuilder SerializerBuilder) (*SerializingProducer[K, V], error) {
 
 	var keySerializer, valueSerializer Serializer
+	var p *Producer
 	var filteredConf *ConfigMap = conf
 	var err error
+
+	succeeded := false
+	defer func() {
+		if succeeded {
+			return
+		}
+		if keySerializer != nil {
+			_ = keySerializer.Close()
+		}
+		if valueSerializer != nil {
+			_ = valueSerializer.Close()
+		}
+		if p != nil {
+			p.Close()
+		}
+	}()
+
+	// The serializers are built before the producer, so that a builder that
+	// fails leaves no Kafka client behind.
 	if keySerializerBuilder != nil {
 		keySerializer, filteredConf, err = keySerializerBuilder.Build(conf, true)
 		if err != nil {
@@ -78,29 +122,35 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 		}
 	}
 
-	p, err := NewProducer(filteredConf)
+	p, err = NewProducer(filteredConf)
 	if err != nil {
 		return nil, err
 	}
 
-	keyNeedsClusterID := keySerializer != nil && keySerializer.NeedsClusterID()
-	valueNeedsClusterID := valueSerializer != nil && valueSerializer.NeedsClusterID()
-	if keyNeedsClusterID || valueNeedsClusterID {
-		// Timeout of 60 seconds corresponds to the default max.block.ms in Java for metadata retrieval.
-		clusterID, err := p.getClusterID(60000)
-		if err != nil {
-			return nil, err
-		}
-		if keyNeedsClusterID {
-			keySerializer.SetClusterID(clusterID)
-		}
-		if valueNeedsClusterID {
-			valueSerializer.SetClusterID(clusterID)
-		}
-	}
+	propagateClusterIDResolver(p, keySerializer, valueSerializer)
+
 	sp := &SerializingProducer[K, V]{producer: p, keySerializer: keySerializer, valueSerializer: valueSerializer}
 	p.setSendMessageToChannelFunction(sp.sendToChannel)
+	succeeded = true
 	return sp, nil
+}
+
+// propagateClusterIDResolver hands each serializer a resolver for the ID of
+// the Kafka cluster the producer is connected to.
+//
+// The ID is resolved lazily, when a serializer needs it, rather than here: by
+// then the producer has typically reached a broker and librdkafka has the
+// metadata cached, whereas resolving during construction would block - and an
+// OAUTHBEARER producer, whose token refresh is only served once it is polling,
+// could not reach a broker at all.
+func propagateClusterIDResolver(p *Producer, serializers ...Serializer) {
+	resolve := func() (string, error) { return p.getClusterID(clusterIDTimeoutMs) }
+
+	for _, serializer := range serializers {
+		if serializer != nil {
+			serializer.SetClusterIDResolver(resolve)
+		}
+	}
 }
 
 func (sp *SerializingProducer[K, V]) sendToChannel(msg *Message, deliveryChan *chan Event, termChan chan bool) bool {

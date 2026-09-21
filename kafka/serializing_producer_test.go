@@ -27,13 +27,13 @@ import (
 
 // mockSerializer is a Serializer that records what it was asked to serialize.
 type mockSerializer struct {
-	prefix         string
-	err            error
-	needsClusterID bool
-	clusterID      string
-	topics         []string
-	messages       []interface{}
-	closed         int
+	prefix           string
+	err              error
+	clusterIDResolve func() (string, error)
+	resolverSet      int
+	topics           []string
+	messages         []interface{}
+	closed           int
 }
 
 func (s *mockSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
@@ -53,12 +53,9 @@ func (s *mockSerializer) SerializeWithHeaders(topic string, msg interface{}) ([]
 	return []Header{{Key: "mock", Value: []byte(s.prefix)}}, payload, nil
 }
 
-func (s *mockSerializer) NeedsClusterID() bool {
-	return s.needsClusterID
-}
-
-func (s *mockSerializer) SetClusterID(clusterID string) {
-	s.clusterID = clusterID
+func (s *mockSerializer) SetClusterIDResolver(resolve func() (string, error)) {
+	s.clusterIDResolve = resolve
+	s.resolverSet++
 }
 
 func (s *mockSerializer) Close() error {
@@ -185,20 +182,78 @@ func TestSerializingProducerBuilderError(t *testing.T) {
 	}
 }
 
-// TestSerializingProducerClusterIDNotNeeded verifies that no cluster ID is
-// looked up, nor set, when neither serializer needs it.
-func TestSerializingProducerClusterIDNotNeeded(t *testing.T) {
-	keySerializer := &mockSerializer{needsClusterID: false}
-	valueSerializer := &mockSerializer{needsClusterID: false}
+// TestSerializingProducerClusterIDResolverIsLazy verifies that both
+// serializers are handed a cluster ID resolver, and that constructing the
+// producer neither invokes it nor waits on the broker: with no broker
+// reachable, an eager lookup would stall for the full resolver timeout.
+func TestSerializingProducerClusterIDResolverIsLazy(t *testing.T) {
+	keySerializer := &mockSerializer{}
+	valueSerializer := &mockSerializer{}
 
+	start := time.Now()
 	p := newTestSerializingProducer[string, string](t,
 		&mockSerializerBuilder{serializer: keySerializer},
 		&mockSerializerBuilder{serializer: valueSerializer})
 	defer p.Close()
+	elapsed := time.Since(start)
 
-	if keySerializer.clusterID != "" || valueSerializer.clusterID != "" {
-		t.Errorf("Expected no cluster ID to be set, got %q and %q",
-			keySerializer.clusterID, valueSerializer.clusterID)
+	for name, serializer := range map[string]*mockSerializer{
+		"key": keySerializer, "value": valueSerializer} {
+		if serializer.resolverSet != 1 {
+			t.Errorf("Expected the %s serializer to be given a resolver once, got %d",
+				name, serializer.resolverSet)
+		}
+		if serializer.clusterIDResolve == nil {
+			t.Errorf("Expected the %s serializer to be given a non-nil resolver", name)
+		}
+	}
+
+	if elapsed >= clusterIDTimeoutMs*time.Millisecond {
+		t.Errorf("Construction took %s, so it resolved the cluster ID eagerly", elapsed)
+	}
+}
+
+// TestSerializingProducerClosesSerializersWhenABuilderFails verifies that a
+// serializer already built is closed when the other builder fails: the caller
+// gets no producer to close it with.
+func TestSerializingProducerClosesSerializersWhenABuilderFails(t *testing.T) {
+	keySerializer := &mockSerializer{}
+
+	_, err := NewSerializingProducer[string, string](&ConfigMap{
+		"bootstrap.servers": "127.0.0.1:65533",
+	},
+		&mockSerializerBuilder{serializer: keySerializer},
+		&mockSerializerBuilder{err: fmt.Errorf("builder failed")})
+	if err == nil {
+		t.Fatal("Expected an error from the failing value serializer builder")
+	}
+
+	if keySerializer.closed != 1 {
+		t.Errorf("Expected the key serializer to be closed once, got %d", keySerializer.closed)
+	}
+}
+
+// TestSerializingProducerClosesSerializersWhenProducerCreationFails verifies
+// that both serializers are closed when the Kafka producer cannot be created.
+func TestSerializingProducerClosesSerializersWhenProducerCreationFails(t *testing.T) {
+	keySerializer := &mockSerializer{}
+	valueSerializer := &mockSerializer{}
+
+	_, err := NewSerializingProducer[string, string](&ConfigMap{
+		"bootstrap.servers":      "127.0.0.1:65533",
+		"no.such.kafka.property": "value",
+	},
+		&mockSerializerBuilder{serializer: keySerializer},
+		&mockSerializerBuilder{serializer: valueSerializer})
+	if err == nil {
+		t.Fatal("Expected an error from the invalid producer configuration")
+	}
+
+	if keySerializer.closed != 1 {
+		t.Errorf("Expected the key serializer to be closed once, got %d", keySerializer.closed)
+	}
+	if valueSerializer.closed != 1 {
+		t.Errorf("Expected the value serializer to be closed once, got %d", valueSerializer.closed)
 	}
 }
 

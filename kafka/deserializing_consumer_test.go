@@ -18,6 +18,7 @@ package kafka
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -26,15 +27,15 @@ import (
 // mockDeserializer is a Deserializer that returns a canned value and records
 // what it was asked to deserialize.
 type mockDeserializer struct {
-	value          interface{}
-	err            error
-	needsClusterID bool
-	clusterID      string
-	topics         []string
-	headers        [][]Header
-	payloads       [][]byte
-	closeErr       error
-	closed         int
+	value            interface{}
+	err              error
+	clusterIDResolve func() (string, error)
+	resolverSet      int
+	topics           []string
+	headers          [][]Header
+	payloads         [][]byte
+	closeErr         error
+	closed           int
 }
 
 func (d *mockDeserializer) DeserializeWithHeaders(topic string, headers []Header, payload []byte) (interface{}, error) {
@@ -47,12 +48,9 @@ func (d *mockDeserializer) DeserializeWithHeaders(topic string, headers []Header
 	return d.value, nil
 }
 
-func (d *mockDeserializer) NeedsClusterID() bool {
-	return d.needsClusterID
-}
-
-func (d *mockDeserializer) SetClusterID(clusterID string) {
-	d.clusterID = clusterID
+func (d *mockDeserializer) SetClusterIDResolver(resolve func() (string, error)) {
+	d.clusterIDResolve = resolve
+	d.resolverSet++
 }
 
 func (d *mockDeserializer) Close() error {
@@ -182,20 +180,81 @@ func TestDeserializingConsumerBuilderError(t *testing.T) {
 	}
 }
 
-// TestDeserializingConsumerClusterIDNotNeeded verifies that no cluster ID is
-// looked up, nor set, when neither deserializer needs it.
-func TestDeserializingConsumerClusterIDNotNeeded(t *testing.T) {
-	keyDeserializer := &mockDeserializer{needsClusterID: false}
-	valueDeserializer := &mockDeserializer{needsClusterID: false}
+// TestDeserializingConsumerClusterIDResolverIsLazy verifies that both
+// deserializers are handed a cluster ID resolver, and that constructing the
+// consumer neither invokes it nor waits on the broker: with no broker
+// reachable, an eager lookup would stall for the full resolver timeout.
+func TestDeserializingConsumerClusterIDResolverIsLazy(t *testing.T) {
+	keyDeserializer := &mockDeserializer{}
+	valueDeserializer := &mockDeserializer{}
 
+	start := time.Now()
 	c := newTestDeserializingConsumer[string, string](t,
 		&mockDeserializerBuilder{deserializer: keyDeserializer},
 		&mockDeserializerBuilder{deserializer: valueDeserializer})
 	defer c.Close()
+	elapsed := time.Since(start)
 
-	if keyDeserializer.clusterID != "" || valueDeserializer.clusterID != "" {
-		t.Errorf("Expected no cluster ID to be set, got %q and %q",
-			keyDeserializer.clusterID, valueDeserializer.clusterID)
+	for name, deserializer := range map[string]*mockDeserializer{
+		"key": keyDeserializer, "value": valueDeserializer} {
+		if deserializer.resolverSet != 1 {
+			t.Errorf("Expected the %s deserializer to be given a resolver once, got %d",
+				name, deserializer.resolverSet)
+		}
+		if deserializer.clusterIDResolve == nil {
+			t.Errorf("Expected the %s deserializer to be given a non-nil resolver", name)
+		}
+	}
+
+	if elapsed >= clusterIDTimeoutMs*time.Millisecond {
+		t.Errorf("Construction took %s, so it resolved the cluster ID eagerly", elapsed)
+	}
+}
+
+// TestDeserializingConsumerClosesDeserializersWhenABuilderFails verifies that
+// a deserializer already built is closed when the other builder fails: the
+// caller gets no consumer to close it with.
+func TestDeserializingConsumerClosesDeserializersWhenABuilderFails(t *testing.T) {
+	keyDeserializer := &mockDeserializer{}
+
+	_, err := NewDeserializingConsumer[string, string](&ConfigMap{
+		"group.id":          "gotest",
+		"bootstrap.servers": "127.0.0.1:65533",
+	},
+		&mockDeserializerBuilder{deserializer: keyDeserializer},
+		&mockDeserializerBuilder{err: fmt.Errorf("builder failed")})
+	if err == nil {
+		t.Fatal("Expected an error from the failing value deserializer builder")
+	}
+
+	if keyDeserializer.closed != 1 {
+		t.Errorf("Expected the key deserializer to be closed once, got %d", keyDeserializer.closed)
+	}
+}
+
+// TestDeserializingConsumerClosesDeserializersWhenConsumerCreationFails
+// verifies that both deserializers are closed when the Kafka consumer cannot
+// be created.
+func TestDeserializingConsumerClosesDeserializersWhenConsumerCreationFails(t *testing.T) {
+	keyDeserializer := &mockDeserializer{}
+	valueDeserializer := &mockDeserializer{}
+
+	_, err := NewDeserializingConsumer[string, string](&ConfigMap{
+		"group.id":               "gotest",
+		"bootstrap.servers":      "127.0.0.1:65533",
+		"no.such.kafka.property": "value",
+	},
+		&mockDeserializerBuilder{deserializer: keyDeserializer},
+		&mockDeserializerBuilder{deserializer: valueDeserializer})
+	if err == nil {
+		t.Fatal("Expected an error from the invalid consumer configuration")
+	}
+
+	if keyDeserializer.closed != 1 {
+		t.Errorf("Expected the key deserializer to be closed once, got %d", keyDeserializer.closed)
+	}
+	if valueDeserializer.closed != 1 {
+		t.Errorf("Expected the value deserializer to be closed once, got %d", valueDeserializer.closed)
 	}
 }
 
