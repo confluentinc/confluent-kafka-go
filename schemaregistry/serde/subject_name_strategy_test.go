@@ -17,6 +17,7 @@
 package serde
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -63,64 +64,102 @@ func newTestClient(t *testing.T) schemaregistry.Client {
 	return client
 }
 
-// TestAssociatedNameStrategyClusterID covers the cluster ID handling of the
-// associated name strategy, which decides whether the Kafka cluster ID has to
-// be fetched from the cluster.
+// TestAssociatedNameStrategyClusterID covers the cluster ID resolution of the
+// associated name strategy: which namespace it looks associations up in, and
+// when it invokes the resolver the client handed it.
 func TestAssociatedNameStrategyClusterID(t *testing.T) {
 	client := newTestClient(t)
 
-	// Without a configured cluster ID, the strategy needs one and defaults to
-	// the wildcard namespace until it is set.
+	resolveTo := func(clusterID string, err error) (func() (string, error), *int) {
+		calls := 0
+		return func() (string, error) {
+			calls++
+			return clusterID, err
+		}, &calls
+	}
+
+	// Without a configured cluster ID and without a resolver, the strategy
+	// falls back to the wildcard namespace.
 	strategy, err := newAssociatedNameStrategy(client, map[string]string{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create the strategy: %s", err)
 	}
-	if !strategy.needsClusterID() {
-		t.Errorf("Expected the strategy to need the cluster ID")
-	}
-	if strategy.kafkaClusterID != NamespaceWildcard {
-		t.Errorf("Expected the wildcard namespace, got %s", strategy.kafkaClusterID)
+	clusterID, err := strategy.resolveClusterID()
+	if err != nil || clusterID != NamespaceWildcard {
+		t.Errorf("Expected the wildcard namespace, got %q (%v)", clusterID, err)
 	}
 
-	strategy.setClusterID("lkc-123")
-	if strategy.kafkaClusterID != "lkc-123" {
-		t.Errorf("Expected lkc-123, got %s", strategy.kafkaClusterID)
-	}
-	if strategy.needsClusterID() {
-		t.Errorf("Expected the strategy not to need the cluster ID anymore")
+	// A resolver supplies the namespace, and is invoked on every resolution:
+	// the ID is deliberately not cached here.
+	resolve, calls := resolveTo("lkc-123", nil)
+	strategy.setClusterIDResolver(resolve)
+	for i := 1; i <= 2; i++ {
+		clusterID, err = strategy.resolveClusterID()
+		if err != nil || clusterID != "lkc-123" {
+			t.Errorf("Expected lkc-123, got %q (%v)", clusterID, err)
+		}
+		if *calls != i {
+			t.Errorf("Expected the resolver to have been invoked %d times, got %d", i, *calls)
+		}
 	}
 
-	// Once set, the cluster ID is not overwritten.
-	strategy.setClusterID("lkc-456")
-	if strategy.kafkaClusterID != "lkc-123" {
-		t.Errorf("Expected lkc-123 to be kept, got %s", strategy.kafkaClusterID)
+	// The most recently supplied resolver wins.
+	resolve, _ = resolveTo("lkc-456", nil)
+	strategy.setClusterIDResolver(resolve)
+	clusterID, err = strategy.resolveClusterID()
+	if err != nil || clusterID != "lkc-456" {
+		t.Errorf("Expected lkc-456, got %q (%v)", clusterID, err)
 	}
 
-	// An explicitly configured cluster ID needs no lookup.
+	// A resolver that fails - the client has not reached a broker - fails the
+	// resolution, rather than silently falling back to the wildcard.
+	resolve, _ = resolveTo("", fmt.Errorf("no broker"))
+	strategy.setClusterIDResolver(resolve)
+	_, err = strategy.resolveClusterID()
+	if err == nil {
+		t.Fatalf("Expected a failing resolver to fail the resolution")
+	}
+	if !strings.Contains(err.Error(), KafkaClusterIDConfig) || !strings.Contains(err.Error(), "no broker") {
+		t.Errorf("Expected the error to name %s and wrap the resolver error, got %v",
+			KafkaClusterIDConfig, err)
+	}
+
+	// So does one that resolves to an empty cluster ID.
+	resolve, _ = resolveTo("", nil)
+	strategy.setClusterIDResolver(resolve)
+	_, err = strategy.resolveClusterID()
+	if err == nil || !strings.Contains(err.Error(), KafkaClusterIDConfig) {
+		t.Errorf("Expected an empty cluster ID to fail the resolution, got %v", err)
+	}
+
+	// An explicitly configured cluster ID always wins, and the resolver is
+	// never invoked.
 	strategy, err = newAssociatedNameStrategy(client,
 		map[string]string{KafkaClusterIDConfig: "lkc-789"}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create the strategy: %s", err)
 	}
-	if strategy.needsClusterID() {
-		t.Errorf("Expected a configured cluster ID not to be fetched")
+	resolve, calls = resolveTo("lkc-000", nil)
+	strategy.setClusterIDResolver(resolve)
+	clusterID, err = strategy.resolveClusterID()
+	if err != nil || clusterID != "lkc-789" {
+		t.Errorf("Expected the configured lkc-789 to be kept, got %q (%v)", clusterID, err)
 	}
-	if strategy.kafkaClusterID != "lkc-789" {
-		t.Errorf("Expected lkc-789, got %s", strategy.kafkaClusterID)
-	}
-	strategy.setClusterID("lkc-000")
-	if strategy.kafkaClusterID != "lkc-789" {
-		t.Errorf("Expected the configured cluster ID to be kept, got %s", strategy.kafkaClusterID)
+	if *calls != 0 {
+		t.Errorf("Expected the resolver not to be invoked, got %d calls", *calls)
 	}
 
-	// An empty cluster ID is treated as not configured.
+	// An empty configured cluster ID is treated as not configured.
 	strategy, err = newAssociatedNameStrategy(client,
 		map[string]string{KafkaClusterIDConfig: ""}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create the strategy: %s", err)
 	}
-	if !strategy.needsClusterID() {
-		t.Errorf("Expected an empty cluster ID to be fetched")
+	resolve, _ = resolveTo("lkc-111", nil)
+	strategy.setClusterIDResolver(resolve)
+	clusterID, err = strategy.resolveClusterID()
+	if err != nil || clusterID != "lkc-111" {
+		t.Errorf("Expected an empty configured cluster ID to be overridden, got %q (%v)", clusterID, err)
 	}
 }
 
@@ -202,15 +241,44 @@ func TestAssociatedNameStrategySubjectName(t *testing.T) {
 		t.Errorf("Expected the topic name fallback, got %q (%v)", subject, err)
 	}
 
-	// With the cluster ID set, the association of that namespace is used.
+	// With a cluster ID resolver, the association of that namespace is used,
+	// and the resolver is invoked on the lookup but not on the cache hit that
+	// follows.
 	strategy, err = newAssociatedNameStrategy(client, map[string]string{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create the strategy: %s", err)
 	}
-	strategy.setClusterID("lkc-123")
+	resolverCalls := 0
+	strategy.setClusterIDResolver(func() (string, error) {
+		resolverCalls++
+		return "lkc-123", nil
+	})
+
 	subject, err = strategy.subjectNameStrategy("topic2", ValueSerde, testSchemaInfo())
 	if err != nil || subject != "cluster-value-subject" {
 		t.Errorf("Expected cluster-value-subject, got %q (%v)", subject, err)
+	}
+	if resolverCalls != 1 {
+		t.Errorf("Expected the resolver to be invoked once for the lookup, got %d", resolverCalls)
+	}
+
+	subject, err = strategy.subjectNameStrategy("topic2", ValueSerde, testSchemaInfo())
+	if err != nil || subject != "cluster-value-subject" {
+		t.Errorf("Expected the cached cluster-value-subject, got %q (%v)", subject, err)
+	}
+	if resolverCalls != 1 {
+		t.Errorf("Expected a cache hit not to invoke the resolver, got %d calls", resolverCalls)
+	}
+
+	// A resolver that fails propagates out of the lookup.
+	strategy, err = newAssociatedNameStrategy(client, map[string]string{}, nil)
+	if err != nil {
+		t.Fatalf("Failed to create the strategy: %s", err)
+	}
+	strategy.setClusterIDResolver(func() (string, error) { return "", fmt.Errorf("no broker") })
+	_, err = strategy.subjectNameStrategy("topic2", ValueSerde, testSchemaInfo())
+	if err == nil || !strings.Contains(err.Error(), "no broker") {
+		t.Errorf("Expected the resolver error to fail the lookup, got %v", err)
 	}
 }
 
@@ -276,27 +344,28 @@ func TestSerdeConfigureSubjectNameStrategy(t *testing.T) {
 	client := newTestClient(t)
 	newTestAssociation(t, client, "topic4", "lkc-42", "serde-value-subject", "value")
 
-	// No strategy type means the associated name strategy, which needs the
-	// cluster ID of the cluster the serde is used with.
+	// No strategy type means the associated name strategy, which resolves the
+	// cluster ID of the cluster the serde is used with through the resolver.
 	s := &Serde{Client: client, SerdeType: ValueSerde}
 	err := s.ConfigureSubjectNameStrategy(NoStrategyType, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to configure the subject name strategy: %s", err)
 	}
-	if !s.NeedsClusterID() {
-		t.Errorf("Expected the serde to need the cluster ID")
-	}
 	if s.SubjectNameStrategy == nil {
 		t.Fatalf("Expected a subject name strategy to be set")
 	}
 
-	s.SetClusterID("lkc-42")
-	if s.NeedsClusterID() {
-		t.Errorf("Expected the serde not to need the cluster ID anymore")
-	}
+	resolverCalls := 0
+	s.SetClusterIDResolver(func() (string, error) {
+		resolverCalls++
+		return "lkc-42", nil
+	})
 	subject, err := s.SubjectNameStrategy("topic4", ValueSerde, testSchemaInfo())
 	if err != nil || subject != "serde-value-subject" {
 		t.Errorf("Expected serde-value-subject, got %q (%v)", subject, err)
+	}
+	if resolverCalls != 1 {
+		t.Errorf("Expected the resolver to be invoked once, got %d", resolverCalls)
 	}
 
 	// An explicitly configured cluster ID is used as-is.
@@ -306,35 +375,35 @@ func TestSerdeConfigureSubjectNameStrategy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to configure the subject name strategy: %s", err)
 	}
-	if s.NeedsClusterID() {
-		t.Errorf("Expected a configured cluster ID not to be fetched")
-	}
+	s.SetClusterIDResolver(func() (string, error) {
+		t.Error("Expected a configured cluster ID not to be resolved")
+		return "lkc-000", nil
+	})
 	subject, err = s.SubjectNameStrategy("topic4", ValueSerde, testSchemaInfo())
 	if err != nil || subject != "serde-value-subject" {
 		t.Errorf("Expected serde-value-subject, got %q (%v)", subject, err)
 	}
 
-	// Other strategies never need the cluster ID, and setting one is a no-op.
+	// Other strategies never use the cluster ID, and supplying a resolver is
+	// a no-op.
 	s = &Serde{Client: client, SerdeType: ValueSerde}
 	err = s.ConfigureSubjectNameStrategy(TopicNameStrategyType, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to configure the subject name strategy: %s", err)
 	}
-	if s.NeedsClusterID() {
-		t.Errorf("Expected the topic name strategy not to need the cluster ID")
-	}
-	s.SetClusterID("lkc-42")
+	s.SetClusterIDResolver(func() (string, error) {
+		t.Error("Expected the topic name strategy not to resolve the cluster ID")
+		return "lkc-42", nil
+	})
 	subject, err = s.SubjectNameStrategy("topic4", ValueSerde, testSchemaInfo())
 	if err != nil || subject != "topic4-value" {
 		t.Errorf("Expected topic4-value, got %q (%v)", subject, err)
 	}
 
-	// A zero value Serde, without a configured strategy, needs nothing.
+	// A zero value Serde, without a configured strategy, ignores a resolver
+	// rather than panicking on the nil strategy.
 	s = &Serde{}
-	if s.NeedsClusterID() {
-		t.Errorf("Expected an unconfigured serde not to need the cluster ID")
-	}
-	s.SetClusterID("lkc-42")
+	s.SetClusterIDResolver(func() (string, error) { return "lkc-42", nil })
 
 	// Configuration errors are propagated.
 	s = &Serde{Client: client, SerdeType: ValueSerde}

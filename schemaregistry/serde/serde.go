@@ -251,11 +251,16 @@ type Serde struct {
 	MessageFactory               MessageFactory
 	FieldTransformer             FieldTransformer
 	RuleRegistry                 *RuleRegistry
+
+	// ownsClient reports whether Client was created by this serde - through a
+	// Kafka serde builder - rather than supplied by the application. Only an
+	// owned client is closed by Close, and it is cleared there so that a
+	// second Close releases nothing.
+	ownsClient bool
 }
 
 type subjectNameStrategyInterface interface {
-	needsClusterID() bool
-	setClusterID(clusterID string)
+	setClusterIDResolver(resolve func() (string, error))
 	subjectNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
 }
 
@@ -687,10 +692,12 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 	}
 	if strategyType == AssociatedNameStrategyType {
 		associatedNameStrategy, err := newAssociatedNameStrategy(s.Client, config, getRecordName)
-		s.subjectNameStrategyInterface = associatedNameStrategy
 		if err != nil {
+			// Assigning first would leave a typed nil in the interface, which
+			// is non-nil and panics on the first method call.
 			return err
 		}
+		s.subjectNameStrategyInterface = associatedNameStrategy
 		s.SubjectNameStrategy = associatedNameStrategy.subjectNameStrategy
 	} else {
 		strategy, err := StrategyFunc(strategyType, getRecordName)
@@ -702,21 +709,29 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 	return nil
 }
 
-// NeedsClusterID reports whether the configured subject name strategy still
-// needs the Kafka cluster ID. Only the associated name strategy does, and only
-// while no cluster ID has been configured through KafkaClusterIDConfig or set
-// through SetClusterID.
-func (s *Serde) NeedsClusterID() bool {
-	return s.subjectNameStrategyInterface != nil && s.subjectNameStrategyInterface.needsClusterID()
+// SetClusterIDResolver gives the subject name strategy a resolver for the
+// Kafka cluster ID to use as the resource namespace when it looks up
+// associations.
+//
+// The resolver is invoked when an association is looked up, never here, so
+// that creating the serde - and the producer or consumer that supplied the
+// resolver - never waits on a broker. A cluster ID configured through
+// KafkaClusterIDConfig always wins, and strategies other than the associated
+// name strategy ignore the resolver.
+func (s *Serde) SetClusterIDResolver(resolve func() (string, error)) {
+	if s.subjectNameStrategyInterface != nil {
+		s.subjectNameStrategyInterface.setClusterIDResolver(resolve)
+	}
 }
 
-// SetClusterID gives the subject name strategy the Kafka cluster ID to use as
-// the resource namespace when it looks up associations. It is a no-op once a
-// cluster ID is known, so an explicitly configured one always wins.
-func (s *Serde) SetClusterID(clusterID string) {
-	if s.subjectNameStrategyInterface != nil && s.subjectNameStrategyInterface.needsClusterID() {
-		s.subjectNameStrategyInterface.setClusterID(clusterID)
-	}
+// OwnSchemaRegistryClient makes the serde take ownership of its Schema
+// Registry client, so that Close closes it.
+//
+// It is called by the Kafka serde builders, and only for a client they created
+// themselves: a client the application supplied through
+// SetSchemaRegistryClient is never closed by the serde.
+func (s *Serde) OwnSchemaRegistryClient() {
+	s.ownsClient = true
 }
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
@@ -762,23 +777,61 @@ type subjectCacheKey struct {
 }
 
 type associatedNameStrategy struct {
-	client            schemaregistry.Client
+	client schemaregistry.Client
+	// kafkaClusterID and kafkaClusterIDSet come from KafkaClusterIDConfig and
+	// are never written after construction.
 	kafkaClusterID    string
 	kafkaClusterIDSet bool
 	fallbackStrategy  SubjectNameStrategyFunc
 	subjectNameCache  *cache.LRUCache
 	cacheLock         sync.RWMutex
+
+	// clusterIDResolver is supplied by the producer or consumer the serde was
+	// handed to, and read from whichever goroutine serializes a message.
+	clusterIDResolver     func() (string, error)
+	clusterIDResolverLock sync.RWMutex
 }
 
-func (s *associatedNameStrategy) needsClusterID() bool {
-	return !s.kafkaClusterIDSet
-}
-
-func (s *associatedNameStrategy) setClusterID(clusterID string) {
-	if s.needsClusterID() {
-		s.kafkaClusterID = clusterID
-		s.kafkaClusterIDSet = true
+func (s *associatedNameStrategy) setClusterIDResolver(resolve func() (string, error)) {
+	if s.kafkaClusterIDSet {
+		// A cluster ID configured through KafkaClusterIDConfig always wins.
+		return
 	}
+
+	s.clusterIDResolverLock.Lock()
+	defer s.clusterIDResolverLock.Unlock()
+	s.clusterIDResolver = resolve
+}
+
+// resolveClusterID returns the resource namespace to look associations up in.
+//
+// The resolved ID is deliberately not cached: the subject name cache already
+// makes association lookups rare, and librdkafka caches the cluster ID itself
+// once it is known.
+func (s *associatedNameStrategy) resolveClusterID() (string, error) {
+	if s.kafkaClusterIDSet {
+		return s.kafkaClusterID, nil
+	}
+
+	s.clusterIDResolverLock.RLock()
+	resolve := s.clusterIDResolver
+	s.clusterIDResolverLock.RUnlock()
+
+	if resolve == nil {
+		return NamespaceWildcard, nil
+	}
+
+	clusterID, err := resolve()
+	if err != nil {
+		return "", fmt.Errorf("associated name strategy: could not resolve the Kafka cluster ID, "+
+			"which typically means the client has not reached a broker yet; "+
+			"set %s to supply it explicitly: %w", KafkaClusterIDConfig, err)
+	}
+	if clusterID == "" {
+		return "", fmt.Errorf("associated name strategy: the Kafka cluster ID resolved to an empty "+
+			"string; set %s to supply it explicitly", KafkaClusterIDConfig)
+	}
+	return clusterID, nil
 }
 
 func (s *associatedNameStrategy) subjectNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
@@ -803,8 +856,15 @@ func (s *associatedNameStrategy) subjectNameStrategy(topic string, serdeType Typ
 		return cached.(string), nil
 	}
 
+	// Resolve the cluster ID only on a cache miss, so a cache hit never waits
+	// on the client.
+	kafkaClusterID, err := s.resolveClusterID()
+	if err != nil {
+		return "", err
+	}
+
 	// Load subject name from schema registry (without holding lock)
-	subject, err := loadAssociatedSubjectName(s.client, topic, s.kafkaClusterID, isKey, schema, s.fallbackStrategy, serdeType)
+	subject, err := loadAssociatedSubjectName(s.client, topic, kafkaClusterID, isKey, schema, s.fallbackStrategy, serdeType)
 	if err != nil {
 		return "", err
 	}
@@ -821,6 +881,9 @@ func (s *associatedNameStrategy) subjectNameStrategy(topic string, serdeType Typ
 // The topic is passed as the resource name to schema registry. If there is a configuration property named
 // "subject.name.strategy.kafka.cluster.id", then its value will be passed as the resource namespace; otherwise the value "-"
 // will be passed as the resource namespace.
+// A strategy created this way has no cluster ID resolver, so it always falls back to "-"; a strategy
+// configured through [Serde.ConfigureSubjectNameStrategy] can be given one with
+// [Serde.SetClusterIDResolver].
 // If more than one subject is returned from the query, an error will be returned.
 // If no subjects are returned from the query, then the behavior will fall back to TopicNameStrategy,
 // unless the configuration property "subject.name.strategy.fallback.type" is set to "RECORD",
@@ -1467,9 +1530,18 @@ func ResolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo
 	return nil
 }
 
-// Close closes the Serde
+// Close releases the resources the serde created itself. Resources the
+// application supplied, such as a Schema Registry client passed to a Kafka
+// serde builder through SetSchemaRegistryClient, are left alone.
+//
+// It is safe to call more than once: only the first call releases anything.
 func (s *Serde) Close() error {
-	return nil
+	if !s.ownsClient || s.Client == nil {
+		return nil
+	}
+
+	s.ownsClient = false
+	return s.Client.Close()
 }
 
 // Configure configures the action

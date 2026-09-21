@@ -135,6 +135,10 @@ func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *sch
 // so that it can be shared between serdes instead of each one creating its own.
 // The client is used as-is: the Schema Registry configuration and the
 // properties of the producer's [kafka.ConfigMap] are left alone.
+//
+// The client remains the application's to close: a serde never closes a client
+// it was given. A client the builder creates itself, when this is not set, is
+// owned by the serde and closed along with it.
 func (b *KafkaSerializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaSerializerBuilder {
 	b.schemaRegistryClient = client
 	return b
@@ -148,37 +152,24 @@ func (b *KafkaSerializerBuilder) SetSchemaRegistryClient(client schemaregistry.C
 // a client was supplied through SetSchemaRegistryClient, in which case conf is
 // passed through unchanged.
 func (b *KafkaSerializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Serializer, *kafka.ConfigMap, error) {
-	var serdeType serde.Type
-	var serializerConf *SerializerConfig = b.serializerConf
-	var client schemaregistry.Client
-	var filteredConfigMap *kafka.ConfigMap = conf
-	var err error
-	client = b.schemaRegistryClient
-	if client == nil {
-		var srConfig *schemaregistry.Config
-		srConfig, filteredConfigMap, err = schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		client, err = schemaregistry.NewClient(srConfig)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
+	serdeType := serde.ValueSerde
 	if isKey {
 		serdeType = serde.KeySerde
-	} else {
-		serdeType = serde.ValueSerde
 	}
+	serializerConf := b.serializerConf
 	if serializerConf == nil {
 		serializerConf = NewSerializerConfig()
 	}
-	s, err := NewSerializer(client, serdeType, serializerConf)
+
+	s, filteredConfigMap, err := serde.BuildSerde(b.schemaRegistryConf, b.schemaRegistryClient, conf,
+		func(client schemaregistry.Client) (*Serializer, error) {
+			return NewSerializer(client, serdeType, serializerConf)
+		},
+		func(s *Serializer) { s.OwnSchemaRegistryClient() })
 	if err != nil {
 		return nil, nil, err
 	}
+
 	if b.serializerInit != nil {
 		b.serializerInit(s)
 	}
@@ -366,6 +357,10 @@ func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *s
 // so that it can be shared between serdes instead of each one creating its own.
 // The client is used as-is: the Schema Registry configuration and the
 // properties of the consumer's [kafka.ConfigMap] are left alone.
+//
+// The client remains the application's to close: a serde never closes a client
+// it was given. A client the builder creates itself, when this is not set, is
+// owned by the serde and closed along with it.
 func (b *KafkaDeserializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaDeserializerBuilder {
 	b.schemaRegistryClient = client
 	return b
@@ -379,37 +374,24 @@ func (b *KafkaDeserializerBuilder) SetSchemaRegistryClient(client schemaregistry
 // a client was supplied through SetSchemaRegistryClient, in which case conf is
 // passed through unchanged.
 func (b *KafkaDeserializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Deserializer, *kafka.ConfigMap, error) {
-	var serdeType serde.Type
-	var deserializerConf *DeserializerConfig = b.deserializerConf
-	var client schemaregistry.Client
-	var filteredConfigMap *kafka.ConfigMap = conf
-	var err error
-	client = b.schemaRegistryClient
-	if client == nil {
-		var srConfig *schemaregistry.Config
-		srConfig, filteredConfigMap, err = schemaregistry.NewConfigFromKafkaConfigMap(b.schemaRegistryConf, conf)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		client, err = schemaregistry.NewClient(srConfig)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
+	serdeType := serde.ValueSerde
 	if isKey {
 		serdeType = serde.KeySerde
-	} else {
-		serdeType = serde.ValueSerde
 	}
+	deserializerConf := b.deserializerConf
 	if deserializerConf == nil {
 		deserializerConf = NewDeserializerConfig()
 	}
-	d, err := NewDeserializer(client, serdeType, deserializerConf)
+
+	d, filteredConfigMap, err := serde.BuildSerde(b.schemaRegistryConf, b.schemaRegistryClient, conf,
+		func(client schemaregistry.Client) (*Deserializer, error) {
+			return NewDeserializer(client, serdeType, deserializerConf)
+		},
+		func(d *Deserializer) { d.OwnSchemaRegistryClient() })
 	if err != nil {
 		return nil, nil, err
 	}
+
 	if b.deserializerInit != nil {
 		b.deserializerInit(d)
 	}
