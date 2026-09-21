@@ -172,14 +172,15 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-func (p *Producer) getClusterID(timeout int) (string, error) {
-	cClusterID := C.rd_kafka_clusterid(p.handle.rk, C.int(timeout))
-	if cClusterID == nil {
-		return "", fmt.Errorf("Failed to retrieve cluster ID")
+// GetClusterID retrieves the ID of the Kafka cluster the producer is connected
+// to, waiting up to timeoutMs for it. It reports an error if the producer has
+// not reached a broker within that time, and once the producer is closed.
+func (p *Producer) GetClusterID(timeoutMs int) (string, error) {
+	err := p.verifyClient()
+	if err != nil {
+		return "", err
 	}
-	clusterID := C.GoString(cClusterID)
-	C.rd_kafka_mem_free(p.handle.rk, unsafe.Pointer(cClusterID))
-	return clusterID, nil
+	return p.handle.getClusterID(timeoutMs)
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {

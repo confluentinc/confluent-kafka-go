@@ -19,6 +19,8 @@ package kafka
 import (
 	"errors"
 	"fmt"
+	"math"
+	"time"
 )
 
 // DeserializingConsumer wraps a [Consumer] and exposes all of its public
@@ -76,18 +78,30 @@ type ValueDeserializationError struct {
 	err            error
 }
 
+// deserializationErrorMessage reports which part of the message at
+// topicPartition could not be deserialized, and why.
+//
+// A missing topic is rendered the way [TopicPartition.String] renders it,
+// since a message without one is itself a case these errors report.
+func deserializationErrorMessage(part string, topicPartition TopicPartition, err error) string {
+	topic := "<null>"
+	if topicPartition.Topic != nil {
+		topic = *topicPartition.Topic
+	}
+	return fmt.Sprintf("Error deserializing %s for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
+		part, topic, topicPartition.Partition, topicPartition.Offset, err)
+}
+
 // Error implements the error interface, reporting the partition and offset of
 // the message whose key could not be deserialized.
 func (e KeyDeserializationError) Error() string {
-	return fmt.Sprintf("Error deserializing key for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
-		*e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
+	return deserializationErrorMessage("key", e.TopicPartition, e.err)
 }
 
 // Error implements the error interface, reporting the partition and offset of
 // the message whose value could not be deserialized.
 func (e ValueDeserializationError) Error() string {
-	return fmt.Sprintf("Error deserializing value for partition %s-%d at offset %d. If needed, please seek past the record to continue consumption: %v",
-		*e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset, e.err)
+	return deserializationErrorMessage("value", e.TopicPartition, e.err)
 }
 
 // String returns the same text as Error.
@@ -144,7 +158,7 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 
 	var keyDeserializer, valueDeserializer Deserializer
 	var c *Consumer
-	var filteredConf *ConfigMap = conf
+	var filteredConf = conf
 	var err error
 
 	succeeded := false
@@ -200,7 +214,7 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 // wait on a broker that an OAUTHBEARER consumer, whose token refresh callback
 // is only served from Poll, cannot yet reach.
 func propagateClusterIDResolverToDeserializers(c *Consumer, deserializers ...Deserializer) {
-	resolve := func() (string, error) { return c.getClusterID(clusterIDTimeoutMs) }
+	resolve := func() (string, error) { return c.GetClusterID(clusterIDTimeoutMs) }
 
 	for _, deserializer := range deserializers {
 		if deserializer != nil {
@@ -271,7 +285,7 @@ func (dc *DeserializingConsumer[K, V]) Commit() ([]TopicPartition, error) {
 
 // CommitMessage is the same as [Consumer.CommitMessage].
 func (dc *DeserializingConsumer[K, V]) CommitMessage(m *DeserializedMessage[K, V]) ([]TopicPartition, error) {
-	return dc.consumer.CommitMessage(m.message)
+	return dc.consumer.CommitMessage(&Message{TopicPartition: m.TopicPartition})
 }
 
 // CommitOffsets is the same as [Consumer.CommitOffsets].
@@ -286,7 +300,7 @@ func (dc *DeserializingConsumer[K, V]) StoreOffsets(offsets []TopicPartition) (s
 
 // StoreMessage is the same as [Consumer.StoreMessage].
 func (dc *DeserializingConsumer[K, V]) StoreMessage(m *DeserializedMessage[K, V]) (storedOffsets []TopicPartition, err error) {
-	return dc.consumer.StoreMessage(m.message)
+	return dc.consumer.StoreMessage(&Message{TopicPartition: m.TopicPartition})
 }
 
 // SeekPartitions is the same as [Consumer.SeekPartitions].
@@ -319,14 +333,17 @@ func (dc *DeserializingConsumer[K, V]) Poll(timeoutMs int) (event Event) {
 func (dc *DeserializingConsumer[K, V]) deserializeMessage(msg *Message) Event {
 	var deserializedKey K
 	var deserializedValue V
+	var deserializedKeyInterface interface{}
+	var deserializedValueInterface interface{}
 	var ok bool
-
-	if msg.TopicPartition.Topic == nil {
-		return msg
-	}
+	var err error
+	emptyTopic := msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0
 
 	if msg.Key != nil && dc.keyDeserializer != nil {
-		deserializedKeyInterface, err := dc.keyDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Key)
+		if emptyTopic {
+			return NewKeyDeserializationError(msg.TopicPartition, fmt.Errorf("Key deserialization needs a non-empty topic name"))
+		}
+		deserializedKeyInterface, err = dc.keyDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Key)
 		if err != nil {
 			return NewKeyDeserializationError(msg.TopicPartition, err)
 		}
@@ -338,7 +355,10 @@ func (dc *DeserializingConsumer[K, V]) deserializeMessage(msg *Message) Event {
 		}
 	}
 	if msg.Value != nil && dc.valueDeserializer != nil {
-		deserializedValueInterface, err := dc.valueDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Value)
+		if emptyTopic {
+			return NewValueDeserializationError(msg.TopicPartition, fmt.Errorf("Value deserialization needs a non-empty topic name"))
+		}
+		deserializedValueInterface, err = dc.valueDeserializer.DeserializeWithHeaders(*msg.TopicPartition.Topic, msg.Headers, msg.Value)
 		if err != nil {
 			return NewValueDeserializationError(msg.TopicPartition, err)
 		}
@@ -358,6 +378,61 @@ func (dc *DeserializingConsumer[K, V]) Logs() chan LogEvent {
 	return dc.consumer.Logs()
 }
 
+// ReadMessage is the same as [Consumer.ReadMessage], returning the message as
+// a [*DeserializedMessage] with its key and value deserialized.
+//
+// This is a convenience API that wraps [DeserializingConsumer.Poll] and only
+// returns messages or errors. All other event types are discarded.
+//
+// A [KeyDeserializationError] or a [ValueDeserializationError] is returned as
+// (nil, err), so that a message that cannot be deserialized is reported rather
+// than skipped; both carry the partition and offset to seek past to continue.
+func (dc *DeserializingConsumer[K, V]) ReadMessage(timeout time.Duration) (*DeserializedMessage[K, V], error) {
+	err := dc.consumer.verifyClient()
+	if err != nil {
+		return nil, err
+	}
+
+	var absTimeout time.Time
+	var timeoutMs int
+
+	if timeout > 0 {
+		absTimeout = time.Now().Add(timeout)
+		timeoutMs = (int)(timeout.Seconds() * 1000.0)
+	} else {
+		timeoutMs = (int)(timeout)
+	}
+
+	for {
+		ev := dc.Poll(timeoutMs)
+
+		switch e := ev.(type) {
+		case *DeserializedMessage[K, V]:
+			if e.TopicPartition.Error != nil {
+				return e, e.TopicPartition.Error
+			}
+			return e, nil
+		case KeyDeserializationError:
+			return nil, e
+		case ValueDeserializationError:
+			return nil, e
+		case Error:
+			return nil, e
+		default:
+			// Ignore other event types
+		}
+
+		if timeout > 0 {
+			// Calculate remaining time
+			timeoutMs = int(math.Max(0.0, absTimeout.Sub(time.Now()).Seconds()*1000.0))
+		}
+
+		if timeoutMs == 0 && ev == nil {
+			return nil, newErrorFromString(ErrTimedOut, "")
+		}
+	}
+}
+
 // Close is the same as [Consumer.Close], and also closes the key and the value
 // deserializers. The errors of all three are joined.
 func (dc *DeserializingConsumer[K, V]) Close() (err error) {
@@ -374,6 +449,11 @@ func (dc *DeserializingConsumer[K, V]) Close() (err error) {
 // GetMetadata is the same as [Consumer.GetMetadata].
 func (dc *DeserializingConsumer[K, V]) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
 	return dc.consumer.GetMetadata(topic, allTopics, timeoutMs)
+}
+
+// GetClusterID is the same as [Consumer.GetClusterID].
+func (dc *DeserializingConsumer[K, V]) GetClusterID(timeoutMs int) (string, error) {
+	return dc.consumer.GetClusterID(timeoutMs)
 }
 
 // QueryWatermarkOffsets is the same as [Consumer.QueryWatermarkOffsets].
