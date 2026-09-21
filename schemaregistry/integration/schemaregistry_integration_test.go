@@ -66,9 +66,10 @@ func (s *stringSerializer) SerializeWithHeaders(topic string, msg interface{}) (
 	return nil, payload, err
 }
 
-func (s *stringSerializer) NeedsClusterID() bool   { return false }
-func (s *stringSerializer) SetClusterID(id string) {}
-func (s *stringSerializer) Close() error           { s.closed = true; return nil }
+// The string serializer resolves nothing from the Kafka cluster.
+func (s *stringSerializer) SetClusterIDResolver(resolve func() (string, error)) {}
+
+func (s *stringSerializer) Close() error { s.closed = true; return nil }
 
 type stringSerializerBuilder struct {
 	serializer *stringSerializer

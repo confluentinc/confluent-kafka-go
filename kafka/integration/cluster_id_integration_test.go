@@ -45,13 +45,19 @@ func clusterIDForTest(t *testing.T) string {
 	return clusterID
 }
 
-// clusterIDAwareSerializer records what the SerializingProducer propagates to it
-// while it is being built.
+// clusterIDAwareSerializer records the cluster ID resolver the
+// SerializingProducer hands it while it is being built, and resolves the
+// cluster ID only when asked to.
 type clusterIDAwareSerializer struct {
-	needsClusterID    bool
-	clusterID         string
-	setClusterIDCalls int
-	closed            bool
+	resolve      func() (string, error)
+	resolverSets int
+	closed       bool
+}
+
+// resolveClusterID invokes the resolver the producer supplied, the way a serde
+// does when it actually needs the ID.
+func (s *clusterIDAwareSerializer) resolveClusterID() (string, error) {
+	return s.resolve()
 }
 
 func (s *clusterIDAwareSerializer) Serialize(topic string, msg interface{}) ([]byte, error) {
@@ -62,31 +68,33 @@ func (s *clusterIDAwareSerializer) SerializeWithHeaders(topic string, msg interf
 	return nil, nil, nil
 }
 
-func (s *clusterIDAwareSerializer) NeedsClusterID() bool { return s.needsClusterID }
-
-func (s *clusterIDAwareSerializer) SetClusterID(clusterID string) {
-	s.clusterID = clusterID
-	s.setClusterIDCalls++
+func (s *clusterIDAwareSerializer) SetClusterIDResolver(resolve func() (string, error)) {
+	s.resolve = resolve
+	s.resolverSets++
 }
 
 func (s *clusterIDAwareSerializer) Close() error { s.closed = true; return nil }
 
 type clusterIDAwareSerializerBuilder struct {
-	needsClusterID bool
-	serializer     *clusterIDAwareSerializer
+	serializer *clusterIDAwareSerializer
 }
 
 func (b *clusterIDAwareSerializerBuilder) Build(conf *ConfigMap, isKey bool) (Serializer, *ConfigMap, error) {
-	b.serializer = &clusterIDAwareSerializer{needsClusterID: b.needsClusterID}
+	b.serializer = &clusterIDAwareSerializer{}
 	return b.serializer, conf, nil
 }
 
 // clusterIDAwareDeserializer is the deserializer counterpart.
 type clusterIDAwareDeserializer struct {
-	needsClusterID    bool
-	clusterID         string
-	setClusterIDCalls int
-	closed            bool
+	resolve      func() (string, error)
+	resolverSets int
+	closed       bool
+}
+
+// resolveClusterID invokes the resolver the consumer supplied, the way a serde
+// does when it actually needs the ID.
+func (d *clusterIDAwareDeserializer) resolveClusterID() (string, error) {
+	return d.resolve()
 }
 
 func (d *clusterIDAwareDeserializer) DeserializeWithHeaders(topic string, headers []Header,
@@ -94,22 +102,19 @@ func (d *clusterIDAwareDeserializer) DeserializeWithHeaders(topic string, header
 	return nil, nil
 }
 
-func (d *clusterIDAwareDeserializer) NeedsClusterID() bool { return d.needsClusterID }
-
-func (d *clusterIDAwareDeserializer) SetClusterID(clusterID string) {
-	d.clusterID = clusterID
-	d.setClusterIDCalls++
+func (d *clusterIDAwareDeserializer) SetClusterIDResolver(resolve func() (string, error)) {
+	d.resolve = resolve
+	d.resolverSets++
 }
 
 func (d *clusterIDAwareDeserializer) Close() error { d.closed = true; return nil }
 
 type clusterIDAwareDeserializerBuilder struct {
-	needsClusterID bool
-	deserializer   *clusterIDAwareDeserializer
+	deserializer *clusterIDAwareDeserializer
 }
 
 func (b *clusterIDAwareDeserializerBuilder) Build(conf *ConfigMap, isKey bool) (Deserializer, *ConfigMap, error) {
-	b.deserializer = &clusterIDAwareDeserializer{needsClusterID: b.needsClusterID}
+	b.deserializer = &clusterIDAwareDeserializer{}
 	return b.deserializer, conf, nil
 }
 
@@ -144,35 +149,40 @@ func (its *IntegrationTestSuite) TestClusterIDConsistency() {
 }
 
 // TestClusterIDPropagation verifies that building a SerializingProducer or a
-// DeserializingConsumer resolves the cluster ID from the broker and hands it to
-// exactly those serdes that asked for it.
+// DeserializingConsumer hands every serde a cluster ID resolver, and that the
+// resolver reports the cluster ID of the broker the client is connected to
+// when a serde eventually invokes it.
 func (its *IntegrationTestSuite) TestClusterIDPropagation() {
 	t := its.T()
 
 	expectedClusterID := clusterIDForTest(t)
 
 	t.Run("producer", func(t *testing.T) {
-		keyBuilder := &clusterIDAwareSerializerBuilder{needsClusterID: true}
-		valueBuilder := &clusterIDAwareSerializerBuilder{needsClusterID: false}
+		keyBuilder := &clusterIDAwareSerializerBuilder{}
+		valueBuilder := &clusterIDAwareSerializerBuilder{}
 
 		p, err := NewSerializingProducer[string, string](
 			&ConfigMap{"bootstrap.servers": testconf.Brokers}, keyBuilder, valueBuilder)
 		require.NoError(t, err, "failed to create the serializing producer")
 		defer p.Close()
 
-		assert.Equal(t, expectedClusterID, keyBuilder.serializer.clusterID,
-			"the key serializer should have received the cluster ID")
-		assert.Equal(t, 1, keyBuilder.serializer.setClusterIDCalls,
-			"the cluster ID should be resolved once and set once")
-		assert.Empty(t, valueBuilder.serializer.clusterID,
-			"a serializer that does not need the cluster ID should not receive it")
-		assert.Equal(t, 0, valueBuilder.serializer.setClusterIDCalls,
-			"a serializer that does not need the cluster ID should not be called")
+		for name, serializer := range map[string]*clusterIDAwareSerializer{
+			"key": keyBuilder.serializer, "value": valueBuilder.serializer} {
+			assert.Equal(t, 1, serializer.resolverSets,
+				"the %s serializer should have been given a resolver once", name)
+			require.NotNil(t, serializer.resolve,
+				"the %s serializer should have been given a resolver", name)
+
+			clusterID, err := serializer.resolveClusterID()
+			require.NoError(t, err, "the %s serializer's resolver should not fail", name)
+			assert.Equal(t, expectedClusterID, clusterID,
+				"the %s serializer should resolve the cluster ID of the broker", name)
+		}
 	})
 
 	t.Run("consumer", func(t *testing.T) {
-		keyBuilder := &clusterIDAwareDeserializerBuilder{needsClusterID: true}
-		valueBuilder := &clusterIDAwareDeserializerBuilder{needsClusterID: false}
+		keyBuilder := &clusterIDAwareDeserializerBuilder{}
+		valueBuilder := &clusterIDAwareDeserializerBuilder{}
 
 		conf := ConfigMap{
 			"bootstrap.servers": testconf.Brokers,
@@ -182,12 +192,18 @@ func (its *IntegrationTestSuite) TestClusterIDPropagation() {
 		c, err := NewDeserializingConsumer[string, string](&conf, keyBuilder, valueBuilder)
 		require.NoError(t, err, "failed to create the deserializing consumer")
 
-		assert.Equal(t, expectedClusterID, keyBuilder.deserializer.clusterID,
-			"the key deserializer should have received the cluster ID")
-		assert.Equal(t, 1, keyBuilder.deserializer.setClusterIDCalls,
-			"the cluster ID should be resolved once and set once")
-		assert.Empty(t, valueBuilder.deserializer.clusterID,
-			"a deserializer that does not need the cluster ID should not receive it")
+		for name, deserializer := range map[string]*clusterIDAwareDeserializer{
+			"key": keyBuilder.deserializer, "value": valueBuilder.deserializer} {
+			assert.Equal(t, 1, deserializer.resolverSets,
+				"the %s deserializer should have been given a resolver once", name)
+			require.NotNil(t, deserializer.resolve,
+				"the %s deserializer should have been given a resolver", name)
+
+			clusterID, err := deserializer.resolveClusterID()
+			require.NoError(t, err, "the %s deserializer's resolver should not fail", name)
+			assert.Equal(t, expectedClusterID, clusterID,
+				"the %s deserializer should resolve the cluster ID of the broker", name)
+		}
 
 		require.NoError(t, c.Close(), "Close should not fail")
 		assert.True(t, keyBuilder.deserializer.closed,

@@ -42,6 +42,32 @@ func newBuilderTestConfigMap() *kafka.ConfigMap {
 	return &kafka.ConfigMap{"bootstrap.servers": "localhost:9092"}
 }
 
+func builderTestSchemaInfo() schemaregistry.SchemaInfo {
+	return schemaregistry.SchemaInfo{
+		Schema:     `{"type":"record","name":"DemoSchema","fields":[]}`,
+		SchemaType: "AVRO",
+	}
+}
+
+// countingClient counts how often the Schema Registry client it wraps is
+// closed, so that a test can tell whether a serde closed a client it was
+// given.
+type countingClient struct {
+	schemaregistry.Client
+	closed int
+}
+
+func (c *countingClient) Close() error {
+	c.closed++
+	return c.Client.Close()
+}
+
+// bogusFallbackConfig makes NewSerializer and NewDeserializer fail, by
+// configuring a subject name strategy fallback that does not exist.
+func bogusFallbackConfig() map[string]string {
+	return map[string]string{serde.FallbackTypeConfig: "BOGUS"}
+}
+
 // TestKafkaSerializerBuilderWithClient verifies that a Schema Registry client
 // passed to the builder is used as-is, leaving the Kafka ConfigMap untouched.
 func TestKafkaSerializerBuilderWithClient(t *testing.T) {
@@ -143,50 +169,142 @@ func TestKafkaSerializerBuilderWithConfig(t *testing.T) {
 }
 
 // TestKafkaSerializerBuilderClusterID verifies whether the built serializer
-// asks for the Kafka cluster ID, which depends on the subject name strategy.
+// resolves the Kafka cluster ID, which depends on the subject name strategy,
+// and that it does so when it looks a subject up rather than when it is built.
 func TestKafkaSerializerBuilderClusterID(t *testing.T) {
 	client := newBuilderTestClient(t)
 	conf := newBuilderTestConfigMap()
 
-	// The default subject name strategy resolves the subject through the
-	// associations of the Kafka cluster, so it needs its ID.
-	kafkaSerializer, _, err := NewKafkaSerializerBuilder().
-		SetSchemaRegistryClient(client).Build(conf, false)
-	if err != nil {
-		t.Fatalf("Build failed: %s", err)
-	}
-	if !kafkaSerializer.NeedsClusterID() {
-		t.Errorf("Expected the serializer to need the Kafka cluster ID")
+	// resolverCalls counts the resolutions the serializer built with
+	// serializerConf performs while looking a subject up.
+	resolverCalls := func(t *testing.T, serializerConf *SerializerConfig) int {
+		t.Helper()
+		builder := NewKafkaSerializerBuilder().SetSchemaRegistryClient(client)
+		if serializerConf != nil {
+			builder = builder.SetSerializerConfig(serializerConf)
+		}
+		kafkaSerializer, _, err := builder.Build(conf, false)
+		if err != nil {
+			t.Fatalf("Build failed: %s", err)
+		}
+
+		calls := 0
+		kafkaSerializer.SetClusterIDResolver(func() (string, error) {
+			calls++
+			return "lkc-123", nil
+		})
+		if calls != 0 {
+			t.Errorf("Expected the resolver not to be invoked on hand-over, got %d calls", calls)
+		}
+
+		ser, ok := kafkaSerializer.(*Serializer)
+		if !ok {
+			t.Fatalf("Expected a *Serializer, got %T", kafkaSerializer)
+		}
+		if _, err = ser.SubjectNameStrategy("topic1", serde.ValueSerde, builderTestSchemaInfo()); err != nil {
+			t.Fatalf("Subject name lookup failed: %s", err)
+		}
+		return calls
 	}
 
-	// A configured cluster ID needs no lookup.
+	// The default subject name strategy resolves the subject through the
+	// associations of the Kafka cluster, so it resolves its ID.
+	if calls := resolverCalls(t, nil); calls != 1 {
+		t.Errorf("Expected the serializer to resolve the Kafka cluster ID once, got %d", calls)
+	}
+
+	// A configured cluster ID needs no resolution.
 	serializerConf := NewSerializerConfig()
 	serializerConf.SubjectNameStrategyConfig = map[string]string{
 		serde.KafkaClusterIDConfig: "lkc-123",
 	}
-	kafkaSerializer, _, err = NewKafkaSerializerBuilder().
-		SetSchemaRegistryClient(client).
-		SetSerializerConfig(serializerConf).
-		Build(conf, false)
-	if err != nil {
-		t.Fatalf("Build failed: %s", err)
-	}
-	if kafkaSerializer.NeedsClusterID() {
-		t.Errorf("Expected a configured cluster ID not to be fetched")
+	if calls := resolverCalls(t, serializerConf); calls != 0 {
+		t.Errorf("Expected a configured cluster ID not to be resolved, got %d calls", calls)
 	}
 
 	// Neither does another subject name strategy.
 	serializerConf = NewSerializerConfig()
 	serializerConf.SubjectNameStrategyType = serde.TopicNameStrategyType
-	kafkaSerializer, _, err = NewKafkaSerializerBuilder().
-		SetSchemaRegistryClient(client).
+	if calls := resolverCalls(t, serializerConf); calls != 0 {
+		t.Errorf("Expected the topic name strategy not to resolve the cluster ID, got %d calls", calls)
+	}
+}
+
+// TestKafkaSerializerBuilderClientOwnership verifies that a serializer closes
+// the Schema Registry client the builder created for it, and never one the
+// application supplied.
+func TestKafkaSerializerBuilderClientOwnership(t *testing.T) {
+	conf := newBuilderTestConfigMap()
+
+	// A client the application supplied is left open, however often the
+	// serializer is closed.
+	injected := &countingClient{Client: newBuilderTestClient(t)}
+	kafkaSerializer, _, err := NewKafkaSerializerBuilder().
+		SetSchemaRegistryClient(injected).Build(conf, false)
+	if err != nil {
+		t.Fatalf("Build failed: %s", err)
+	}
+	if err = kafkaSerializer.Close(); err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+	if err = kafkaSerializer.Close(); err != nil {
+		t.Errorf("The second Close failed: %s", err)
+	}
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+
+	// Nor is it closed when the serializer cannot be constructed.
+	injected = &countingClient{Client: newBuilderTestClient(t)}
+	serializerConf := NewSerializerConfig()
+	serializerConf.SubjectNameStrategyConfig = bogusFallbackConfig()
+	_, _, err = NewKafkaSerializerBuilder().
+		SetSchemaRegistryClient(injected).
 		SetSerializerConfig(serializerConf).
+		Build(conf, false)
+	if err == nil {
+		t.Fatal("Expected an invalid subject name strategy fallback to fail the build")
+	}
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+
+	// A serializer around a client the builder created closes it, and is safe
+	// to close more than once.
+	kafkaSerializer, _, err = NewKafkaSerializerBuilder().
+		SetSchemaRegistryConfig(schemaregistry.NewConfig("mock://")).
 		Build(conf, false)
 	if err != nil {
 		t.Fatalf("Build failed: %s", err)
 	}
-	if kafkaSerializer.NeedsClusterID() {
-		t.Errorf("Expected the topic name strategy not to need the cluster ID")
+	if err = kafkaSerializer.Close(); err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+	if err = kafkaSerializer.Close(); err != nil {
+		t.Errorf("The second Close failed: %s", err)
+	}
+
+	// The ownership the builder hands over is the Serde's, promoted into the
+	// serializer: owning a client makes Close close it, exactly once.
+	owned := &countingClient{Client: newBuilderTestClient(t)}
+	kafkaSerializer, _, err = NewKafkaSerializerBuilder().
+		SetSchemaRegistryClient(owned).Build(conf, false)
+	if err != nil {
+		t.Fatalf("Build failed: %s", err)
+	}
+	ser, ok := kafkaSerializer.(*Serializer)
+	if !ok {
+		t.Fatalf("Expected a *Serializer, got %T", kafkaSerializer)
+	}
+	ser.OwnSchemaRegistryClient()
+	if err = ser.Close(); err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+	if err = ser.Close(); err != nil {
+		t.Errorf("The second Close failed: %s", err)
+	}
+	if owned.closed != 1 {
+		t.Errorf("Expected the owned client to be closed exactly once, got %d", owned.closed)
 	}
 }
 
@@ -291,46 +409,142 @@ func TestKafkaDeserializerBuilderWithConfig(t *testing.T) {
 }
 
 // TestKafkaDeserializerBuilderClusterID verifies whether the built
-// deserializer asks for the Kafka cluster ID, which depends on the subject
-// name strategy.
+// deserializer resolves the Kafka cluster ID, which depends on the subject
+// name strategy, and that it does so when it looks a subject up rather than
+// when it is built.
 func TestKafkaDeserializerBuilderClusterID(t *testing.T) {
 	client := newBuilderTestClient(t)
 	conf := newBuilderTestConfigMap()
 
-	kafkaDeserializer, _, err := NewKafkaDeserializerBuilder().
-		SetSchemaRegistryClient(client).Build(conf, false)
-	if err != nil {
-		t.Fatalf("Build failed: %s", err)
-	}
-	if !kafkaDeserializer.NeedsClusterID() {
-		t.Errorf("Expected the deserializer to need the Kafka cluster ID")
+	// resolverCalls counts the resolutions the deserializer built with
+	// deserializerConf performs while looking a subject up.
+	resolverCalls := func(t *testing.T, deserializerConf *DeserializerConfig) int {
+		t.Helper()
+		builder := NewKafkaDeserializerBuilder().SetSchemaRegistryClient(client)
+		if deserializerConf != nil {
+			builder = builder.SetDeserializerConfig(deserializerConf)
+		}
+		kafkaDeserializer, _, err := builder.Build(conf, false)
+		if err != nil {
+			t.Fatalf("Build failed: %s", err)
+		}
+
+		calls := 0
+		kafkaDeserializer.SetClusterIDResolver(func() (string, error) {
+			calls++
+			return "lkc-123", nil
+		})
+		if calls != 0 {
+			t.Errorf("Expected the resolver not to be invoked on hand-over, got %d calls", calls)
+		}
+
+		des, ok := kafkaDeserializer.(*Deserializer)
+		if !ok {
+			t.Fatalf("Expected a *Deserializer, got %T", kafkaDeserializer)
+		}
+		if _, err = des.SubjectNameStrategy("topic1", serde.ValueSerde, builderTestSchemaInfo()); err != nil {
+			t.Fatalf("Subject name lookup failed: %s", err)
+		}
+		return calls
 	}
 
+	// The default subject name strategy resolves the subject through the
+	// associations of the Kafka cluster, so it resolves its ID.
+	if calls := resolverCalls(t, nil); calls != 1 {
+		t.Errorf("Expected the deserializer to resolve the Kafka cluster ID once, got %d", calls)
+	}
+
+	// A configured cluster ID needs no resolution.
 	deserializerConf := NewDeserializerConfig()
 	deserializerConf.SubjectNameStrategyConfig = map[string]string{
 		serde.KafkaClusterIDConfig: "lkc-123",
 	}
-	kafkaDeserializer, _, err = NewKafkaDeserializerBuilder().
-		SetSchemaRegistryClient(client).
-		SetDeserializerConfig(deserializerConf).
-		Build(conf, false)
-	if err != nil {
-		t.Fatalf("Build failed: %s", err)
-	}
-	if kafkaDeserializer.NeedsClusterID() {
-		t.Errorf("Expected a configured cluster ID not to be fetched")
+	if calls := resolverCalls(t, deserializerConf); calls != 0 {
+		t.Errorf("Expected a configured cluster ID not to be resolved, got %d calls", calls)
 	}
 
+	// Neither does another subject name strategy.
 	deserializerConf = NewDeserializerConfig()
 	deserializerConf.SubjectNameStrategyType = serde.TopicNameStrategyType
-	kafkaDeserializer, _, err = NewKafkaDeserializerBuilder().
-		SetSchemaRegistryClient(client).
+	if calls := resolverCalls(t, deserializerConf); calls != 0 {
+		t.Errorf("Expected the topic name strategy not to resolve the cluster ID, got %d calls", calls)
+	}
+}
+
+// TestKafkaDeserializerBuilderClientOwnership verifies that a deserializer
+// closes the Schema Registry client the builder created for it, and never one
+// the application supplied.
+func TestKafkaDeserializerBuilderClientOwnership(t *testing.T) {
+	conf := newBuilderTestConfigMap()
+
+	// A client the application supplied is left open, however often the
+	// deserializer is closed.
+	injected := &countingClient{Client: newBuilderTestClient(t)}
+	kafkaDeserializer, _, err := NewKafkaDeserializerBuilder().
+		SetSchemaRegistryClient(injected).Build(conf, false)
+	if err != nil {
+		t.Fatalf("Build failed: %s", err)
+	}
+	if err = kafkaDeserializer.Close(); err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+	if err = kafkaDeserializer.Close(); err != nil {
+		t.Errorf("The second Close failed: %s", err)
+	}
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+
+	// Nor is it closed when the deserializer cannot be constructed.
+	injected = &countingClient{Client: newBuilderTestClient(t)}
+	deserializerConf := NewDeserializerConfig()
+	deserializerConf.SubjectNameStrategyConfig = bogusFallbackConfig()
+	_, _, err = NewKafkaDeserializerBuilder().
+		SetSchemaRegistryClient(injected).
 		SetDeserializerConfig(deserializerConf).
+		Build(conf, false)
+	if err == nil {
+		t.Fatal("Expected an invalid subject name strategy fallback to fail the build")
+	}
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+
+	// A deserializer around a client the builder created closes it, and is
+	// safe to close more than once.
+	kafkaDeserializer, _, err = NewKafkaDeserializerBuilder().
+		SetSchemaRegistryConfig(schemaregistry.NewConfig("mock://")).
 		Build(conf, false)
 	if err != nil {
 		t.Fatalf("Build failed: %s", err)
 	}
-	if kafkaDeserializer.NeedsClusterID() {
-		t.Errorf("Expected the topic name strategy not to need the cluster ID")
+	if err = kafkaDeserializer.Close(); err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+	if err = kafkaDeserializer.Close(); err != nil {
+		t.Errorf("The second Close failed: %s", err)
+	}
+
+	// The ownership the builder hands over is the Serde's, promoted into the
+	// deserializer: owning a client makes Close close it, exactly once.
+	owned := &countingClient{Client: newBuilderTestClient(t)}
+	kafkaDeserializer, _, err = NewKafkaDeserializerBuilder().
+		SetSchemaRegistryClient(owned).Build(conf, false)
+	if err != nil {
+		t.Fatalf("Build failed: %s", err)
+	}
+	des, ok := kafkaDeserializer.(*Deserializer)
+	if !ok {
+		t.Fatalf("Expected a *Deserializer, got %T", kafkaDeserializer)
+	}
+	des.OwnSchemaRegistryClient()
+	if err = des.Close(); err != nil {
+		t.Errorf("Close failed: %s", err)
+	}
+	if err = des.Close(); err != nil {
+		t.Errorf("The second Close failed: %s", err)
+	}
+	if owned.closed != 1 {
+		t.Errorf("Expected the owned client to be closed exactly once, got %d", owned.closed)
 	}
 }
