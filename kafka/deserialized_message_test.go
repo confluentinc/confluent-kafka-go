@@ -112,8 +112,4 @@ func TestNewDeserializedMessage(t *testing.T) {
 	if !reflect.DeepEqual(deserializedMessage.Headers, headers) {
 		t.Errorf("Expected %v, got %v", headers, deserializedMessage.Headers)
 	}
-	// The original message is kept so that it can be committed or stored.
-	if deserializedMessage.message != msg {
-		t.Errorf("Expected the underlying message to be kept")
-	}
 }

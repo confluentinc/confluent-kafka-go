@@ -32,7 +32,6 @@ type DeserializedMessage[K any, V any] struct {
 	TimestampType  TimestampType
 	Opaque         interface{}
 	Headers        []Header
-	message        *Message
 }
 
 // String returns a human readable representation of a DeserializedMessage.
@@ -76,6 +75,5 @@ func newDeserializedMessage[K, V any](msg *Message, key K, value V) *Deserialize
 		TimestampType:  msg.TimestampType,
 		Opaque:         msg.Opaque,
 		Headers:        msg.Headers,
-		message:        msg,
 	}
 }

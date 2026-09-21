@@ -266,12 +266,83 @@ func TestProducerGetClusterID(t *testing.T) {
 	}
 	defer p.Close()
 
-	clusterID, err := p.getClusterID(100)
+	clusterID, err := p.GetClusterID(100)
 	if err == nil {
 		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
 	}
 	if clusterID != "" {
 		t.Errorf("Expected an empty cluster ID, got %q", clusterID)
+	}
+}
+
+// TestSerializingProducerProduceLeavesHeadersAlone verifies that the headers
+// the serializers add never reach the application's message: it is handed back
+// as the delivery report and may be produced again, so they must neither show
+// up on it nor pile up across calls, nor be written into the spare capacity of
+// the application's own slice.
+func TestSerializingProducerProduceLeavesHeadersAlone(t *testing.T) {
+	p := newTestSerializingProducer[string, int](t,
+		&mockSerializerBuilder{serializer: &mockSerializer{prefix: "k:"}},
+		&mockSerializerBuilder{serializer: &mockSerializer{prefix: "v:"}})
+	defer p.Close()
+
+	topic := "gotest"
+	// Spare capacity, so that an append onto this slice would alias into it.
+	headers := make([]Header, 1, 8)
+	headers[0] = Header{Key: "hkey", Value: []byte("hvalue")}
+	msg := &SerializableMessage[string, int]{
+		TopicPartition: TopicPartition{Topic: &topic, Partition: PartitionAny},
+		Key:            "mykey",
+		Value:          42,
+		Headers:        headers,
+	}
+
+	for i := 1; i <= 2; i++ {
+		if err := p.Produce(msg, nil); err != nil {
+			t.Fatalf("Produce %d failed: %s", i, err)
+		}
+		if len(msg.Headers) != 1 || msg.Headers[0].Key != "hkey" {
+			t.Fatalf("Expected the application's headers to be left alone after Produce %d, got %v",
+				i, msg.Headers)
+		}
+	}
+	for _, h := range headers[1:cap(headers)] {
+		if h.Key != "" || h.Value != nil {
+			t.Errorf("Expected the spare capacity of the application's slice to be untouched, found %v", h)
+		}
+	}
+}
+
+// TestSerializingProducerGetClusterID verifies that the wrapper hands the
+// lookup to the producer it wraps, and that both refuse it once closed rather
+// than reaching into a destroyed librdkafka handle.
+func TestSerializingProducerGetClusterID(t *testing.T) {
+	sp, err := NewSerializingProducer[string, string](
+		&ConfigMap{"bootstrap.servers": "127.0.0.1:65533"}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create SerializingProducer: %s", err)
+	}
+
+	clusterID, err := sp.GetClusterID(100)
+	if err == nil {
+		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
+	}
+	if clusterID != "" {
+		t.Errorf("Expected an empty cluster ID, got %q", clusterID)
+	}
+
+	sp.Close()
+
+	clusterID, err = sp.GetClusterID(100)
+	if clusterID != "" {
+		t.Errorf("Expected an empty cluster ID from a closed producer, got %q", clusterID)
+	}
+	kafkaError, ok := err.(Error)
+	if !ok {
+		t.Fatalf("Expected a kafka.Error from a closed producer, got %T: %v", err, err)
+	}
+	if kafkaError.Code() != ErrState {
+		t.Errorf("Expected ErrState from a closed producer, got %s", kafkaError.Code())
 	}
 }
 

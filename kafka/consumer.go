@@ -722,14 +722,15 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
-func (c *Consumer) getClusterID(timeout int) (string, error) {
-	cClusterID := C.rd_kafka_clusterid(c.handle.rk, C.int(timeout))
-	if cClusterID == nil {
-		return "", fmt.Errorf("Failed to retrieve cluster ID")
+// GetClusterID retrieves the ID of the Kafka cluster the consumer is connected
+// to, waiting up to timeoutMs for it. It reports an error if the consumer has
+// not reached a broker within that time, and once the consumer is closed.
+func (c *Consumer) GetClusterID(timeoutMs int) (string, error) {
+	err := c.verifyClient()
+	if err != nil {
+		return "", err
 	}
-	clusterID := C.GoString(cClusterID)
-	C.rd_kafka_mem_free(c.handle.rk, unsafe.Pointer(cClusterID))
-	return clusterID, nil
+	return c.handle.getClusterID(timeoutMs)
 }
 
 // QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
