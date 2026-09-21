@@ -172,6 +172,17 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
+// GetClusterID retrieves the ID of the Kafka cluster the producer is connected
+// to, waiting up to timeoutMs for it. It reports an error if the producer has
+// not reached a broker within that time, and once the producer is closed.
+func (p *Producer) GetClusterID(timeoutMs int) (string, error) {
+	err := p.verifyClient()
+	if err != nil {
+		return "", err
+	}
+	return p.handle.getClusterID(timeoutMs)
+}
+
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
 		return newErrorFromString(ErrInvalidArg, "")
@@ -293,6 +304,10 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	}
 
 	return nil
+}
+
+func (p *Producer) setSendMessageToChannelFunction(f sendMessageToChannelFunc) {
+	p.handle.sendMessageToChannel = f
 }
 
 // Produce single message.
