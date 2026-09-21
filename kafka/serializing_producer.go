@@ -37,7 +37,6 @@ type SerializingProducer[K, V any] struct {
 
 // Serializer turns a typed key or value into the bytes produced to Kafka.
 type Serializer interface {
-	Serialize(topic string, msg interface{}) ([]byte, error)
 	SerializeWithHeaders(topic string, msg interface{}) ([]Header, []byte, error)
 
 	// SetClusterIDResolver hands the serializer a resolver for the ID of the
@@ -87,7 +86,7 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 
 	var keySerializer, valueSerializer Serializer
 	var p *Producer
-	var filteredConf *ConfigMap = conf
+	var filteredConf = conf
 	var err error
 
 	succeeded := false
@@ -144,7 +143,7 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 // OAUTHBEARER producer, whose token refresh is only served once it is polling,
 // could not reach a broker at all.
 func propagateClusterIDResolver(p *Producer, serializers ...Serializer) {
-	resolve := func() (string, error) { return p.getClusterID(clusterIDTimeoutMs) }
+	resolve := func() (string, error) { return p.GetClusterID(clusterIDTimeoutMs) }
 
 	for _, serializer := range serializers {
 		if serializer != nil {
@@ -183,14 +182,25 @@ func (sp *SerializingProducer[K, V]) String() string {
 
 // Produce is the same as [Producer.Produce].
 func (sp *SerializingProducer[K, V]) Produce(serializableMessage *SerializableMessage[K, V], deliveryChan chan Event) error {
-	if serializableMessage == nil || serializableMessage.TopicPartition.Topic == nil ||
-		len(*serializableMessage.TopicPartition.Topic) == 0 {
-		return newErrorFromString(ErrInvalidArg, "")
+	err := sp.producer.verifyClient()
+	if err != nil {
+		return err
 	}
 
-	var err error
+	if serializableMessage == nil {
+		return newErrorFromString(ErrInvalidArg, "nil serializable message")
+	}
+	if serializableMessage.TopicPartition.Topic == nil {
+		return newErrorFromString(ErrInvalidArg, "nil message topic")
+	}
+	if len(*serializableMessage.TopicPartition.Topic) == 0 {
+		return newErrorFromString(ErrInvalidArg, "Empty message topic")
+	}
+
+	var keyHeaders []Header
+	var valueHeaders []Header
 	if sp.keySerializer != nil {
-		serializableMessage.keyBytes, err = sp.keySerializer.Serialize(*serializableMessage.TopicPartition.Topic, serializableMessage.Key)
+		keyHeaders, serializableMessage.keyBytes, err = sp.keySerializer.SerializeWithHeaders(*serializableMessage.TopicPartition.Topic, serializableMessage.Key)
 		if err != nil {
 			return err
 		}
@@ -208,7 +218,7 @@ func (sp *SerializingProducer[K, V]) Produce(serializableMessage *SerializableMe
 	}
 
 	if sp.valueSerializer != nil {
-		serializableMessage.valueBytes, err = sp.valueSerializer.Serialize(*serializableMessage.TopicPartition.Topic, serializableMessage.Value)
+		valueHeaders, serializableMessage.valueBytes, err = sp.valueSerializer.SerializeWithHeaders(*serializableMessage.TopicPartition.Topic, serializableMessage.Value)
 		if err != nil {
 			return err
 		}
@@ -225,7 +235,19 @@ func (sp *SerializingProducer[K, V]) Produce(serializableMessage *SerializableMe
 		}
 	}
 
+	// The headers the serializers add travel on the produced Message only,
+	// in a slice of their own: the SerializableMessage is handed back as the
+	// delivery report and may be produced again, so appending to its Headers
+	// would both hand the application the serializers' headers and pile them
+	// up on every Produce - into the application's own backing array, when it
+	// has spare capacity.
 	msg := serializableMessage.toMessage()
+	if len(keyHeaders) > 0 || len(valueHeaders) > 0 {
+		messageHeaders := make([]Header, 0, len(serializableMessage.Headers)+len(keyHeaders)+len(valueHeaders))
+		messageHeaders = append(messageHeaders, serializableMessage.Headers...)
+		messageHeaders = append(messageHeaders, keyHeaders...)
+		msg.Headers = append(messageHeaders, valueHeaders...)
+	}
 	return sp.producer.Produce(msg, deliveryChan)
 }
 
@@ -270,6 +292,11 @@ func (sp *SerializingProducer[K, V]) Purge(flags int) error {
 // GetMetadata is the same as [Producer.GetMetadata].
 func (sp *SerializingProducer[K, V]) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
 	return sp.producer.GetMetadata(topic, allTopics, timeoutMs)
+}
+
+// GetClusterID is the same as [Producer.GetClusterID].
+func (sp *SerializingProducer[K, V]) GetClusterID(timeoutMs int) (string, error) {
+	return sp.producer.GetClusterID(timeoutMs)
 }
 
 // QueryWatermarkOffsets is the same as [Producer.QueryWatermarkOffsets].

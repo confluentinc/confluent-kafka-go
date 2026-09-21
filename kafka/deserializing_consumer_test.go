@@ -270,12 +270,93 @@ func TestConsumerGetClusterID(t *testing.T) {
 	}
 	defer c.Close()
 
-	clusterID, err := c.getClusterID(100)
+	clusterID, err := c.GetClusterID(100)
 	if err == nil {
 		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
 	}
 	if clusterID != "" {
 		t.Errorf("Expected an empty cluster ID, got %q", clusterID)
+	}
+}
+
+// TestDeserializingConsumerGetClusterID verifies that the wrapper hands the
+// lookup to the consumer it wraps, and that both refuse it once closed rather
+// than reaching into a destroyed librdkafka handle.
+func TestDeserializingConsumerGetClusterID(t *testing.T) {
+	dc, err := NewDeserializingConsumer[string, string](&ConfigMap{
+		"group.id":          "gotest",
+		"bootstrap.servers": "127.0.0.1:65533",
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create DeserializingConsumer: %s", err)
+	}
+
+	clusterID, err := dc.GetClusterID(100)
+	if err == nil {
+		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
+	}
+	if clusterID != "" {
+		t.Errorf("Expected an empty cluster ID, got %q", clusterID)
+	}
+
+	if err := dc.Close(); err != nil {
+		t.Fatalf("Close() failed: %s", err)
+	}
+
+	clusterID, err = dc.GetClusterID(100)
+	if clusterID != "" {
+		t.Errorf("Expected an empty cluster ID from a closed consumer, got %q", clusterID)
+	}
+	kafkaError, ok := err.(Error)
+	if !ok {
+		t.Fatalf("Expected a kafka.Error from a closed consumer, got %T: %v", err, err)
+	}
+	if kafkaError.Code() != ErrState {
+		t.Errorf("Expected ErrState from a closed consumer, got %s", kafkaError.Code())
+	}
+}
+
+// TestDeserializingConsumerReadMessage verifies that ReadMessage reports a
+// timeout when nothing arrives, and refuses to read from a closed consumer.
+func TestDeserializingConsumerReadMessage(t *testing.T) {
+	// No bootstrap.servers, so the consumer never connects and never reports
+	// a transport failure instead of the timeout under test.
+	dc, err := NewDeserializingConsumer[string, string](&ConfigMap{
+		"group.id":           "gotest",
+		"socket.timeout.ms":  10,
+		"session.timeout.ms": 10,
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create DeserializingConsumer: %s", err)
+	}
+
+	// Nothing is subscribed or assigned, so no event is ever delivered.
+	msg, err := dc.ReadMessage(100 * time.Millisecond)
+	if msg != nil {
+		t.Errorf("Expected no message, got %v", msg)
+	}
+	kafkaError, ok := err.(Error)
+	if !ok {
+		t.Fatalf("Expected a kafka.Error, got %T: %v", err, err)
+	}
+	if !kafkaError.IsTimeout() {
+		t.Errorf("Expected a timeout, got %s", kafkaError.Code())
+	}
+
+	if err := dc.Close(); err != nil {
+		t.Fatalf("Close() failed: %s", err)
+	}
+
+	msg, err = dc.ReadMessage(100 * time.Millisecond)
+	if msg != nil {
+		t.Errorf("Expected no message from a closed consumer, got %v", msg)
+	}
+	kafkaError, ok = err.(Error)
+	if !ok {
+		t.Fatalf("Expected a kafka.Error from a closed consumer, got %T: %v", err, err)
+	}
+	if kafkaError.Code() != ErrState {
+		t.Errorf("Expected ErrState from a closed consumer, got %s", kafkaError.Code())
 	}
 }
 
@@ -405,13 +486,41 @@ func TestDeserializingConsumerDeserializeMessage(t *testing.T) {
 	})
 
 	t.Run("message without topic", func(t *testing.T) {
-		dc := &DeserializingConsumer[string, string]{
-			keyDeserializer: &mockDeserializer{value: "mykey"},
-		}
+		keyDeserializer := &mockDeserializer{value: "mykey"}
+		dc := &DeserializingConsumer[string, string]{keyDeserializer: keyDeserializer}
 		msg := newMessage()
 		msg.TopicPartition.Topic = nil
-		if ev := dc.deserializeMessage(msg); ev != any(msg) {
-			t.Errorf("Expected the message to be returned as-is, got %T: %v", ev, ev)
+
+		ev := dc.deserializeMessage(msg)
+		keyErr, ok := ev.(KeyDeserializationError)
+		if !ok {
+			t.Fatalf("Expected a KeyDeserializationError, got %T: %v", ev, ev)
+		}
+		if len(keyDeserializer.topics) != 0 {
+			t.Errorf("Expected the key deserializer not to be called without a topic, got %v",
+				keyDeserializer.topics)
+		}
+		// The missing topic is what the error reports, so it has to be
+		// printable without one.
+		if !strings.Contains(keyErr.Error(), "<null>") {
+			t.Errorf("Expected the missing topic to be reported, got %q", keyErr.Error())
+		}
+	})
+
+	t.Run("message with an empty topic", func(t *testing.T) {
+		emptyTopic := ""
+		valueDeserializer := &mockDeserializer{value: "myvalue"}
+		dc := &DeserializingConsumer[string, string]{valueDeserializer: valueDeserializer}
+		msg := newMessage()
+		msg.TopicPartition.Topic = &emptyTopic
+
+		ev := dc.deserializeMessage(msg)
+		if _, ok := ev.(ValueDeserializationError); !ok {
+			t.Fatalf("Expected a ValueDeserializationError, got %T: %v", ev, ev)
+		}
+		if len(valueDeserializer.topics) != 0 {
+			t.Errorf("Expected the value deserializer not to be called with an empty topic, got %v",
+				valueDeserializer.topics)
 		}
 	})
 

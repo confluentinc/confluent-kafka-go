@@ -157,9 +157,9 @@ import "C"
 
 // AdminClient is derived from an existing Producer or Consumer
 type AdminClient struct {
-	handle    *handle
-	isDerived bool   // Derived from existing client handle
-	isClosed  uint32 // to check if Admin Client is closed or not.
+	handle        *handle
+	isDerived     bool      // Derived from existing client handle
+	isClosed      uint32    // to check if Admin Client is closed or not.
 	adminTermChan chan bool // For log channel termination
 }
 
@@ -2307,6 +2307,20 @@ func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) 
 		return nil, err
 	}
 	return getMetadata(a, topic, allTopics, timeoutMs)
+}
+
+// GetClusterID retrieves the ID of the Kafka cluster the admin client is
+// connected to, waiting up to timeoutMs for it. It reports an error if the
+// admin client has not reached a broker within that time, and once it is
+// closed.
+//
+// [AdminClient.ClusterID] is the same lookup bounded by a context instead.
+func (a *AdminClient) GetClusterID(timeoutMs int) (string, error) {
+	err := a.verifyClient()
+	if err != nil {
+		return "", err
+	}
+	return a.handle.getClusterID(timeoutMs)
 }
 
 // String returns a human readable name for an AdminClient instance
