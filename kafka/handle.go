@@ -85,6 +85,8 @@ type Handle interface {
 	IsClosed() bool
 }
 
+type sendMessageToChannelFunc func(msg *Message, deliveryChan *chan Event, termChan chan bool) bool
+
 // Common instance handle for both Producer and Consumer
 type handle struct {
 	rk  *C.rd_kafka_t
@@ -130,6 +132,9 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
+
+	// sendMessageToChannel is a function that sends a message to a delivery channel. It can be overridden for additional transformation or processing of the message before sending it to the channel. If not set, the default behavior is to send the message directly to the channel.
+	sendMessageToChannel sendMessageToChannelFunc
 }
 
 func (h *handle) String() string {
@@ -332,6 +337,19 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 		return nil
 	}
 	return newError(cErr)
+}
+
+// getClusterID retrieves the ID of the Kafka cluster the handle is connected
+// to, waiting up to timeoutMs for it. It reads h.rk, which is destroyed when
+// the client is closed, so the callers check verifyClient first.
+func (h *handle) getClusterID(timeoutMs int) (string, error) {
+	cClusterID := C.rd_kafka_clusterid(h.rk, C.int(timeoutMs))
+	if cClusterID == nil {
+		return "", fmt.Errorf("Failed to retrieve cluster ID")
+	}
+	clusterID := C.GoString(cClusterID)
+	C.rd_kafka_mem_free(h.rk, unsafe.Pointer(cClusterID))
+	return clusterID, nil
 }
 
 // messageFields controls which fields are made available for producer delivery reports & consumed messages.

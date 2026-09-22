@@ -195,6 +195,95 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	return s, nil
 }
 
+// KafkaSerializerBuilder builds the Protobuf [Serializer] that a
+// [kafka.SerializingProducer] uses for its keys or its values. Its setters
+// return the builder, so they can be chained, and the zero value is ready to
+// use: without any of them Build creates the Schema Registry client from the
+// producer's [kafka.ConfigMap] and the serializer with its default
+// configuration.
+//
+// It implements [kafka.SerializerBuilder].
+type KafkaSerializerBuilder struct {
+	schemaRegistryConf   *schemaregistry.Config
+	schemaRegistryClient schemaregistry.Client
+	serializerConf       *SerializerConfig
+	serializerInit       func(*Serializer)
+}
+
+// SetSerializerInit sets a function called with the [Serializer] once it has
+// been created, to apply whatever cannot be expressed through
+// [SerializerConfig], such as registering rule executors.
+func (b *KafkaSerializerBuilder) SetSerializerInit(serializerInit func(*Serializer)) *KafkaSerializerBuilder {
+	b.serializerInit = serializerInit
+	return b
+}
+
+// SetSerializerConfig sets the configuration of the [Serializer]. When it is
+// not set, [NewSerializerConfig] provides the defaults.
+func (b *KafkaSerializerBuilder) SetSerializerConfig(serializerConf *SerializerConfig) *KafkaSerializerBuilder {
+	b.serializerConf = serializerConf
+	return b
+}
+
+// SetSchemaRegistryConfig sets the configuration used to create the Schema
+// Registry client. It is completed with the Schema Registry properties found in
+// the producer's [kafka.ConfigMap], which take no precedence over it. It is
+// ignored when a client is supplied through SetSchemaRegistryClient.
+func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaSerializerBuilder {
+	b.schemaRegistryConf = schemaRegistryConf
+	return b
+}
+
+// SetSchemaRegistryClient supplies an already created Schema Registry client,
+// so that it can be shared between serdes instead of each one creating its own.
+// The client is used as-is: the Schema Registry configuration and the
+// properties of the producer's [kafka.ConfigMap] are left alone.
+//
+// The client remains the application's to close: a serde never closes a client
+// it was given. A client the builder creates itself, when this is not set, is
+// owned by the serde and closed along with it.
+func (b *KafkaSerializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaSerializerBuilder {
+	b.schemaRegistryClient = client
+	return b
+}
+
+// Build creates the Protobuf serializer for the key or the value of a
+// [kafka.SerializingProducer], as isKey selects.
+//
+// It returns the serializer and the [kafka.ConfigMap] the producer is to be
+// created with: the Schema Registry properties are filtered out of conf, unless
+// a client was supplied through SetSchemaRegistryClient, in which case conf is
+// passed through unchanged.
+func (b *KafkaSerializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Serializer, *kafka.ConfigMap, error) {
+	serdeType := serde.ValueSerde
+	if isKey {
+		serdeType = serde.KeySerde
+	}
+	serializerConf := b.serializerConf
+	if serializerConf == nil {
+		serializerConf = NewSerializerConfig()
+	}
+
+	s, filteredConfigMap, err := serde.BuildSerde(b.schemaRegistryConf, b.schemaRegistryClient, conf,
+		func(client schemaregistry.Client) (*Serializer, error) {
+			return NewSerializer(client, serdeType, serializerConf)
+		},
+		func(s *Serializer) { s.OwnSchemaRegistryClient() })
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if b.serializerInit != nil {
+		b.serializerInit(s)
+	}
+	return s, filteredConfigMap, nil
+}
+
+// NewKafkaSerializerBuilder creates a Protobuf serializer builder for generic objects
+func NewKafkaSerializerBuilder() *KafkaSerializerBuilder {
+	return &KafkaSerializerBuilder{}
+}
+
 // GetRecordName extracts the message name from a Protobuf schema using toFileDesc
 func (s *Serializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
 	fd, err := s.toFileDesc(s.Client, info)
@@ -597,6 +686,95 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 	return s, nil
 }
 
+// KafkaDeserializerBuilder builds the Protobuf [Deserializer] that a
+// [kafka.DeserializingConsumer] uses for its keys or its values. Its setters
+// return the builder, so they can be chained, and the zero value is ready to
+// use: without any of them Build creates the Schema Registry client from the
+// consumer's [kafka.ConfigMap] and the deserializer with its default
+// configuration.
+//
+// It implements [kafka.DeserializerBuilder].
+type KafkaDeserializerBuilder struct {
+	schemaRegistryConf   *schemaregistry.Config
+	schemaRegistryClient schemaregistry.Client
+	deserializerConf     *DeserializerConfig
+	deserializerInit     func(*Deserializer)
+}
+
+// SetDeserializerInit sets a function called with the [Deserializer] once it
+// has been created, to apply whatever cannot be expressed through
+// [DeserializerConfig], such as registering rule executors.
+func (b *KafkaDeserializerBuilder) SetDeserializerInit(deserializerInit func(*Deserializer)) *KafkaDeserializerBuilder {
+	b.deserializerInit = deserializerInit
+	return b
+}
+
+// SetDeserializerConfig sets the configuration of the [Deserializer]. When it
+// is not set, [NewDeserializerConfig] provides the defaults.
+func (b *KafkaDeserializerBuilder) SetDeserializerConfig(deserializerConf *DeserializerConfig) *KafkaDeserializerBuilder {
+	b.deserializerConf = deserializerConf
+	return b
+}
+
+// SetSchemaRegistryConfig sets the configuration used to create the Schema
+// Registry client. It is completed with the Schema Registry properties found in
+// the consumer's [kafka.ConfigMap], which take no precedence over it. It is
+// ignored when a client is supplied through SetSchemaRegistryClient.
+func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaDeserializerBuilder {
+	b.schemaRegistryConf = schemaRegistryConf
+	return b
+}
+
+// SetSchemaRegistryClient supplies an already created Schema Registry client,
+// so that it can be shared between serdes instead of each one creating its own.
+// The client is used as-is: the Schema Registry configuration and the
+// properties of the consumer's [kafka.ConfigMap] are left alone.
+//
+// The client remains the application's to close: a serde never closes a client
+// it was given. A client the builder creates itself, when this is not set, is
+// owned by the serde and closed along with it.
+func (b *KafkaDeserializerBuilder) SetSchemaRegistryClient(client schemaregistry.Client) *KafkaDeserializerBuilder {
+	b.schemaRegistryClient = client
+	return b
+}
+
+// Build creates the Protobuf deserializer for the key or the value of a
+// [kafka.DeserializingConsumer], as isKey selects.
+//
+// It returns the deserializer and the [kafka.ConfigMap] the consumer is to be
+// created with: the Schema Registry properties are filtered out of conf, unless
+// a client was supplied through SetSchemaRegistryClient, in which case conf is
+// passed through unchanged.
+func (b *KafkaDeserializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka.Deserializer, *kafka.ConfigMap, error) {
+	serdeType := serde.ValueSerde
+	if isKey {
+		serdeType = serde.KeySerde
+	}
+	deserializerConf := b.deserializerConf
+	if deserializerConf == nil {
+		deserializerConf = NewDeserializerConfig()
+	}
+
+	d, filteredConfigMap, err := serde.BuildSerde(b.schemaRegistryConf, b.schemaRegistryClient, conf,
+		func(client schemaregistry.Client) (*Deserializer, error) {
+			return NewDeserializer(client, serdeType, deserializerConf)
+		},
+		func(d *Deserializer) { d.OwnSchemaRegistryClient() })
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if b.deserializerInit != nil {
+		b.deserializerInit(d)
+	}
+	return d, filteredConfigMap, nil
+}
+
+// NewKafkaDeserializerBuilder creates a Protobuf deserializer builder for generic objects
+func NewKafkaDeserializerBuilder() *KafkaDeserializerBuilder {
+	return &KafkaDeserializerBuilder{}
+}
+
 // GetRecordName extracts the message name from a Protobuf schema using toFileDesc
 func (s *Deserializer) GetRecordName(info schemaregistry.SchemaInfo) (string, error) {
 	fd, err := s.toFileDesc(s.Client, info)
@@ -714,6 +892,9 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 			return nil, err
 		}
 		if result == nil {
+			if s.MessageFactory == nil {
+				return nil, fmt.Errorf("MessageFactory is not set")
+			}
 			msg, err = s.MessageFactory(subject, name)
 			if err != nil {
 				return nil, err
@@ -733,6 +914,9 @@ func (s *Deserializer) deserialize(topic string, headers []kafka.Header, payload
 		}
 	} else {
 		if result == nil {
+			if s.MessageFactory == nil {
+				return nil, fmt.Errorf("MessageFactory is not set")
+			}
 			msg, err = s.MessageFactory(subject, name)
 			if err != nil {
 				return nil, err
