@@ -86,6 +86,8 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 
 	var keySerializer, valueSerializer Serializer
 	var p *Producer
+	var filteredKeyConf *ConfigMap
+	var filteredValueConf *ConfigMap
 	var filteredConf = conf
 	var err error
 
@@ -108,17 +110,26 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 	// The serializers are built before the producer, so that a builder that
 	// fails leaves no Kafka client behind.
 	if keySerializerBuilder != nil {
-		keySerializer, filteredConf, err = keySerializerBuilder.Build(conf, true)
+		keySerializer, filteredKeyConf, err = keySerializerBuilder.Build(conf, true)
 		if err != nil {
 			return nil, err
 		}
+		filteredConf = filteredKeyConf
 	}
 
 	if valueSerializerBuilder != nil {
-		valueSerializer, filteredConf, err = valueSerializerBuilder.Build(conf, false)
+		valueSerializer, filteredValueConf, err = valueSerializerBuilder.Build(conf, false)
 		if err != nil {
 			return nil, err
 		}
+		if filteredKeyConf != nil {
+			for k := range *filteredValueConf {
+				if _, found := (*filteredKeyConf)[k]; !found {
+					delete(*filteredValueConf, k)
+				}
+			}
+		}
+		filteredConf = filteredValueConf
 	}
 
 	p, err = NewProducer(filteredConf)
@@ -129,7 +140,7 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 	propagateClusterIDResolver(p, keySerializer, valueSerializer)
 
 	sp := &SerializingProducer[K, V]{producer: p, keySerializer: keySerializer, valueSerializer: valueSerializer}
-	p.setSendMessageToChannelFunction(sp.sendToChannel)
+	p.sendMessageToChannel = sp.sendToChannel
 	succeeded = true
 	return sp, nil
 }

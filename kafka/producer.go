@@ -148,6 +148,9 @@ type Producer struct {
 
 	// checks if Producer has been closed or not.
 	isClosed uint32
+
+	// sendMessageToChannel is a function that sends a message to a delivery channel. It can be overridden for additional transformation or processing of the message before sending it to the channel. If not set, the default behavior is to send the message directly to the channel.
+	sendMessageToChannel sendMessageToChannelFunc
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -304,10 +307,6 @@ func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) 
 	}
 
 	return nil
-}
-
-func (p *Producer) setSendMessageToChannelFunction(f sendMessageToChannelFunc) {
-	p.handle.sendMessageToChannel = f
 }
 
 // Produce single message.
