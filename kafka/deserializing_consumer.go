@@ -158,6 +158,8 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 
 	var keyDeserializer, valueDeserializer Deserializer
 	var c *Consumer
+	var filteredKeyConf *ConfigMap
+	var filteredValueConf *ConfigMap
 	var filteredConf = conf
 	var err error
 
@@ -180,17 +182,26 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	// The deserializers are built before the consumer, so that a builder that
 	// fails leaves no Kafka client behind.
 	if keyDeserializerBuilder != nil {
-		keyDeserializer, filteredConf, err = keyDeserializerBuilder.Build(conf, true)
+		keyDeserializer, filteredKeyConf, err = keyDeserializerBuilder.Build(conf, true)
 		if err != nil {
 			return nil, err
 		}
+		filteredConf = filteredKeyConf
 	}
 
 	if valueDeserializerBuilder != nil {
-		valueDeserializer, filteredConf, err = valueDeserializerBuilder.Build(conf, false)
+		valueDeserializer, filteredValueConf, err = valueDeserializerBuilder.Build(conf, false)
 		if err != nil {
 			return nil, err
 		}
+		if filteredKeyConf != nil {
+			for k := range *filteredValueConf {
+				if _, found := (*filteredKeyConf)[k]; !found {
+					delete(*filteredValueConf, k)
+				}
+			}
+		}
+		filteredConf = filteredValueConf
 	}
 
 	c, err = NewConsumer(filteredConf)

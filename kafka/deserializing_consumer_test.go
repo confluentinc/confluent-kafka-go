@@ -19,6 +19,7 @@ package kafka
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -59,15 +60,15 @@ func (d *mockDeserializer) Close() error {
 }
 
 // mockDeserializerBuilder builds a mockDeserializer and records the arguments
-// it was built with. removeConfigKey, when set, is removed from the returned
-// ConfigMap, emulating a builder that consumes its own configuration
-// properties.
+// it was built with. removeConfigKeys, when set, must all be present in the given
+// ConfigMap and are removed from the returned one, emulating a builder that
+// requires and consumes its own configuration properties.
 type mockDeserializerBuilder struct {
-	deserializer    *mockDeserializer
-	err             error
-	removeConfigKey string
-	built           int
-	isKey           []bool
+	deserializer     *mockDeserializer
+	err              error
+	removeConfigKeys []string
+	built            int
+	isKey            []bool
 }
 
 func (b *mockDeserializerBuilder) Build(conf *ConfigMap, isKey bool) (Deserializer, *ConfigMap, error) {
@@ -76,9 +77,14 @@ func (b *mockDeserializerBuilder) Build(conf *ConfigMap, isKey bool) (Deserializ
 	if b.err != nil {
 		return nil, nil, b.err
 	}
+	for _, k := range b.removeConfigKeys {
+		if _, found := (*conf)[k]; !found {
+			return nil, nil, fmt.Errorf("missing required property %q", k)
+		}
+	}
 	filtered := ConfigMap{}
 	for k, v := range *conf {
-		if k == b.removeConfigKey {
+		if slices.Contains(b.removeConfigKeys, k) {
 			continue
 		}
 		filtered[k] = v
@@ -128,8 +134,8 @@ func TestDeserializingConsumerBuilders(t *testing.T) {
 func TestDeserializingConsumerBuilderFiltersConfig(t *testing.T) {
 	for _, isKey := range []bool{true, false} {
 		builder := &mockDeserializerBuilder{
-			deserializer:    &mockDeserializer{},
-			removeConfigKey: "not.a.kafka.property",
+			deserializer:     &mockDeserializer{},
+			removeConfigKeys: []string{"not.a.kafka.property"},
 		}
 		var keyBuilder, valueBuilder DeserializerBuilder
 		if isKey {
@@ -796,4 +802,29 @@ func TestDeserializingConsumerPollPassthrough(t *testing.T) {
 		}
 	}
 	t.Errorf("Timed out waiting for an error event")
+}
+
+// TestDeserializingConsumerBuildersIntersectFilteredConfig verifies that a
+// property is withheld from the underlying consumer when either builder
+// consumed it: the one both share as much as the ones only one of them uses.
+func TestDeserializingConsumerBuildersIntersectFilteredConfig(t *testing.T) {
+	keyBuilder := &mockDeserializerBuilder{
+		deserializer:     &mockDeserializer{},
+		removeConfigKeys: []string{"value.a", "value.b"},
+	}
+	valueBuilder := &mockDeserializerBuilder{
+		deserializer:     &mockDeserializer{},
+		removeConfigKeys: []string{"value.a", "value.c"},
+	}
+
+	c, err := NewDeserializingConsumer[string, string](&ConfigMap{
+		"group.id": "gotest",
+		"value.a":  "shared",
+		"value.b":  "key only",
+		"value.c":  "value only",
+	}, keyBuilder, valueBuilder)
+	if err != nil {
+		t.Fatalf("Failed to create DeserializingConsumer: %s", err)
+	}
+	c.Close()
 }
