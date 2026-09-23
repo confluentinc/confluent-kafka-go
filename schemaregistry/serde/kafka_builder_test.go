@@ -220,3 +220,44 @@ func TestSerdeCloseWithoutAClient(t *testing.T) {
 		t.Errorf("Expected an unowned client to be left open, got %d Close calls", injected.closed)
 	}
 }
+
+// TestResolveSchemaRegistryClientRejectsClientAndConfig verifies that
+// supplying both a client and a Schema Registry configuration is an error,
+// rather than one of them being silently ignored, and that no client is
+// created or taken over.
+func TestResolveSchemaRegistryClientRejectsClientAndConfig(t *testing.T) {
+	created := newCountingClient(t)
+	withCreatedClient(t, created)
+	injected := newCountingClient(t)
+
+	client, filteredConf, owned, err := ResolveSchemaRegistryClient(
+		schemaregistry.NewConfig("mock://"), injected, builderTestConfigMap())
+	if err == nil {
+		t.Fatal("Expected supplying both a client and a configuration to fail")
+	}
+	if client != nil || filteredConf != nil || owned {
+		t.Errorf("Expected no client, ConfigMap or ownership on failure, got %v, %v, %v",
+			client, filteredConf, owned)
+	}
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+
+	// BuildSerde fails the same way, before constructing anything.
+	constructed := false
+	_, _, err = BuildSerde(schemaregistry.NewConfig("mock://"), injected, builderTestConfigMap(),
+		func(schemaregistry.Client) (*Serde, error) {
+			constructed = true
+			return &Serde{}, nil
+		},
+		func(*Serde) {})
+	if err == nil {
+		t.Fatal("Expected BuildSerde to fail when given both a client and a configuration")
+	}
+	if constructed {
+		t.Errorf("Expected the serde not to be constructed")
+	}
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+}

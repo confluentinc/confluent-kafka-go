@@ -548,3 +548,31 @@ func TestKafkaDeserializerBuilderClientOwnership(t *testing.T) {
 		t.Errorf("Expected the owned client to be closed exactly once, got %d", owned.closed)
 	}
 }
+
+// TestKafkaBuildersRejectClientAndConfig verifies that both builders fail
+// when given both a Schema Registry client and a Schema Registry
+// configuration, and leave the supplied client open.
+func TestKafkaBuildersRejectClientAndConfig(t *testing.T) {
+	injected := &countingClient{Client: newBuilderTestClient(t)}
+	srConf := schemaregistry.NewConfig("mock://")
+
+	_, _, err := NewKafkaSerializerBuilder().
+		SetSchemaRegistryClient(injected).
+		SetSchemaRegistryConfig(srConf).
+		Build(newBuilderTestConfigMap(), false)
+	if err == nil {
+		t.Error("Expected the serializer build to fail with both a client and a configuration")
+	}
+
+	_, _, err = NewKafkaDeserializerBuilder().
+		SetSchemaRegistryConfig(srConf).
+		SetSchemaRegistryClient(injected).
+		Build(newBuilderTestConfigMap(), false)
+	if err == nil {
+		t.Error("Expected the deserializer build to fail with both a client and a configuration")
+	}
+
+	if injected.closed != 0 {
+		t.Errorf("Expected the injected client to be left open, got %d Close calls", injected.closed)
+	}
+}

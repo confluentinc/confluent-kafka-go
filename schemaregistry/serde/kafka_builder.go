@@ -17,6 +17,8 @@
 package serde
 
 import (
+	"errors"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
@@ -30,9 +32,10 @@ var newSchemaRegistryClient = schemaregistry.NewClient
 // builder is to use, the [kafka.ConfigMap] to carry on with, and whether the
 // client was created here.
 //
-// When the application supplied a client, it is used as-is and conf is passed
-// through unchanged. Otherwise the client is created from srConf completed
-// with the Schema Registry properties of conf, and conf is returned with those
+// Supplying both a client and srConf is an error, as it is ambiguous which one
+// the serde is to use. When the application supplied a client, it is used as-is
+// and conf is passed through unchanged. Otherwise the client is created from
+// srConf completed with the Schema Registry properties of conf, and conf is returned with those
 // properties removed, so that what reaches the Kafka client holds Kafka
 // properties only.
 //
@@ -43,6 +46,10 @@ func ResolveSchemaRegistryClient(srConf *schemaregistry.Config, client schemareg
 	conf *kafka.ConfigMap) (schemaregistry.Client, *kafka.ConfigMap, bool, error) {
 
 	if client != nil {
+		if srConf != nil {
+			return nil, nil, false, errors.New(
+				"cannot specify both a Schema Registry client and a Schema Registry configuration; use one or the other")
+		}
 		return client, conf, false, nil
 	}
 
