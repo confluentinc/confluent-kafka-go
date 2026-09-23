@@ -126,8 +126,8 @@ func (b *KafkaSerializerBuilder) SetSerializerConfig(serializerConf *SerializerC
 
 // SetSchemaRegistryConfig sets the configuration used to create the Schema
 // Registry client. It is completed with the Schema Registry properties found in
-// the producer's [kafka.ConfigMap], which take no precedence over it. It is
-// ignored when a client is supplied through SetSchemaRegistryClient.
+// the producer's [kafka.ConfigMap], which take no precedence over it. It cannot be
+// combined with SetSchemaRegistryClient: Build fails when both are set.
 func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaSerializerBuilder {
 	b.schemaRegistryConf = schemaRegistryConf
 	return b
@@ -135,8 +135,9 @@ func (b *KafkaSerializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *sch
 
 // SetSchemaRegistryClient supplies an already created Schema Registry client,
 // so that it can be shared between serdes instead of each one creating its own.
-// The client is used as-is: the Schema Registry configuration and the
-// properties of the producer's [kafka.ConfigMap] are left alone.
+// The client is used as-is, and the properties of the producer's [kafka.ConfigMap]
+// are left alone. It cannot be combined with SetSchemaRegistryConfig: Build
+// fails when both are set.
 //
 // The client remains the application's to close: a serde never closes a client
 // it was given. A client the builder creates itself, when this is not set, is
@@ -344,8 +345,8 @@ func (b *KafkaDeserializerBuilder) SetDeserializerConfig(deserializerConf *Deser
 
 // SetSchemaRegistryConfig sets the configuration used to create the Schema
 // Registry client. It is completed with the Schema Registry properties found in
-// the consumer's [kafka.ConfigMap], which take no precedence over it. It is
-// ignored when a client is supplied through SetSchemaRegistryClient.
+// the consumer's [kafka.ConfigMap], which take no precedence over it. It cannot be
+// combined with SetSchemaRegistryClient: Build fails when both are set.
 func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *schemaregistry.Config) *KafkaDeserializerBuilder {
 	b.schemaRegistryConf = schemaRegistryConf
 	return b
@@ -353,8 +354,9 @@ func (b *KafkaDeserializerBuilder) SetSchemaRegistryConfig(schemaRegistryConf *s
 
 // SetSchemaRegistryClient supplies an already created Schema Registry client,
 // so that it can be shared between serdes instead of each one creating its own.
-// The client is used as-is: the Schema Registry configuration and the
-// properties of the consumer's [kafka.ConfigMap] are left alone.
+// The client is used as-is, and the properties of the consumer's [kafka.ConfigMap]
+// are left alone. It cannot be combined with SetSchemaRegistryConfig: Build
+// fails when both are set.
 //
 // The client remains the application's to close: a serde never closes a client
 // it was given. A client the builder creates itself, when this is not set, is
