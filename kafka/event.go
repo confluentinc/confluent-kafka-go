@@ -259,8 +259,8 @@ out:
 
 				if ch != nil {
 					var term bool
-					if h.sendMessageToChannel != nil {
-						term = h.sendMessageToChannel(msg, ch, termChan)
+					if h.p.sendMessageToChannel != nil {
+						term = h.p.sendMessageToChannel(msg, ch, termChan)
 					} else {
 						term = h.sendToChannel(msg, ch, termChan)
 					}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -64,15 +65,15 @@ func (s *mockSerializer) Close() error {
 }
 
 // mockSerializerBuilder builds a mockSerializer and records the arguments it
-// was built with. removeConfigKey, when set, is removed from the returned
-// ConfigMap, emulating a builder that consumes its own configuration
-// properties.
+// was built with. removeConfigKeys, when set, must all be present in the given
+// ConfigMap and are removed from the returned one, emulating a builder that
+// requires and consumes its own configuration properties.
 type mockSerializerBuilder struct {
-	serializer      *mockSerializer
-	err             error
-	removeConfigKey string
-	built           int
-	isKey           []bool
+	serializer       *mockSerializer
+	err              error
+	removeConfigKeys []string
+	built            int
+	isKey            []bool
 }
 
 func (b *mockSerializerBuilder) Build(conf *ConfigMap, isKey bool) (Serializer, *ConfigMap, error) {
@@ -81,9 +82,14 @@ func (b *mockSerializerBuilder) Build(conf *ConfigMap, isKey bool) (Serializer, 
 	if b.err != nil {
 		return nil, nil, b.err
 	}
+	for _, k := range b.removeConfigKeys {
+		if _, found := (*conf)[k]; !found {
+			return nil, nil, fmt.Errorf("missing required property %q", k)
+		}
+	}
 	filtered := ConfigMap{}
 	for k, v := range *conf {
-		if k == b.removeConfigKey {
+		if slices.Contains(b.removeConfigKeys, k) {
 			continue
 		}
 		filtered[k] = v
@@ -125,7 +131,7 @@ func TestSerializingProducerBuilders(t *testing.T) {
 	if len(valueBuilder.isKey) != 1 || valueBuilder.isKey[0] {
 		t.Errorf("Expected the value builder to be called with isKey=false, got %v", valueBuilder.isKey)
 	}
-	if p.producer.handle.sendMessageToChannel == nil {
+	if p.producer.sendMessageToChannel == nil {
 		t.Errorf("Expected the delivery channel hook to be installed on the producer")
 	}
 }
@@ -135,8 +141,8 @@ func TestSerializingProducerBuilders(t *testing.T) {
 func TestSerializingProducerBuilderFiltersConfig(t *testing.T) {
 	for _, isKey := range []bool{true, false} {
 		builder := &mockSerializerBuilder{
-			serializer:      &mockSerializer{},
-			removeConfigKey: "not.a.kafka.property",
+			serializer:       &mockSerializer{},
+			removeConfigKeys: []string{"not.a.kafka.property"},
 		}
 		var keyBuilder, valueBuilder SerializerBuilder
 		if isKey {
@@ -733,4 +739,30 @@ func TestSerializingProducerTransactionalAPIs(t *testing.T) {
 	if err := p.AbortTransaction(context.TODO()); err == nil {
 		t.Errorf("Expected AbortTransaction to fail due to state")
 	}
+}
+
+// TestSerializingProducerBuildersIntersectFilteredConfig verifies that a
+// property is withheld from the underlying producer when either builder
+// consumed it: the one both share as much as the ones only one of them uses.
+func TestSerializingProducerBuildersIntersectFilteredConfig(t *testing.T) {
+	keyBuilder := &mockSerializerBuilder{
+		serializer:       &mockSerializer{},
+		removeConfigKeys: []string{"value.a", "value.b"},
+	}
+	valueBuilder := &mockSerializerBuilder{
+		serializer:       &mockSerializer{},
+		removeConfigKeys: []string{"value.a", "value.c"},
+	}
+
+	p, err := NewSerializingProducer[string, string](&ConfigMap{
+		"bootstrap.servers":  "127.0.0.1:65533",
+		"message.timeout.ms": 10,
+		"value.a":            "shared",
+		"value.b":            "key only",
+		"value.c":            "value only",
+	}, keyBuilder, valueBuilder)
+	if err != nil {
+		t.Fatalf("Failed to create SerializingProducer: %s", err)
+	}
+	p.Close()
 }
