@@ -153,8 +153,16 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 // metadata cached, whereas resolving during construction would block - and an
 // OAUTHBEARER producer, whose token refresh is only served once it is polling,
 // could not reach a broker at all.
+//
+// Concurrent resolutions, from either serializer and any number of goroutines,
+// share a single lookup, as [handle.resolveClusterID] describes.
 func propagateClusterIDResolver(p *Producer, serializers ...Serializer) {
-	resolve := func() (string, error) { return p.GetClusterID(clusterIDTimeoutMs) }
+	resolve := func() (string, error) {
+		if err := p.verifyClient(); err != nil {
+			return "", err
+		}
+		return p.handle.resolveClusterID(clusterIDTimeoutMs)
+	}
 
 	for _, serializer := range serializers {
 		if serializer != nil {
