@@ -132,6 +132,11 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
+
+	// The cluster ID lookup currently in flight, if any, shared by every
+	// caller of resolveClusterID on this handle.
+	clusterIDLock     sync.Mutex
+	clusterIDInFlight *clusterIDCall
 }
 
 func (h *handle) String() string {
@@ -347,6 +352,58 @@ func (h *handle) getClusterID(timeoutMs int) (string, error) {
 	clusterID := C.GoString(cClusterID)
 	C.rd_kafka_mem_free(h.rk, unsafe.Pointer(cClusterID))
 	return clusterID, nil
+}
+
+// lookupClusterID performs a cluster ID lookup for resolveClusterID. It is a
+// variable so that tests can observe how many lookups are started.
+var lookupClusterID = (*handle).getClusterID
+
+// clusterIDCall is a cluster ID lookup in flight. done is closed once
+// clusterID and err are set.
+type clusterIDCall struct {
+	done      chan struct{}
+	clusterID string
+	err       error
+}
+
+// resolveClusterID retrieves the cluster ID for the resolvers handed to the
+// serdes, waiting up to timeoutMs for it.
+//
+// Once the ID is known, librdkafka answers from its cache without waiting.
+// Otherwise at most one lookup is in flight per handle: concurrent callers -
+// the key and the value serde, and every goroutine producing or consuming
+// through them - all wait for the same lookup, and so share the deadline of
+// the caller that started it, which is the only one calling into librdkafka.
+// The outcome is not kept once the lookup completes: librdkafka caches the ID
+// itself once known, and a failed lookup is simply retried by the next caller.
+func (h *handle) resolveClusterID(timeoutMs int) (string, error) {
+	if clusterID, err := lookupClusterID(h, 0); err == nil {
+		return clusterID, nil
+	}
+
+	h.clusterIDLock.Lock()
+	call := h.clusterIDInFlight
+	if call != nil {
+		h.clusterIDLock.Unlock()
+		<-call.done
+		return call.clusterID, call.err
+	}
+	call = &clusterIDCall{done: make(chan struct{})}
+	h.clusterIDInFlight = call
+	h.clusterIDLock.Unlock()
+
+	defer func() {
+		// Cleared before completing, so that a caller woken by the completion
+		// that resolves again starts a fresh lookup rather than getting this
+		// completed one back.
+		h.clusterIDLock.Lock()
+		h.clusterIDInFlight = nil
+		h.clusterIDLock.Unlock()
+		close(call.done)
+	}()
+
+	call.clusterID, call.err = lookupClusterID(h, timeoutMs)
+	return call.clusterID, call.err
 }
 
 // messageFields controls which fields are made available for producer delivery reports & consumed messages.

@@ -224,8 +224,16 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 // the resolver returns at once, whereas resolving during construction would
 // wait on a broker that an OAUTHBEARER consumer, whose token refresh callback
 // is only served from Poll, cannot yet reach.
+//
+// Concurrent resolutions, from either deserializer and any number of
+// goroutines, share a single lookup, as [handle.resolveClusterID] describes.
 func propagateClusterIDResolverToDeserializers(c *Consumer, deserializers ...Deserializer) {
-	resolve := func() (string, error) { return c.GetClusterID(clusterIDTimeoutMs) }
+	resolve := func() (string, error) {
+		if err := c.verifyClient(); err != nil {
+			return "", err
+		}
+		return c.handle.resolveClusterID(clusterIDTimeoutMs)
+	}
 
 	for _, deserializer := range deserializers {
 		if deserializer != nil {
