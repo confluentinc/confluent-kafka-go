@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package confluent.type;
+
+// This file's own path is the canonical confluent/type/... - what the Java client registers and
+// what ProtobufSchema declares. The generated Go package is `typepb`, not `type`, because `type`
+// is a Go keyword; both the import path and that package name come from --go_opt=M rather than a
+// go_package option, because a relative go_package makes protoc refuse the output path
+// ("Output file names must never have a relative path"). See codegen.sh for the invocation.
+
+message Variant {
+
+  // A dictionary of field names used by all objects in the variant value.
+  // Encoded as: version header, dictionary size, offset list, and UTF-8 string data.
+  bytes metadata = 1;
+
+  // The variant value, which can be a primitive, object, or array.
+  // Encoded as: a one-byte header (basic type + type info) followed by the content bytes.
+  bytes value = 2;
+}

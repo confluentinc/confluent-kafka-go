@@ -206,7 +206,7 @@ func transformField(ctx serde.RuleContext, path string, propName string, structF
 	propSchema *jsonschema2.Schema, fieldTransform serde.FieldTransform) error {
 	fullName := path + "." + propName
 	defer ctx.LeaveField()
-	ctx.EnterField(val.Interface(), fullName, propName, getType(propSchema), getInlineTags(propSchema))
+	ctx.EnterField(val.Interface(), fullName, propName, getType(propSchema), getInlineTags(propSchema), nil)
 	newVal, err := transform(ctx, propSchema, fullName, structField, fieldTransform)
 	if err != nil {
 		return err
