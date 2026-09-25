@@ -630,14 +630,25 @@ func (c *mockclient) GetVersionIncludeDeleted(subject string, schema SchemaInfo,
 // Fetch all Subjects registered with the schema Registry
 // Returns a string slice containing all registered subjects
 func (c *mockclient) GetAllSubjects() ([]string, error) {
-	subjects := make([]string, 0)
+	return c.GetAllSubjectsIncludeDeleted(false)
+}
+
+// GetAllSubjectsIncludeDeleted fetches all Subjects registered with the schema Registry,
+// including soft-deleted subjects if deleted is true
+// Returns a string slice containing all registered subjects
+func (c *mockclient) GetAllSubjectsIncludeDeleted(deleted bool) ([]string, error) {
+	subjectSet := make(map[string]struct{})
 	c.schemaToVersionCacheLock.RLock()
 	for key, value := range c.schemaToVersionCache {
-		if !value.softDeleted {
-			subjects = append(subjects, key.subject)
+		if !value.softDeleted || deleted {
+			subjectSet[key.subject] = struct{}{}
 		}
 	}
 	c.schemaToVersionCacheLock.RUnlock()
+	subjects := make([]string, 0, len(subjectSet))
+	for subject := range subjectSet {
+		subjects = append(subjects, subject)
+	}
 	sort.Strings(subjects)
 	return subjects, nil
 }

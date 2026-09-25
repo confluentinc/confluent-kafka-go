@@ -168,6 +168,13 @@ func testGetAllSubjects(expected []string) {
 	maybeFail("All Subjects", err, expect(actual, expected))
 }
 
+func testGetAllSubjectsIncludeDeleted(deleted bool, expected []string) {
+	actual, err := srClient.GetAllSubjectsIncludeDeleted(deleted)
+	sort.Strings(actual)
+	sort.Strings(expected)
+	maybeFail("All Subjects Include Deleted", err, expect(actual, expected))
+}
+
 func testDeleteSubject(subject string, permanent bool, expected []int, ids []int, schemas []SchemaInfo) {
 	actual, err := srClient.DeleteSubject(subject, permanent)
 	sort.Ints(actual)
@@ -291,6 +298,9 @@ func TestClient(t *testing.T) {
 	ids[secondToLastSubject] = ids[secondToLastSubject][1:]
 	// Only last subject has been removed completely
 	testGetAllSubjects(subjects[:lastSubject])
+	testGetAllSubjectsIncludeDeleted(false, subjects[:lastSubject])
+	// Soft-deleted last subject is still returned when including deleted subjects
+	testGetAllSubjectsIncludeDeleted(true, subjects)
 	remainingSubjects := subjects[:lastSubject]
 	testRemainingVersions(remainingSubjects, schemas, ids, versions)
 	// Cleanup subjects

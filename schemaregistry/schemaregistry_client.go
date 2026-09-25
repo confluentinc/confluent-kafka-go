@@ -410,6 +410,7 @@ type Client interface {
 	GetVersion(subject string, schema SchemaInfo, normalize bool) (version int, err error)
 	GetVersionIncludeDeleted(subject string, schema SchemaInfo, normalize bool, deleted bool) (version int, err error)
 	GetAllSubjects() ([]string, error)
+	GetAllSubjectsIncludeDeleted(deleted bool) ([]string, error)
 	DeleteSubject(subject string, permanent bool) ([]int, error)
 	DeleteSubjectVersion(subject string, version int, permanent bool) (deletes int, err error)
 	TestSubjectCompatibility(subject string, schema SchemaInfo) (compatible bool, err error)
@@ -884,8 +885,15 @@ func (c *client) GetVersionIncludeDeleted(subject string, schema SchemaInfo, nor
 // Fetch all Subjects registered with the schema Registry
 // Returns a string slice containing all registered subjects
 func (c *client) GetAllSubjects() ([]string, error) {
+	return c.GetAllSubjectsIncludeDeleted(false)
+}
+
+// GetAllSubjectsIncludeDeleted fetches all Subjects registered with the schema Registry,
+// including soft-deleted subjects if deleted is true
+// Returns a string slice containing all registered subjects
+func (c *client) GetAllSubjectsIncludeDeleted(deleted bool) ([]string, error) {
 	var result []string
-	err := c.restService.HandleRequest(internal.NewRequest("GET", internal.Subject, nil), &result)
+	err := c.restService.HandleRequest(internal.NewRequest("GET", internal.SubjectIncludeDeleted, nil, deleted), &result)
 
 	return result, err
 }
