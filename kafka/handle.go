@@ -247,7 +247,7 @@ type cgoif interface{}
 
 // delivery report cgoif container
 type cgoDr struct {
-	deliveryChan chan Event
+	deliveryChan chan<- Event
 	opaque       interface{}
 }
 
