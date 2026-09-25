@@ -51,6 +51,7 @@ const (
 	SubjectsAndVersionsByID  = "/schemas/ids/%d/versions"
 	SchemasByGUID            = "/schemas/guids/%s"
 	Subject                  = "/subjects"
+	SubjectIncludeDeleted    = Subject + "?deleted=%t"
 	Subjects                 = Subject + "/%s"
 	SubjectsNormalize        = Subject + "/%s?normalize=%t"
 	SubjectsNormalizeDeleted = Subject + "/%s?normalize=%t&deleted=%t"
