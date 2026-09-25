@@ -90,6 +90,10 @@ type handle struct {
 	rk  *C.rd_kafka_t
 	rkq *C.rd_kafka_queue_t
 
+	// pollLock guards concurrent use of the C handle/queue (rk, rkq) in
+	// eventPoll against their destruction in Close.
+	pollLock sync.RWMutex
+
 	// Forward logs from librdkafka log queue to logs channel.
 	logs          chan LogEvent
 	logq          *C.rd_kafka_queue_t
@@ -136,6 +140,34 @@ func (h *handle) String() string {
 	return h.name
 }
 
+// rlock read-locks the handle so that a concurrent Close() cannot destroy the
+// underlying librdkafka handle/queue while a C call is in progress on another
+// goroutine. It returns an error if the handle has already been closed.
+//
+// On success the caller becomes responsible for calling h.pollLock.RUnlock()
+// (typically via defer) once it is done using the C handle. On error the lock
+// is not held.
+//
+// Note: pollLock is a non-reentrant sync.RWMutex, so a read holder must not
+// call rlock() again on the same goroutine while a writer (Close) may be
+// waiting, or it will deadlock. In particular, code reachable from eventPoll's
+// rebalance dispatch runs with the read lock already held and must use the
+// unlocked internal variants (e.g. getRebalanceProtocol) rather than the
+// public rlock()-taking methods.
+func (h *handle) rlock() error {
+	h.pollLock.RLock()
+	if h.rk == nil {
+		h.pollLock.RUnlock()
+		return getOperationNotAllowedErrorForClosedClient()
+	}
+	return nil
+}
+
+// runlock releases a lock acquired by rlock.
+func (h *handle) runlock() {
+	h.pollLock.RUnlock()
+}
+
 func (h *handle) setup() {
 	h.rktCache = make(map[string]*C.rd_kafka_topic_t)
 	h.rktNameCache = make(map[*C.rd_kafka_topic_t]string)
@@ -160,6 +192,9 @@ func (h *handle) cleanup() {
 
 	if h.rkq != nil {
 		C.rd_kafka_queue_destroy(h.rkq)
+		// Nil out so eventPoll's guard detects the closed handle instead
+		// of dereferencing a dangling queue pointer (use-after-free).
+		h.rkq = nil
 	}
 }
 
