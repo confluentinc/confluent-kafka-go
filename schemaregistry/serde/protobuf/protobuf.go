@@ -193,7 +193,7 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 	if err != nil {
 		return nil, err
 	}
-	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	err = s.SetRuleRegistry(conf.RuleRegistry, conf.RuleConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -601,7 +601,7 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 		return s.FieldTransform(s.Client, ctx, fieldTransform, msg)
 	}
 	s.FieldTransformer = fieldTransformer
-	err = s.SetRuleRegistry(serde.GlobalRuleRegistry(), conf.RuleConfig)
+	err = s.SetRuleRegistry(conf.RuleRegistry, conf.RuleConfig)
 	if err != nil {
 		return nil, err
 	}
