@@ -27,11 +27,10 @@ import (
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/google/uuid"
-
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/cache"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rest"
+	"github.com/google/uuid"
 )
 
 // Type represents the type of Serde
@@ -245,12 +244,24 @@ type Deserializer interface {
 
 // Serde is a common instance for both the serializers and deserializers
 type Serde struct {
-	Client              schemaregistry.Client
-	SerdeType           Type
-	SubjectNameStrategy SubjectNameStrategyFunc
-	MessageFactory      MessageFactory
-	FieldTransformer    FieldTransformer
-	RuleRegistry        *RuleRegistry
+	Client                       schemaregistry.Client
+	SerdeType                    Type
+	subjectNameStrategyInterface subjectNameStrategyInterface
+	SubjectNameStrategy          SubjectNameStrategyFunc
+	MessageFactory               MessageFactory
+	FieldTransformer             FieldTransformer
+	RuleRegistry                 *RuleRegistry
+
+	// ownsClient reports whether Client was created by this serde - through a
+	// Kafka serde builder - rather than supplied by the application. Only an
+	// owned client is closed by Close, and it is cleared there so that a
+	// second Close releases nothing.
+	ownsClient bool
+}
+
+type subjectNameStrategyInterface interface {
+	setClusterIDResolver(resolve func() (string, error))
+	subjectNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error)
 }
 
 // BaseSerializer represents basic serializer info
@@ -659,17 +670,54 @@ func StrategyFunc(strategyType SubjectNameStrategyType, getRecordName RecordName
 	}
 }
 
+func newAssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (*associatedNameStrategy, error) {
+	// Get kafka cluster ID from config, default to wildcard
+	kafkaClusterID := NamespaceWildcard
+	kafkaClusterIDSet := false
+	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
+		kafkaClusterID = id
+		kafkaClusterIDSet = true
+	}
+
+	// Determine fallback strategy
+	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackTypeConfig])
+	if err != nil {
+		return nil, err
+	}
+	fallbackStrategy, err := StrategyFunc(fallbackType, getRecordName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create LRU cache for subject names
+	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
+	if err != nil {
+		return nil, fmt.Errorf("associated name strategy: failed to create LRU cache: %w", err)
+	}
+
+	return &associatedNameStrategy{
+		client:            client,
+		kafkaClusterID:    kafkaClusterID,
+		kafkaClusterIDSet: kafkaClusterIDSet,
+		fallbackStrategy:  fallbackStrategy,
+		subjectNameCache:  subjectNameCache,
+	}, nil
+}
+
 // ConfigureSubjectNameStrategy configures the subject name strategy based on the strategy type
 func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyType, config map[string]string, getRecordName RecordNameFunc) error {
 	if strategyType == NoStrategyType {
 		strategyType = AssociatedNameStrategyType
 	}
 	if strategyType == AssociatedNameStrategyType {
-		strategy, err := AssociatedNameStrategy(s.Client, config, getRecordName)
+		associatedNameStrategy, err := newAssociatedNameStrategy(s.Client, config, getRecordName)
 		if err != nil {
+			// Assigning first would leave a typed nil in the interface, which
+			// is non-nil and panics on the first method call.
 			return err
 		}
-		s.SubjectNameStrategy = strategy
+		s.subjectNameStrategyInterface = associatedNameStrategy
+		s.SubjectNameStrategy = associatedNameStrategy.subjectNameStrategy
 	} else {
 		strategy, err := StrategyFunc(strategyType, getRecordName)
 		if err != nil {
@@ -678,6 +726,31 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 		s.SubjectNameStrategy = strategy
 	}
 	return nil
+}
+
+// SetClusterIDResolver gives the subject name strategy a resolver for the
+// Kafka cluster ID to use as the resource namespace when it looks up
+// associations.
+//
+// The resolver is invoked when an association is looked up, never here, so
+// that creating the serde - and the producer or consumer that supplied the
+// resolver - never waits on a broker. A cluster ID configured through
+// KafkaClusterIDConfig always wins, and strategies other than the associated
+// name strategy ignore the resolver.
+func (s *Serde) SetClusterIDResolver(resolve func() (string, error)) {
+	if s.subjectNameStrategyInterface != nil {
+		s.subjectNameStrategyInterface.setClusterIDResolver(resolve)
+	}
+}
+
+// OwnSchemaRegistryClient makes the serde take ownership of its Schema
+// Registry client, so that Close closes it.
+//
+// It is called by the Kafka serde builders, and only for a client they created
+// themselves: a client the application supplied through
+// SetSchemaRegistryClient is never closed by the serde.
+func (s *Serde) OwnSchemaRegistryClient() {
+	s.ownsClient = true
 }
 
 // TopicNameStrategy creates a subject name by appending -[key|value] to the topic name.
@@ -722,73 +795,124 @@ type subjectCacheKey struct {
 	schema string
 }
 
+type associatedNameStrategy struct {
+	client schemaregistry.Client
+	// kafkaClusterID and kafkaClusterIDSet come from KafkaClusterIDConfig and
+	// are never written after construction.
+	kafkaClusterID    string
+	kafkaClusterIDSet bool
+	fallbackStrategy  SubjectNameStrategyFunc
+	subjectNameCache  *cache.LRUCache
+	cacheLock         sync.RWMutex
+
+	// clusterIDResolver is supplied by the producer or consumer the serde was
+	// handed to, and read from whichever goroutine serializes a message.
+	clusterIDResolver     func() (string, error)
+	clusterIDResolverLock sync.RWMutex
+}
+
+func (s *associatedNameStrategy) setClusterIDResolver(resolve func() (string, error)) {
+	if s.kafkaClusterIDSet {
+		// A cluster ID configured through KafkaClusterIDConfig always wins.
+		return
+	}
+
+	s.clusterIDResolverLock.Lock()
+	defer s.clusterIDResolverLock.Unlock()
+	s.clusterIDResolver = resolve
+}
+
+// resolveClusterID returns the resource namespace to look associations up in.
+//
+// The resolved ID is deliberately not cached: the subject name cache already
+// makes association lookups rare, and librdkafka caches the cluster ID itself
+// once it is known.
+func (s *associatedNameStrategy) resolveClusterID() (string, error) {
+	if s.kafkaClusterIDSet {
+		return s.kafkaClusterID, nil
+	}
+
+	s.clusterIDResolverLock.RLock()
+	resolve := s.clusterIDResolver
+	s.clusterIDResolverLock.RUnlock()
+
+	if resolve == nil {
+		return NamespaceWildcard, nil
+	}
+
+	clusterID, err := resolve()
+	if err != nil {
+		return "", fmt.Errorf("associated name strategy: could not resolve the Kafka cluster ID, "+
+			"which typically means the client has not reached a broker yet; "+
+			"set %s to supply it explicitly: %w", KafkaClusterIDConfig, err)
+	}
+	if clusterID == "" {
+		return "", fmt.Errorf("associated name strategy: the Kafka cluster ID resolved to an empty "+
+			"string; set %s to supply it explicitly", KafkaClusterIDConfig)
+	}
+	return clusterID, nil
+}
+
+func (s *associatedNameStrategy) subjectNameStrategy(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
+	if topic == "" {
+		return "", nil
+	}
+
+	isKey := serdeType == KeySerde
+
+	// Create cache key using topic, isKey, and schema string
+	cacheKey := subjectCacheKey{
+		topic:  topic,
+		isKey:  isKey,
+		schema: schema.Schema,
+	}
+
+	// Check cache first with read lock
+	s.cacheLock.RLock()
+	cached, ok := s.subjectNameCache.Get(cacheKey)
+	s.cacheLock.RUnlock()
+	if ok {
+		return cached.(string), nil
+	}
+
+	// Resolve the cluster ID only on a cache miss, so a cache hit never waits
+	// on the client.
+	kafkaClusterID, err := s.resolveClusterID()
+	if err != nil {
+		return "", err
+	}
+
+	// Load subject name from schema registry (without holding lock)
+	subject, err := loadAssociatedSubjectName(s.client, topic, kafkaClusterID, isKey, schema, s.fallbackStrategy, serdeType)
+	if err != nil {
+		return "", err
+	}
+
+	// Store in cache
+	s.cacheLock.Lock()
+	s.subjectNameCache.Put(cacheKey, subject)
+	s.cacheLock.Unlock()
+
+	return subject, nil
+}
+
 // AssociatedNameStrategy returns a strategy that retrieves the associated subject name from schema registry.
 // The topic is passed as the resource name to schema registry. If there is a configuration property named
 // "subject.name.strategy.kafka.cluster.id", then its value will be passed as the resource namespace; otherwise the value "-"
 // will be passed as the resource namespace.
+// A strategy created this way has no cluster ID resolver, so it always falls back to "-"; a strategy
+// configured through [Serde.ConfigureSubjectNameStrategy] can be given one with
+// [Serde.SetClusterIDResolver].
 // If more than one subject is returned from the query, an error will be returned.
 // If no subjects are returned from the query, then the behavior will fall back to TopicNameStrategy,
 // unless the configuration property "subject.name.strategy.fallback.type" is set to "RECORD",
 // "TOPIC_RECORD", or "NONE".
 func AssociatedNameStrategy(client schemaregistry.Client, config map[string]string, getRecordName RecordNameFunc) (SubjectNameStrategyFunc, error) {
-	// Get kafka cluster ID from config, default to wildcard
-	kafkaClusterID := NamespaceWildcard
-	if id, ok := config[KafkaClusterIDConfig]; ok && id != "" {
-		kafkaClusterID = id
-	}
-
-	// Determine fallback strategy
-	fallbackType, err := ParseSubjectNameStrategyType(config[FallbackTypeConfig])
+	strategy, err := newAssociatedNameStrategy(client, config, getRecordName)
 	if err != nil {
 		return nil, err
 	}
-	fallbackStrategy, err := StrategyFunc(fallbackType, getRecordName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create LRU cache for subject names
-	subjectNameCache, err := cache.NewLRUCache(DefaultCacheCapacity)
-	if err != nil {
-		return nil, fmt.Errorf("associated name strategy: failed to create LRU cache: %w", err)
-	}
-	var subjectNameCacheLock sync.RWMutex
-
-	return func(topic string, serdeType Type, schema schemaregistry.SchemaInfo) (string, error) {
-		if topic == "" {
-			return "", nil
-		}
-
-		isKey := serdeType == KeySerde
-
-		// Create cache key using topic, isKey, and schema string
-		cacheKey := subjectCacheKey{
-			topic:  topic,
-			isKey:  isKey,
-			schema: schema.Schema,
-		}
-
-		// Check cache first with read lock
-		subjectNameCacheLock.RLock()
-		cached, ok := subjectNameCache.Get(cacheKey)
-		subjectNameCacheLock.RUnlock()
-		if ok {
-			return cached.(string), nil
-		}
-
-		// Load subject name from schema registry (without holding lock)
-		subject, err := loadAssociatedSubjectName(client, topic, kafkaClusterID, isKey, schema, fallbackStrategy, serdeType)
-		if err != nil {
-			return "", err
-		}
-
-		// Store in cache
-		subjectNameCacheLock.Lock()
-		subjectNameCache.Put(cacheKey, subject)
-		subjectNameCacheLock.Unlock()
-
-		return subject, nil
-	}, nil
+	return strategy.subjectNameStrategy, nil
 }
 
 // loadAssociatedSubjectName loads the subject name from schema registry associations
@@ -1425,9 +1549,18 @@ func ResolveReferences(c schemaregistry.Client, schema schemaregistry.SchemaInfo
 	return nil
 }
 
-// Close closes the Serde
+// Close releases the resources the serde created itself. Resources the
+// application supplied, such as a Schema Registry client passed to a Kafka
+// serde builder through SetSchemaRegistryClient, are left alone.
+//
+// It is safe to call more than once: only the first call releases anything.
 func (s *Serde) Close() error {
-	return nil
+	if !s.ownsClient || s.Client == nil {
+		return nil
+	}
+
+	s.ownsClient = false
+	return s.Client.Close()
 }
 
 // Configure configures the action

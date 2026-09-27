@@ -148,6 +148,9 @@ type Producer struct {
 
 	// checks if Producer has been closed or not.
 	isClosed uint32
+
+	// sendMessageToChannel is a function that sends a message to a delivery channel. It can be overridden for additional transformation or processing of the message before sending it to the channel. If not set, the default behavior is to send the message directly to the channel.
+	sendMessageToChannel sendMessageToChannelFunc
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -170,6 +173,17 @@ func (p *Producer) String() string {
 // get_handle implements the Handle interface
 func (p *Producer) gethandle() *handle {
 	return &p.handle
+}
+
+// GetClusterID retrieves the ID of the Kafka cluster the producer is connected
+// to, waiting up to timeoutMs for it. It reports an error if the producer has
+// not reached a broker within that time, and once the producer is closed.
+func (p *Producer) GetClusterID(timeoutMs int) (string, error) {
+	err := p.verifyClient()
+	if err != nil {
+		return "", err
+	}
+	return p.handle.getClusterID(timeoutMs)
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
