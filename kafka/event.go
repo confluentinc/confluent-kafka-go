@@ -144,6 +144,33 @@ func (o OAuthBearerTokenRefresh) String() string {
 	return "OAuthBearerTokenRefresh"
 }
 
+// NewApplicationRebalanceError reports an application-level error occuring during a RebalanceCb call.
+func NewApplicationRebalanceError(wrapped error) *ApplicationError {
+	return &ApplicationError{
+		err: fmt.Errorf("application rebalance error: %w", wrapped),
+	}
+}
+
+// ApplicationError reports an error triggered by the application and
+// returned by this package as en event. One such case exists with application
+// RebalanceCb error results.
+type ApplicationError struct {
+	err error
+}
+
+func (ae *ApplicationError) Error() string {
+	return ae.String()
+}
+
+func (ae *ApplicationError) String() string {
+	return ae.err.Error()
+}
+
+// Unwrap supports using errors.Is in client code on ApplicationEvent messages.
+func (ae *ApplicationError) Unwrap() error {
+	return ae.err
+}
+
 // eventPoll polls an event from the handler's C rd_kafka_queue_t,
 // translates it into an Event type and then sends on `channel` if non-nil, else returns the Event.
 // term_chan is an optional channel to monitor along with producing to channel
