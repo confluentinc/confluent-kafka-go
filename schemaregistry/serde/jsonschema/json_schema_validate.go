@@ -21,7 +21,7 @@ import (
 	"reflect"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v5"
+	jsonschema2 "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // validateMessage walks msg against schema, evaluating every inline "confluent:rules"
