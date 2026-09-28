@@ -31,7 +31,7 @@ func handleStatsEvent(t *testing.T, eventCh chan Event, statsReceived chan bool)
 
 			// test if the stats string can be decoded into JSON
 			var raw map[string]interface{}
-			err := json.Unmarshal([]byte(e.String()), &raw) // convert json to map
+			err := json.Unmarshal(e.Bytes(), &raw) // convert json to map
 			if err != nil {
 				t.Fatalf("json unmarshall error: %s", err)
 			}
