@@ -472,6 +472,8 @@ type TopicSpecification struct {
 	// broker id list will be the preferred replica.
 	ReplicaAssignment [][]int32
 	// Topic configuration.
+	// To associate a schema with this topic at creation time, set
+	// "confluent.value.association" (and optionally "confluent.key.association").
 	Config map[string]string
 }
 
@@ -2130,6 +2132,10 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 // Multiple resources and resource types may be set, but at most one
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
+//
+// To associate or update a topic's subject association, use a SET operation
+// on "confluent.value.association" (or "confluent.key.association").
+// To remove an association, use a DELETE operation on the same key.
 func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
 	err = a.verifyClient()
 	if err != nil {
@@ -2216,6 +2222,8 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 // The returned configuration includes default values, use
 // ConfigEntryResult.IsDefault or ConfigEntryResult.Source to distinguish
 // default values from manually configured settings.
+// For topics with an explicit subject association, the result includes
+// "confluent.value.association" and "confluent.key.association" entries.
 //
 // The value of config entries where .IsSensitive is true
 // will always be nil to avoid disclosing sensitive
