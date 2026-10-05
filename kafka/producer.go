@@ -185,6 +185,8 @@ func (p *Producer) gethandle() *handle {
 // cancelling the context will block until the C function call returns.
 //
 // Requires broker version >= 0.10.0.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func (p *Producer) ClusterID(ctx context.Context) (clusterID string, err error) {
 	return p.handle.getClusterID(ctx, p.verifyClient)
 }

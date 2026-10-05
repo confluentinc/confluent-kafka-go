@@ -22,6 +22,8 @@ import (
 )
 
 // SerializableMessage represents a Kafka message with serializable key and value types. It is used with the SerializingProducer to produce messages with specific key and value types.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type SerializableMessage[K any, V any] struct {
 	TopicPartition TopicPartition
 	Key            K

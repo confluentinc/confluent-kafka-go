@@ -29,6 +29,8 @@ const clusterIDTimeoutMs = 60000
 // SerializingProducer wraps a [Producer] and exposes all of its public
 // methods. See [Producer] for detailed documentation of the underlying
 // behavior.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type SerializingProducer[K, V any] struct {
 	producer        *Producer
 	keySerializer   Serializer
@@ -36,6 +38,8 @@ type SerializingProducer[K, V any] struct {
 }
 
 // Serializer turns a typed key or value into the bytes produced to Kafka.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type Serializer interface {
 	SerializeWithHeaders(topic string, msg interface{}) ([]Header, []byte, error)
 
@@ -69,6 +73,8 @@ type Serializer interface {
 // serializer, and returns the serializer together with the ConfigMap to carry
 // on with: any property the serializer consumed itself is filtered out, so that
 // what reaches [NewProducer] holds Kafka properties only.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type SerializerBuilder interface {
 	Build(conf *ConfigMap, isKey bool) (Serializer, *ConfigMap, error)
 }
@@ -80,6 +86,8 @@ type SerializerBuilder interface {
 // along with it. Should construction fail at any point, whatever was built up
 // to then - the serializers, and the [Producer] itself - is released before
 // the error is returned, since the caller has no handle to close.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewSerializingProducer[K, V any](conf *ConfigMap,
 	keySerializerBuilder SerializerBuilder,
 	valueSerializerBuilder SerializerBuilder) (*SerializingProducer[K, V], error) {

@@ -42,6 +42,8 @@ var newSchemaRegistryClient = schemaregistry.NewClient
 // A client created here is owned by the serde that is built around it, and is
 // closed along with it; a client the application supplied is never closed by
 // the serde.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func ResolveSchemaRegistryClient(srConf *schemaregistry.Config, client schemaregistry.Client,
 	conf *kafka.ConfigMap) (schemaregistry.Client, *kafka.ConfigMap, bool, error) {
 
@@ -76,6 +78,8 @@ func ResolveSchemaRegistryClient(srConf *schemaregistry.Config, client schemareg
 // construct creates the serde from the resolved client, and
 // ownSchemaRegistryClient makes it take ownership of that client; the latter
 // is invoked only when the client was created here.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func BuildSerde[S any](srConf *schemaregistry.Config, client schemaregistry.Client,
 	conf *kafka.ConfigMap, construct func(schemaregistry.Client) (S, error),
 	ownSchemaRegistryClient func(S)) (S, *kafka.ConfigMap, error) {

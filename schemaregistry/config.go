@@ -135,6 +135,8 @@ func NewConfigWithUAMIAuthentication(url, endpointURL, endpointQuery, resource, 
 // It returns the Schema Registry configuration and a copy of the ConfigMap with
 // the Schema Registry properties removed, so that what is left can be passed to
 // a Kafka client without it rejecting unknown properties.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewConfigFromKafkaConfigMap(srConf *Config, conf *kafka.ConfigMap) (*Config, *kafka.ConfigMap, error) {
 	if srConf == nil {
 		srConf = &Config{}
