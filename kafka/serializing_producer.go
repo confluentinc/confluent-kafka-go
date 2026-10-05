@@ -158,10 +158,7 @@ func NewSerializingProducer[K, V any](conf *ConfigMap,
 // share a single lookup, as [handle.resolveClusterID] describes.
 func propagateClusterIDResolver(p *Producer, serializers ...Serializer) {
 	resolve := func() (string, error) {
-		if err := p.verifyClient(); err != nil {
-			return "", err
-		}
-		return p.handle.resolveClusterID(clusterIDTimeoutMs)
+		return p.handle.resolveClusterID(clusterIDTimeoutMs, p.verifyClient)
 	}
 
 	for _, serializer := range serializers {
@@ -313,9 +310,9 @@ func (sp *SerializingProducer[K, V]) GetMetadata(topic *string, allTopics bool, 
 	return sp.producer.GetMetadata(topic, allTopics, timeoutMs)
 }
 
-// GetClusterID is the same as [Producer.GetClusterID].
-func (sp *SerializingProducer[K, V]) GetClusterID(timeoutMs int) (string, error) {
-	return sp.producer.GetClusterID(timeoutMs)
+// ClusterID is the same as [Producer.ClusterID].
+func (sp *SerializingProducer[K, V]) ClusterID(ctx context.Context) (string, error) {
+	return sp.producer.ClusterID(ctx)
 }
 
 // QueryWatermarkOffsets is the same as [Producer.QueryWatermarkOffsets].

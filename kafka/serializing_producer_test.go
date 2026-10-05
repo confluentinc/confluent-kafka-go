@@ -263,16 +263,18 @@ func TestSerializingProducerClosesSerializersWhenProducerCreationFails(t *testin
 	}
 }
 
-// TestProducerGetClusterID verifies the cluster ID lookup fails, rather than
+// TestProducerClusterID verifies the cluster ID lookup fails, rather than
 // blocking forever, when no broker answers.
-func TestProducerGetClusterID(t *testing.T) {
+func TestProducerClusterID(t *testing.T) {
 	p, err := NewProducer(&ConfigMap{"bootstrap.servers": "127.0.0.1:65533"})
 	if err != nil {
 		t.Fatalf("Failed to create producer: %s", err)
 	}
 	defer p.Close()
 
-	clusterID, err := p.GetClusterID(100)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	clusterID, err := p.ClusterID(ctx)
 	if err == nil {
 		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
 	}
@@ -319,17 +321,19 @@ func TestSerializingProducerProduceLeavesHeadersAlone(t *testing.T) {
 	}
 }
 
-// TestSerializingProducerGetClusterID verifies that the wrapper hands the
+// TestSerializingProducerClusterID verifies that the wrapper hands the
 // lookup to the producer it wraps, and that both refuse it once closed rather
 // than reaching into a destroyed librdkafka handle.
-func TestSerializingProducerGetClusterID(t *testing.T) {
+func TestSerializingProducerClusterID(t *testing.T) {
 	sp, err := NewSerializingProducer[string, string](
 		&ConfigMap{"bootstrap.servers": "127.0.0.1:65533"}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create SerializingProducer: %s", err)
 	}
 
-	clusterID, err := sp.GetClusterID(100)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	clusterID, err := sp.ClusterID(ctx)
 	if err == nil {
 		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
 	}
@@ -339,7 +343,7 @@ func TestSerializingProducerGetClusterID(t *testing.T) {
 
 	sp.Close()
 
-	clusterID, err = sp.GetClusterID(100)
+	clusterID, err = sp.ClusterID(ctx)
 	if clusterID != "" {
 		t.Errorf("Expected an empty cluster ID from a closed producer, got %q", clusterID)
 	}

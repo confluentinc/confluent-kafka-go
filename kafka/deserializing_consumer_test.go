@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -264,9 +265,9 @@ func TestDeserializingConsumerClosesDeserializersWhenConsumerCreationFails(t *te
 	}
 }
 
-// TestConsumerGetClusterID verifies the cluster ID lookup fails, rather than
+// TestConsumerClusterID verifies the cluster ID lookup fails, rather than
 // blocking forever, when no broker answers.
-func TestConsumerGetClusterID(t *testing.T) {
+func TestConsumerClusterID(t *testing.T) {
 	c, err := NewConsumer(&ConfigMap{
 		"group.id":          "gotest",
 		"bootstrap.servers": "127.0.0.1:65533",
@@ -276,7 +277,9 @@ func TestConsumerGetClusterID(t *testing.T) {
 	}
 	defer c.Close()
 
-	clusterID, err := c.GetClusterID(100)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	clusterID, err := c.ClusterID(ctx)
 	if err == nil {
 		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
 	}
@@ -285,10 +288,10 @@ func TestConsumerGetClusterID(t *testing.T) {
 	}
 }
 
-// TestDeserializingConsumerGetClusterID verifies that the wrapper hands the
+// TestDeserializingConsumerClusterID verifies that the wrapper hands the
 // lookup to the consumer it wraps, and that both refuse it once closed rather
 // than reaching into a destroyed librdkafka handle.
-func TestDeserializingConsumerGetClusterID(t *testing.T) {
+func TestDeserializingConsumerClusterID(t *testing.T) {
 	dc, err := NewDeserializingConsumer[string, string](&ConfigMap{
 		"group.id":          "gotest",
 		"bootstrap.servers": "127.0.0.1:65533",
@@ -297,7 +300,9 @@ func TestDeserializingConsumerGetClusterID(t *testing.T) {
 		t.Fatalf("Failed to create DeserializingConsumer: %s", err)
 	}
 
-	clusterID, err := dc.GetClusterID(100)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	clusterID, err := dc.ClusterID(ctx)
 	if err == nil {
 		t.Errorf("Expected an error without a broker, got cluster ID %q", clusterID)
 	}
@@ -309,7 +314,7 @@ func TestDeserializingConsumerGetClusterID(t *testing.T) {
 		t.Fatalf("Close() failed: %s", err)
 	}
 
-	clusterID, err = dc.GetClusterID(100)
+	clusterID, err = dc.ClusterID(ctx)
 	if clusterID != "" {
 		t.Errorf("Expected an empty cluster ID from a closed consumer, got %q", clusterID)
 	}

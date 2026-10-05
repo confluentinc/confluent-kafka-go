@@ -29,10 +29,10 @@ import (
 	. "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-// clusterIDLookupTimeoutMs bounds every GetClusterID call in this file. The
-// broker is local and its metadata is cached after the first lookup, so this
-// only has to be long enough for the client to connect.
-const clusterIDLookupTimeoutMs = 30000
+// clusterIDLookupTimeout bounds every ClusterID call in this file. The broker
+// is local and its metadata is cached after the first lookup, so this only has
+// to be long enough for the client to connect.
+const clusterIDLookupTimeout = 30 * time.Second
 
 // clusterIDForTest returns the cluster ID the broker reports.
 func clusterIDForTest(t *testing.T) string {
@@ -41,7 +41,7 @@ func clusterIDForTest(t *testing.T) string {
 	a := createAdminClient(t)
 	defer a.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
 	defer cancel()
 
 	clusterID, err := a.ClusterID(ctx)
@@ -134,7 +134,7 @@ func (its *IntegrationTestSuite) TestClusterIDConsistency() {
 	a := createAdminClient(t)
 	defer a.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
 	defer cancel()
 
 	clusterID, err := a.ClusterID(ctx)
@@ -218,39 +218,31 @@ func (its *IntegrationTestSuite) TestClusterIDPropagation() {
 	})
 }
 
-// TestGetClusterID verifies the public cluster ID lookups of every client -
-// the admin client, the producer, the consumer and the two Schema Registry
-// wrappers - against a live broker: each reports the same ID as
-// [AdminClient.ClusterID], and each reports an error once its client is
-// closed rather than reaching into a destroyed librdkafka handle.
-func (its *IntegrationTestSuite) TestGetClusterID() {
+// TestClusterID verifies the public cluster ID lookups of the producer, the
+// consumer and the two Schema Registry wrappers against a live broker: each
+// reports the same ID as [AdminClient.ClusterID], and each client - the admin
+// client included - reports an error once closed rather than reaching into a
+// destroyed librdkafka handle.
+func (its *IntegrationTestSuite) TestClusterID() {
 	t := its.T()
 
 	expectedClusterID := clusterIDForTest(t)
 	producerConf := ConfigMap{"bootstrap.servers": testconf.Brokers}
 	consumerConf := ConfigMap{
 		"bootstrap.servers": testconf.Brokers,
-		"group.id":          fmt.Sprintf("%s-getclusterid-%d", testconf.GroupID, rand.Intn(1000000)),
+		"group.id":          fmt.Sprintf("%s-clusterid-%d", testconf.GroupID, rand.Intn(1000000)),
 		"auto.offset.reset": "earliest",
 	}
-
-	t.Run("admin client", func(t *testing.T) {
-		a := createAdminClient(t)
-		defer a.Close()
-
-		clusterID, err := a.GetClusterID(clusterIDLookupTimeoutMs)
-		require.NoError(t, err, "AdminClient.GetClusterID should not fail")
-		assert.Equal(t, expectedClusterID, clusterID,
-			"AdminClient.GetClusterID and AdminClient.ClusterID should agree")
-	})
 
 	t.Run("producer", func(t *testing.T) {
 		p, err := NewProducer(&producerConf)
 		require.NoError(t, err, "failed to create the producer")
 		defer p.Close()
 
-		clusterID, err := p.GetClusterID(clusterIDLookupTimeoutMs)
-		require.NoError(t, err, "Producer.GetClusterID should not fail")
+		ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
+		defer cancel()
+		clusterID, err := p.ClusterID(ctx)
+		require.NoError(t, err, "Producer.ClusterID should not fail")
 		assert.Equal(t, expectedClusterID, clusterID,
 			"the producer should report the cluster ID of the broker")
 	})
@@ -260,8 +252,10 @@ func (its *IntegrationTestSuite) TestGetClusterID() {
 		require.NoError(t, err, "failed to create the consumer")
 		defer c.Close()
 
-		clusterID, err := c.GetClusterID(clusterIDLookupTimeoutMs)
-		require.NoError(t, err, "Consumer.GetClusterID should not fail")
+		ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
+		defer cancel()
+		clusterID, err := c.ClusterID(ctx)
+		require.NoError(t, err, "Consumer.ClusterID should not fail")
 		assert.Equal(t, expectedClusterID, clusterID,
 			"the consumer should report the cluster ID of the broker")
 	})
@@ -271,8 +265,10 @@ func (its *IntegrationTestSuite) TestGetClusterID() {
 		require.NoError(t, err, "failed to create the serializing producer")
 		defer sp.Close()
 
-		clusterID, err := sp.GetClusterID(clusterIDLookupTimeoutMs)
-		require.NoError(t, err, "SerializingProducer.GetClusterID should not fail")
+		ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
+		defer cancel()
+		clusterID, err := sp.ClusterID(ctx)
+		require.NoError(t, err, "SerializingProducer.ClusterID should not fail")
 		assert.Equal(t, expectedClusterID, clusterID,
 			"the serializing producer should report the cluster ID of the broker")
 	})
@@ -282,8 +278,10 @@ func (its *IntegrationTestSuite) TestGetClusterID() {
 		require.NoError(t, err, "failed to create the deserializing consumer")
 		defer dc.Close()
 
-		clusterID, err := dc.GetClusterID(clusterIDLookupTimeoutMs)
-		require.NoError(t, err, "DeserializingConsumer.GetClusterID should not fail")
+		ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
+		defer cancel()
+		clusterID, err := dc.ClusterID(ctx)
+		require.NoError(t, err, "DeserializingConsumer.ClusterID should not fail")
 		assert.Equal(t, expectedClusterID, clusterID,
 			"the deserializing consumer should report the cluster ID of the broker")
 	})
@@ -292,8 +290,11 @@ func (its *IntegrationTestSuite) TestGetClusterID() {
 	// invokes that resolver on a closed client, so the lookup has to report an
 	// error instead of reading a destroyed handle.
 	t.Run("closed clients", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), clusterIDLookupTimeout)
+		defer cancel()
+
 		a := createAdminClient(t)
-		_, err := a.GetClusterID(clusterIDLookupTimeoutMs)
+		_, err := a.ClusterID(ctx)
 		require.NoError(t, err, "the admin client should resolve the cluster ID while open")
 		a.Close()
 
@@ -305,12 +306,12 @@ func (its *IntegrationTestSuite) TestGetClusterID() {
 		require.NoError(t, err, "failed to create the consumer")
 		require.NoError(t, c.Close(), "failed to close the consumer")
 
-		for name, getClusterID := range map[string]func(int) (string, error){
-			"admin client": a.GetClusterID,
-			"producer":     p.GetClusterID,
-			"consumer":     c.GetClusterID,
+		for name, clusterIDOf := range map[string]func(context.Context) (string, error){
+			"admin client": a.ClusterID,
+			"producer":     p.ClusterID,
+			"consumer":     c.ClusterID,
 		} {
-			clusterID, err := getClusterID(clusterIDLookupTimeoutMs)
+			clusterID, err := clusterIDOf(ctx)
 			require.Error(t, err, "the closed %s should not resolve a cluster ID", name)
 			kafkaError, ok := err.(Error)
 			require.True(t, ok, "the closed %s should report a kafka.Error, got %T", name, err)
