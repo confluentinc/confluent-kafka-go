@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -85,6 +86,8 @@ type Handle interface {
 	IsClosed() bool
 }
 
+type sendMessageToChannelFunc func(msg *Message, deliveryChan *chan Event, termChan chan bool) bool
+
 // Common instance handle for both Producer and Consumer
 type handle struct {
 	rk  *C.rd_kafka_t
@@ -130,6 +133,11 @@ type handle struct {
 
 	// WaitGroup to wait for spawned go-routines to finish.
 	waitGroup sync.WaitGroup
+
+	// The cluster ID lookup currently in flight, if any, shared by every
+	// caller of resolveClusterID on this handle.
+	clusterIDLock     sync.Mutex
+	clusterIDInFlight *clusterIDCall
 }
 
 func (h *handle) String() string {
@@ -332,6 +340,98 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 		return nil
 	}
 	return newError(cErr)
+}
+
+// getClusterID retrieves the ID of the Kafka cluster the handle is connected
+// to, waiting for it until ctx's deadline. Given an expired ctx, it only
+// consults librdkafka's cache, without waiting.
+//
+// verifyClient is the owning client's check that it is still open. It is
+// checked first, as h.rk is destroyed when the client is closed, and again
+// when librdkafka finds no ID: closing the client wakes up a lookup in
+// progress, which then reports the client closed rather than waiting out
+// ctx.
+//
+// The librdkafka lookup cannot be cancelled: it is bounded by ctx's deadline
+// alone, and cancelling ctx does not make it return any sooner.
+func (h *handle) getClusterID(ctx context.Context, verifyClient func() error) (string, error) {
+	if err := verifyClient(); err != nil {
+		return "", err
+	}
+	cClusterID := C.rd_kafka_clusterid(h.rk, cTimeoutFromContext(ctx))
+	if cClusterID == nil {
+		if err := verifyClient(); err != nil {
+			return "", err
+		}
+		if _, hasDeadline := ctx.Deadline(); hasDeadline {
+			// librdkafka's timeout is in whole milliseconds, so it may run
+			// out slightly ahead of ctx.
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		return "", fmt.Errorf("Failed to retrieve cluster ID")
+	}
+	defer C.rd_kafka_mem_free(h.rk, unsafe.Pointer(cClusterID))
+	return C.GoString(cClusterID), nil
+}
+
+// lookupClusterID performs a cluster ID lookup for resolveClusterID. It is a
+// variable so that tests can observe how many lookups are started.
+var lookupClusterID = (*handle).getClusterID
+
+// clusterIDCall is a cluster ID lookup in flight. done is closed once
+// clusterID and err are set.
+type clusterIDCall struct {
+	done      chan struct{}
+	clusterID string
+	err       error
+}
+
+// resolveClusterID retrieves the cluster ID for the resolvers handed to the
+// serdes, waiting up to timeoutMs for it. verifyClient is the owning client's
+// check that it is still open, as getClusterID describes.
+//
+// Once the ID is known, librdkafka answers from its cache without waiting.
+// Otherwise at most one lookup is in flight per handle: concurrent callers -
+// the key and the value serde, and every goroutine producing or consuming
+// through them - all wait for the same lookup, and so share the deadline of
+// the caller that started it, which is the only one calling into librdkafka.
+// The outcome is not kept once the lookup completes: librdkafka caches the ID
+// itself once known, and a failed lookup is simply retried by the next caller.
+func (h *handle) resolveClusterID(timeoutMs int, verifyClient func() error) (string, error) {
+	lookup := func(timeout time.Duration) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return lookupClusterID(h, ctx, verifyClient)
+	}
+
+	if clusterID, err := lookup(0); err == nil {
+		return clusterID, nil
+	}
+
+	h.clusterIDLock.Lock()
+	call := h.clusterIDInFlight
+	if call != nil {
+		h.clusterIDLock.Unlock()
+		<-call.done
+		return call.clusterID, call.err
+	}
+	call = &clusterIDCall{done: make(chan struct{})}
+	h.clusterIDInFlight = call
+	h.clusterIDLock.Unlock()
+
+	defer func() {
+		// Cleared before completing, so that a caller woken by the completion
+		// that resolves again starts a fresh lookup rather than getting this
+		// completed one back.
+		h.clusterIDLock.Lock()
+		h.clusterIDInFlight = nil
+		h.clusterIDLock.Unlock()
+		close(call.done)
+	}()
+
+	call.clusterID, call.err = lookup(time.Duration(timeoutMs) * time.Millisecond)
+	return call.clusterID, call.err
 }
 
 // messageFields controls which fields are made available for producer delivery reports & consumed messages.
