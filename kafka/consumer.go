@@ -733,6 +733,8 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 // cancelling the context will block until the C function call returns.
 //
 // Requires broker version >= 0.10.0.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func (c *Consumer) ClusterID(ctx context.Context) (clusterID string, err error) {
 	return c.handle.getClusterID(ctx, c.verifyClient)
 }

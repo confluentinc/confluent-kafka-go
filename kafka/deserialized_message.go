@@ -22,6 +22,8 @@ import (
 )
 
 // DeserializedMessage represents a Kafka message with deserialized key and value types. It is used with the DeserializingConsumer to consume messages with specific key and value types.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type DeserializedMessage[K any, V any] struct {
 	TopicPartition TopicPartition
 	Key            K

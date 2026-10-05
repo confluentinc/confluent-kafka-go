@@ -27,6 +27,8 @@ import (
 // DeserializingConsumer wraps a [Consumer] and exposes all of its public
 // methods. See [Consumer] for detailed documentation of the underlying
 // behavior.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type DeserializingConsumer[K, V any] struct {
 	consumer          *Consumer
 	keyDeserializer   Deserializer
@@ -34,6 +36,8 @@ type DeserializingConsumer[K, V any] struct {
 }
 
 // Deserializer turns the bytes consumed from Kafka into a typed key or value.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type Deserializer interface {
 	DeserializeWithHeaders(topic string, headers []Header, payload []byte) (interface{}, error)
 
@@ -65,6 +69,8 @@ type Deserializer interface {
 // [DeserializingConsumer.Poll] when the key of a message could not be
 // deserialized. It carries the partition and offset of that message, so that
 // consumption can be resumed past it.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type KeyDeserializationError struct {
 	TopicPartition TopicPartition
 	err            error
@@ -74,6 +80,8 @@ type KeyDeserializationError struct {
 // [DeserializingConsumer.Poll] when the value of a message could not be
 // deserialized. It carries the partition and offset of that message, so that
 // consumption can be resumed past it.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type ValueDeserializationError struct {
 	TopicPartition TopicPartition
 	err            error
@@ -117,6 +125,8 @@ func (e ValueDeserializationError) String() string {
 
 // NewKeyDeserializationError creates a [KeyDeserializationError] for the
 // message at topicPartition, wrapping the error the key deserializer returned.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewKeyDeserializationError(topicPartition TopicPartition, err error) KeyDeserializationError {
 	return KeyDeserializationError{
 		TopicPartition: topicPartition,
@@ -127,6 +137,8 @@ func NewKeyDeserializationError(topicPartition TopicPartition, err error) KeyDes
 // NewValueDeserializationError creates a [ValueDeserializationError] for the
 // message at topicPartition, wrapping the error the value deserializer
 // returned.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewValueDeserializationError(topicPartition TopicPartition, err error) ValueDeserializationError {
 	return ValueDeserializationError{
 		TopicPartition: topicPartition,
@@ -141,6 +153,8 @@ func NewValueDeserializationError(topicPartition TopicPartition, err error) Valu
 // deserializer, and returns the deserializer together with the ConfigMap to
 // carry on with: any property the deserializer consumed itself is filtered out,
 // so that what reaches [NewConsumer] holds Kafka properties only.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type DeserializerBuilder interface {
 	Build(conf *ConfigMap, isKey bool) (Deserializer, *ConfigMap, error)
 }
@@ -153,6 +167,8 @@ type DeserializerBuilder interface {
 // built up to then - the deserializers, and the [Consumer] itself - is
 // released before the error is returned, since the caller has no handle to
 // close.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 	keyDeserializerBuilder DeserializerBuilder,
 	valueDeserializerBuilder DeserializerBuilder) (*DeserializingConsumer[K, V], error) {

@@ -102,6 +102,8 @@ func NewSerializer(client schemaregistry.Client, serdeType serde.Type, conf *Ser
 // configuration.
 //
 // It implements [kafka.SerializerBuilder].
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type KafkaSerializerBuilder struct {
 	schemaRegistryConf   *schemaregistry.Config
 	schemaRegistryClient schemaregistry.Client
@@ -180,6 +182,8 @@ func (b *KafkaSerializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kafka
 }
 
 // NewKafkaSerializerBuilder creates a JSON Schema serializer builder for generic objects
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewKafkaSerializerBuilder() *KafkaSerializerBuilder {
 	return &KafkaSerializerBuilder{}
 }
@@ -321,6 +325,8 @@ func NewDeserializer(client schemaregistry.Client, serdeType serde.Type, conf *D
 // configuration.
 //
 // It implements [kafka.DeserializerBuilder].
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 type KafkaDeserializerBuilder struct {
 	schemaRegistryConf   *schemaregistry.Config
 	schemaRegistryClient schemaregistry.Client
@@ -399,6 +405,8 @@ func (b *KafkaDeserializerBuilder) Build(conf *kafka.ConfigMap, isKey bool) (kaf
 }
 
 // NewKafkaDeserializerBuilder creates a JSON Schema deserializer builder for generic objects
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func NewKafkaDeserializerBuilder() *KafkaDeserializerBuilder {
 	return &KafkaDeserializerBuilder{}
 }

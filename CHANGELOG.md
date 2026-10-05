@@ -6,6 +6,7 @@ This is a feature release:
 
 * The serializers and deserializers can now be integrated into the Kafka producer and consumer through the
 `SerializingProducer` and `DeserializingConsumer`. The cluster ID is automatically passed to the serde when needed, for example in the `AssociatedNameStrategy` case, and resolved lazily, when the serde looks a subject up, so that creating the producer or the consumer never waits on a broker. It's also possible to get the cluster ID independently, in order to keep the Kafka and Schema Registry client separate (#1583).
+This API - `SerializingProducer`, `DeserializingConsumer`, the Kafka serde builders and the `ClusterID` method of `Producer` and `Consumer` - is experimental and subject to change or removal.
 
 ### Enhancements
 * Add support for saving Azure key version with DEK (#1577)

@@ -737,6 +737,8 @@ func (s *Serde) ConfigureSubjectNameStrategy(strategyType SubjectNameStrategyTyp
 // resolver - never waits on a broker. A cluster ID configured through
 // KafkaClusterIDConfig always wins, and strategies other than the associated
 // name strategy ignore the resolver.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func (s *Serde) SetClusterIDResolver(resolve func() (string, error)) {
 	if s.subjectNameStrategyInterface != nil {
 		s.subjectNameStrategyInterface.setClusterIDResolver(resolve)
@@ -749,6 +751,8 @@ func (s *Serde) SetClusterIDResolver(resolve func() (string, error)) {
 // It is called by the Kafka serde builders, and only for a client they created
 // themselves: a client the application supplied through
 // SetSchemaRegistryClient is never closed by the serde.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
 func (s *Serde) OwnSchemaRegistryClient() {
 	s.ownsClient = true
 }
