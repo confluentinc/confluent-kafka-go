@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -25,8 +26,9 @@ import (
 )
 
 // stubClusterIDLookup replaces the librdkafka cluster ID lookup for the
-// duration of a test. A lookup with a zero timeout consults the cache, which
-// holds cached once it is set, and never blocks. Any other lookup is counted,
+// duration of a test. Like the real lookup, it first reports a closed client
+// as such. A lookup with an expired context consults the cache, which holds
+// cached once it is set, and never blocks. Any other lookup is counted,
 // signals entered, and blocks until release is closed, then returns id and
 // err.
 type stubClusterIDLookup struct {
@@ -37,6 +39,9 @@ type stubClusterIDLookup struct {
 	id      string
 	err     error
 }
+
+// clientOpen is the verifyClient check of a client that is never closed.
+func clientOpen() error { return nil }
 
 func withStubClusterIDLookup(t *testing.T, id string, err error) *stubClusterIDLookup {
 	t.Helper()
@@ -49,8 +54,11 @@ func withStubClusterIDLookup(t *testing.T, id string, err error) *stubClusterIDL
 	stub.cached.Store("")
 
 	previous := lookupClusterID
-	lookupClusterID = func(_ *handle, timeoutMs int) (string, error) {
-		if timeoutMs == 0 {
+	lookupClusterID = func(_ *handle, ctx context.Context, verifyClient func() error) (string, error) {
+		if err := verifyClient(); err != nil {
+			return "", err
+		}
+		if ctx.Err() != nil {
 			if cached := stub.cached.Load().(string); cached != "" {
 				return cached, nil
 			}
@@ -76,7 +84,7 @@ func resolveConcurrently(t *testing.T, h *handle, stub *stubClusterIDLookup, n i
 	var wg sync.WaitGroup
 	resolve := func(i int) {
 		defer wg.Done()
-		ids[i], errs[i] = h.resolveClusterID(clusterIDTimeoutMs)
+		ids[i], errs[i] = h.resolveClusterID(clusterIDTimeoutMs, clientOpen)
 	}
 
 	wg.Add(n)
@@ -134,7 +142,7 @@ func TestResolveClusterIDSharesAFailure(t *testing.T) {
 	}
 
 	// The release channel is closed, so this lookup returns at once.
-	if _, err := h.resolveClusterID(clusterIDTimeoutMs); !errors.Is(err, lookupErr) {
+	if _, err := h.resolveClusterID(clusterIDTimeoutMs, clientOpen); !errors.Is(err, lookupErr) {
 		t.Errorf("Expected the lookup error, got %v", err)
 	}
 	if n := stub.lookups.Load(); n != 2 {
@@ -151,7 +159,7 @@ func TestResolveClusterIDDoesNotReuseACompletedLookup(t *testing.T) {
 	h := &handle{}
 
 	for i := 0; i < 3; i++ {
-		if id, err := h.resolveClusterID(clusterIDTimeoutMs); err != nil || id != "cluster-1" {
+		if id, err := h.resolveClusterID(clusterIDTimeoutMs, clientOpen); err != nil || id != "cluster-1" {
 			t.Fatalf("Resolution %d: expected cluster-1, got %q, %v", i, id, err)
 		}
 	}
@@ -166,7 +174,7 @@ func TestResolveClusterIDAnswersFromTheCache(t *testing.T) {
 	stub := withStubClusterIDLookup(t, "unused", nil)
 	stub.cached.Store("cluster-1")
 
-	id, err := (&handle{}).resolveClusterID(clusterIDTimeoutMs)
+	id, err := (&handle{}).resolveClusterID(clusterIDTimeoutMs, clientOpen)
 	if err != nil || id != "cluster-1" {
 		t.Fatalf("Expected cluster-1 from the cache, got %q, %v", id, err)
 	}

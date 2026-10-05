@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -229,10 +230,7 @@ func NewDeserializingConsumer[K, V any](conf *ConfigMap,
 // goroutines, share a single lookup, as [handle.resolveClusterID] describes.
 func propagateClusterIDResolverToDeserializers(c *Consumer, deserializers ...Deserializer) {
 	resolve := func() (string, error) {
-		if err := c.verifyClient(); err != nil {
-			return "", err
-		}
-		return c.handle.resolveClusterID(clusterIDTimeoutMs)
+		return c.handle.resolveClusterID(clusterIDTimeoutMs, c.verifyClient)
 	}
 
 	for _, deserializer := range deserializers {
@@ -470,9 +468,9 @@ func (dc *DeserializingConsumer[K, V]) GetMetadata(topic *string, allTopics bool
 	return dc.consumer.GetMetadata(topic, allTopics, timeoutMs)
 }
 
-// GetClusterID is the same as [Consumer.GetClusterID].
-func (dc *DeserializingConsumer[K, V]) GetClusterID(timeoutMs int) (string, error) {
-	return dc.consumer.GetClusterID(timeoutMs)
+// ClusterID is the same as [Consumer.ClusterID].
+func (dc *DeserializingConsumer[K, V]) ClusterID(ctx context.Context) (string, error) {
+	return dc.consumer.ClusterID(ctx)
 }
 
 // QueryWatermarkOffsets is the same as [Consumer.QueryWatermarkOffsets].

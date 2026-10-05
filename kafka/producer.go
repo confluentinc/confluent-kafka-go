@@ -175,15 +175,18 @@ func (p *Producer) gethandle() *handle {
 	return &p.handle
 }
 
-// GetClusterID retrieves the ID of the Kafka cluster the producer is connected
-// to, waiting up to timeoutMs for it. It reports an error if the producer has
-// not reached a broker within that time, and once the producer is closed.
-func (p *Producer) GetClusterID(timeoutMs int) (string, error) {
-	err := p.verifyClient()
-	if err != nil {
-		return "", err
-	}
-	return p.handle.getClusterID(timeoutMs)
+// ClusterID returns the cluster ID as reported in broker metadata.
+// It reports an error if the producer has not reached a broker before ctx is
+// done. Closing the producer with Close() makes a call in progress return
+// immediately with an error, as does any call made once it is closed.
+//
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
+//
+// Requires broker version >= 0.10.0.
+func (p *Producer) ClusterID(ctx context.Context) (clusterID string, err error) {
+	return p.handle.getClusterID(ctx, p.verifyClient)
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {

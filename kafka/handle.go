@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -342,16 +343,36 @@ func (h *handle) setOAuthBearerTokenFailure(errstr string) error {
 }
 
 // getClusterID retrieves the ID of the Kafka cluster the handle is connected
-// to, waiting up to timeoutMs for it. It reads h.rk, which is destroyed when
-// the client is closed, so the callers check verifyClient first.
-func (h *handle) getClusterID(timeoutMs int) (string, error) {
-	cClusterID := C.rd_kafka_clusterid(h.rk, C.int(timeoutMs))
+// to, waiting for it until ctx's deadline. Given an expired ctx, it only
+// consults librdkafka's cache, without waiting.
+//
+// verifyClient is the owning client's check that it is still open. It is
+// checked first, as h.rk is destroyed when the client is closed, and again
+// when librdkafka finds no ID: closing the client wakes up a lookup in
+// progress, which then reports the client closed rather than waiting out
+// ctx.
+//
+// The librdkafka lookup cannot be cancelled: it is bounded by ctx's deadline
+// alone, and cancelling ctx does not make it return any sooner.
+func (h *handle) getClusterID(ctx context.Context, verifyClient func() error) (string, error) {
+	if err := verifyClient(); err != nil {
+		return "", err
+	}
+	cClusterID := C.rd_kafka_clusterid(h.rk, cTimeoutFromContext(ctx))
 	if cClusterID == nil {
+		if err := verifyClient(); err != nil {
+			return "", err
+		}
+		if _, hasDeadline := ctx.Deadline(); hasDeadline {
+			// librdkafka's timeout is in whole milliseconds, so it may run
+			// out slightly ahead of ctx.
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
 		return "", fmt.Errorf("Failed to retrieve cluster ID")
 	}
-	clusterID := C.GoString(cClusterID)
-	C.rd_kafka_mem_free(h.rk, unsafe.Pointer(cClusterID))
-	return clusterID, nil
+	defer C.rd_kafka_mem_free(h.rk, unsafe.Pointer(cClusterID))
+	return C.GoString(cClusterID), nil
 }
 
 // lookupClusterID performs a cluster ID lookup for resolveClusterID. It is a
@@ -367,7 +388,8 @@ type clusterIDCall struct {
 }
 
 // resolveClusterID retrieves the cluster ID for the resolvers handed to the
-// serdes, waiting up to timeoutMs for it.
+// serdes, waiting up to timeoutMs for it. verifyClient is the owning client's
+// check that it is still open, as getClusterID describes.
 //
 // Once the ID is known, librdkafka answers from its cache without waiting.
 // Otherwise at most one lookup is in flight per handle: concurrent callers -
@@ -376,8 +398,14 @@ type clusterIDCall struct {
 // the caller that started it, which is the only one calling into librdkafka.
 // The outcome is not kept once the lookup completes: librdkafka caches the ID
 // itself once known, and a failed lookup is simply retried by the next caller.
-func (h *handle) resolveClusterID(timeoutMs int) (string, error) {
-	if clusterID, err := lookupClusterID(h, 0); err == nil {
+func (h *handle) resolveClusterID(timeoutMs int, verifyClient func() error) (string, error) {
+	lookup := func(timeout time.Duration) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return lookupClusterID(h, ctx, verifyClient)
+	}
+
+	if clusterID, err := lookup(0); err == nil {
 		return clusterID, nil
 	}
 
@@ -402,7 +430,7 @@ func (h *handle) resolveClusterID(timeoutMs int) (string, error) {
 		close(call.done)
 	}()
 
-	call.clusterID, call.err = lookupClusterID(h, timeoutMs)
+	call.clusterID, call.err = lookup(time.Duration(timeoutMs) * time.Millisecond)
 	return call.clusterID, call.err
 }
 

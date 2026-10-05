@@ -17,6 +17,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -722,15 +723,18 @@ func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*M
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
-// GetClusterID retrieves the ID of the Kafka cluster the consumer is connected
-// to, waiting up to timeoutMs for it. It reports an error if the consumer has
-// not reached a broker within that time, and once the consumer is closed.
-func (c *Consumer) GetClusterID(timeoutMs int) (string, error) {
-	err := c.verifyClient()
-	if err != nil {
-		return "", err
-	}
-	return c.handle.getClusterID(timeoutMs)
+// ClusterID returns the cluster ID as reported in broker metadata.
+// It reports an error if the consumer has not reached a broker before ctx is
+// done. Closing the consumer with Close() makes a call in progress return
+// immediately with an error, as does any call made once it is closed.
+//
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
+//
+// Requires broker version >= 0.10.0.
+func (c *Consumer) ClusterID(ctx context.Context) (clusterID string, err error) {
+	return c.handle.getClusterID(ctx, c.verifyClient)
 }
 
 // QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
