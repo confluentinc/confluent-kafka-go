@@ -81,7 +81,7 @@ func wildcardToRegexp(globExp string, separator rune) string {
 			dst.WriteRune('\\')
 			dst.WriteRune(c)
 		case '\\':
-			i = doubleSlashes(dst, src, i)
+			i = doubleSlashes(&dst, src, i)
 		default:
 			dst.WriteRune(c)
 		}
@@ -89,7 +89,7 @@ func wildcardToRegexp(globExp string, separator rune) string {
 	return dst.String()
 }
 
-func doubleSlashes(dst strings.Builder, src []rune, i int) int {
+func doubleSlashes(dst *strings.Builder, src []rune, i int) int {
 	// Emit the next character without special interpretation
 	dst.WriteRune('\\')
 	if i+1 < len(src) {
