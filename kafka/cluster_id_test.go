@@ -223,3 +223,92 @@ func TestClusterIDResolversShareOneLookup(t *testing.T) {
 		t.Errorf("Expected ErrState from the resolver once the producer is closed, got %v", err)
 	}
 }
+
+// TestClusterIDInterruptedByClose verifies that closing a client while a
+// ClusterID lookup is waiting on an unreachable broker ends the lookup
+// promptly with an error, rather than leaving it to wait out its context, and
+// that the client closes promptly too. A lookup made once the client is closed
+// fails as well.
+func TestClusterIDInterruptedByClose(t *testing.T) {
+	// The lookup timeout is well above the bounds asserted below, so neither
+	// Close nor the lookup may simply wait it out.
+	const lookupTimeout = 10 * time.Second
+	const bound = 3 * time.Second
+
+	clients := map[string]func(t *testing.T) (clusterID func(context.Context) (string, error), closeClient func()){
+		"producer": func(t *testing.T) (func(context.Context) (string, error), func()) {
+			p, err := NewProducer(&ConfigMap{"bootstrap.servers": "127.0.0.1:1"})
+			if err != nil {
+				t.Fatalf("Failed to create the producer: %v", err)
+			}
+			return p.ClusterID, p.Close
+		},
+		"consumer": func(t *testing.T) (func(context.Context) (string, error), func()) {
+			c, err := NewConsumer(&ConfigMap{
+				"bootstrap.servers": "127.0.0.1:1",
+				"group.id":          "cluster-id-close-test",
+			})
+			if err != nil {
+				t.Fatalf("Failed to create the consumer: %v", err)
+			}
+			return c.ClusterID, func() { c.Close() }
+		},
+		"admin": func(t *testing.T) (func(context.Context) (string, error), func()) {
+			a, err := NewAdminClient(&ConfigMap{"bootstrap.servers": "127.0.0.1:1"})
+			if err != nil {
+				t.Fatalf("Failed to create the admin client: %v", err)
+			}
+			return a.ClusterID, a.Close
+		},
+	}
+
+	for name, newClient := range clients {
+		newClient := newClient
+		t.Run(name, func(t *testing.T) {
+			clusterID, closeClient := newClient(t)
+
+			ctx, cancel := context.WithTimeout(context.Background(), lookupTimeout)
+			defer cancel()
+
+			type result struct {
+				id  string
+				err error
+			}
+			done := make(chan result, 1)
+			go func() {
+				id, err := clusterID(ctx)
+				done <- result{id, err}
+			}()
+
+			// Let the lookup reach librdkafka's wait.
+			select {
+			case r := <-done:
+				t.Fatalf("Expected the lookup to wait for the broker, got %q, %v", r.id, r.err)
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			start := time.Now()
+			closeClient()
+			if elapsed := time.Since(start); elapsed > bound {
+				t.Errorf("Expected Close to return promptly, took %v", elapsed)
+			}
+
+			select {
+			case r := <-done:
+				if r.err == nil || r.id != "" {
+					t.Errorf("Expected the interrupted lookup to fail, got %q, %v", r.id, r.err)
+				}
+				if ctx.Err() != nil {
+					t.Errorf("Expected the lookup to end before its context, but %v", ctx.Err())
+				}
+			case <-time.After(bound):
+				t.Fatalf("Expected Close to interrupt the lookup within %v", bound)
+			}
+
+			var kafkaErr Error
+			if _, err := clusterID(context.Background()); !errors.As(err, &kafkaErr) || kafkaErr.Code() != ErrState {
+				t.Errorf("Expected ErrState from a lookup on the closed client, got %v", err)
+			}
+		})
+	}
+}
