@@ -157,9 +157,9 @@ import "C"
 
 // AdminClient is derived from an existing Producer or Consumer
 type AdminClient struct {
-	handle    *handle
-	isDerived bool   // Derived from existing client handle
-	isClosed  uint32 // to check if Admin Client is closed or not.
+	handle        *handle
+	isDerived     bool      // Derived from existing client handle
+	isClosed      uint32    // to check if Admin Client is closed or not.
 	adminTermChan chan bool // For log channel termination
 }
 
@@ -1679,6 +1679,8 @@ func cToDeletedRecordResult(
 }
 
 // ClusterID returns the cluster ID as reported in broker metadata.
+// Closing the admin client with Close() makes a call in progress return
+// immediately with an error, as does any call made once it is closed.
 //
 // Note on cancellation: Although the underlying C function respects the
 // timeout, it currently cannot be manually cancelled. That means manually
@@ -1686,32 +1688,7 @@ func cToDeletedRecordResult(
 //
 // Requires broker version >= 0.10.0.
 func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err error) {
-	err = a.verifyClient()
-	if err != nil {
-		return "", err
-	}
-
-	responseChan := make(chan *C.char, 1)
-
-	go func() {
-		responseChan <- C.rd_kafka_clusterid(a.handle.rk, cTimeoutFromContext(ctx))
-	}()
-
-	select {
-	case <-ctx.Done():
-		if cClusterID := <-responseChan; cClusterID != nil {
-			C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
-		}
-		return "", ctx.Err()
-
-	case cClusterID := <-responseChan:
-		if cClusterID == nil { // C timeout
-			<-ctx.Done()
-			return "", ctx.Err()
-		}
-		defer C.rd_kafka_mem_free(a.handle.rk, unsafe.Pointer(cClusterID))
-		return C.GoString(cClusterID), nil
-	}
+	return a.handle.getClusterID(ctx, a.verifyClient)
 }
 
 // ControllerID returns the broker ID of the current controller as reported in

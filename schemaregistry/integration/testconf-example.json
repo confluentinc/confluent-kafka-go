@@ -1,0 +1,6 @@
+{
+    "Brokers": "mybroker or $BROKERS env",
+    "SchemaRegistryURL": "http://localhost:8081",
+    "TopicName": "test",
+    "Config": ["api.version.request=true"]
+}
