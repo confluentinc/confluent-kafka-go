@@ -148,6 +148,9 @@ type Producer struct {
 
 	// checks if Producer has been closed or not.
 	isClosed uint32
+
+	// sendMessageToChannel is a function that sends a message to a delivery channel. It can be overridden for additional transformation or processing of the message before sending it to the channel. If not set, the default behavior is to send the message directly to the channel.
+	sendMessageToChannel sendMessageToChannelFunc
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -170,6 +173,22 @@ func (p *Producer) String() string {
 // get_handle implements the Handle interface
 func (p *Producer) gethandle() *handle {
 	return &p.handle
+}
+
+// ClusterID returns the cluster ID as reported in broker metadata.
+// It reports an error if the producer has not reached a broker before ctx is
+// done. Closing the producer with Close() makes a call in progress return
+// immediately with an error, as does any call made once it is closed.
+//
+// Note on cancellation: Although the underlying C function respects the
+// timeout, it currently cannot be manually cancelled. That means manually
+// cancelling the context will block until the C function call returns.
+//
+// Requires broker version >= 0.10.0.
+//
+// Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
+func (p *Producer) ClusterID(ctx context.Context) (clusterID string, err error) {
+	return p.handle.getClusterID(ctx, p.verifyClient)
 }
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
