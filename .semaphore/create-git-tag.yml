@@ -21,3 +21,24 @@ blocks:
           commands:
             - git tag ${TAG_NAME}
             - git push origin ${TAG_NAME}
+  - name: "Mend SCA + SAST Scan"
+    dependencies: ["Create Git Tag"]
+    task:
+      jobs:
+        - name: Trigger
+          commands:
+            # Fire-and-forget: triggers the standalone mend-source-scan task
+            # (appsec-semaphore-workflows) to run `mend dep` (SCA) + `mend sast`
+            # (SAST) against this tag's source, out-of-band from this
+            # pipeline. See
+            # https://github.com/confluentinc/appsec-semaphore-workflows/pull/608.
+            # No -w/--wait: the triggered task's own scan can take far longer
+            # than a trigger call should ever block this pipeline for, so a
+            # failed/slow trigger must not fail the release.
+            - |
+              timeout 60 sem-trigger -p appsec-semaphore-workflows -t mend-source-scan \
+                -i "REPO:confluentinc/confluent-kafka-go" \
+                -i "REF:${TAG_NAME}" \
+                -i "VERSION:${TAG_NAME}" \
+                -i "PRODUCT_FAMILY:COSS" \
+                || echo "WARNING: failed to trigger Mend SCA+SAST scan (or timed out after 60s); continuing without failing the release" >&2
