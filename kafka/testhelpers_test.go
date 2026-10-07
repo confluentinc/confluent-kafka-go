@@ -27,19 +27,27 @@ import (
 )
 
 var testconf struct {
-	Brokers      string
-	TopicName    string
-	GroupID      string
-	PerfMsgCount int
-	PerfMsgSize  int
-	Config       []string
-	conf         ConfigMap
+	Brokers            string
+	TopicName          string
+	GroupID            string
+	PerfMsgCount       int
+	PerfMsgSize        int
+	PerfMsgHeaderCount int
+	PerfMsgHeaderSize  int
+	PerfMsgKey         bool
+	PerfMsgKeySize     int
+	Config             []string
+	conf               ConfigMap
 }
 
 const defaulttestconfTopicName = "test"
 const defaulttestconfGroupID = "testgroup"
 const defaulttestconfPerfMsgCount = 2000000
 const defaulttestconfPerfMsgSize = 100
+const defaulttestconfPerfMsgHeaderCount = 0
+const defaulttestconfPerfMsgHeaderSize = 100
+const defaulttestconfPerfMsgKey = false
+const defaulttestconfPerfMsgKeySize = 100
 
 // ratepdisp tracks and prints message & byte rates
 type ratedisp struct {
@@ -95,6 +103,10 @@ func testconfRead() bool {
 	// Default values
 	testconf.PerfMsgCount = defaulttestconfPerfMsgCount
 	testconf.PerfMsgSize = defaulttestconfPerfMsgSize
+	testconf.PerfMsgHeaderCount = defaulttestconfPerfMsgHeaderCount
+	testconf.PerfMsgHeaderSize = defaulttestconfPerfMsgHeaderSize
+	testconf.PerfMsgKey = defaulttestconfPerfMsgKey
+	testconf.PerfMsgKeySize = defaulttestconfPerfMsgKeySize
 	testconf.GroupID = defaulttestconfGroupID
 	testconf.TopicName = defaulttestconfTopicName
 	testconf.Brokers = ""

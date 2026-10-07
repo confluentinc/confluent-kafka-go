@@ -189,8 +189,6 @@ func createTopic(topic string) {
 
 	adminClient, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers":       bootstrapServers,
-		"broker.version.fallback": "0.10.0.0",
-		"api.version.fallback.ms": 0,
 		"sasl.mechanisms":         "PLAIN",
 		"security.protocol":       "SASL_SSL",
 		"sasl.username":           ccloudAPIKey,
