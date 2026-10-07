@@ -1,6 +1,6 @@
 # Confluent's Golang client for Apache Kafka
 
-## v2.16.0 (unreleased)
+## v2.16.0
 
 This is a feature release:
 
@@ -29,6 +29,11 @@ This API - `SerializingProducer`, `DeserializingConsumer`, the Kafka serde build
   to read a version string. The `Confluent-Client-Version` header now
   reports the confluent-kafka-go module version, resolved from build info
   (#1529, #1607)
+
+
+confluent-kafka-go is based on librdkafka 2.16.0, see the
+[librdkafka 2.16.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.16.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.15.1
