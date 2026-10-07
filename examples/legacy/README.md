@@ -26,7 +26,7 @@ Cons:
 
 See [consumer_channel_example](consumer_channel_example)
 
-Channel-Based Producer
+Channel-Based Producer (deprecated)
 ----------------------
 
 Application writes messages to the `producer.ProducerChannel()`.
