@@ -563,6 +563,7 @@ func (c *Consumer) Close() (err error) {
 		c.handle.rkq = nil
 		c.handle.cleanup()
 		C.rd_kafka_destroy_flags(c.handle.rk, C.RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE)
+		c.handle.destroyResolver()
 		return closeErr
 	}
 
@@ -580,6 +581,7 @@ func (c *Consumer) Close() (err error) {
 	c.handle.cleanup()
 
 	C.rd_kafka_destroy(c.handle.rk)
+	c.handle.destroyResolver()
 
 	return nil
 }
@@ -598,6 +600,8 @@ func (c *Consumer) Close() (err error) {
 //	go.events.channel.size (int, 1000) - Events() channel size
 //	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
 //	go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
+//	go.resolve.cb (kafka.ResolveCallback, nil) - Resolve broker addresses with an application callback, see ResolveCallback.
+//	go.resolve.map (map[string]string, nil) - Resolve broker "host:port" addresses to fixed numeric "ip:port" addresses, see ResolveCallback.
 //
 // WARNING: Due to the buffering nature of channels (and queues in general) the
 // use of the events channel risks receiving outdated events and
@@ -650,8 +654,14 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 		return nil, err
 	}
 
+	resolv, err := confCopy.extractResolveConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	cConf, err := confCopy.convert()
 	if err != nil {
+		resolv.destroy()
 		return nil, err
 	}
 	cErrstr := (*C.char)(C.malloc(C.size_t(256)))
@@ -659,10 +669,16 @@ func NewConsumer(conf *ConfigMap) (*Consumer, error) {
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_REBALANCE|C.RD_KAFKA_EVENT_OFFSET_COMMIT|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
 
+	if resolv != nil {
+		resolv.apply(cConf)
+	}
+
 	c.handle.rk = C.rd_kafka_new(C.RD_KAFKA_CONSUMER, cConf, cErrstr, 256)
 	if c.handle.rk == nil {
+		resolv.destroy()
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
+	c.handle.resolver = resolv
 
 	C.rd_kafka_poll_set_consumer(c.handle.rk)
 

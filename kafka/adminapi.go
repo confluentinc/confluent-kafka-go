@@ -2729,6 +2729,7 @@ func (a *AdminClient) Close() {
 	a.handle.cleanup()
 
 	C.rd_kafka_destroy(a.handle.rk)
+	a.handle.destroyResolver()
 }
 
 // ListConsumerGroups lists the consumer groups available in the cluster.
@@ -3724,9 +3725,15 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 		return nil, err
 	}
 
+	resolv, err := confCopy.extractResolveConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	// Convert ConfigMap to librdkafka conf_t
 	cConf, err := confCopy.convert()
 	if err != nil {
+		resolv.destroy()
 		return nil, err
 	}
 
@@ -3735,12 +3742,18 @@ func NewAdminClient(conf *ConfigMap) (*AdminClient, error) {
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
 
+	if resolv != nil {
+		resolv.apply(cConf)
+	}
+
 	// Create librdkafka producer instance. The Producer is somewhat cheaper than
 	// the consumer, but any instance type can be used for Admin APIs.
 	a.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if a.handle.rk == nil {
+		resolv.destroy()
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
+	a.handle.resolver = resolv
 
 	a.isDerived = false
 	a.handle.setup()

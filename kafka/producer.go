@@ -439,6 +439,7 @@ func (p *Producer) Close() {
 	p.handle.cleanup()
 
 	C.rd_kafka_destroy(p.handle.rk)
+	p.handle.destroyResolver()
 }
 
 const (
@@ -510,6 +511,8 @@ func (p *Producer) Purge(flags int) error {
 //	go.produce.channel.size (int, 1000000) - ProduceChannel() buffer size (in number of messages)
 //	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
 //	go.logs.channel (chan kafka.LogEvent, nil) - Forward logs to application-provided channel instead of Logs(). Requires go.logs.channel.enable=true.
+//	go.resolve.cb (kafka.ResolveCallback, nil) - Resolve broker addresses with an application callback, see ResolveCallback.
+//	go.resolve.map (map[string]string, nil) - Resolve broker "host:port" addresses to fixed numeric "ip:port" addresses, see ResolveCallback.
 func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 	err := versionCheck()
@@ -579,9 +582,15 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 		}
 	}
 
+	resolv, err := confCopy.extractResolveConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	// Convert ConfigMap to librdkafka conf_t
 	cConf, err := confCopy.convert()
 	if err != nil {
+		resolv.destroy()
 		return nil, err
 	}
 
@@ -590,11 +599,17 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 
 	C.rd_kafka_conf_set_events(cConf, C.RD_KAFKA_EVENT_DR|C.RD_KAFKA_EVENT_STATS|C.RD_KAFKA_EVENT_ERROR|C.RD_KAFKA_EVENT_OAUTHBEARER_TOKEN_REFRESH)
 
+	if resolv != nil {
+		resolv.apply(cConf)
+	}
+
 	// Create librdkafka producer instance
 	p.handle.rk = C.rd_kafka_new(C.RD_KAFKA_PRODUCER, cConf, cErrstr, 256)
 	if p.handle.rk == nil {
+		resolv.destroy()
 		return nil, newErrorFromCString(C.RD_KAFKA_RESP_ERR__INVALID_ARG, cErrstr)
 	}
+	p.handle.resolver = resolv
 
 	p.handle.p = p
 	p.handle.setup()
