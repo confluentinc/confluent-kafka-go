@@ -40,28 +40,28 @@ import (
 // to do this via the Confluent Cloud CLI, follow these steps.
 
 // 1) Log into Confluent Cloud:
-//    $ ccloud login
+//    $ confluent login
 //
 // 2) List the environments from your account:
-//    $ ccloud environment list
+//    $ confluent environment list
 //
 // 3) From the list displayed, select one environment:
-//    $ ccloud environment use <ENVIRONMENT_ID>
+//    $ confluent environment use <ENVIRONMENT_ID>
 //
 // To retrieve the information about the bootstrap servers,
 // you need to execute the following commands:
 //
 // 1) List the Apache Kafka clusters from the environment:
-//    $ ccloud kafka cluster list
+//    $ confluent kafka cluster list
 //
 // 2) From the list displayed, describe your cluster:
-//    $ ccloud kafka cluster describe <CLUSTER_ID>
+//    $ confluent kafka cluster describe <CLUSTER_ID>
 //
 // Finally, to create a new API key to be used in this program,
 // you need to execute the following command:
 //
 // 1) Create a new API key in Confluent Cloud:
-//    $ ccloud api-key create
+//    $ confluent api-key create --resource <RESOURCE_ID>
 
 const (
 	bootstrapServers          = "<BOOTSTRAP_SERVERS>"
