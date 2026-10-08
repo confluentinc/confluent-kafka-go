@@ -1,5 +1,16 @@
 # Confluent's Golang client for Apache Kafka
 
+## Unreleased
+
+### Enhancements
+* Expose librdkafka's broker address resolution (`resolve_cb`) through two
+  Go-only configuration properties, so applications can redirect broker
+  connections, for example to local proxies or tunnels, while TLS still
+  verifies the broker's host name: `go.resolve.map` (a static
+  `map[string]string` from `"host:port"` to a numeric `"ip:port"`, resolved
+  in C) and `go.resolve.cb` (a `kafka.ResolveCallback`, called on
+  librdkafka's broker threads). Unmapped hosts use the system resolver.
+
 ## v2.16.0
 
 This is a feature release:

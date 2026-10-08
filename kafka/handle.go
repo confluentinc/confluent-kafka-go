@@ -108,6 +108,10 @@ type handle struct {
 	// Cached instance name to avoid CGo call in String()
 	name string
 
+	// Address resolution set with go.resolve.cb or go.resolve.map, if any.
+	// Destroyed with destroyResolver() once rk is destroyed.
+	resolver *resolver
+
 	//
 	// cgo map
 	// Maps C callbacks based on cgoid back to its Go object
@@ -169,6 +173,13 @@ func (h *handle) cleanup() {
 	if h.rkq != nil {
 		C.rd_kafka_queue_destroy(h.rkq)
 	}
+}
+
+// destroyResolver releases the handle's resolver. It must only be called
+// once rk is destroyed, as librdkafka's threads use the resolver until then.
+func (h *handle) destroyResolver() {
+	h.resolver.destroy()
+	h.resolver = nil
 }
 
 func (h *handle) setupLogQueue(logsChan chan LogEvent, termChan chan bool) {
