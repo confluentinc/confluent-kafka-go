@@ -570,6 +570,12 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 			return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
 		}
 
+		// Poll returns nil immediately once a concurrent Close() destroyed
+		// the handle; stop instead of spinning (e.g. with timeout -1).
+		if ev == nil && c.IsClosed() {
+			return nil, getOperationNotAllowedErrorForClosedClient()
+		}
+
 	}
 
 }
@@ -605,11 +611,14 @@ func (c *Consumer) Close() (err error) {
 	// force-destroy the handle and return the error to the caller.
 	if cErr := C.rd_kafka_consumer_close_queue(c.handle.rk, c.handle.rkq); cErr != nil {
 		closeErr := newErrorFromCErrorDestroy(cErr)
+		c.lockForTeardown()
+		defer c.handle.pollLock.Unlock()
 		atomic.StoreUint32(&c.isClosed, 1)
 		C.rd_kafka_queue_destroy(c.handle.rkq)
 		c.handle.rkq = nil
 		c.handle.cleanup()
 		C.rd_kafka_destroy_flags(c.handle.rk, C.RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE)
+		c.handle.rk = nil
 		return closeErr
 	}
 
@@ -625,11 +634,7 @@ func (c *Consumer) Close() (err error) {
 	// queue yield below), and commit() blocks on its own result queue
 	// (unblocked cooperatively via the tearingDown flag). Both keep this
 	// Close() bounded rather than waiting indefinitely.
-	atomic.StoreUint32(&c.tearingDown, 1)
-	if c.handle.rkq != nil {
-		C.rd_kafka_queue_yield(c.handle.rkq)
-	}
-	c.handle.pollLock.Lock()
+	c.lockForTeardown()
 	defer c.handle.pollLock.Unlock()
 
 	// After this point, no more consumer methods may be called.
@@ -646,6 +651,16 @@ func (c *Consumer) Close() (err error) {
 	c.handle.rk = nil
 
 	return nil
+}
+
+// lockForTeardown wakes blocking in-flight calls and takes the pollLock write
+// lock, so the handle can be destroyed. The caller must Unlock it.
+func (c *Consumer) lockForTeardown() {
+	atomic.StoreUint32(&c.tearingDown, 1)
+	if c.handle.rkq != nil {
+		C.rd_kafka_queue_yield(c.handle.rkq)
+	}
+	c.handle.pollLock.Lock()
 }
 
 // NewConsumer creates a new high-level Consumer instance.

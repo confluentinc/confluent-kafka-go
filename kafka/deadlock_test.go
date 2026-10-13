@@ -392,3 +392,58 @@ func TestFlushHotSpinAfterClose(t *testing.T) {
 		producer.Flush(30000)
 	})
 }
+
+// TestReadMessageInfiniteReturnsOnClose: a ReadMessage(-1) in flight during
+// Close() must return instead of spinning on the nil events Poll() returns
+// for a closed handle.
+func TestReadMessageInfiniteReturnsOnClose(t *testing.T) {
+	c, err := NewConsumer(&ConfigMap{
+		"bootstrap.servers": "127.0.0.1:1",
+		"group.id":          "test-readmessage-infinite-close",
+	})
+	if err != nil {
+		t.Fatalf("NewConsumer failed: %s", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.ReadMessage(-1)
+		done <- err
+	}()
+	time.Sleep(200 * time.Millisecond) // let ReadMessage block in the poll
+
+	runWithDeadline(t, 5*time.Second, "Close", func() { _ = c.Close() })
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatalf("Expected an error from ReadMessage on a closed consumer")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("ReadMessage(-1) did not return after Close()")
+	}
+}
+
+// TestFatalCloseRejectsLaterCalls: after Close() took the fatal-error path,
+// methods must fail with ErrState instead of using the destroyed handle.
+func TestFatalCloseRejectsLaterCalls(t *testing.T) {
+	c, err := NewConsumer(&ConfigMap{
+		"group.id":          "test-fatal-close-later-calls",
+		"socket.timeout.ms": 10,
+	})
+	if err != nil {
+		t.Fatalf("NewConsumer failed: %s", err)
+	}
+	testFatalError(c, ErrFencedInstanceID, "test: consumer fenced")
+
+	if err := c.Close(); err == nil {
+		t.Fatalf("Expected Close() to return the fatal error")
+	}
+
+	if _, err := c.Assignment(); err == nil || err.(Error).Code() != ErrState {
+		t.Fatalf("Expected ErrState from Assignment() after Close(), got %v", err)
+	}
+	if _, err := c.Commit(); err == nil || err.(Error).Code() != ErrState {
+		t.Fatalf("Expected ErrState from Commit() after Close(), got %v", err)
+	}
+}
