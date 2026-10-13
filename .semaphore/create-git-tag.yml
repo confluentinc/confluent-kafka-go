@@ -39,6 +39,7 @@ blocks:
               timeout 60 sem-trigger -p appsec-semaphore-workflows -t mend-source-scan \
                 -i "REPO:confluentinc/confluent-kafka-go" \
                 -i "REF:${TAG_NAME}" \
-                -i "VERSION:${TAG_NAME}" \
+                -i "VERSION:${TAG_NAME#v}" \
+                -i "SCAN_ID:confluent-kafka-go-${TAG_NAME}" \
                 -i "PRODUCT_FAMILY:COSS" \
                 || echo "WARNING: failed to trigger Mend SCA+SAST scan (or timed out after 60s); continuing without failing the release" >&2
