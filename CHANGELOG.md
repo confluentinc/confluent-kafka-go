@@ -1,5 +1,21 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.16.2
+
+This is a maintenance release:
+
+### Fixes
+* Restore `CGO_ENABLED=0` builds, broken again in v2.16.0 by the experimental
+  `SerializingProducer` / `DeserializingConsumer` API (#1529, #1635, #1634):
+  * The `kafka` package compiles again without CGo: the new serializing
+    producer and deserializing consumer files are now only built with CGo,
+    like the rest of the librdkafka-backed API.
+  * The Schema Registry client no longer imports the `kafka` package.
+    `schemaregistry.NewConfigFromKafkaConfigMap` is now generic over the
+    ConfigMap type, which is inferred from its argument, so existing calls
+    passing a `*kafka.ConfigMap` are unchanged.
+
+
 ## v2.16.1
 
 This is a maintenance release:
