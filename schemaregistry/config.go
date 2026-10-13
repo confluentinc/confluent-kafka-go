@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/internal"
 )
 
@@ -136,16 +135,27 @@ func NewConfigWithUAMIAuthentication(url, endpointURL, endpointQuery, resource, 
 // the Schema Registry properties removed, so that what is left can be passed to
 // a Kafka client without it rejecting unknown properties.
 //
+// The ConfigMap type is a type parameter, inferred from conf, so that this
+// package does not import the kafka package, which requires CGo: the Schema
+// Registry client can then be built with CGO_ENABLED=0.
+//
 // Warning: THIS IS AN EXPERIMENTAL API, SUBJECT TO CHANGE OR REMOVAL.
-func NewConfigFromKafkaConfigMap(srConf *Config, conf *kafka.ConfigMap) (*Config, *kafka.ConfigMap, error) {
+//
+// [kafka.ConfigMap]: https://pkg.go.dev/github.com/confluentinc/confluent-kafka-go/v2/kafka#ConfigMap
+func NewConfigFromKafkaConfigMap[M interface {
+	~map[string]V
+	SetKey(key string, value V) error
+}, V any](srConf *Config, conf *M) (*Config, *M, error) {
 	if srConf == nil {
 		srConf = &Config{}
 	}
 
 	// Filter out SR properties from the Kafka ConfigMap, none for the moment.
-	filteredConfigMap := make(kafka.ConfigMap)
+	filteredConfigMap := make(M)
 	for k, v := range *conf {
-		filteredConfigMap.SetKey(k, v)
+		if err := filteredConfigMap.SetKey(k, v); err != nil {
+			return nil, nil, err
+		}
 	}
 	return srConf, &filteredConfigMap, nil
 }
