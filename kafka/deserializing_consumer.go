@@ -1,3 +1,5 @@
+//go:build cgo
+
 /**
  * Copyright 2026 Confluent Inc.
  *
