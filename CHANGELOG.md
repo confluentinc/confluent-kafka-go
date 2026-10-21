@@ -1,5 +1,19 @@
 # Confluent's Golang client for Apache Kafka
 
+## v2.16.1
+
+### Fixes
+* Raise the `go` directive from 1.26.0 to 1.26.10 so that applications are
+  built with a Go toolchain that rejects the eMudhra intermediate CAs whose
+  private keys were compromised (CVE-2026-111943,
+  [details](https://emudhra.we-have-a-problem.com/)). This covers HTTPS
+  connections made by the Schema Registry client and the KMS drivers. Users
+  with `GOTOOLCHAIN=auto` (the default) will fetch Go 1.26.10 transparently;
+  users with `GOTOOLCHAIN=local` must upgrade to Go 1.26.10 or later.
+  Kafka broker TLS goes through librdkafka and the host's CA store, so it is
+  not affected by this change.
+
+
 ## v2.16.0
 
 This is a feature release:

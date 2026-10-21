@@ -1,6 +1,6 @@
 module github.com/confluentinc/confluent-kafka-go/v2
 
-go 1.26.0
+go 1.26.10
 
 require (
 	cel.dev/cel-go v0.32.0

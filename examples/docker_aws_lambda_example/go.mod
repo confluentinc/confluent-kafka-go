@@ -1,6 +1,6 @@
 module docker_example
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/aws/aws-lambda-go v1.27.0
