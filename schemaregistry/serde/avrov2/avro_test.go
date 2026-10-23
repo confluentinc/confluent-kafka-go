@@ -34,6 +34,7 @@ import (
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/jsonata"
 
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 )
@@ -512,6 +513,56 @@ func TestAvroSerdeWithSimple(t *testing.T) {
 
 	msg, err = deser.Deserialize("topic1", bytes)
 	serde.MaybeFail("deserialization", err, serde.Expect(msg, &obj))
+}
+
+func TestAvroSerdeWithTruncatedPrefix(t *testing.T) {
+	// A record value or schema ID header holding a truncated wire format prefix
+	// must fail deserialization rather than panic, so that one malformed record
+	// cannot take down a consumer that has no per record recovery boundary.
+	serde.MaybeFail = serde.InitFailFunc(t)
+	conf := schemaregistry.NewConfig("mock://")
+
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	deser, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.MessageFactory = testMessageFactory
+
+	tests := []struct {
+		name    string
+		headers []kafka.Header
+		payload []byte
+	}{
+		{
+			name:    "magic byte only",
+			payload: []byte{serde.MagicByteV0},
+		},
+		{
+			name:    "truncated id in header",
+			headers: []kafka.Header{{Key: serde.ValueSchemaIDHeader, Value: []byte{serde.MagicByteV0}}},
+			payload: []byte{serde.MagicByteV0, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03},
+		},
+		{
+			name:    "truncated id in both header and payload",
+			headers: []kafka.Header{{Key: serde.ValueSchemaIDHeader, Value: []byte{serde.MagicByteV0}}},
+			payload: []byte{serde.MagicByteV0, 0x00},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("deserialization panicked on %v: %v", tc.payload, r)
+				}
+			}()
+
+			if _, err := deser.DeserializeWithHeaders("topic1", tc.headers, tc.payload); err == nil {
+				t.Errorf("expected an error for %v, got nil", tc.payload)
+			}
+		})
+	}
 }
 
 func TestAvroSerdeWithGuidInHeader(t *testing.T) {
