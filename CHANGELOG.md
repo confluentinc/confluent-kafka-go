@@ -18,6 +18,15 @@
   toolchains are 1.26.10+ and 1.27.3+.
   Kafka broker TLS goes through librdkafka and the host's CA store, so it is
   not affected by this change.
+* Restore `CGO_ENABLED=0` builds, broken again in v2.16.0 by the experimental
+  `SerializingProducer` / `DeserializingConsumer` API (#1529, #1635, #1634):
+  * The `kafka` package compiles again without CGo: the new serializing
+    producer and deserializing consumer files are now only built with CGo,
+    like the rest of the librdkafka-backed API.
+  * The Schema Registry client no longer imports the `kafka` package.
+    `schemaregistry.NewConfigFromKafkaConfigMap` is now generic over the
+    ConfigMap type, which is inferred from its argument, so existing calls
+    passing a `*kafka.ConfigMap` are unchanged.
 
 
 ## v2.16.0
