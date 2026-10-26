@@ -2,6 +2,8 @@
 
 ## v2.16.1
 
+This is a maintenance release:
+
 ### Fixes
 * Raise the `go` directive from 1.26.0 to 1.26.10 so that applications are
   built with a Go toolchain that rejects the eMudhra intermediate CAs whose
@@ -18,6 +20,11 @@
   toolchains are 1.26.10+ and 1.27.3+.
   Kafka broker TLS goes through librdkafka and the host's CA store, so it is
   not affected by this change.
+
+
+confluent-kafka-go is based on librdkafka 2.16.0, see the
+[librdkafka 2.16.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.16.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.16.0
