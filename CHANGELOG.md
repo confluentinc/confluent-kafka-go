@@ -8,18 +8,17 @@ This is a maintenance release:
 * Raise the `go` directive from 1.26.0 to 1.26.10 so that applications are
   built with a Go toolchain that rejects the eMudhra intermediate CAs whose
   private keys were compromised (CVE-2026-111943,
-  [details](https://emudhra.we-have-a-problem.com/),
   [Go advisory GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809)). This
   covers HTTPS connections made by the Schema Registry client and the KMS
   drivers. Users with `GOTOOLCHAIN=auto` (the default) on Go 1.26 will fetch
   Go 1.26.10 transparently; users with `GOTOOLCHAIN=local` must upgrade to
-  Go 1.26.10 or later.
+  Go 1.26.10 or later. Kafka broker TLS goes through librdkafka and the
+  host's CA store, so it is not affected by this change.
+
   **Caution:** Go 1.27.0, 1.27.1 and 1.27.2 are also affected, but they satisfy
   the `go 1.26.10` directive, so they are *not* upgraded automatically.
   Applications built with Go 1.27 must use Go 1.27.3 or later. Patched
   toolchains are 1.26.10+ and 1.27.3+.
-  Kafka broker TLS goes through librdkafka and the host's CA store, so it is
-  not affected by this change.
 
 
 confluent-kafka-go is based on librdkafka 2.16.0, see the
