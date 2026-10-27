@@ -11,7 +11,7 @@ global_job_config:
     commands:
       - checkout
 blocks:
-  - name: "go 1.25 OSX bundled librdkafka"
+  - name: "go 1.26 OSX bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -44,7 +44,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "go 1.25 linux bundled librdkafka"
+  - name: "go 1.26 linux bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -94,7 +94,7 @@ blocks:
             - name: TEST_CONSUMER_GROUP_PROTOCOL
               value: consumer
           commands_file: semaphore_integration_commands.sh
-  - name: "go 1.25 linux arm64 bundled librdkafka"
+  - name: "go 1.26 linux arm64 bundled librdkafka"
     dependencies: [ ]
     task:
       agent:
@@ -130,7 +130,7 @@ blocks:
             - name: EXPECT_LINK_INFO
               value: dynamic
           commands_file: semaphore_commands.sh
-  - name: "go 1.25 Windows bundled librdkafka"
+  - name: "go 1.26 Windows bundled librdkafka"
     dependencies: [ ]
     task:
       agent:

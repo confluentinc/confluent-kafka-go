@@ -13,7 +13,7 @@ This is a maintenance release:
   drivers. Users with `GOTOOLCHAIN=auto` (the default) on Go 1.26 will fetch
   Go 1.26.10 transparently; users with `GOTOOLCHAIN=local` must upgrade to
   Go 1.26.10 or later. Kafka broker TLS goes through librdkafka and the
-  host's CA store, so it is not affected by this change.
+  host's CA store, so it is not affected by this change (#1637).
 
   **Caution:** Go 1.27.0, 1.27.1 and 1.27.2 are also affected, but they satisfy
   the `go 1.26.10` directive, so they are *not* upgraded automatically.
