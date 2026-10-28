@@ -51,8 +51,6 @@ const defaulttestconfGroupID = "testgroup"
 const defaulttestconfPerfMsgCount = 2000000
 const defaulttestconfPerfMsgSize = 100
 
-var defaulttestconfConfig = [1]string{"api.version.request=true"}
-
 const defaulttestconfBrokers = "localhost:9092"
 const defaulttestconfBrokersSasl = "localhost:9093"
 const defaultSaslUsername = "testuser"
