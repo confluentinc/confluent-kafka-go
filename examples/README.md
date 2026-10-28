@@ -86,6 +86,8 @@ Examples
 
   [protobuf_producer_example](protobuf_producer_example) - producer with Schema Registry and Protocol Buffers Serializer
 
+  [share_consumer_example](share_consumer_example) - Share group (Kafka Queues / KIP-932) consumer with explicit acknowledgement
+
   [stats_example](stats_example) - Receiving stats events
 
   [transactions_example](transactions_example) - Showcasing a transactional consume-process-produce application
