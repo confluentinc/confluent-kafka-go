@@ -524,6 +524,9 @@ func NewProducer(conf *ConfigMap) (*Producer, error) {
 	confCopy := conf.clone()
 
 	v, err := confCopy.extract("delivery.report.only.error", false)
+	if err != nil {
+		return nil, err
+	}
 	if v == true {
 		// FIXME: The filtering of successful DRs must be done in
 		//        the Go client to avoid cgoDr memory leaks.
