@@ -472,8 +472,11 @@ type TopicSpecification struct {
 	// broker id list will be the preferred replica.
 	ReplicaAssignment [][]int32
 	// Topic configuration.
-	// To associate a schema with this topic at creation time, set
-	// "confluent.value.association" (and optionally "confluent.key.association").
+	// On Confluent Server and Confluent Cloud, the topic configs
+	// "confluent.value.association" and "confluent.key.association" can be
+	// set here to associate the topic's value and/or key with a Schema
+	// Registry subject at creation time. Apache Kafka doesn't recognize
+	// these configs.
 	Config map[string]string
 }
 
@@ -2110,9 +2113,11 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
 //
-// To associate or update a topic's subject association, use a SET operation
-// on "confluent.value.association" (or "confluent.key.association").
-// To remove an association, use a DELETE operation on the same key.
+// On Confluent Server and Confluent Cloud, a topic's Schema Registry subject
+// association can be set or updated with a SET operation on
+// "confluent.value.association" or "confluent.key.association", and removed
+// with a DELETE operation on the same config. Apache Kafka doesn't recognize
+// these configs.
 func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
 	err = a.verifyClient()
 	if err != nil {
@@ -2199,8 +2204,10 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 // The returned configuration includes default values, use
 // ConfigEntryResult.IsDefault or ConfigEntryResult.Source to distinguish
 // default values from manually configured settings.
-// For topics with an explicit subject association, the result includes
-// "confluent.value.association" and "confluent.key.association" entries.
+// On Confluent Server and Confluent Cloud, the result for a topic with a
+// Schema Registry subject association includes "confluent.value.association"
+// and/or "confluent.key.association" entries. Apache Kafka doesn't recognize
+// these configs.
 //
 // The value of config entries where .IsSensitive is true
 // will always be nil to avoid disclosing sensitive
