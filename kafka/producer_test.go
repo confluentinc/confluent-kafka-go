@@ -345,6 +345,14 @@ func TestProducerInvalidConfig(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected NewProducer() to fail with delivery.report.only.error set")
 	}
+
+	// A non-bool value must be rejected rather than passed on to librdkafka.
+	_, err = NewProducer(&ConfigMap{
+		"delivery.report.only.error": "true",
+	})
+	if err == nil {
+		t.Fatalf("Expected NewProducer() to fail with non-bool delivery.report.only.error")
+	}
 }
 
 func TestProducerOAuthBearerConfig(t *testing.T) {
