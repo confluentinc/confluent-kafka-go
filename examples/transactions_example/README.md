@@ -45,29 +45,22 @@ See [visualizer.go](visualizer.go).
 
 ## Transactional semantics
 
-*Note*: Prior to KIP-447 being supported, one transactional producer is
-created per assigned input partition, as this is currently the only way to
-ensure that input topic offsets are committed synchronously with the transaction.
-
 The semantics of the input-process-output transactional application is:
 
+ * Create a single transactional producer and initialize it
+   (init_transactions()), then begin a transaction (begin_transaction()).
  * Create a consumer subscribing to the input topic.
- * When the consumer is rebalanced and receives an assignment we
-   create a dedicated transactional producer per **input** partition.
-   The transactional producer is initialized (init_transactions()) and a new
-   transaction is started (begin_transaction()) in the rebalance callback.
-   The consumer will start consuming from the last committed offsets.
  * Messages from the input topic partitions are processed and output messages
-   are produced to the output topic (the output partition need not match
-   the input partition).
- * The transaction is committed, the consumer position is committed to the
-   consumer group as part of the transaction. If any part of the commit fails the
-   current transaction is aborted and the input partition consume position
-   is rewinded to where the transaction started, allowing the processor to
-   retry the transaction in its entirety.
+   are produced to the output topic using the single transactional producer
+   (the output partition need not match the input partition).
+ * The transaction is committed, and the consumer positions for all assigned
+   partitions are committed to the consumer group as part of the transaction.
+   If any part of the commit fails the current transaction is aborted and
+   the input partition consume positions are rewound to where the transaction
+   started, allowing the processor to retry the transaction in its entirety.
  * When the consumer is rebalanced and its assignment is revoked
-   we abort the current transaction for all the producers, delete the producers,
-   and wait for a new assignment.
+   we abort the current transaction, clear the intersection state,
+   and begin a new transaction for the next assignment.
 
 See [txnhelpers.go](txnhelpers.go).
 
