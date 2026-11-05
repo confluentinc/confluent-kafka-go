@@ -1,0 +1,30 @@
+# Kafka and Schema Registry for the Schema Registry integration tests.
+#
+# Only a KRaft broker is provided. Unlike kafka/integration, these tests never
+# consume and never authenticate, so the ZooKeeper and SASL variants that module
+# needs would be dead weight here.
+services:
+  kafka:
+    image: apache/kafka:4.0.0
+    restart: unless-stopped
+    container_name: sr-integration-kafka
+    ports:
+      - 9092:29092
+    volumes:
+      - ./kafka_jaas.conf:/etc/kafka/kafka_jaas.conf
+      - ./kraft/server.properties:/mnt/shared/config/server.properties
+    environment:
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_jaas.conf"
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:8.3.1
+    restart: unless-stopped
+    container_name: sr-integration-schema-registry
+    depends_on:
+      - kafka
+    ports:
+      - 8081:8081
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092

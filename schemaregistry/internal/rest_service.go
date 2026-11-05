@@ -533,9 +533,11 @@ func (rs *RestService) HandleRequest(request *API, response interface{}) error {
 			}
 			continue
 		}
-		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries {
+		if isSuccess(resp.StatusCode) || !isRetriable(resp.StatusCode) || i >= rs.maxRetries || i == len(rs.urls)-1 {
 			break
 		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 	}
 	defer resp.Body.Close()
 	if isSuccess(resp.StatusCode) {

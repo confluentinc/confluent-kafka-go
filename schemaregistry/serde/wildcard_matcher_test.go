@@ -57,6 +57,41 @@ func TestWildCardMatcher(t *testing.T) {
 	maybeFail(expect(match("alice.bob.eve", "alice.bob**"), true))
 }
 
+func TestWildCardMatcherBackslashes(t *testing.T) {
+	tests := []struct {
+		name    string
+		str     string
+		pattern string
+		want    bool
+	}{
+		{"lone backslash", `\`, `\`, true},
+		{"lone backslash rejects empty input", "", `\`, false},
+		{"leading backslash", `\abc`, `\abc`, true},
+		{"leading backslash rejects dropped prefix", "bc", `\abc`, false},
+		{"leading backslash before final character", `\a`, `\a`, true},
+		{"middle backslash", `foo\bar`, `foo\bar`, true},
+		{"middle backslash before final character", `foo\b`, `foo\b`, true},
+		{"trailing backslash", `foo\`, `foo\`, true},
+		{"trailing backslash rejects missing backslash", "foo", `foo\`, false},
+		{"multiple backslashes", `foo\bar\baz`, `foo\bar\baz`, true},
+		{"consecutive trailing backslashes", `foo\\`, `foo\\`, true},
+		{"unicode prefix", `é\`, `é\`, true},
+		{"unicode after backslash", `foo\βar`, `foo\βar`, true},
+		{"wildcard before backslash", `foo\bar`, `*\bar`, true},
+		{"wildcard after backslash", `foo\bar`, `foo\b*`, true},
+		{"single wildcard respects boundary", `foo\bar.baz`, `foo\b*`, false},
+		{"double wildcard crosses boundary", `foo\bar.baz`, `foo\b**`, true},
+		{"question mark before backslash", `x\foo`, `?\foo`, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := match(test.str, test.pattern); got != test.want {
+				t.Errorf("match(%q, %q) = %v, want %v", test.str, test.pattern, got, test.want)
+			}
+		})
+	}
+}
+
 type failFunc func(...error)
 
 var maybeFail failFunc

@@ -1,11 +1,8 @@
 name: confluent-kafka-go
 lang: go
-lang_version: 1.21
+lang_version: '1.21'
 git:
   enable: true
-github:
-  enable: true
-  repo_name: confluentinc/confluent-kafka-go
 semaphore:
   enable: true
   pipeline_enable: false
@@ -17,12 +14,12 @@ semaphore:
         - name: TAG_NAME
           required: true
           description: The name of the tag to be created.
-          default_value: "X.Y.Z"
+          default_value: X.Y.Z
 sonarqube:
   enable: true
-  coverage_exclusions:
-    - "examples/**"
-    - "**/*.pb.*"
-    - "**/mk-include/**/*"
   coverage_reports:
-    - "**/*coverage.txt"
+    - '**/*coverage.txt'
+  analysis_exclusions:
+    - examples/**
+    - '**/*.pb.*'
+    - '**/mk-include/**/*'

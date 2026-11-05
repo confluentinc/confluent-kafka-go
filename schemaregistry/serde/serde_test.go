@@ -18,7 +18,30 @@ package serde
 
 import (
 	"testing"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 )
+
+func TestGetTagsWithBackslashes(t *testing.T) {
+	MaybeFail = InitFailFunc(t)
+
+	ctx := RuleContext{
+		Target: &schemaregistry.SchemaInfo{
+			Metadata: &schemaregistry.Metadata{
+				Tags: map[string][]string{
+					`root.\field`: {"EXACT"},
+					`root.\f*`:    {"WILDCARD"},
+					`root.other`:  {"UNRELATED"},
+				},
+			},
+		},
+	}
+	MaybeFail("matching field tags", Expect(ctx.GetTags(`root.\field`), map[string]bool{
+		"EXACT":    true,
+		"WILDCARD": true,
+	}))
+	MaybeFail("field without backslash", Expect(ctx.GetTags("root.field"), map[string]bool{}))
+}
 
 func TestGUID(t *testing.T) {
 	MaybeFail = InitFailFunc(t)

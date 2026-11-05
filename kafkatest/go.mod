@@ -1,12 +1,12 @@
 module github.com/confluentinc/confluent-kafka-go/kafkatest/v2
 
-go 1.26.0
+go 1.26.10
 
 replace github.com/confluentinc/confluent-kafka-go/v2 => ../
 
 require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/confluentinc/confluent-kafka-go/v2 v2.15.1
+	github.com/confluentinc/confluent-kafka-go/v2 v2.16.1
 )
 
 require (

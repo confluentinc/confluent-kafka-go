@@ -35,6 +35,10 @@ go test ./schemaregistry/...
 (cd kafka/integration && go test ./... -docker.needed)    # auto-starts Docker containers
 (cd kafka/integration && go test ./... -docker.exists)    # uses already-running containers
 
+# Schema Registry integration tests are a second sub-module, with their own
+# Kafka + Schema Registry stack. Same flags.
+(cd schemaregistry/integration && go test ./... -docker.needed)
+
 # Run all tests across all packages
 make -f mk/Makefile "go test"
 
@@ -74,7 +78,9 @@ make -f mk/Makefile generr
 
 Integration tests for `kafka/` live in the `kafka/integration/` **sub-module** (own `go.mod`, own `testresources/`) — they use a `testconf` struct populated from `testconf.json` (if present) or defaults to `localhost:9092`, and can spin up Docker containers via testcontainers-go when `-docker.needed` is set. The sub-module isolates the testcontainers + testify dependency surface from the main `kafka` module.
 
-Schema registry integration tests live under `schemaregistry/test/` and use `testcontainers-go/modules/compose`.
+Schema Registry integration tests live in the `schemaregistry/integration/` **sub-module** (own `go.mod`, own `testresources/`), following the same pattern: a `testconf` struct, the same `-docker.needed` / `-docker.exists` flags, and a single `TestIntegration` entry point. Its stack adds a Schema Registry alongside the broker, so it binds the same host ports as `kafka/integration` and the two cannot run at once.
+
+`schemaregistry/test/` is not a test suite — it holds generated fixtures (gogen-avro and protoc output) and schema files used by the unit tests.
 
 ## Git
 

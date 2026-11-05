@@ -29,7 +29,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/gcpkms"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/hcvault"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption/localkms"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/protobuf"
 )
 
@@ -55,15 +54,6 @@ func main() {
 	kekName := os.Args[4]
 	kmsType := os.Args[5] // one of aws-kms, azure-kms, gcp-kms, hcvault
 	kmsKeyID := os.Args[6]
-
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
-	if err != nil {
-		fmt.Printf("Failed to create producer: %s\n", err)
-		os.Exit(1)
-	}
-	defer p.Close()
-
-	fmt.Printf("Created Producer %v\n", p)
 
 	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(url))
 
@@ -124,12 +114,24 @@ message User {
 	//	"access.key,id": "xxx",
 	//}
 
-	ser, err := protobuf.NewSerializer(client, serde.ValueSerde, serConfig)
+	valueSerializerBuilder := protobuf.NewKafkaSerializerBuilder().
+		SetSchemaRegistryConfig(schemaregistry.NewConfig(url)).
+		SetSerializerConfig(serConfig)
 
+	p, err := kafka.NewSerializingProducer[any, *User](
+		&kafka.ConfigMap{
+			"bootstrap.servers": bootstrapServers,
+		},
+		nil,
+		valueSerializerBuilder,
+	)
 	if err != nil {
-		fmt.Printf("Failed to create serializer: %s\n", err)
+		fmt.Printf("Failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
+	defer p.Close()
+
+	fmt.Printf("Created Producer %v\n", p)
 
 	// Optional delivery channel, if not specified the Producer object's
 	// .Events channel is used.
@@ -141,15 +143,10 @@ message User {
 		FavoriteNumber: 42,
 		FavoriteColor:  "blue",
 	}
-	payload, err := ser.Serialize(topic, &value)
-	if err != nil {
-		fmt.Printf("Failed to serialize payload: %s\n", err)
-		os.Exit(1)
-	}
 
-	err = p.Produce(&kafka.Message{
+	err = p.Produce(&kafka.SerializableMessage[any, *User]{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          payload,
+		Value:          &value,
 		Headers:        []kafka.Header{{Key: "myTestHeader", Value: []byte("header values are binary")}},
 	}, deliveryChan)
 	if err != nil {
@@ -158,7 +155,7 @@ message User {
 	}
 
 	e := <-deliveryChan
-	m := e.(*kafka.Message)
+	m := e.(*kafka.SerializableMessage[any, *User])
 
 	if m.TopicPartition.Error != nil {
 		fmt.Printf("Delivery failed: %v\n", m.TopicPartition.Error)
