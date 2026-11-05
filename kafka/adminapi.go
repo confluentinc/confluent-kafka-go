@@ -472,7 +472,7 @@ type TopicSpecification struct {
 	// broker id list will be the preferred replica.
 	ReplicaAssignment [][]int32
 	// Topic configuration.
-	// On Confluent Server and Confluent Cloud, the topic configs
+	// On Confluent Platform and Confluent Cloud, the topic configs
 	// "confluent.value.association" and "confluent.key.association" can be
 	// set here to associate the topic's value and/or key with a Schema
 	// Registry subject at creation time. Apache Kafka doesn't recognize
@@ -2113,7 +2113,7 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 // resource of type ResourceBroker is allowed per call since these
 // resource requests must be sent to the broker specified in the resource.
 //
-// On Confluent Server and Confluent Cloud, a topic's Schema Registry subject
+// On Confluent Platform and Confluent Cloud, a topic's Schema Registry subject
 // association can be set or updated with a SET operation on
 // "confluent.value.association" or "confluent.key.association", and removed
 // with a DELETE operation on the same config. Apache Kafka doesn't recognize
@@ -2204,7 +2204,7 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 // The returned configuration includes default values, use
 // ConfigEntryResult.IsDefault or ConfigEntryResult.Source to distinguish
 // default values from manually configured settings.
-// On Confluent Server and Confluent Cloud, the result for a topic with a
+// On Confluent Platform and Confluent Cloud, the result for a topic with a
 // Schema Registry subject association includes "confluent.value.association"
 // and/or "confluent.key.association" entries. Apache Kafka doesn't recognize
 // these configs.
