@@ -35,6 +35,18 @@ The format of testconf.json is a JSON object:
 
 See testconf-example.json for an example and full set of available options.
 
+For some setups, such as dockerized localhost brokers on OSX, you may need to
+set the `broker.address.family` Config in testconf.json to avoid failures to
+connect when the OSX resolver returns IPv6 addresses for localhost first, and
+docker is only listening on IPv4. e.g.
+
+```
+{
+  "Brokers": "localhost:9092",
+  "Config": ["broker.address.family=v4"]
+}
+```
+
 
 To run unit-tests:
 ```
