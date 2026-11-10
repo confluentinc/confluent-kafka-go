@@ -52,6 +52,12 @@ type Consumer struct {
 
 	isClosed  uint32
 	isClosing uint32
+	// tearingDown is set right before Close() acquires the pollLock write
+	// lock, to signal blocking in-flight readers (e.g. commit()) to release
+	// the read lock so Close() is not pinned indefinitely. Unlike isClosing,
+	// it is set only after Close()'s revoke handshake has completed, so
+	// commits issued from the revoke rebalance callback still work.
+	tearingDown uint32
 }
 
 // IsClosed returns boolean representing if client is closed or not
@@ -89,10 +95,11 @@ func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error {
 // SubscribeTopics subscribes to the provided list of topics.
 // This replaces the current subscription.
 func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	ctopics := C.rd_kafka_topic_partition_list_new(C.int(len(topics)))
 	defer C.rd_kafka_topic_partition_list_destroy(ctopics)
 
@@ -114,10 +121,11 @@ func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (er
 
 // Unsubscribe from the current subscription, if any.
 func (c *Consumer) Unsubscribe() (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	C.rd_kafka_unsubscribe(c.handle.rk)
 	return nil
 }
@@ -132,10 +140,11 @@ func (c *Consumer) Unsubscribe() (err error) {
 //
 // This replaces the current assignment.
 func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	c.appReassigned = true
 
 	cparts := newCPartsFromTopicPartitions(partitions)
@@ -151,10 +160,11 @@ func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 
 // Unassign the current set of partitions to consume.
 func (c *Consumer) Unassign() (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	c.appReassigned = true
 
 	e := C.rd_kafka_assign(c.handle.rk, nil)
@@ -176,10 +186,11 @@ func (c *Consumer) Unassign() (err error) {
 //
 // The new partitions must not be part of the current assignment.
 func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	c.appReassigned = true
 
 	cparts := newCPartsFromTopicPartitions(partitions)
@@ -200,10 +211,11 @@ func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
 //
 // The removed partitions must be part of the current assignment.
 func (c *Consumer) IncrementalUnassign(partitions []TopicPartition) (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	c.appReassigned = true
 
 	cparts := newCPartsFromTopicPartitions(partitions)
@@ -223,6 +235,19 @@ func (c *Consumer) IncrementalUnassign(partitions []TopicPartition) (err error) 
 // is returned.
 // Should typically only be called during rebalancing.
 func (c *Consumer) GetRebalanceProtocol() string {
+	if err := c.handle.rlock(); err != nil {
+		return ""
+	}
+	defer c.handle.runlock()
+	return c.getRebalanceProtocol()
+}
+
+// getRebalanceProtocol is the unlocked variant of GetRebalanceProtocol. The
+// caller must already hold c.handle.pollLock (via rlock()). It exists so that
+// code reachable from inside eventPoll's rebalance dispatch (which already
+// holds the read lock) can query the protocol without re-locking, since the
+// non-reentrant RWMutex would otherwise deadlock against a pending Close().
+func (c *Consumer) getRebalanceProtocol() string {
 	cStr := C.rd_kafka_rebalance_protocol(c.handle.rk)
 	if cStr == nil {
 		return ""
@@ -237,6 +262,10 @@ func (c *Consumer) GetRebalanceProtocol() string {
 // Partitions that have been lost may already be owned by other members in the
 // group and therefore commiting offsets, for example, may fail.
 func (c *Consumer) AssignmentLost() bool {
+	if err := c.handle.rlock(); err != nil {
+		return false
+	}
+	defer c.handle.runlock()
 	return cint2bool(C.rd_kafka_assignment_lost(c.handle.rk))
 }
 
@@ -245,6 +274,11 @@ func (c *Consumer) AssignmentLost() bool {
 // This is a blocking call, caller will need to wrap in go-routine to
 // get async or throw-away behaviour.
 func (c *Consumer) commit(offsets []TopicPartition) (committedOffsets []TopicPartition, err error) {
+	if err = c.handle.rlock(); err != nil {
+		return nil, err
+	}
+	defer c.handle.runlock()
+
 	var rkqu *C.rd_kafka_queue_t
 
 	rkqu = C.rd_kafka_queue_new(c.handle.rk)
@@ -261,10 +295,20 @@ func (c *Consumer) commit(offsets []TopicPartition) (committedOffsets []TopicPar
 		return nil, newError(cErr)
 	}
 
-	rkev := C.rd_kafka_queue_poll(rkqu, C.int(-1))
-	if rkev == nil {
-		// shouldn't happen
-		return nil, newError(C.RD_KAFKA_RESP_ERR__DESTROY)
+	// Poll for the commit result in bounded slices instead of a single
+	// blocking -1 poll. A -1 poll here would hold the read lock for the whole
+	// (potentially unbounded) round-trip, and a concurrent Close() waiting for
+	// the write lock would be stuck behind it. Bail out early if the consumer
+	// has started closing.
+	var rkev *C.rd_kafka_event_t
+	for {
+		if atomic.LoadUint32(&c.tearingDown) == 1 {
+			return nil, getOperationNotAllowedErrorForClosedClient()
+		}
+		rkev = C.rd_kafka_queue_poll(rkqu, C.int(100))
+		if rkev != nil {
+			break
+		}
 	}
 	defer C.rd_kafka_event_destroy(rkev)
 
@@ -334,10 +378,11 @@ func (c *Consumer) CommitOffsets(offsets []TopicPartition) ([]TopicPartition, er
 // an error and a list of offsets is returned. Each offset can be checked for
 // specific errors via its `.Error` member.
 func (c *Consumer) StoreOffsets(offsets []TopicPartition) (storedOffsets []TopicPartition, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	coffsets := newCPartsFromTopicPartitions(offsets)
 	defer C.rd_kafka_topic_partition_list_destroy(coffsets)
 
@@ -393,10 +438,11 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 // Returns an error on failure or nil otherwise.
 // Deprecated: Seek is deprecated in favour of SeekPartitions().
 func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
-	err := c.verifyClient()
+	err := c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	rkt := c.handle.getRkt(*partition.Topic)
 	cErr := C.rd_kafka_seek(rkt,
 		C.int32_t(partition.Partition),
@@ -422,10 +468,11 @@ func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 // Returns an error on failure or nil otherwise. Individual partition errors
 // should be checked in the per-partition .Error field.
 func (c *Consumer) SeekPartitions(partitions []TopicPartition) ([]TopicPartition, error) {
-	err := c.verifyClient()
+	err := c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 
 	cPartitions := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cPartitions)
@@ -523,6 +570,12 @@ func (c *Consumer) ReadMessage(timeout time.Duration) (*Message, error) {
 			return nil, newError(C.RD_KAFKA_RESP_ERR__TIMED_OUT)
 		}
 
+		// Poll returns nil immediately once a concurrent Close() destroyed
+		// the handle; stop instead of spinning (e.g. with timeout -1).
+		if ev == nil && c.IsClosed() {
+			return nil, getOperationNotAllowedErrorForClosedClient()
+		}
+
 	}
 
 }
@@ -558,17 +611,31 @@ func (c *Consumer) Close() (err error) {
 	// force-destroy the handle and return the error to the caller.
 	if cErr := C.rd_kafka_consumer_close_queue(c.handle.rk, c.handle.rkq); cErr != nil {
 		closeErr := newErrorFromCErrorDestroy(cErr)
+		c.lockForTeardown()
+		defer c.handle.pollLock.Unlock()
 		atomic.StoreUint32(&c.isClosed, 1)
 		C.rd_kafka_queue_destroy(c.handle.rkq)
 		c.handle.rkq = nil
 		c.handle.cleanup()
 		C.rd_kafka_destroy_flags(c.handle.rk, C.RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE)
+		c.handle.rk = nil
 		return closeErr
 	}
 
 	for C.rd_kafka_consumer_closed(c.handle.rk) != 1 {
 		c.Poll(100)
 	}
+
+	// Prevent new polls and wait for any in-flight eventPoll to finish before
+	// tearing down the C handle and queue.
+	//
+	// A blocking in-flight call can otherwise hold the read lock for a long
+	// time: ReadMessage(-1) blocks inside the queue poll (unblocked by the
+	// queue yield below), and commit() blocks on its own result queue
+	// (unblocked cooperatively via the tearingDown flag). Both keep this
+	// Close() bounded rather than waiting indefinitely.
+	c.lockForTeardown()
+	defer c.handle.pollLock.Unlock()
 
 	// After this point, no more consumer methods may be called.
 	atomic.StoreUint32(&c.isClosed, 1)
@@ -580,8 +647,20 @@ func (c *Consumer) Close() (err error) {
 	c.handle.cleanup()
 
 	C.rd_kafka_destroy(c.handle.rk)
+	// Signal to any waiting rlock() callers that the handle is gone.
+	c.handle.rk = nil
 
 	return nil
+}
+
+// lockForTeardown wakes blocking in-flight calls and takes the pollLock write
+// lock, so the handle can be destroyed. The caller must Unlock it.
+func (c *Consumer) lockForTeardown() {
+	atomic.StoreUint32(&c.tearingDown, 1)
+	if c.handle.rkq != nil {
+		C.rd_kafka_queue_yield(c.handle.rkq)
+	}
+	c.handle.pollLock.Lock()
 }
 
 // NewConsumer creates a new high-level Consumer instance.
@@ -716,10 +795,11 @@ func consumerReader(c *Consumer, termChan chan bool) {
 // else information about all topics is returned.
 // GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (c *Consumer) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
-	err := c.verifyClient()
+	err := c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	return getMetadata(c, topic, allTopics, timeoutMs)
 }
 
@@ -741,10 +821,11 @@ func (c *Consumer) ClusterID(ctx context.Context) (clusterID string, err error) 
 
 // QueryWatermarkOffsets queries the broker for the low and high offsets for the given topic and partition.
 func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return -1, -1, err
 	}
+	defer c.handle.runlock()
 	return queryWatermarkOffsets(c, topic, partition, timeoutMs)
 }
 
@@ -753,10 +834,11 @@ func (c *Consumer) QueryWatermarkOffsets(topic string, partition int32, timeoutM
 // The low offset is populated every statistics.interval.ms if that value is set.
 // OffsetInvalid will be returned if there is no cached offset for either value.
 func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high int64, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return -1, -1, err
 	}
+	defer c.handle.runlock()
 	return getWatermarkOffsets(c, topic, partition)
 }
 
@@ -776,19 +858,21 @@ func (c *Consumer) GetWatermarkOffsets(topic string, partition int32) (low, high
 // Duplicate Topic+Partitions are not supported.
 // Per-partition errors may be returned in the `.Error` field.
 func (c *Consumer) OffsetsForTimes(times []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	return offsetsForTimes(c, times, timeoutMs)
 }
 
 // Subscription returns the current subscription as set by Subscribe()
 func (c *Consumer) Subscription() (topics []string, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	var cTopics *C.rd_kafka_topic_partition_list_t
 
 	cErr := C.rd_kafka_subscription(c.handle.rk, &cTopics)
@@ -810,10 +894,11 @@ func (c *Consumer) Subscription() (topics []string, err error) {
 
 // Assignment returns the current partition assignments
 func (c *Consumer) Assignment() (partitions []TopicPartition, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	var cParts *C.rd_kafka_topic_partition_list_t
 
 	cErr := C.rd_kafka_assignment(c.handle.rk, &cParts)
@@ -829,10 +914,11 @@ func (c *Consumer) Assignment() (partitions []TopicPartition, err error) {
 
 // Committed retrieves committed offsets for the given set of partitions
 func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offsets []TopicPartition, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_committed(c.handle.rk, cparts, C.int(timeoutMs))
@@ -850,10 +936,11 @@ func (c *Consumer) Committed(partitions []TopicPartition, timeoutMs int) (offset
 // The consume position is the next message to read from the partition.
 // i.e., the offset of the last message seen by the application + 1.
 func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartition, err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_position(c.handle.rk, cparts)
@@ -870,10 +957,11 @@ func (c *Consumer) Position(partitions []TopicPartition) (offsets []TopicPartiti
 // (if `go.events.channel.enable` has been set) will NOT be purged by
 // this call, set `go.events.channel.size` accordingly.
 func (c *Consumer) Pause(partitions []TopicPartition) (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_pause_partitions(c.handle.rk, cparts)
@@ -885,10 +973,11 @@ func (c *Consumer) Pause(partitions []TopicPartition) (err error) {
 
 // Resume consumption for the provided list of partitions
 func (c *Consumer) Resume(partitions []TopicPartition) (err error) {
-	err = c.verifyClient()
+	err = c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	cparts := newCPartsFromTopicPartitions(partitions)
 	defer C.rd_kafka_topic_partition_list_destroy(cparts)
 	cerr := C.rd_kafka_resume_partitions(c.handle.rk, cparts)
@@ -909,10 +998,11 @@ func (c *Consumer) Resume(partitions []TopicPartition) (err error) {
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
-	err := c.verifyClient()
+	err := c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	return c.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
@@ -924,10 +1014,11 @@ func (c *Consumer) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error 
 // 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (c *Consumer) SetOAuthBearerTokenFailure(errstr string) error {
-	err := c.verifyClient()
+	err := c.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	return c.handle.setOAuthBearerTokenFailure(errstr)
 }
 
@@ -973,10 +1064,11 @@ func deserializeConsumerGroupMetadata(serialized []byte) (*C.rd_kafka_consumer_g
 // This object should be passed to the transactional producer's
 // SendOffsetsToTransaction() API.
 func (c *Consumer) GetConsumerGroupMetadata() (*ConsumerGroupMetadata, error) {
-	err := c.verifyClient()
+	err := c.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer c.handle.runlock()
 	cgmd := C.rd_kafka_consumer_group_metadata(c.handle.rk)
 	if cgmd == nil {
 		return nil, NewError(ErrState, "Consumer group metadata not available", false)
@@ -1059,6 +1151,22 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	}
 
+	// Extract everything we still need from rkev (which is owned by the
+	// handle) into independent memory *now*, while eventPoll still holds the
+	// pollLock read lock, then destroy rkev. This lets us release the lock
+	// around the application callback (which may re-enter locked Consumer
+	// methods and would otherwise deadlock against a concurrent Close on the
+	// non-reentrant RWMutex) without touching any handle-owned memory
+	// afterwards: a concurrent Close may destroy the handle during the
+	// callback window. eventPoll relinquished ownership of rkev to us (it
+	// cleared prevRkev), so we destroy it here.
+	assignPartitions := C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS
+	cParts := C.rd_kafka_topic_partition_list_copy(C.rd_kafka_event_topic_partition_list(rkev))
+	if cParts != nil {
+		defer C.rd_kafka_topic_partition_list_destroy(cParts)
+	}
+	C.rd_kafka_event_destroy(rkev)
+
 	if channel != nil && c.appRebalanceEnable && c.rebalanceCb == nil {
 		// Channel-based consumer with rebalancing enabled,
 		// return the rebalance event and rely on the application
@@ -1072,39 +1180,48 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 		// application called *Assign() / *Unassign().
 		c.appReassigned = false
 
+		// Release the read lock around the callback (foreign code); ev and
+		// cParts are independent of rkev/the handle, so nothing here relies
+		// on the handle staying alive.
+		c.handle.pollLock.RUnlock()
 		c.rebalanceCb(c, ev)
+		c.handle.pollLock.RLock()
 
 		if c.appReassigned {
 			// Rebalance event handled by application.
+			return nil
+		}
+
+		if c.handle.rk == nil {
+			// Handle was closed by a concurrent Close() while the callback
+			// ran; do not touch the C handle.
 			return nil
 		}
 	}
 
 	// Either there was no rebalance callback, or the application
 	// did not call *Assign / *Unassign, so we need to do it.
-
-	isCooperative := c.GetRebalanceProtocol() == "COOPERATIVE"
+	//
+	// The pollLock read lock is held here (by eventPoll), which keeps the C
+	// handle alive during these calls. Use the unlocked getRebalanceProtocol
+	// variant rather than the public one, which would re-lock the
+	// non-reentrant RWMutex and deadlock against a pending Close().
+	isCooperative := c.getRebalanceProtocol() == "COOPERATIVE"
 	var cError *C.rd_kafka_error_t
 	var cErr C.rd_kafka_resp_err_t
 
-	if C.rd_kafka_event_error(rkev) == C.RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS {
+	if assignPartitions {
 		// Assign partitions
 		if isCooperative {
-			cError = C.rd_kafka_incremental_assign(
-				c.handle.rk,
-				C.rd_kafka_event_topic_partition_list(rkev))
+			cError = C.rd_kafka_incremental_assign(c.handle.rk, cParts)
 		} else {
-			cErr = C.rd_kafka_assign(
-				c.handle.rk,
-				C.rd_kafka_event_topic_partition_list(rkev))
+			cErr = C.rd_kafka_assign(c.handle.rk, cParts)
 		}
 	} else {
 		// Revoke partitions
 
 		if isCooperative {
-			cError = C.rd_kafka_incremental_unassign(
-				c.handle.rk,
-				C.rd_kafka_event_topic_partition_list(rkev))
+			cError = C.rd_kafka_incremental_unassign(c.handle.rk, cParts)
 		} else {
 			cErr = C.rd_kafka_assign(c.handle.rk, nil)
 		}
@@ -1112,10 +1229,20 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 
 	// If the *assign() call returned error, forward it to the
 	// the consumer's Events() channel for visibility.
-	if cError != nil {
-		c.events <- newErrorFromCErrorDestroy(cError)
-	} else if cErr != 0 {
-		c.events <- newError(cErr)
+	//
+	// c.events is nil when the events channel is not enabled; a send on a nil
+	// channel would block forever while holding the read lock and wedge a
+	// concurrent Close(), so only forward when the channel exists.
+	if c.events != nil {
+		if cError != nil {
+			c.events <- newErrorFromCErrorDestroy(cError)
+		} else if cErr != 0 {
+			c.events <- newError(cErr)
+		}
+	} else {
+		if cError != nil {
+			C.rd_kafka_error_destroy(cError)
+		}
 	}
 
 	return nil
@@ -1128,9 +1255,9 @@ func (c *Consumer) handleRebalanceEvent(channel chan Event, rkev *C.rd_kafka_eve
 // existing broker connections that were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (c *Consumer) SetSaslCredentials(username, password string) error {
-	err := c.verifyClient()
-	if err != nil {
+	if err := c.handle.rlock(); err != nil {
 		return err
 	}
+	defer c.handle.runlock()
 	return setSaslCredentials(c.handle.rk, username, password)
 }
