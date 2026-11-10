@@ -90,6 +90,8 @@ Examples
 
   [transactions_example](transactions_example) - Showcasing a transactional consume-process-produce application
 
+  [wordcount_transactions_example](wordcount_transactions_example) - Simple transactional word count (beginner-friendly)
+
 Usage example
 -------------
 
