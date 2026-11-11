@@ -115,12 +115,22 @@ mentioned above. You will (eventually) see a `kafka.AssignedPartitions` event
 with the assigned partition set. You can optionally modify the initial
 offsets (they'll default to stored offsets and if there are no previously stored
 offsets it will fall back to `"auto.offset.reset"`
-which defaults to the `latest` message) and then call `.Assign(partitions)`
-to start consuming. If you don't need to modify the initial offsets you will
-not need to call `.Assign()`, the client will do so automatically for you if
-you dont, unless you are using the channel-based consumer in which case
-you MUST call `.Assign()` when receiving the `AssignedPartitions` and
-`RevokedPartitions` events.
+which defaults to the `latest` message). With an eager assignor, call
+`.Assign(partitions)` on `AssignedPartitions` and `.Unassign()` on
+`RevokedPartitions`. With `group.protocol=consumer` or a cooperative assignor,
+use `.IncrementalAssign(partitions)` and `.IncrementalUnassign(partitions)`
+instead, passing the event's partition list even if empty. With incremental
+rebalancing, these events contain only partitions being added or revoked, not
+the full assignment. Only the initial offsets may be changed when assigning,
+not the set of partitions.
+The client handles assignment and revocation automatically if there is no
+rebalance callback, or the callback does not call an assignment API. When
+handling rebalance events on the deprecated `.Events()` channel without a
+rebalance callback, you MUST call the corresponding assignment API yourself.
+            <p>
+             * Alternatively, use `.Assign(partitions)` for manual assignment without
+subscribing. This is supported with either `group.protocol`, including
+`consumer`. `.Unassign()` clears a manual assignment.
             <p>
              * As messages are fetched they will be made available on either the
 `.Events` channel or by calling `.Poll()`, look for event type `*kafka.Message`.
@@ -279,11 +289,12 @@ An application may choose to handle or ignore these events.
                                    <p>
                                     * `*kafka.Message` - a fetched message.
                                     <p>
-                                     * `AssignedPartitions` - The assigned partition set for this client following a rebalance.
+                                     * `AssignedPartitions` - Partitions assigned to this client following a rebalance.
+With `group.protocol=consumer` or a cooperative assignor, only newly added partitions are included.
 Requires `go.application.rebalance.enable`
                                      <p>
-                                      * `RevokedPartitions` - The counter part to `AssignedPartitions` following a rebalance.
-`AssignedPartitions` and `RevokedPartitions` are symmetrical.
+                                      * `RevokedPartitions` - Partitions revoked from this client following a rebalance.
+With `group.protocol=consumer` or a cooperative assignor, only partitions being removed are included.
 Requires `go.application.rebalance.enable`
                                       <p>
                                        * `PartitionEOF` - Consumer has reached the end of a partition.
@@ -4366,9 +4377,10 @@ DescribeConfigs request.
                                                                                                                                                                                                       <p>
                                                                                                                                                                                                        Supported special configuration properties:
                                                                                                                                                                                                        <pre>go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
-                                     If set to true the app must handle the AssignedPartitions and
-                                     RevokedPartitions events and call Assign() and Unassign()
-                                     respectively.
+                                     When handling rebalance events on Events() without a rebalance callback,
+                                     the app must call Assign() for AssignedPartitions and Unassign() for
+                                     RevokedPartitions with an eager assignor, or IncrementalAssign() and
+                                     IncrementalUnassign() with group.protocol=consumer or a cooperative assignor.
 go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
 go.events.channel.size (int, 1000) - Events() channel size
 go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
@@ -4401,6 +4413,11 @@ use the committed offset as a start position, with a fallback to
 `auto.offset.reset` if there is no committed offset.
                                                                                                                                                                                                           <p>
                                                                                                                                                                                                            This replaces the current assignment.
+                                                                                                                                                                                                           <p>
+                                                                                                                                                                                                            Assign and Unassign must not be used while subscribed with
+group.protocol=consumer or a cooperative assignor. Use IncrementalAssign and
+IncrementalUnassign instead. Manual assignment without subscribing is
+supported with either group.protocol.
                                                                                                                                                                                                            <h3 id="Consumer.Assignment">
                                                                                                                                                                                                             func (*Consumer)
                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/consumer.go?s=25701:25773#L802">
@@ -4620,6 +4637,11 @@ use the committed offset as a start position, with a fallback to
 `auto.offset.reset` if there is no committed offset.
                                                                                                                                                                                                                                <p>
                                                                                                                                                                                                                                 The new partitions must not be part of the current assignment.
+                                                                                                                                                                                                                                <p>
+                                                                                                                                                                                                                                 When handling an AssignedPartitions event with group.protocol=consumer or a
+cooperative assignor, pass the event's partition list, even if empty. Only
+the initial offsets may be changed, not the set of partitions. If a rebalance
+callback does not call an assignment API, the client handles it automatically.
                                                                                                                                                                                                                                 <h3 id="Consumer.IncrementalUnassign">
                                                                                                                                                                                                                                  func (*Consumer)
                                                                                                                                                                                                                                  <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/consumer.go?s=5537:5616#L192">
@@ -4637,6 +4659,11 @@ partitions to consume.
                                                                                                                                                                                                                                   The .Offset field of the TopicPartition is ignored.
                                                                                                                                                                                                                                   <p>
                                                                                                                                                                                                                                    The removed partitions must be part of the current assignment.
+                                                                                                                                                                                                                                   <p>
+                                                                                                                                                                                                                                    When handling a RevokedPartitions event with group.protocol=consumer or a
+cooperative assignor, pass the event's partition list, even if empty, without
+adding or removing partitions. If a rebalance callback does not call an
+assignment API, the client handles it automatically.
                                                                                                                                                                                                                                    <h3 id="Consumer.IsClosed">
                                                                                                                                                                                                                                     func (*Consumer)
                                                                                                                                                                                                                                     <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/consumer.go?s=1564:1598#L48">
@@ -4814,9 +4841,9 @@ It will still take some time after the method returns until messages are
 fetched at the new offset.
                                                                                                                                                                                                                                                           <p>
                                                                                                                                                                                                                                                            Seek() may only be used for partitions already being consumed
-(through Assign() or implicitly through a self-rebalanced Subscribe()).
-To set the starting offset it is preferred to use Assign() and provide
-a starting offset for each partition.
+(through Assign(), IncrementalAssign(), or a self-rebalanced Subscribe()).
+To set the starting offset, provide it for each partition to Assign(), or to
+IncrementalAssign() when using group.protocol=consumer or a cooperative assignor.
                                                                                                                                                                                                                                                            <p>
                                                                                                                                                                                                                                                             Returns an error on failure or nil otherwise.
 Deprecated: Seek is deprecated in favour of SeekPartitions().
@@ -4837,10 +4864,10 @@ stored in the .Offset field of each partition.
                                                                                                                                                                                                                                                               The offset may be either absolute (&gt;= 0) or a logical offset (e.g. OffsetEnd).
                                                                                                                                                                                                                                                               <p>
                                                                                                                                                                                                                                                                SeekPartitions() may only be used for partitions already being consumed
-(through Assign() or implicitly through a self-rebalanced Subscribe()).
-To set the starting offset it is preferred to use Assign() in a
-kafka.AssignedPartitions handler and provide a starting offset for each
-partition.
+(through Assign(), IncrementalAssign(), or a self-rebalanced Subscribe()).
+To set the starting offset in a kafka.AssignedPartitions handler, provide it
+for each partition to Assign(), or to IncrementalAssign() when using
+group.protocol=consumer or a cooperative assignor.
                                                                                                                                                                                                                                                                <p>
                                                                                                                                                                                                                                                                 Returns an error on failure or nil otherwise. Individual partition errors
 should be checked in the per-partition .Error field.
@@ -4996,6 +5023,10 @@ This replaces the current subscription.
                                                                                                                                                                                                                                                                           <pre>func (c *<a href="#Consumer">Consumer</a>) Unassign() (err <a href="https://pkg.go.dev/builtin/#error">error</a>)</pre>
                                                                                                                                                                                                                                                                           <p>
                                                                                                                                                                                                                                                                            Unassign the current set of partitions to consume.
+                                                                                                                                                                                                                                                                           <p>
+                                                                                                                                                                                                                                                                            Must not be used while subscribed with group.protocol=consumer or a
+cooperative assignor. Use IncrementalUnassign instead. Manual assignment
+without subscribing is supported with either group.protocol.
                                                                                                                                                                                                                                                                            <h3 id="Consumer.Unsubscribe">
                                                                                                                                                                                                                                                                             func (*Consumer)
                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/consumer.go?s=3060:3104#L106">
