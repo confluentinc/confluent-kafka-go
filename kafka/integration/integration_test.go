@@ -393,11 +393,10 @@ func consumerTest(t *testing.T, testname string, assignmentStrategy string, msgc
 		"go.events.channel.enable": cc.useChannel,
 		"group.id": testconf.GroupID +
 			fmt.Sprintf("-%d", rand.Intn(1000000)),
-		"session.timeout.ms":  6000,
-		"api.version.request": "true",
-		"enable.auto.commit":  cc.autoCommit,
-		"debug":               ",",
-		"auto.offset.reset":   "earliest"}
+		"session.timeout.ms": 6000,
+		"enable.auto.commit": cc.autoCommit,
+		"debug":              ",",
+		"auto.offset.reset":  "earliest"}
 	if assignmentStrategy != "" {
 		conf["partition.assignment.strategy"] = assignmentStrategy
 	}
