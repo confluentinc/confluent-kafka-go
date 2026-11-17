@@ -912,6 +912,95 @@ func TestAvroSerdeUnionWithReferences(t *testing.T) {
 	serde.MaybeFail("deserialization into", err, serde.Expect(newobj, obj))
 }
 
+// TestAvroSerdeUnionWithPartialResolution covers the case where a union has
+// some variants registered with the deserializer and others not. With the
+// PartialUnionTypeResolution flag enabled, registered variants decode into
+// their typed Go struct while unregistered variants fall back to
+// map[string]any. Without the flag, even a single unregistered variant in
+// the union forces every variant to decode as map[string]any.
+func TestAvroSerdeUnionWithPartialResolution(t *testing.T) {
+	serde.MaybeFail = serde.InitFailFunc(t)
+	var err error
+
+	conf := schemaregistry.NewConfig("mock://")
+	client, err := schemaregistry.NewClient(conf)
+	serde.MaybeFail("Schema Registry configuration", err)
+
+	// Serializer needs to know about both variants so it can encode either one.
+	serConfig := NewSerializerConfig()
+	serConfig.AutoRegisterSchemas = false
+	serConfig.UseLatestVersion = true
+	ser, err := NewSerializer(client, serde.ValueSerde, serConfig)
+	serde.MaybeFail("Serializer configuration", err)
+	_ = ser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+	_ = ser.RegisterTypeFromMessageFactory("ComplexSchema", testMessageFactory)
+
+	_, err = client.Register("demo-value", schemaregistry.SchemaInfo{
+		Schema: string(demoSchema), SchemaType: "AVRO",
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	_, err = client.Register("complex-value", schemaregistry.SchemaInfo{
+		Schema: string(complexSchema), SchemaType: "AVRO",
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	_, err = client.Register("topic1-value", schemaregistry.SchemaInfo{
+		Schema:     `[ "DemoSchema", "ComplexSchema" ]`,
+		SchemaType: "AVRO",
+		References: []schemaregistry.Reference{
+			{Name: "DemoSchema", Subject: "demo-value", Version: 1},
+			{Name: "ComplexSchema", Subject: "complex-value", Version: 1},
+		},
+	}, false)
+	serde.MaybeFail("Schema registration", err)
+
+	obj := DemoSchema{
+		IntField: 123, DoubleField: 45.67, StringField: "hi",
+		BoolField: true, BytesField: []byte{1, 2},
+	}
+	bytes, err := ser.Serialize("topic1", &obj)
+	serde.MaybeFail("serialization", err)
+
+	// Deserializer registers DemoSchema only — ComplexSchema is intentionally
+	// left unregistered to exercise the partial-resolution path.
+	deserConfig := NewDeserializerConfig()
+	deserConfig.PartialUnionTypeResolution = true
+	deser, err := NewDeserializer(client, serde.ValueSerde, deserConfig)
+	serde.MaybeFail("Deserializer configuration", err)
+	deser.Client = ser.Client
+	deser.MessageFactory = testMessageFactory
+	_ = deser.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+
+	// With PartialUnionTypeResolution=true the registered variant should
+	// decode into the typed Go struct.
+	var got interface{}
+	err = deser.DeserializeInto("topic1", bytes, &got)
+	serde.MaybeFail("deserialization (registered variant, partial enabled)", err)
+	if _, ok := got.(DemoSchema); !ok {
+		t.Errorf("with PartialUnionTypeResolution=true the registered DemoSchema "+
+			"variant should decode into its typed struct, got %T", got)
+	}
+
+	// Sanity-check the default (PartialUnionTypeResolution == false) so a
+	// future change to the default doesn't silently make this test useless:
+	// the *registered* variant should fall back to map because the *other*
+	// variant in the union is unregistered.
+	deserDefault, err := NewDeserializer(client, serde.ValueSerde, NewDeserializerConfig())
+	serde.MaybeFail("Default deserializer configuration", err)
+	deserDefault.Client = ser.Client
+	deserDefault.MessageFactory = testMessageFactory
+	_ = deserDefault.RegisterTypeFromMessageFactory("DemoSchema", testMessageFactory)
+
+	var gotDefault interface{}
+	err = deserDefault.DeserializeInto("topic1", bytes, &gotDefault)
+	serde.MaybeFail("deserialization (default, no partial)", err)
+	if _, ok := gotDefault.(DemoSchema); ok {
+		t.Errorf("default config should fall back to map[string]any when any "+
+			"union variant is unregistered, got typed %T", gotDefault)
+	}
+}
+
 func TestAvroSchemaEvolution(t *testing.T) {
 	serde.MaybeFail = serde.InitFailFunc(t)
 	var err error
