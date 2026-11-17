@@ -48,12 +48,12 @@ All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+N
 ## Rebalance Callback Changes
 
 - The **protocol is fully incremental** in KIP-848.
-- In the **rebalance callbacks**, you **must only use** (optional - if not used, client will handle it internally):
+- If you handle assignment or revocation in a **rebalance callback**, use:
   - `consumer.IncrementalAssign(e.Partitions)` to assign new partitions
   - `consumer.IncrementalUnassign(e.Partitions)` to revoke partitions
-- **Do not** use `consumer.Assign()` or `consumer.Unassign()` after subscribing with `group.protocol='consumer'` (KIP-848).
-- If you don't call `IncrementalAssign()`/`IncrementalUnassign()` inside rebalance callbacks, the client will automatically use `IncrementalAssign()`/`IncrementalUnassign()` internally.
-- ⚠️ The `e.Partitions` list passed to `IncrementalAssign()` and `IncrementalUnassign()` contains only the **incremental changes** — partitions being **added** or **revoked** — **not the full assignment**, as was the case with `Assign()` in the classic protocol.
+- With `group.protocol=consumer` (KIP-848), `consumer.Assign()` and `consumer.Unassign()` are supported for **manual assignment only before the first subscription** through `consumer.Subscribe()` or `consumer.SubscribeTopics()`. After subscribing once, both return `ErrState`, **even after `consumer.Unsubscribe()`**; use `consumer.IncrementalAssign()` and `consumer.IncrementalUnassign()` instead. This restriction does not apply to `group.protocol=classic` with an eager assignor.
+- If no rebalance callback is provided, or the callback does not call an assignment API, the client automatically performs the incremental assignment or revocation. When handling rebalance events through the deprecated `Events()` channel with `go.application.rebalance.enable=true` and no rebalance callback, the application **must** call the corresponding incremental API; there is no automatic handling in this case.
+- ⚠️ Pass the `e.Partitions` list to `IncrementalAssign()` or `IncrementalUnassign()`, even if it is empty. It contains only the **incremental changes** — partitions being **added** or **revoked** — **not the full assignment**, unlike the **range assignor in the classic protocol**. You may adjust the initial offsets when assigning, but must not add or remove partitions from this list.
 - All assignors under KIP-848 are now **sticky**, including `range`, which was **not sticky** in the classic protocol.
 
 ## Static Group Membership
@@ -165,7 +165,7 @@ func onRebalanceCooperative(consumer *kafka.Consumer, ev kafka.Event) {
 }
 ```
 
-**Note:** The `e.Partitions` list contains **only partitions being added or revoked**, not the full partition list as in the classic `consumer.Assign()`.
+**Note:** The `e.Partitions` list contains **only partitions being added or revoked**, not the full partition list as in the **range assignor in the classic protocol**. Pass this list even if it is empty; only the initial offsets may be changed when assigning.
 
 # Upgrade and Downgrade
 

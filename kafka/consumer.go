@@ -113,6 +113,10 @@ func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (er
 }
 
 // Unsubscribe from the current subscription, if any.
+//
+// With group.protocol=consumer, this does not restore support for Assign or
+// Unassign after subscribing once. Use IncrementalAssign and IncrementalUnassign
+// instead.
 func (c *Consumer) Unsubscribe() (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -131,6 +135,15 @@ func (c *Consumer) Unsubscribe() (err error) {
 // `auto.offset.reset` if there is no committed offset.
 //
 // This replaces the current assignment.
+//
+// With group.protocol=consumer, Assign and Unassign are supported only before
+// the first subscription through Subscribe or SubscribeTopics. After subscribing
+// once, both return ErrState, even after Unsubscribe. Use IncrementalAssign and
+// IncrementalUnassign instead.
+//
+// With a cooperative assignor, use the incremental APIs while subscribed.
+// Assign and Unassign remain supported with group.protocol=classic and an eager
+// assignor.
 func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -150,6 +163,13 @@ func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 }
 
 // Unassign the current set of partitions to consume.
+//
+// With group.protocol=consumer, Unassign is supported only before the first
+// subscription through Subscribe or SubscribeTopics. After subscribing once,
+// it returns ErrState, even after Unsubscribe. Use IncrementalUnassign instead.
+//
+// With a cooperative assignor, use IncrementalUnassign while subscribed.
+// Unassign remains supported with group.protocol=classic and an eager assignor.
 func (c *Consumer) Unassign() (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -175,6 +195,11 @@ func (c *Consumer) Unassign() (err error) {
 // `auto.offset.reset` if there is no committed offset.
 //
 // The new partitions must not be part of the current assignment.
+//
+// When handling an AssignedPartitions event with group.protocol=consumer or a
+// cooperative assignor, pass the event's partition list, even if empty. Only
+// the initial offsets may be changed, not the set of partitions. If a rebalance
+// callback does not call an assignment API, the client handles it automatically.
 func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -199,6 +224,11 @@ func (c *Consumer) IncrementalAssign(partitions []TopicPartition) (err error) {
 // The .Offset field of the TopicPartition is ignored.
 //
 // The removed partitions must be part of the current assignment.
+//
+// When handling a RevokedPartitions event with group.protocol=consumer or a
+// cooperative assignor, pass the event's partition list, even if empty, without
+// adding or removing partitions. If a rebalance callback does not call an
+// assignment API, the client handles it automatically.
 func (c *Consumer) IncrementalUnassign(partitions []TopicPartition) (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -386,9 +416,9 @@ func (c *Consumer) StoreMessage(m *Message) (storedOffsets []TopicPartition, err
 // fetched at the new offset.
 //
 // Seek() may only be used for partitions already being consumed
-// (through Assign() or implicitly through a self-rebalanced Subscribe()).
-// To set the starting offset it is preferred to use Assign() and provide
-// a starting offset for each partition.
+// (through Assign(), IncrementalAssign(), or a self-rebalanced Subscribe()).
+// To set the starting offset, provide it for each partition to Assign(), or to
+// IncrementalAssign() when using group.protocol=consumer or a cooperative assignor.
 //
 // Returns an error on failure or nil otherwise.
 // Deprecated: Seek is deprecated in favour of SeekPartitions().
@@ -414,10 +444,10 @@ func (c *Consumer) Seek(partition TopicPartition, ignoredTimeoutMs int) error {
 // The offset may be either absolute (>= 0) or a logical offset (e.g. OffsetEnd).
 //
 // SeekPartitions() may only be used for partitions already being consumed
-// (through Assign() or implicitly through a self-rebalanced Subscribe()).
-// To set the starting offset it is preferred to use Assign() in a
-// kafka.AssignedPartitions handler and provide a starting offset for each
-// partition.
+// (through Assign(), IncrementalAssign(), or a self-rebalanced Subscribe()).
+// To set the starting offset in a kafka.AssignedPartitions handler, provide it
+// for each partition to Assign(), or to IncrementalAssign() when using
+// group.protocol=consumer or a cooperative assignor.
 //
 // Returns an error on failure or nil otherwise. Individual partition errors
 // should be checked in the per-partition .Error field.
@@ -591,9 +621,10 @@ func (c *Consumer) Close() (err error) {
 // Supported special configuration properties:
 //
 //	go.application.rebalance.enable (bool, false) - Forward rebalancing responsibility to application via the Events() channel.
-//	                                     If set to true the app must handle the AssignedPartitions and
-//	                                     RevokedPartitions events and call Assign() and Unassign()
-//	                                     respectively.
+//	                                     When handling rebalance events on Events() without a rebalance callback,
+//	                                     the app must call Assign() for AssignedPartitions and Unassign() for
+//	                                     RevokedPartitions with an eager assignor, or IncrementalAssign() and
+//	                                     IncrementalUnassign() with group.protocol=consumer or a cooperative assignor.
 //	go.events.channel.enable (bool, false) - [deprecated] Enable the Events() channel. Messages and events will be pushed on the Events() channel and the Poll() interface will be disabled.
 //	go.events.channel.size (int, 1000) - Events() channel size
 //	go.logs.channel.enable (bool, false) - Forward log to Logs() channel.
