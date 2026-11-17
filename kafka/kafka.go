@@ -59,8 +59,12 @@
 // rebalance callback, you MUST call the corresponding assignment API yourself.
 //
 // * Alternatively, use `.Assign(partitions)` for manual assignment without
-// subscribing. This is supported with either `group.protocol`, including
-// `consumer`. `.Unassign()` clears a manual assignment.
+// subscribing. `.Unassign()` clears a manual assignment. With
+// `group.protocol=consumer`, these APIs are supported only before the first
+// subscription through `.Subscribe()` or `.SubscribeTopics()`. After subscribing
+// once, both return `ErrState`, even after `.Unsubscribe()`; use the incremental
+// APIs instead. With `group.protocol=classic` and an eager assignor, `.Assign()`
+// and `.Unassign()` remain supported.
 //
 // * As messages are fetched they will be made available on either the
 // `.Events` channel or by calling `.Poll()`, look for event type `*kafka.Message`.

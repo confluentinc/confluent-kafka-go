@@ -113,6 +113,10 @@ func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) (er
 }
 
 // Unsubscribe from the current subscription, if any.
+//
+// With group.protocol=consumer, this does not restore support for Assign or
+// Unassign after subscribing once. Use IncrementalAssign and IncrementalUnassign
+// instead.
 func (c *Consumer) Unsubscribe() (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -132,10 +136,14 @@ func (c *Consumer) Unsubscribe() (err error) {
 //
 // This replaces the current assignment.
 //
-// Assign and Unassign must not be used while subscribed with
-// group.protocol=consumer or a cooperative assignor. Use IncrementalAssign and
-// IncrementalUnassign instead. Manual assignment without subscribing is
-// supported with either group.protocol.
+// With group.protocol=consumer, Assign and Unassign are supported only before
+// the first subscription through Subscribe or SubscribeTopics. After subscribing
+// once, both return ErrState, even after Unsubscribe. Use IncrementalAssign and
+// IncrementalUnassign instead.
+//
+// With a cooperative assignor, use the incremental APIs while subscribed.
+// Assign and Unassign remain supported with group.protocol=classic and an eager
+// assignor.
 func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 	err = c.verifyClient()
 	if err != nil {
@@ -156,9 +164,12 @@ func (c *Consumer) Assign(partitions []TopicPartition) (err error) {
 
 // Unassign the current set of partitions to consume.
 //
-// Must not be used while subscribed with group.protocol=consumer or a
-// cooperative assignor. Use IncrementalUnassign instead. Manual assignment
-// without subscribing is supported with either group.protocol.
+// With group.protocol=consumer, Unassign is supported only before the first
+// subscription through Subscribe or SubscribeTopics. After subscribing once,
+// it returns ErrState, even after Unsubscribe. Use IncrementalUnassign instead.
+//
+// With a cooperative assignor, use IncrementalUnassign while subscribed.
+// Unassign remains supported with group.protocol=classic and an eager assignor.
 func (c *Consumer) Unassign() (err error) {
 	err = c.verifyClient()
 	if err != nil {

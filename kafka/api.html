@@ -129,8 +129,12 @@ handling rebalance events on the deprecated `.Events()` channel without a
 rebalance callback, you MUST call the corresponding assignment API yourself.
             <p>
              * Alternatively, use `.Assign(partitions)` for manual assignment without
-subscribing. This is supported with either `group.protocol`, including
-`consumer`. `.Unassign()` clears a manual assignment.
+subscribing. `.Unassign()` clears a manual assignment. With
+`group.protocol=consumer`, these APIs are supported only before the first
+subscription through `.Subscribe()` or `.SubscribeTopics()`. After subscribing
+once, both return `ErrState`, even after `.Unsubscribe()`; use the incremental
+APIs instead. With `group.protocol=classic` and an eager assignor, `.Assign()`
+and `.Unassign()` remain supported.
             <p>
              * As messages are fetched they will be made available on either the
 `.Events` channel or by calling `.Poll()`, look for event type `*kafka.Message`.
@@ -4414,10 +4418,14 @@ use the committed offset as a start position, with a fallback to
                                                                                                                                                                                                           <p>
                                                                                                                                                                                                            This replaces the current assignment.
                                                                                                                                                                                                            <p>
-                                                                                                                                                                                                            Assign and Unassign must not be used while subscribed with
-group.protocol=consumer or a cooperative assignor. Use IncrementalAssign and
-IncrementalUnassign instead. Manual assignment without subscribing is
-supported with either group.protocol.
+                                                                                                                                                                                                            With group.protocol=consumer, Assign and Unassign are supported only before
+the first subscription through Subscribe or SubscribeTopics. After subscribing
+once, both return ErrState, even after Unsubscribe. Use IncrementalAssign and
+IncrementalUnassign instead.
+                                                                                                                                                                                                            <p>
+                                                                                                                                                                                                             With a cooperative assignor, use the incremental APIs while subscribed.
+Assign and Unassign remain supported with group.protocol=classic and an eager
+assignor.
                                                                                                                                                                                                            <h3 id="Consumer.Assignment">
                                                                                                                                                                                                             func (*Consumer)
                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/consumer.go?s=25701:25773#L802">
@@ -5024,9 +5032,12 @@ This replaces the current subscription.
                                                                                                                                                                                                                                                                           <p>
                                                                                                                                                                                                                                                                            Unassign the current set of partitions to consume.
                                                                                                                                                                                                                                                                            <p>
-                                                                                                                                                                                                                                                                            Must not be used while subscribed with group.protocol=consumer or a
-cooperative assignor. Use IncrementalUnassign instead. Manual assignment
-without subscribing is supported with either group.protocol.
+                                                                                                                                                                                                                                                                            With group.protocol=consumer, Unassign is supported only before the first
+subscription through Subscribe or SubscribeTopics. After subscribing once,
+it returns ErrState, even after Unsubscribe. Use IncrementalUnassign instead.
+                                                                                                                                                                                                                                                                            <p>
+                                                                                                                                                                                                                                                                             With a cooperative assignor, use IncrementalUnassign while subscribed.
+Unassign remains supported with group.protocol=classic and an eager assignor.
                                                                                                                                                                                                                                                                            <h3 id="Consumer.Unsubscribe">
                                                                                                                                                                                                                                                                             func (*Consumer)
                                                                                                                                                                                                                                                                             <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/consumer.go?s=3060:3104#L106">
@@ -5039,6 +5050,10 @@ without subscribing is supported with either group.protocol.
                                                                                                                                                                                                                                                                            <pre>func (c *<a href="#Consumer">Consumer</a>) Unsubscribe() (err <a href="https://pkg.go.dev/builtin/#error">error</a>)</pre>
                                                                                                                                                                                                                                                                            <p>
                                                                                                                                                                                                                                                                             Unsubscribe from the current subscription, if any.
+                                                                                                                                                                                                                                                                            <p>
+                                                                                                                                                                                                                                                                             With group.protocol=consumer, this does not restore support for Assign or
+Unassign after subscribing once. Use IncrementalAssign and IncrementalUnassign
+instead.
                                                                                                                                                                                                                                                                             <h2 id="ConsumerGroupDescription">
                                                                                                                                                                                                                                                                              type
                                                                                                                                                                                                                                                                              <a href="https://github.com/confluentinc/confluent-kafka-go/blob/v2.16.1/kafka/adminapi.go?s=10793:11408#L335">
