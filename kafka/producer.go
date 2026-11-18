@@ -193,7 +193,7 @@ func (p *Producer) ClusterID(ctx context.Context) (clusterID string, err error) 
 
 func (p *Producer) produce(msg *Message, msgFlags int, deliveryChan chan Event) error {
 	if msg == nil || msg.TopicPartition.Topic == nil || len(*msg.TopicPartition.Topic) == 0 {
-		return newErrorFromString(ErrInvalidArg, "")
+		return newErrorFromString(ErrInvalidArg, "nil message or nil/empty topic")
 	}
 
 	crkt := p.handle.getRkt(*msg.TopicPartition.Topic)
