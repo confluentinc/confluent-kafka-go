@@ -97,6 +97,10 @@ func (e Stats) String() string {
 	return e.statsJSON
 }
 
+func (e Stats) Bytes() []byte {
+	return []byte(e.statsJSON)
+}
+
 // AssignedPartitions consumer group rebalance event: assigned partition set
 type AssignedPartitions struct {
 	Partitions []TopicPartition
