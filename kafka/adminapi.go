@@ -168,6 +168,8 @@ func (a *AdminClient) IsClosed() bool {
 	return atomic.LoadUint32(&a.isClosed) == 1
 }
 
+// verifyClient is required by the Handle interface. AdminClient guards its
+// operations via IsClosed()/isClosed rather than the handle read lock.
 func (a *AdminClient) verifyClient() error {
 	if a.IsClosed() {
 		return getOperationNotAllowedErrorForClosedClient()
@@ -1705,10 +1707,11 @@ func (a *AdminClient) ClusterID(ctx context.Context) (clusterID string, err erro
 //
 // Requires broker version >= 0.10.0.
 func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return -1, err
 	}
+	defer a.handle.runlock()
 
 	responseChan := make(chan int32, 1)
 
@@ -1739,10 +1742,11 @@ func (a *AdminClient) ControllerID(ctx context.Context) (controllerID int32, err
 //
 // Note: TopicSpecification is analogous to NewTopic in the Java Topic Admin API.
 func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecification, options ...CreateTopicsAdminOption) (result []TopicResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cTopics := make([]*C.rd_kafka_NewTopic_t, len(topics))
 
@@ -1858,10 +1862,11 @@ func (a *AdminClient) CreateTopics(ctx context.Context, topics []TopicSpecificat
 //
 // Requires broker version >= 0.10.1.0
 func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options ...DeleteTopicsAdminOption) (result []TopicResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cTopics := make([]*C.rd_kafka_DeleteTopic_t, len(topics))
 
@@ -1921,10 +1926,11 @@ func (a *AdminClient) DeleteTopics(ctx context.Context, topics []string, options
 
 // CreatePartitions creates additional partitions for topics.
 func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []PartitionsSpecification, options ...CreatePartitionsAdminOption) (result []TopicResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cParts := make([]*C.rd_kafka_NewPartitions_t, len(partitions))
 
@@ -2017,10 +2023,11 @@ func (a *AdminClient) CreatePartitions(ctx context.Context, partitions []Partiti
 // resource requests must be sent to the broker specified in the resource.
 // Deprecated: AlterConfigs is deprecated in favour of IncrementalAlterConfigs
 func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
@@ -2119,10 +2126,11 @@ func (a *AdminClient) AlterConfigs(ctx context.Context, resources []ConfigResour
 // with a DELETE operation on the same config. Apache Kafka doesn't recognize
 // these configs.
 func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []ConfigResource, options ...AlterConfigsAdminOption) (result []ConfigResourceResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
@@ -2226,10 +2234,11 @@ func (a *AdminClient) IncrementalAlterConfigs(ctx context.Context, resources []C
 // since these resource requests must be sent to the broker specified
 // in the resource.
 func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigResource, options ...DescribeConfigsAdminOption) (result []ConfigResourceResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cRes := make([]*C.rd_kafka_ConfigResource_t, len(resources))
 
@@ -2294,10 +2303,11 @@ func (a *AdminClient) DescribeConfigs(ctx context.Context, resources []ConfigRes
 // else information about all topics is returned.
 // GetMetadata is equivalent to listTopics, describeTopics and describeCluster in the Java API.
 func (a *AdminClient) GetMetadata(topic *string, allTopics bool, timeoutMs int) (*Metadata, error) {
-	err := a.verifyClient()
+	err := a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 	return getMetadata(a, topic, allTopics, timeoutMs)
 }
 
@@ -2322,10 +2332,11 @@ func (a *AdminClient) gethandle() *handle {
 // 3) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (a *AdminClient) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) error {
-	err := a.verifyClient()
+	err := a.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer a.handle.runlock()
 	return a.handle.setOAuthBearerToken(oauthBearerToken)
 }
 
@@ -2337,10 +2348,11 @@ func (a *AdminClient) SetOAuthBearerToken(oauthBearerToken OAuthBearerToken) err
 // 2) SASL/OAUTHBEARER is supported but is not configured as the client's
 // authentication mechanism.
 func (a *AdminClient) SetOAuthBearerTokenFailure(errstr string) error {
-	err := a.verifyClient()
+	err := a.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer a.handle.runlock()
 	return a.handle.setOAuthBearerTokenFailure(errstr)
 }
 
@@ -2504,10 +2516,11 @@ func (a *AdminClient) cToDeleteACLsResults(cDeleteACLsResResponse **C.rd_kafka_D
 // Returns a slice of CreateACLResult with a ErrNoError ErrorCode when the operation was successful
 // plus an error that is not nil for client level errors
 func (a *AdminClient) CreateACLs(ctx context.Context, aclBindings ACLBindings, options ...CreateACLsAdminOption) (result []CreateACLResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	if aclBindings == nil {
 		return nil, newErrorFromString(ErrInvalidArg,
@@ -2584,10 +2597,11 @@ func (a *AdminClient) CreateACLs(ctx context.Context, aclBindings ACLBindings, o
 // Returns a slice of ACLBindings when the operation was successful
 // plus an error that is not `nil` for client level errors
 func (a *AdminClient) DescribeACLs(ctx context.Context, aclBindingFilter ACLBindingFilter, options ...DescribeACLsAdminOption) (result *DescribeACLsResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	cErrstrSize := C.size_t(512)
 	cErrstr := (*C.char)(C.malloc(cErrstrSize))
@@ -2644,10 +2658,11 @@ func (a *AdminClient) DescribeACLs(ctx context.Context, aclBindingFilter ACLBind
 // Returns a slice of ACLBinding for each filter when the operation was successful
 // plus an error that is not `nil` for client level errors
 func (a *AdminClient) DeleteACLs(ctx context.Context, aclBindingFilters ACLBindingFilters, options ...DeleteACLsAdminOption) (result []DeleteACLsResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return nil, err
 	}
+	defer a.handle.runlock()
 
 	if aclBindingFilters == nil {
 		return nil, newErrorFromString(ErrInvalidArg,
@@ -2715,10 +2730,11 @@ func (a *AdminClient) DeleteACLs(ctx context.Context, aclBindingFilters ACLBindi
 // were established with the old credentials.
 // This method applies only to the SASL PLAIN and SCRAM mechanisms.
 func (a *AdminClient) SetSaslCredentials(username, password string) error {
-	err := a.verifyClient()
+	err := a.handle.rlock()
 	if err != nil {
 		return err
 	}
+	defer a.handle.runlock()
 
 	return setSaslCredentials(a.handle.rk, username, password)
 }
@@ -2741,9 +2757,16 @@ func (a *AdminClient) Close() {
 	// Wait for the log polling goroutine to terminate before cleanup
 	a.handle.waitGroup.Wait()
 
+	// Prevent any in-flight C call on another goroutine from racing with the
+	// handle destruction, and block new ones.
+	a.handle.pollLock.Lock()
+	defer a.handle.pollLock.Unlock()
+
 	a.handle.cleanup()
 
 	C.rd_kafka_destroy(a.handle.rk)
+	// Signal to any waiting rlock() callers that the handle is gone.
+	a.handle.rk = nil
 }
 
 // ListConsumerGroups lists the consumer groups available in the cluster.
@@ -2762,10 +2785,11 @@ func (a *AdminClient) ListConsumerGroups(
 	options ...ListConsumerGroupsAdminOption) (result ListConsumerGroupsResult, err error) {
 
 	result = ListConsumerGroupsResult{}
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
 	genericOptions := make([]AdminOption, len(options))
@@ -2833,10 +2857,11 @@ func (a *AdminClient) DescribeConsumerGroups(
 	options ...DescribeConsumerGroupsAdminOption) (result DescribeConsumerGroupsResult, err error) {
 
 	describeResult := DescribeConsumerGroupsResult{}
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	// Convert group names into char** required by the implementation.
 	cGroupNameList := make([]*C.char, len(groups))
@@ -2915,10 +2940,11 @@ func (a *AdminClient) DescribeTopics(
 	options ...DescribeTopicsAdminOption) (result DescribeTopicsResult, err error) {
 
 	describeResult := DescribeTopicsResult{}
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	// Convert topic names into char**.
 	cTopicNameList := make([]*C.char, len(topics.topicNames))
@@ -2999,10 +3025,11 @@ func (a *AdminClient) DescribeTopics(
 func (a *AdminClient) DescribeCluster(
 	ctx context.Context,
 	options ...DescribeClusterAdminOption) (result DescribeClusterResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 	clusterDesc := DescribeClusterResult{}
 
 	// Convert Go AdminOptions (if any) to C AdminOptions.
@@ -3058,10 +3085,11 @@ func (a *AdminClient) DeleteConsumerGroups(
 	groups []string, options ...DeleteConsumerGroupsAdminOption) (result DeleteConsumerGroupsResult, err error) {
 	cGroups := make([]*C.rd_kafka_DeleteGroup_t, len(groups))
 	deleteResult := DeleteConsumerGroupsResult{}
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return deleteResult, err
 	}
+	defer a.handle.runlock()
 
 	// Convert Go DeleteGroups to C DeleteGroups
 	for i, group := range groups {
@@ -3137,10 +3165,11 @@ func (a *AdminClient) DeleteConsumerGroups(
 func (a *AdminClient) ListConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []ConsumerGroupTopicPartitions,
 	options ...ListConsumerGroupOffsetsAdminOption) (lcgor ListConsumerGroupOffsetsResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return lcgor, err
 	}
+	defer a.handle.runlock()
 
 	lcgor.ConsumerGroupsTopicPartitions = nil
 
@@ -3238,10 +3267,11 @@ func (a *AdminClient) ListConsumerGroupOffsets(
 func (a *AdminClient) AlterConsumerGroupOffsets(
 	ctx context.Context, groupsPartitions []ConsumerGroupTopicPartitions,
 	options ...AlterConsumerGroupOffsetsAdminOption) (acgor AlterConsumerGroupOffsetsResult, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return acgor, err
 	}
+	defer a.handle.runlock()
 
 	acgor.ConsumerGroupsTopicPartitions = nil
 
@@ -3331,10 +3361,11 @@ func (a *AdminClient) DescribeUserScramCredentials(
 	result = DescribeUserScramCredentialsResult{
 		Descriptions: make(map[string]UserScramCredentialsDescription),
 	}
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	// Convert user names into char** required by the implementation.
 	cUserList := make([]*C.char, len(users))
@@ -3477,10 +3508,11 @@ func (a *AdminClient) AlterUserScramCredentials(
 	result = AlterUserScramCredentialsResult{
 		Errors: make(map[string]Error),
 	}
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	// Convert user names into char** required by the implementation.
 	cAlterationList := make([]*C.rd_kafka_UserScramCredentialAlteration_t, len(upsertions)+len(deletions))
@@ -3587,10 +3619,11 @@ func (a *AdminClient) AlterUserScramCredentials(
 func (a *AdminClient) DeleteRecords(ctx context.Context,
 	recordsToDelete []TopicPartition,
 	options ...DeleteRecordsAdminOption) (result DeleteRecordsResults, err error) {
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	if len(recordsToDelete) == 0 {
 		return result, newErrorFromString(ErrInvalidArg, "No records to delete")
@@ -3664,10 +3697,11 @@ func (a *AdminClient) DeleteRecords(ctx context.Context,
 // Additionally, an error that is not nil for client-level errors is returned.
 func (a *AdminClient) ElectLeaders(ctx context.Context, electLeaderRequest ElectLeadersRequest, options ...ElectLeadersAdminOption) (result ElectLeadersResult, err error) {
 
-	err = a.verifyClient()
+	err = a.handle.rlock()
 	if err != nil {
 		return result, err
 	}
+	defer a.handle.runlock()
 
 	var cTopicPartitions *C.rd_kafka_topic_partition_list_t
 	if electLeaderRequest.partitions != nil {
