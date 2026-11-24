@@ -68,6 +68,11 @@ func (t TimestampType) String() string {
 	}
 }
 
+type DeliveryReport struct {
+	ProducerLatency int64
+	BrokerID        int32
+}
+
 // Message represents a Kafka message
 type Message struct {
 	TopicPartition TopicPartition
@@ -76,6 +81,7 @@ type Message struct {
 	Timestamp      time.Time
 	TimestampType  TimestampType
 	Opaque         interface{}
+	DeliveryReport DeliveryReport
 	Headers        []Header
 	LeaderEpoch    *int32 // Deprecated: LeaderEpoch or nil if not available. Use m.TopicPartition.LeaderEpoch instead.
 }
@@ -133,6 +139,20 @@ func (h *handle) newMessageFromGlueMsg(gMsg *C.glue_msg_t) (msg *Message) {
 	h.setupMessageFromC(msg, gMsg.msg)
 
 	return msg
+}
+
+func generateDeliveryReport(msg *Message, cmsg *C.rd_kafka_message_t) {
+	msg.DeliveryReport = DeliveryReport{}
+
+	// The latency for a produced message measured from the produce() call.
+	producerLatency := int64(C.rd_kafka_message_latency(cmsg))
+	if producerLatency >= 0 {
+		msg.DeliveryReport.ProducerLatency = producerLatency
+	}
+
+	// The latency for a produced message measured from the produce() call.
+	brokerId := int32(C.rd_kafka_message_broker_id(cmsg))
+	msg.DeliveryReport.BrokerID = brokerId
 }
 
 // setupMessageFromC sets up a message object from a C rd_kafka_message_t
