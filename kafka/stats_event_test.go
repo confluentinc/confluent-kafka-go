@@ -18,12 +18,14 @@ package kafka
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
 
-// handleStatsEvent checks for stats event and signals on statsReceived
-func handleStatsEvent(t *testing.T, eventCh chan Event, statsReceived chan bool) {
+// handleStatsEvent checks for a stats event and sends the result on
+// statsResult. It runs in its own goroutine, so it must not call t.Fatalf.
+func handleStatsEvent(t *testing.T, eventCh chan Event, statsResult chan<- error) {
 	for ev := range eventCh {
 		switch e := ev.(type) {
 		case *Stats:
@@ -33,10 +35,11 @@ func handleStatsEvent(t *testing.T, eventCh chan Event, statsReceived chan bool)
 			var raw map[string]interface{}
 			err := json.Unmarshal([]byte(e.String()), &raw) // convert json to map
 			if err != nil {
-				t.Fatalf("json unmarshall error: %s", err)
+				statsResult <- fmt.Errorf("json unmarshall error: %s", err)
+				return
 			}
 			t.Logf("Stats['name']: %s", raw["name"])
-			close(statsReceived)
+			statsResult <- nil
 			return
 		default:
 			t.Logf("Ignored event: %v", e)
@@ -69,8 +72,8 @@ func testProducerFunc(t *testing.T, withProducerChannel bool) {
 	topic1 := "gotest"
 
 	// go routine to check for stats event
-	statsReceived := make(chan bool)
-	go handleStatsEvent(t, p.Events(), statsReceived)
+	statsResult := make(chan error, 1)
+	go handleStatsEvent(t, p.Events(), statsResult)
 
 	if withProducerChannel {
 		err = p.Produce(&Message{TopicPartition: TopicPartition{Topic: &topic1, Partition: 0},
@@ -86,7 +89,10 @@ func testProducerFunc(t *testing.T, withProducerChannel bool) {
 	}
 
 	select {
-	case <-statsReceived:
+	case err := <-statsResult:
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Logf("Stats recevied")
 	case <-time.After(time.Second * 3):
 		t.Fatalf("Excepted stats but got none")
@@ -113,8 +119,8 @@ func TestStatsEventConsumerChannel(t *testing.T) {
 	t.Logf("Consumer %s", c)
 
 	// go routine to check for stats event
-	statsReceived := make(chan bool)
-	go handleStatsEvent(t, c.Events(), statsReceived)
+	statsResult := make(chan error, 1)
+	go handleStatsEvent(t, c.Events(), statsResult)
 
 	err = c.Subscribe("gotest", nil)
 	if err != nil {
@@ -122,7 +128,10 @@ func TestStatsEventConsumerChannel(t *testing.T) {
 	}
 
 	select {
-	case <-statsReceived:
+	case err := <-statsResult:
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Logf("Stats recevied")
 	case <-time.After(time.Second * 3):
 		t.Fatalf("Excepted stats but got none")
