@@ -21,7 +21,7 @@ import (
 	"reflect"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/hamba/avro/v2"
+	"github.com/iskorotkov/avro/v2"
 )
 
 // validateMessage walks msg against schema, evaluating every inline "confluent:rules"

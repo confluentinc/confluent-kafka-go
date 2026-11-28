@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
-	"github.com/hamba/avro/v2"
+	"github.com/iskorotkov/avro/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/variant"

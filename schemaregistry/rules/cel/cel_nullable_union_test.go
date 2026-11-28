@@ -36,7 +36,7 @@ import (
 	schemaregistry "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
-	"github.com/hamba/avro/v2"
+	"github.com/iskorotkov/avro/v2"
 )
 
 func nullableRat(t *testing.T, s string) *big.Rat {
@@ -180,13 +180,9 @@ func TestComputedDecimalReachesTheWire(t *testing.T) {
 	}
 	got := wireOf(t, "nu5", rule, &nullFieldRec{Plain: "hi"})
 
-	branch, ok := got["amount"].(map[string]interface{})
+	rat, ok := got["amount"].(*big.Rat)
 	if !ok {
-		t.Fatalf("amount = %#v, want the union's branch map", got["amount"])
-	}
-	rat, ok := branch["bytes.decimal"].(*big.Rat)
-	if !ok {
-		t.Fatalf("amount branch = %#v, want a *big.Rat", branch)
+		t.Fatalf("amount = %#v, want a *big.Rat", got["amount"])
 	}
 	if rat.FloatString(2) != "2.34" {
 		t.Errorf("amount = %s, want 2.34", rat.FloatString(2))

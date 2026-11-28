@@ -23,7 +23,7 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/hamba/avro/v2"
+	"github.com/iskorotkov/avro/v2"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 )
