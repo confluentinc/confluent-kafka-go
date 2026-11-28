@@ -8,7 +8,7 @@ require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
 	github.com/confluentinc/confluent-kafka-go/v2 v2.16.1
 	github.com/gdamore/tcell v1.4.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.12
 )
 
 require (

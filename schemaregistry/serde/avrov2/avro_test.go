@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
-	"github.com/hamba/avro/v2"
+	"github.com/iskorotkov/avro/v2"
 
 	_ "github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/cel"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/rules/encryption"
@@ -2166,11 +2166,12 @@ func TestAvroSerdeEncryptionWithWrappedUnion(t *testing.T) {
 	bytes, err := ser.Serialize("topic1", &obj)
 	serde.MaybeFail("serialization", err)
 
-	// Reset encrypted field
-	// Note that we use a wrapped union for secret
-	obj["result"].(map[string]interface{})["com.acme.Data"].(map[string]interface{})["secret"] = map[string]interface{}{
-		"string": "mypii",
-	}
+	// Serialize encrypts the secret field in-place, so reset it to the plaintext
+	// we expect to see after deserialize+decrypt. iskorotkov/avro (and hamba >=
+	// v2.24.1, per upstream PR #427) decodes union-typed record fields into
+	// map[string]interface{} as the unwrapped value, not the legacy {"string": v}
+	// wrapped form.
+	obj["result"].(map[string]interface{})["com.acme.Data"].(map[string]interface{})["secret"] = "mypii"
 
 	deserConfig := NewDeserializerConfig()
 	deserConfig.RuleConfig = map[string]string{

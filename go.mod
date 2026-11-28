@@ -17,11 +17,11 @@ require (
 	github.com/confluentinc/confluent-avro-go/v2 v2.32.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
-	github.com/hamba/avro/v2 v2.24.0
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/api/auth/approle v0.12.0
 	github.com/heetch/avro v0.4.79
 	github.com/invopop/jsonschema v0.14.0
+	github.com/iskorotkov/avro/v2 v2.35.0
 	github.com/jhump/protoreflect v1.15.6
 	github.com/modern-go/reflect2 v1.0.2
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -32,7 +32,7 @@ require (
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.169.0
 	google.golang.org/genproto v0.0.0-20240325203815-454cdb8f5daa
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -90,7 +90,7 @@ require (
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948 // indirect
